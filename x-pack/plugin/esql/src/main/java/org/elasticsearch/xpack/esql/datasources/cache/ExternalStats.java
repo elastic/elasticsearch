@@ -15,7 +15,7 @@ import java.util.OptionalLong;
  * the unified {@link SchemaCacheEntry}: captured stats flow data-node → coordinator via
  * {@code DriverCompletionInfo.capturedSourceMetadata}, get reconciled into a {@code SchemaCacheEntry}'s
  * {@code safeMetadata} as the well-known {@code _stats.*} keys below, and the optimizer
- * ({@code PushAggregatesToExternalSource}) short-circuits {@code COUNT(*) / COUNT(col) / MIN(col) /
+ * ({@code PushStatsToExternalSource}) short-circuits {@code COUNT(*) / COUNT(col) / MIN(col) /
  * MAX(col)} on warm queries. This type holds only the key names and the {@link Stats} / {@link ColumnStats}
  * records shared across the capture, reconcile, and lookup sites.
  */

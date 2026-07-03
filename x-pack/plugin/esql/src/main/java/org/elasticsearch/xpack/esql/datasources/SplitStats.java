@@ -337,7 +337,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      * <p>
      * Returns {@code -1} only in the rare case where the column is physically present but the
      * reader could not extract a null count (e.g. Parquet stats disabled at write time). Callers
-     * such as {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregatesToExternalSource}
+     * such as {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource}
      * rely on this contract so that {@code Count(col) = rowCount - columnNullCount} is correct
      * across UNION_BY_NAME mixes where some files lack the column.
      */

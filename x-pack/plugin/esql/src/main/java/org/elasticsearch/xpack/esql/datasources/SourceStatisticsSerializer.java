@@ -35,7 +35,7 @@ public final class SourceStatisticsSerializer {
      * resolution) and do not represent the full dataset. This flag is set by
      * {@code ExternalSourceResolver.markStatsAsPartial} when a glob matches more than one file.
      * <p>
-     * The aggregate pushdown rule ({@code PushAggregatesToExternalSource}) checks this flag
+     * The aggregate pushdown rule ({@code PushStatsToExternalSource}) checks this flag
      * via {@code SplitStats.resolveEffectiveStats} and bails out when set. Note that once
      * per-split statistics are available (populated during split discovery), the merged
      * per-split stats take precedence and this flag is not consulted.
@@ -222,7 +222,7 @@ public final class SourceStatisticsSerializer {
      * column is physically absent from that file, so its entire row count is folded into the
      * merged {@code null_count} accumulator for that column. This makes
      * {@code Count(col) = totalRowCount - mergedNullCount} correct downstream in
-     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregatesToExternalSource}.
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource}.
      * <p>
      * Format-reader ground truth: Parquet always writes {@code size_bytes} for present columns
      * and ORC always writes {@code null_count}, so any column-family key in a per-file map is

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -39,9 +40,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Shared helpers for aggregate pushdown rules ({@link PushStatsToExternalSource} and
- * {@link PushAggregatesToExternalSource}) that extract an {@link ExternalSourceExec}
- * from the plan tree and resolve filtered metadata using {@link SplitFilterClassifier}.
+ * Shared helpers for the aggregate pushdown rule ({@link PushStatsToExternalSource}) and the
+ * split-discovery gate ({@code ComputeService.canSkipForAggregateOverExternal}) that extract an
+ * {@link ExternalSourceExec} from the plan tree and resolve filtered metadata using
+ * {@link SplitFilterClassifier}.
  */
 public final class ExternalSourceAggregatePushdown {
 
@@ -62,8 +64,9 @@ public final class ExternalSourceAggregatePushdown {
      * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport#appliesImplicitNullsForAbsentColumn()})
      * and the column was not observed ({@code stats.hasColumn(name) == false} —
      * {@link org.elasticsearch.xpack.esql.datasources.MergedSplitStats} requires every child to have observed
-     * it), the lookup is unservable. Both {@link PushStatsToExternalSource} and
-     * {@link PushAggregatesToExternalSource} gate on this so the invariant lives in one place.
+     * it), the lookup is unservable. Both the fold ({@link PushStatsToExternalSource}) and the
+     * split-discovery gate (via {@link #canServeAllFromStats}) go through {@link #resolveFromStats}, which
+     * gates on this so the invariant lives in one place.
      */
     static boolean columnStatUnservable(
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
@@ -71,6 +74,25 @@ public final class ExternalSourceAggregatePushdown {
         boolean implicitNullsForAbsentColumn
     ) {
         return implicitNullsForAbsentColumn == false && stats.hasColumn(name) == false;
+    }
+
+    /**
+     * Unwraps the {@link AggregateFunction} operands of an ungrouped aggregate's output, dropping any
+     * non-aggregate expressions (e.g. bare literals). This is the input every format's
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport#canPushAggregates}
+     * type-gate consumes — shared by {@link PushStatsToExternalSource} (fold) and
+     * {@code ComputeService.canSkipForAggregateOverExternal} (split-discovery gate) so both feed the
+     * gate the same function list.
+     */
+    public static List<Expression> extractAggregateFunctions(List<? extends Expression> aggregates) {
+        List<Expression> result = new ArrayList<>(aggregates.size());
+        for (Expression agg : aggregates) {
+            Expression toCheck = agg instanceof Alias alias ? alias.child() : agg;
+            if (toCheck instanceof AggregateFunction) {
+                result.add(toCheck);
+            }
+        }
+        return result;
     }
 
     /**
@@ -125,14 +147,14 @@ public final class ExternalSourceAggregatePushdown {
 
     /**
      * Whether EVERY aggregate in {@code aggregates} would resolve from {@code stats} — the boolean twin of
-     * {@link PushAggregatesToExternalSource}'s value-collecting loop. The split-discovery gate
+     * {@link PushStatsToExternalSource}'s value-collecting loop. The split-discovery gate
      * ({@code ComputeService.canSkipSplitDiscovery}) must consult THIS check, not just the type-level
      * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport#canPushAggregates}: the two
      * previously diverged on per-column servability, so the gate would skip discovery (leaving a zero-split
      * scan) for an aggregate the fold then safe-missed, and the scan's un-pruned union_by_name mapping tripped
      * {@code SchemaAdaptingIterator}'s width guard (elastic/esql-planning#985). Sharing {@code resolveFromStats}
      * with the fold guarantees "gate skips" implies "fold serves". The bail conditions here must stay identical
-     * to {@code PushAggregatesToExternalSource.resolveAggregateValues}.
+     * to {@link PushStatsToExternalSource}'s value loop.
      */
     public static boolean canServeAllFromStats(
         List<? extends NamedExpression> aggregates,

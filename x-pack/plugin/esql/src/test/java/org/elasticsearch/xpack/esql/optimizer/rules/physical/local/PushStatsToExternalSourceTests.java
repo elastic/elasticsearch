@@ -108,8 +108,8 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
      * Same shape as {@link #testCountFieldWithoutColumnEntriesPushedAsImplicitNullCount}, but the source is a
      * text format ({@link TextAggregatePushdownSupport} declares {@code appliesImplicitNullsForAbsentColumn() ==
      * false}). For text an absent column key means "not harvested," not "all-null," so {@code rowCount - rowCount
-     * = 0} would be wrong. This rule runs before {@link PushAggregatesToExternalSource}, so it must apply the
-     * same safe-miss — leaving the {@code AggregateExec} in place for a re-scan rather than serving 0.
+     * = 0} would be wrong. The rule must apply the safe-miss — leaving the {@code AggregateExec} in place for a
+     * re-scan rather than serving 0.
      */
     public void testTextFormatCountFieldWithoutColumnEntriesSafeMisses() {
         Map<String, Object> metadata = new HashMap<>();

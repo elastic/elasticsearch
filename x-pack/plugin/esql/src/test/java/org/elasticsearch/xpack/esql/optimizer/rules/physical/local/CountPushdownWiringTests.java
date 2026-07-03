@@ -61,7 +61,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * Wiring tests that verify COUNT(*) pushdown works end-to-end through
  * {@link PlannerUtils#localPlan} — the same code path used on data nodes.
  * <p>
- * Unlike {@link PushAggregatesToExternalSourceTests} which tests the optimizer rule
+ * Unlike {@link PushStatsToExternalSourceTests} which tests the optimizer rule
  * in isolation, these tests exercise the full chain: FragmentExec containing a logical
  * Aggregate → ExternalRelation is mapped, splits are injected, and the physical
  * optimizer runs. This catches regressions where splits lose their statistics during

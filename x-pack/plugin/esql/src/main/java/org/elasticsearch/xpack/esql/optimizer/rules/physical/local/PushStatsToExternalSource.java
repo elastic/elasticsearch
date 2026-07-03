@@ -87,9 +87,9 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         Expression filterCondition = info.filterCondition();
 
         // Consulting the format's implicit-nulls declaration requires the registry. Honor the
-        // ExternalOptimizerContext.NONE contract — treat a missing registry as "no information" and bail —
-        // mirroring PushAggregatesToExternalSource exactly. (A NONE context never carries an ExternalSourceExec
-        // today, but bailing keeps the two rules and the documented contract in lockstep.)
+        // ExternalOptimizerContext.NONE contract — treat a missing registry as "no information" and bail.
+        // (A NONE context never carries an ExternalSourceExec today, but bailing keeps the rule and the
+        // documented contract in lockstep.)
         FormatReaderRegistry formatReaderRegistry = ctx == null || ctx.external() == null ? null : ctx.external().formatReaderRegistry();
         if (formatReaderRegistry == null) {
             return aggregateExec;
@@ -156,18 +156,35 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         }
         List<? extends NamedExpression> aggregates = aggregateExec.aggregates();
 
-        List<Object> values = new ArrayList<>(aggregates.size());
-        List<DataType> dataTypes = new ArrayList<>(aggregates.size());
-
+        // Resolve each aggregate's alias children back to the source columns once (identity for the direct
+        // ExternalSourceExec shape), so both the format type-gate below and the value loop see the true columns.
+        List<Expression> resolvedAggExprs = new ArrayList<>(aggregates.size());
         for (NamedExpression agg : aggregates) {
             if (agg instanceof Alias == false) {
                 return aggregateExec;
             }
-            Alias alias = (Alias) agg;
-            Expression aggExpr = alias.child();
+            Expression aggExpr = ((Alias) agg).child();
             if (aliasReplacedBy.isEmpty() == false) {
                 aggExpr = aggExpr.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
             }
+            resolvedAggExprs.add(aggExpr);
+        }
+
+        // Consult the format's declared aggregate pushability before touching stats — each pushdown path (this
+        // fold and ComputeService's split-discovery gate) gates on canPushAggregates so the two cannot diverge.
+        // Gate on the ALIAS-RESOLVED functions so the type/virtual-column checks see the real columns. No
+        // isEmpty() bail: canPushAggregates(List.of(), List.of()) is YES in every impl, preserving today's
+        // empty/no-AggregateFunction behavior exactly.
+        List<Expression> aggFunctions = ExternalSourceAggregatePushdown.extractAggregateFunctions(resolvedAggExprs);
+        if (formatReader.aggregatePushdownSupport()
+            .canPushAggregates(aggFunctions, List.of()) != AggregatePushdownSupport.Pushability.YES) {
+            return aggregateExec;
+        }
+
+        List<Object> values = new ArrayList<>(aggregates.size());
+        List<DataType> dataTypes = new ArrayList<>(aggregates.size());
+
+        for (Expression aggExpr : resolvedAggExprs) {
             Object value = ExternalSourceAggregatePushdown.resolveFromStats(aggExpr, stats, implicitNullsForAbsentColumn);
             if (value == null) {
                 return aggregateExec;

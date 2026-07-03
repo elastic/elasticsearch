@@ -64,7 +64,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
-public class PushAggregatesToExternalSourceTests extends ESTestCase {
+public class ExternalSourceAggregatePushdownTests extends ESTestCase {
 
     private static final ReferenceAttribute AGE = referenceAttribute("age", DataType.INTEGER);
     private static final ReferenceAttribute SCORE = referenceAttribute("score", DataType.DOUBLE);
@@ -312,8 +312,22 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         ExternalSourceExec ext = externalSource(statsMetadata(1000L, null, null));
         var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
 
-        PhysicalPlan result = new PushAggregatesToExternalSource().apply(agg, nullRegistryContext());
+        PhysicalPlan result = new PushStatsToExternalSource().apply(agg, nullRegistryContext());
         as(result, AggregateExec.class);
+    }
+
+    public void testFormatGateRespected() {
+        // ITEM 2 gate: the rule consults the format's declared aggregate pushability BEFORE touching stats, so it
+        // cannot fold where the format declares the aggregate unpushable (symmetric with ComputeService's
+        // split-discovery skip-gate). A support that declares NO must make the rule bail even though the stats
+        // could serve COUNT(*). Fails without the canPushAggregates gate in PushStatsToExternalSource.rule.
+        AggregatePushdownSupport rejectAll = (aggregates, groupings) -> AggregatePushdownSupport.Pushability.NO;
+        FormatReaderRegistry registry = new FormatReaderRegistry(null);
+        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(rejectAll), null, null);
+
+        // Stats that WOULD serve COUNT(*) if the gate let the rule proceed.
+        var agg = aggregateExec(AggregatorMode.SINGLE, externalSource(statsMetadata(1000L, null, null)), countStarAlias());
+        as(new PushStatsToExternalSource().apply(agg, buildContext(registry)), AggregateExec.class);
     }
 
     public void testCountFieldWithoutColumnEntriesPushedAsImplicitNullCount() {
@@ -372,7 +386,7 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
     /**
      * #985 gate/fold ALIGNMENT. The skip-discovery gate ({@code ComputeService.canSkipSplitDiscovery}) and the
-     * fold rule ({@code PushAggregatesToExternalSource}) previously diverged: the gate's type-only
+     * fold rule previously diverged: the gate's type-only
      * {@code AggregatePushdownSupport.canPushAggregates} said {@code MIN(score)} was pushable while the fold
      * safe-missed on {@code score}'s unservable stats, leaving a zero-split scan that crashed under
      * union_by_name (#985). The gate now consults the SAME servability decision the fold uses —
@@ -939,11 +953,11 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
     }
 
     private static PhysicalPlan applyRule(AggregateExec agg) {
-        return new PushAggregatesToExternalSource().apply(agg, buildContext(buildParquetRegistry()));
+        return new PushStatsToExternalSource().apply(agg, buildContext(buildParquetRegistry()));
     }
 
     private static PhysicalPlan applyRuleText(AggregateExec agg) {
-        return new PushAggregatesToExternalSource().apply(agg, buildContext(buildTextRegistry()));
+        return new PushStatsToExternalSource().apply(agg, buildContext(buildTextRegistry()));
     }
 
     /**

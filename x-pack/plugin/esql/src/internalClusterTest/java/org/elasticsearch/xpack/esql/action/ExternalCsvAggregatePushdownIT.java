@@ -184,8 +184,8 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
      * Regression for the cross-query partial-harvest path. A cold {@code COUNT(*)} caches the file's row
      * count but harvests no per-column stats (it projects zero columns). A later {@code COUNT(value)} on the
      * same file is warm and finds {@code row_count} but no {@code value} column in the cache.
-     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource} runs
-     * before {@code PushAggregatesToExternalSource} and is format-agnostic; without the text safe-miss it
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource} is
+     * format-agnostic; without the text safe-miss it
      * would serve {@code rowCount - columnNullCount(value) = rowCount - rowCount = 0}
      * ({@code columnNullCount} returns {@code rowCount} for an absent column under the implicit-nulls contract,
      * which line-oriented text formats do not honour). The fix makes it safe-miss and re-scan, so the warm

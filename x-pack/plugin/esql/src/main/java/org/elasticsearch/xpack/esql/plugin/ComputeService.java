@@ -56,11 +56,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -73,7 +71,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -466,7 +463,7 @@ public class ComputeService {
         if (support == AggregatePushdownSupport.UNSUPPORTED) {
             return false;
         }
-        List<Expression> aggFunctions = extractAggregateFunctions(agg.aggregates());
+        List<Expression> aggFunctions = ExternalSourceAggregatePushdown.extractAggregateFunctions(agg.aggregates());
         // No aggregate functions to push (e.g. only literals): keep normal discovery.
         if (aggFunctions.isEmpty()) {
             return false;
@@ -475,7 +472,7 @@ public class ComputeService {
             return false;
         }
         // The type-level canPushAggregates check above is necessary but not sufficient: the fold rule
-        // (PushAggregatesToExternalSource) additionally safe-misses when a column's statistics are unservable
+        // (PushStatsToExternalSource) additionally safe-misses when a column's statistics are unservable
         // (unharvested text column, poisoned/divergent extremum). If the gate skipped discovery while the fold
         // then bailed, the query would run a zero-split scan whose un-pruned union_by_name ColumnMapping trips
         // SchemaAdaptingIterator's width guard (elastic/esql-planning#985). Mirror the fold's exact resolution:
@@ -487,17 +484,6 @@ public class ComputeService {
             return false;
         }
         return ExternalSourceAggregatePushdown.canServeAllFromStats(agg.aggregates(), stats, support.appliesImplicitNullsForAbsentColumn());
-    }
-
-    private static List<Expression> extractAggregateFunctions(List<? extends NamedExpression> aggregates) {
-        List<Expression> result = new ArrayList<>(aggregates.size());
-        for (NamedExpression agg : aggregates) {
-            Expression toCheck = agg instanceof Alias alias ? alias.child() : agg;
-            if (toCheck instanceof AggregateFunction) {
-                result.add(toCheck);
-            }
-        }
-        return result;
     }
 
     private void discoverSplitsFromFragments(

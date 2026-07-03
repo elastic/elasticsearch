@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 import java.util.List;
 
@@ -25,6 +27,44 @@ import java.util.List;
 public final class ExternalSourceSettings {
 
     private ExternalSourceSettings() {}
+
+    /** Blob-store access concurrency per allocated processor — the {@code snapshot_meta} thread pool's slope. */
+    static final int BLOB_STORE_CONCURRENCY_PER_PROCESSOR = 3;
+
+    /**
+     * Ceiling for the CPU-derived blob-store access concurrency. Mirrors the {@code snapshot_meta} thread pool's
+     * {@code min(processors * 3, 50)} shape but lifts the cap to 100: external metadata discovery and data reads
+     * fan out over many small blobs (footers, byte ranges), so they benefit from more in-flight requests than
+     * snapshot metadata does, while still bounding the total against a single store's tolerance.
+     */
+    static final int BLOB_STORE_CONCURRENCY_CEILING = 100;
+
+    /**
+     * The default per-node concurrency for accessing an external blob store, derived from the node's allocated
+     * processors using the {@code snapshot_meta} thread pool's sizing shape ({@code processors * 3}) with a 100
+     * ceiling. This is the single source of truth for blob-store access concurrency so metadata discovery and
+     * data retrieval stay consistent: both are latency-bound I/O against object stores and should scale the same
+     * way with node size rather than each picking an ad-hoc constant.
+     */
+    public static int defaultBlobStoreConcurrency(int allocatedProcessors) {
+        return Math.min(allocatedProcessors * BLOB_STORE_CONCURRENCY_PER_PROCESSOR, BLOB_STORE_CONCURRENCY_CEILING);
+    }
+
+    /** Convenience overload resolving allocated processors from the given settings. */
+    public static int defaultBlobStoreConcurrency(Settings settings) {
+        return defaultBlobStoreConcurrency(EsExecutors.allocatedProcessors(settings));
+    }
+
+    /**
+     * The effective per-node blob-store access concurrency that every external access path should read, so one knob
+     * governs metadata discovery and data reads alike. On this branch it resolves to the CPU-bound
+     * {@link #defaultBlobStoreConcurrency(Settings)} default; once the per-query concurrency work (PR B) lands its
+     * operator setting on top, this accessor becomes the override-aware value and both paths pick that up unchanged
+     * — the call sites do not move, only this body does.
+     */
+    public static int blobStoreConcurrency(Settings settings) {
+        return defaultBlobStoreConcurrency(settings);
+    }
 
     /**
      * Maximum concurrent in-flight external-storage reads per backend, per node. Sizes the S3/Azure SDK connection
@@ -84,24 +124,60 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Enables {@code auth=workload_identity} for EXTERNAL cloud reads, which resolves credentials from the node's
-     * workload identity (IAM instance profile / IMDS on AWS and Azure, GCE metadata server on GCP)
-     * rather than requiring explicit credentials in the query or datasource.
-     * <p>
-     * Disabled by default. Must be explicitly enabled by an operator on self-hosted, single-cloud,
-     * single-tenant deployments where the node's workload identity is the intended credential.
-     * Never enable in serverless or multi-tenant deployments: workload identity credentials bypass tenant isolation.
-     * <p>
-     * This is an operator-dynamic setting: changes take effect immediately without a node restart.
+     * Deprecated former name for {@link #MANAGED_IDENTITY_ENABLED}. Still honored for backwards compatibility — it is the
+     * fallback source for the new key, so an operator's existing {@code esql.datasource.workload_identity.enabled} config
+     * keeps working — and emits a deprecation warning when set. Prefer {@link #MANAGED_IDENTITY_ENABLED}.
      */
     public static final Setting<Boolean> WORKLOAD_IDENTITY_ENABLED = Setting.boolSetting(
         "esql.datasource.workload_identity.enabled",
         false,
         Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.DeprecatedWarning
+    );
+
+    /**
+     * Enables {@code auth=managed_identity} for external data source reads, which resolves credentials from the node's
+     * ambient cloud identity (IAM instance profile / IMDS on AWS and Azure, GCE metadata server on GCP)
+     * rather than requiring explicit credentials in the query or datasource.
+     * <p>
+     * Disabled by default. Must be explicitly enabled by an operator on self-hosted, single-cloud,
+     * single-tenant deployments where the node's ambient identity is the intended credential.
+     * Never enable in serverless or multi-tenant deployments: ambient credentials bypass tenant isolation.
+     * <p>
+     * This is an operator-dynamic setting: changes take effect immediately without a node restart. When this key is
+     * not set, it falls back to the deprecated {@link #WORKLOAD_IDENTITY_ENABLED} key's value, so reads through this
+     * setting see an operator's pre-rename configuration.
+     */
+    public static final Setting<Boolean> MANAGED_IDENTITY_ENABLED = Setting.boolSetting(
+        "esql.datasource.managed_identity.enabled",
+        WORKLOAD_IDENTITY_ENABLED,
+        Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
 
+    /**
+     * Allowlist of local filesystem root paths from which ES|QL {@code file://} external sources are permitted to read.
+     * Mirrors {@code path.repo}: the list <em>is</em> the enable — an empty list (the default) disables local-disk reads
+     * entirely. When non-empty, a {@code file://} path is allowed only if it normalizes to a location under one of the
+     * listed roots; {@code ..}-escapes and anything outside every root are rejected.
+     * <p>
+     * This is a node-scope setting; a node restart is required for changes to take effect.
+     */
+    public static final Setting<List<String>> LOCAL_ALLOWED_PATHS = Setting.stringListSetting(
+        "esql.datasource.local_allowed_paths",
+        Setting.Property.NodeScope
+    );
+
     public static List<Setting<?>> settings() {
-        return List.of(MAX_CONNECTIONS, THROTTLE_MAX_RETRY_DURATION, MAX_DISCOVERED_FILES, MAX_GLOB_EXPANSION, WORKLOAD_IDENTITY_ENABLED);
+        return List.of(
+            MAX_CONNECTIONS,
+            THROTTLE_MAX_RETRY_DURATION,
+            MAX_DISCOVERED_FILES,
+            MAX_GLOB_EXPANSION,
+            WORKLOAD_IDENTITY_ENABLED,
+            MANAGED_IDENTITY_ENABLED,
+            LOCAL_ALLOWED_PATHS
+        );
     }
 }

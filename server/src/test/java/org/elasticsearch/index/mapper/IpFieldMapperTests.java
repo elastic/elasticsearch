@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
@@ -608,6 +609,24 @@ public class IpFieldMapperTests extends MapperTestCase {
             e.getCause().getMessage(),
             containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
+    }
+
+    public void testHighCardinalityAllowedForIndexSortField() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // LOGSDB_COLUMNAR (strict columnar) defaults doc values to high cardinality; cardinality is not user-configurable.
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")
+            .build();
+        // cardinality: high is now valid for index sort fields.
+        MapperService ms = createMapperService(settings, mapping(b -> {
+            b.startObject("field");
+            b.field("type", "ip");
+            b.endObject();
+        }));
+        var ft = (IpFieldMapper.IpFieldType) ms.fieldType("field");
+        assertNotNull(ft);
+        assertTrue(ft.usesBinaryDocValues());
     }
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {

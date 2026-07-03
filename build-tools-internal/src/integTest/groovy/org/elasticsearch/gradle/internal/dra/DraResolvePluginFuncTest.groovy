@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal.dra
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.elasticsearch.gradle.fixtures.WiremockFixture
 import org.gradle.testkit.runner.TaskOutcome
@@ -17,8 +17,11 @@ import org.junit.ClassRule
 import spock.lang.Shared
 import spock.lang.Unroll
 
-class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
+class DraResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.dra.DraResolvePlugin
+
+    
     @Shared
     @ClassRule
     public LocalRepositoryFixture repository = new LocalRepositoryFixture()
@@ -26,11 +29,8 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
     def setup() {
         configurationCacheCompatible = false
 
+        // elasticsearch.dra-artifacts is applied by AbstractGradleInternalPluginFuncTest
         buildFile << """
-        plugins {
-            id 'elasticsearch.dra-artifacts'
-        }
-
         repositories.all {
             // for supporting http testing repos here
             allowInsecureProtocol = true

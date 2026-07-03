@@ -14,6 +14,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -360,7 +361,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "regression_two_jobs_with_same_randomize_seed_source";
-        indexData(sourceIndex, 100, 0);
+        indexData(sourceIndex, 100, 0, false, DETERMINISTIC_DOC_ORDER_INDEX_SETTINGS);
+        forceMergeSingleSegment(sourceIndex);
 
         String firstJobId = "regression_two_jobs_with_same_randomize_seed_1";
         String firstJobDestIndex = firstJobId + "_dest";
@@ -880,10 +882,14 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows) {
-        indexData(sourceIndex, numTrainingRows, numNonTrainingRows, false);
+        indexData(sourceIndex, numTrainingRows, numNonTrainingRows, false, Settings.EMPTY);
     }
 
     static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, boolean dataStream) {
+        indexData(sourceIndex, numTrainingRows, numNonTrainingRows, dataStream, Settings.EMPTY);
+    }
+
+    static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, boolean dataStream, Settings indexSettings) {
         String mapping = Strings.format("""
             {
               "properties": {
@@ -908,7 +914,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 throw new ElasticsearchException(ex);
             }
         } else {
-            client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
+            client().admin().indices().prepareCreate(sourceIndex).setSettings(indexSettings).setMapping(mapping).get();
         }
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

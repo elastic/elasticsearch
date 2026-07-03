@@ -19,7 +19,6 @@ plugins {
     id 'java-test-fixtures'
     id 'elasticsearch.publish'
     id 'elasticsearch.build-tools'
-    id 'elasticsearch.eclipse'
     id 'elasticsearch.versions'
     id 'elasticsearch.formatting'
 }

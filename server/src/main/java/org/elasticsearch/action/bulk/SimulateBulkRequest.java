@@ -10,6 +10,8 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -98,7 +100,8 @@ import java.util.stream.Collectors;
  *   are the pipelineIds ("my-pipeline-1" and "my-pipeline-2" in the example above). The values are the Maps of "processors" to the List of
  *   processor definitions.
  */
-public class SimulateBulkRequest extends BulkRequest {
+public class SimulateBulkRequest extends BulkRequest implements IndicesRequest {
+
     private final Map<String, Map<String, Object>> pipelineSubstitutions;
     private final Map<String, Map<String, Object>> componentTemplateSubstitutions;
     private final Map<String, Map<String, Object>> indexTemplateSubstitutions;
@@ -225,5 +228,15 @@ public class SimulateBulkRequest extends BulkRequest {
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
         return bulkRequest;
+    }
+
+    @Override
+    public String[] indices() {
+        return getIndices().toArray(new String[0]);
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 }

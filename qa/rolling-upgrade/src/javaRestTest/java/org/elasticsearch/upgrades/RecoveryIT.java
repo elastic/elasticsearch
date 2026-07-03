@@ -198,8 +198,8 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
         assertThat("preference [" + preference + "]", actualDocs, equalTo(expectedCount));
     }
 
-    private String getNodeId(Predicate<Version> nodeIdPredicate) throws IOException {
-        return findNodeId((version, buildHash) -> nodeIdPredicate.test(Version.fromString(version)));
+    private String getNodeId(Predicate<Version> versionPredicate) throws IOException {
+        return findNodeId((version, buildHash) -> versionPredicate.test(Version.fromString(version)));
     }
 
     private String getUpgradedNodeId() throws IOException {

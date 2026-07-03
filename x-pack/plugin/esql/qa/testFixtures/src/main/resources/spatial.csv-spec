@@ -494,6 +494,7 @@ POINT (-2.597342072712148 54.33551226578214)    | 17
 
 countFromAirportsAfterIntersectsPredicateInvalidBoundsLiteral
 required_capability: st_intersects
+required_capability: spatial_bbox_validation_fix
 
 // An inverted BBOX (maxY < minY) is an invalid envelope. The literal fails to parse into a geo_shape,
 // so it folds to null (with a warning), and ST_INTERSECTS(field, NULL) matches no rows rather than failing the query.
@@ -1411,6 +1412,7 @@ wkt:keyword    | pt:geo_point  | distance:double
 
 literalGeoPointDistanceInvalidLiteralPoint
 required_capability: st_distance
+required_capability: spatial_bbox_validation_fix
 
 // An out-of-range point literal fails to parse into a geo_point, so it folds to null (with a warning),
 // and ST_DISTANCE returns null for every row rather than failing the query.

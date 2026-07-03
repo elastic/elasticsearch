@@ -21,6 +21,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
@@ -207,6 +208,33 @@ final class ParquetColumnDecoding {
         return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
     }
 
+    // ---- Unsigned integer logical-type checks ----
+
+    /**
+     * Returns {@code true} when {@code primitiveType} carries the Parquet {@code UINT_32} logical
+     * annotation (physical {@code INT32}, {@code intType(32, false)}) — the shape that widens to
+     * ESQL {@code LONG} because unsigned 32-bit values can exceed signed {@code int} range. Shared
+     * by the predicate pushdown and stats-normalization code paths so the two cannot drift.
+     */
+    static boolean isUnsignedInt32(PrimitiveType primitiveType) {
+        return isUnsignedInt(primitiveType, 32);
+    }
+
+    /**
+     * Returns {@code true} when {@code primitiveType} carries the Parquet {@code UINT_64} logical
+     * annotation (physical {@code INT64}, {@code intType(64, false)}) — the shape that maps to ESQL
+     * {@code UNSIGNED_LONG}, which ESQL stores sign-flip-encoded via {@link #encodeUnsignedLong}.
+     */
+    static boolean isUnsignedInt64(PrimitiveType primitiveType) {
+        return isUnsignedInt(primitiveType, 64);
+    }
+
+    private static boolean isUnsignedInt(PrimitiveType primitiveType, int bitWidth) {
+        return primitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
+            && intLogical.isSigned() == false
+            && intLogical.getBitWidth() == bitWidth;
+    }
+
     // ---- Unsigned long encoding ----
 
     /**
@@ -311,7 +339,7 @@ final class ParquetColumnDecoding {
             case UNSIGNED_LONG -> readListUnsignedLongColumn(cr, maxDef, rows, blockFactory);
             case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);
             case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
-            case KEYWORD, TEXT -> readListBytesRefColumn(cr, maxDef, rows, blockFactory);
+            case KEYWORD, TEXT -> readListBytesRefColumn(cr, info, rows, blockFactory);
             case DATETIME -> readListDatetimeColumn(cr, info, rows, blockFactory);
             case DATE_NANOS -> readListDateNanosColumn(cr, info, rows, blockFactory);
             default -> {
@@ -432,9 +460,15 @@ final class ParquetColumnDecoding {
         }
     }
 
-    private static Block readListBytesRefColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListBytesRefColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
+        int maxDef = info.maxDefLevel();
+        // UUID-annotated bytes are raw 16-byte payloads: format them as hex (matching the scalar path)
+        // rather than sanitizing, which would mangle valid UUID bytes into replacement characters.
+        boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
         try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
+            Runnable appender = isUuid
+                ? () -> builder.appendBytesRef(new BytesRef(formatUuid(cr.getBinary().getBytes())))
+                : () -> builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(cr.getBinary().getBytes())));
             for (int row = 0; row < rows; row++) {
                 readListRow(cr, maxDef, builder, appender);
             }

@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -1145,7 +1146,7 @@ final class PageColumnReader implements Releasable {
                 for (int i = 0; i < fromPage; i++) {
                     allValues[produced + i] = isUuid
                         ? new BytesRef(ParquetColumnDecoding.formatUuid(vals[i].bytes, vals[i].offset, vals[i].length))
-                        : vals[i];
+                        : Utf8Sanitizer.sanitize(vals[i]);
                 }
                 advancePosition(fromPage);
                 produced += fromPage;
@@ -1174,7 +1175,7 @@ final class PageColumnReader implements Releasable {
                     BytesRef uuidRef = vals[valIdx++];
                     allValues[produced + i] = new BytesRef(ParquetColumnDecoding.formatUuid(uuidRef.bytes, uuidRef.offset, uuidRef.length));
                 } else {
-                    allValues[produced + i] = vals[valIdx++];
+                    allValues[produced + i] = Utf8Sanitizer.sanitize(vals[valIdx++]);
                 }
             }
             advancePosition(fromPage);
@@ -1272,7 +1273,7 @@ final class PageColumnReader implements Releasable {
         if (nulls == null || nulls.isEmpty()) {
             int constantOrdinal = detectConstantOrdinal(ordinals, produced);
             if (constantOrdinal >= 0) {
-                return blockFactory.newConstantBytesRefBlockWith(dict[constantOrdinal], produced);
+                return blockFactory.newConstantBytesRefBlockWith(Utf8Sanitizer.sanitize(dict[constantOrdinal]), produced);
             }
         }
         IntBlock ordinalsBlock = null;
@@ -1346,7 +1347,9 @@ final class PageColumnReader implements Releasable {
         boolean success = false;
         try {
             for (BytesRef entry : entries) {
-                array.append(entry);
+                // KEYWORD ordinal dictionary path only (buildDictionaryVector -> here); sanitize each
+                // dictionary entry once per chunk so the OrdinalBytesRefBlock never exposes malformed UTF-8.
+                array.append(Utf8Sanitizer.sanitize(entry));
             }
             cachedDictArray = array;
             cachedDictArraySource = dictionary;
@@ -1410,6 +1413,15 @@ final class PageColumnReader implements Releasable {
             Block allNull = ConstantBlockDetection.tryAllNull(combinedNulls.toBitSet(), filled, blockFactory);
             if (allNull != null) {
                 return allNull;
+            }
+        }
+        // KEYWORD materialized fallback: {@code all} mixes raw dictionary entries with scalar values read
+        // after the chunk fell off dictionary encoding (this path is never taken for UUID, see readBytesBatch),
+        // so sanitize each position once before building. sanitize returns the input unchanged when it is
+        // already well-formed, so shared dictionary entries are not copied or mutated.
+        for (int i = 0; i < filled; i++) {
+            if (combinedNulls == null || combinedNulls.get(i) == false) {
+                all[i] = Utf8Sanitizer.sanitize(all[i]);
             }
         }
         return buildBytesRefBlock(all, combinedNulls, filled, blockFactory);

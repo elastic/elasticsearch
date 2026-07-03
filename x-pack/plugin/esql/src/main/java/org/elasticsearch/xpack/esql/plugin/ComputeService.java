@@ -57,6 +57,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -1333,6 +1334,37 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
+            // Bridge per-driver stop hooks to the async task's execution info. Source operators register
+            // non-destructive hooks on their {@link DriverContext} (today: {@code AsyncExternalSourceOperator}
+            // closes its buffer's input side, which lets the driver drain already-buffered pages while the
+            // producer thread exits). {@code TransportEsqlAsyncStopAction} fires the resulting list when the
+            // user requests STOP, so coordinator-only plans with no exchange-sink path back to the
+            // coordinator still wind down cleanly. Distributed plans get their pipeline cut by the
+            // exchange-close cascade — these hooks are idempotent overlays that never re-cut a driver.
+            //
+            // Only async ES|QL tasks carry an {@link EsqlExecutionInfo} we own here — sync tasks have no STOP
+            // semantics, and data-node tasks are not {@link EsqlQueryTask} instances, so no hooks register
+            // there and STOP on the coordinator never reaches across nodes through this path.
+            //
+            // {@code runCompute} fires multiple times per coordinator task (subplans, reductions, cluster
+            // fan-outs). Without cleanup, {@code execInfo.stopHooks} would keep references to every
+            // already-completed phase's drivers for the whole task lifetime. We register per-phase hooks
+            // here and remove them when {@code driverListener} fires (i.e. when this phase's drivers
+            // have all completed), so the list stays scoped to live drivers only.
+            final EsqlExecutionInfo hookExecInfo;
+            final List<BooleanSupplier> registeredStopHooks;
+            if (task instanceof EsqlQueryTask asyncTask && asyncTask.executionInfo() != null) {
+                hookExecInfo = asyncTask.executionInfo();
+                registeredStopHooks = new ArrayList<>(drivers.size());
+                for (Driver d : drivers) {
+                    BooleanSupplier hook = d::runStopHooks;
+                    hookExecInfo.addStopHook(hook);
+                    registeredStopHooks.add(hook);
+                }
+            } else {
+                hookExecInfo = null;
+                registeredStopHooks = null;
+            }
             long planningBytesRead = planningBytesRead(directoryBytesRead, bytesBefore);
             // Pass the ORIGINAL plan (immutable, not transformed) for profiling
             ActionListener<Void> driverListener = addCompletionInfo(
@@ -1348,7 +1380,14 @@ public class ComputeService {
                 task,
                 drivers,
                 transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
-                ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
+                ActionListener.releaseAfter(driverListener, () -> {
+                    if (hookExecInfo != null) {
+                        for (BooleanSupplier hook : registeredStopHooks) {
+                            hookExecInfo.removeStopHook(hook);
+                        }
+                    }
+                    Releasables.close(drivers);
+                })
             );
         } catch (Exception e) {
             if (context.description().equals(DATA_DESCRIPTION)) {

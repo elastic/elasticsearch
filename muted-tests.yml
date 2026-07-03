@@ -298,9 +298,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:ints.valuesLongGrouped}
   issue: https://github.com/elastic/elasticsearch/issues/149905
-- class: org.elasticsearch.xpack.esql.datasources.DecompressingStorageObjectTests
-  method: testDecompressStreamZstd
-  issue: https://github.com/elastic/elasticsearch/issues/149944
 - class: org.elasticsearch.xpack.stateless.allocation.StatelessDesiredBalanceReconcilerTests
   method: testStatelessFallbackAllocation
   issue: https://github.com/elastic/elasticsearch/issues/149947
@@ -569,9 +566,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
   issue: https://github.com/elastic/elasticsearch/issues/147251
-- class: org.elasticsearch.xpack.esql.datasources.CompressionDelegatingFormatReaderTests
-  method: testDelegatesMetadataAndReadZstd
-  issue: https://github.com/elastic/elasticsearch/issues/151784
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
@@ -596,9 +590,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/152027
-- class: org.elasticsearch.xpack.esql.action.ExternalParquetStringTopNSideChannelIT
-  method: testNullsFirstEarlyTermination
-  issue: https://github.com/elastic/elasticsearch/issues/152038
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceIT
   method: testCreateIndexBatching
   issue: https://github.com/elastic/elasticsearch/issues/152041
@@ -811,9 +802,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/152734
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testEachInstallOrRotationAddsExactlyOneNewKey
-  issue: https://github.com/elastic/elasticsearch/issues/152776
 - class: org.elasticsearch.transport.RemoteClusterClientTests
   method: testGetConnectionFailureCompletesOnResponseExecutor
   issue: https://github.com/elastic/elasticsearch/issues/152779
@@ -850,18 +838,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/151090
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testRotationContinuesAfterMasterFailover
-  issue: https://github.com/elastic/elasticsearch/issues/152676
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: initializationError
   issue: https://github.com/elastic/elasticsearch/issues/152849
-- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
-  method: testDefaultSettingsFailsOnCrossFileScalarObjectConflict
-  issue: https://github.com/elastic/elasticsearch/issues/152865
-- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
-  method: testSkipRowPolicyNullFillsAndWarnsClient
-  issue: https://github.com/elastic/elasticsearch/issues/152866
 - class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
   method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with multiple _slice values searches across the requested slices}
   issue: https://github.com/elastic/elasticsearch/issues/152870
+- class: org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatTests
+  method: testConjunctionOfRangeFiltersMatchesBruteForce
+  issue: https://github.com/elastic/elasticsearch/issues/152886
+- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
+  method: testConjunctionOfRangeFiltersMatchesBruteForce
+  issue: https://github.com/elastic/elasticsearch/issues/152887

@@ -46,14 +46,6 @@ public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    // Pilot the FROM <dataset> path on S3 only: the cluster's anonymous-capable S3 fixture (auth=none)
-    // backs a dataset without needing a cluster encryption key. Migrated csv-spec tests therefore run via
-    // FROM on S3 and via the rebuilt EXTERNAL query on HTTP/GCS/AZURE/LOCAL, so none are skipped.
-    @Override
-    protected Set<StorageBackend> datasetModeBackends() {
-        return Set.of(StorageBackend.S3);
-    }
-
     // CSV reads the csv-*.csv-spec files. Most shared external-*.csv-spec files read the multi-value
     // employees fixture, which under the default multi_value_syntax: none does not parse as CSV (the
     // commas inside [a,b] misalign columns); scalar coverage lives in csv-basic.csv-spec (bracket-free

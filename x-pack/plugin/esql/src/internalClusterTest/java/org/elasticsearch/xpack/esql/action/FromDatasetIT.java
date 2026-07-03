@@ -769,13 +769,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     /** Registers the {@code local_ds} data source and a {@code heavy_ds} CSV dataset pointing at {@code fixture}. */
     private void putHeavyDataset(Path fixture) {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("heavy_ds", "local_ds", fixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("heavy_ds", "local_ds", fixture.toUri().toString(), Map.of("format", "csv"));
     }
 
     private static int columnIndex(EsqlQueryResponse response, String name) {

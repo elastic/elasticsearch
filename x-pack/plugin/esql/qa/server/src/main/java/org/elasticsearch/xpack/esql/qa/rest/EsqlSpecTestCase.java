@@ -82,6 +82,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBE
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
+import static org.junit.Assume.assumeFalse;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 45 * TimeUnits.MINUTE)
@@ -413,41 +414,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void doTest() throws Throwable {
-        doTest(rebuildExternalFromDatasets(testCase.query));
-    }
-
-    /**
-     * Rebuild the {@code EXTERNAL "<resource>" WITH {<json>}} query equivalent to a migrated
-     * {@code FROM <name>} spec from its {@code dataset:} directive(s). This is the universal fallback used
-     * by every EXTERNAL-capable test family; {@code AbstractExternalSourceSpecTestCase} overrides the
-     * execution path to register and run the {@code FROM} form directly on dataset-capable backends.
-     *
-     * <p>Specs without a {@code dataset:} directive are returned unchanged. EXTERNAL is single-source
-     * today, so a spec declaring more than one source has no EXTERNAL equivalent and is skipped on the
-     * EXTERNAL-rebuild backends (dataset-capable backends run such specs verbatim via {@code FROM <dataset>}
-     * before reaching this method); the skip is removed once EXTERNAL gains multi-source support.
-     */
-    protected final String rebuildExternalFromDatasets(String query) {
-        List<DatasetSource> sources = testCase.datasetSources;
-        if (sources.isEmpty()) {
-            return query;
-        }
-        assumeFalseLogging(
-            "multi-source FROM <dataset> has no EXTERNAL equivalent yet; skipping on EXTERNAL-rebuild backend: " + query,
-            sources.size() > 1
+        // Dataset-backed specs (FROM <dataset>) need a registered data_source/dataset, which only the
+        // external-source suites (AbstractExternalSourceSpecTestCase) provision. Plain spec subclasses
+        // (single/multi-node, mixed-cluster, multi-cluster) share these csv-spec files via the
+        // testFixtures classpath but have no fixture to back them, so skip rather than fail.
+        assumeFalse(
+            "dataset-backed spec; runs only on the external-source suites that register the dataset",
+            testCase.datasetSources.isEmpty() == false
         );
-        DatasetSource source = sources.get(0);
-        int pipe = FixtureUtils.findFirstPipeAfterExternal(query);
-        String tail = pipe < 0 ? "" : " " + query.substring(pipe);
-        // source.resource() is decoded (quotes/escapes resolved by the parser); re-escape it back into the
-        // EXTERNAL string literal so a resource containing a backslash or quote round-trips correctly.
-        String literal = source.resource().replace("\\", "\\\\").replace("\"", "\\\"");
-        StringBuilder external = new StringBuilder("EXTERNAL \"").append(literal).append("\"");
-        if (source.withJson() != null) {
-            external.append(" WITH ").append(source.withJson());
-        }
-        external.append(tail);
-        return external.toString();
+        doTest(testCase.query);
     }
 
     protected final void doTest(String query) throws Throwable {

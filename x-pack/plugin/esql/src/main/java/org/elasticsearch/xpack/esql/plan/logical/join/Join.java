@@ -130,10 +130,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         JoinType type,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
-        Expression joinOnConditions
+        Expression joinOnConditions,
+        boolean isRemote
     ) {
-        super(source, left, right);
-        this.config = new JoinConfig(type, leftFields, rightFields, joinOnConditions);
+        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), isRemote);
     }
 
     public Join(StreamInput in) throws IOException {
@@ -183,7 +183,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             config.type(),
             config.leftFields(),
             config.rightFields(),
-            config.joinOnConditions()
+            config.joinOnConditions(),
+            isRemote()
         );
     }
 

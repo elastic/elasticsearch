@@ -80,7 +80,7 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         List<Attribute> leftFields,
         List<Attribute> rightFields
     ) {
-        super(source, left, right, type, leftFields, rightFields, null);
+        super(source, left, right, type, leftFields, rightFields, null, false);
     }
 
     @Override

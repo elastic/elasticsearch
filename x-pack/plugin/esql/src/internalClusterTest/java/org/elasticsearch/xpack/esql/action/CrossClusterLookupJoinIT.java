@@ -749,13 +749,13 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             REMOTE_CLUSTER_1,
             "data",
             defaultSettings,
-            Map.of("key", 1, "cluster", "remote-1", "mode", "data-remote-1")
+            Map.of("key", 1, "id", 1, "cluster", "remote-1", "mode", "data-remote-1")
         );
         createIndexWithDocument(
             REMOTE_CLUSTER_2,
             "data",
             defaultSettings,
-            Map.of("key", 2, "cluster", "remote-2", "mode", "data-remote-2")
+            Map.of("key", 2, "id", 2, "cluster", "remote-2", "mode", "data-remote-2")
         );
 
         var lookupSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
@@ -781,6 +781,27 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 | RENAME mode AS data_mode
                 | LOOKUP JOIN lookup ON key
                 | KEEP key, cluster, data_mode, mode
+                | SORT key
+                """, randomBoolean())
+        );
+
+        // Independent of the case above: no name conflict is needed here. PushDownJoinPastProject.rule
+        // (PushDownJoinPastProject.java:59) calls PushDownUtils.resolveRenamesFromMap(join, ...) to rewrite
+        // the join's own leftFields whenever the RENAME'd name is the join key itself (id -> key here).
+        // That rewrite goes through join.transformExpressionsOnly(...), which reconstructs the Join via
+        // Join.info() (Join.java:174-188) - still bound to the isRemote-less 7-arg constructor. So the join
+        // comes back from resolveRenamesFromMap with isRemote already false, before PushDownJoinPastProject's
+        // own explicit `updatedJoin.isRemote()` pass-through ever runs. checkRemoteJoin is therefore
+        // skipped, same failure mode as above but via a different, conflict-free code path.
+        expectThrows(
+            VerificationException.class,
+            containsString("LOOKUP JOIN with remote indices can't be executed after [LIMIT 1 BY id, cluster]"),
+            () -> runQuery("""
+                FROM *:data
+                | LIMIT 1 BY id, cluster
+                | RENAME id AS key
+                | LOOKUP JOIN lookup ON key
+                | KEEP key, cluster, mode
                 | SORT key
                 """, randomBoolean())
         );

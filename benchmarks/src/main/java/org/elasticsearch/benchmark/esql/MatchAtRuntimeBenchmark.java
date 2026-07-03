@@ -27,9 +27,9 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -90,7 +90,6 @@ public class MatchAtRuntimeBenchmark {
         Attribute field = new ReferenceAttribute(Source.EMPTY, "field", DataType.TEXT);
 
         Configuration config = new Configuration(
-            DateUtils.UTC,
             Instant.now(),
             Locale.US,
             null,
@@ -105,8 +104,7 @@ public class MatchAtRuntimeBenchmark {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
-            null,
-            null,
+            ResolvedSettings.EMPTY,
             Map.of()
         );
 

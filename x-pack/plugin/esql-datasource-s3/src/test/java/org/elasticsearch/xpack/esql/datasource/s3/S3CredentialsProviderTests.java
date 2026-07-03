@@ -66,7 +66,7 @@ public class S3CredentialsProviderTests extends ESTestCase {
         );
         assertEquals(
             AuthMode.FEDERATED_IDENTITY,
-            S3Configuration.fromKeylessFields("arn", null, "aud", null, null, "http://endpoint", "us-east-1").resolveAuthMode()
+            S3Configuration.fromFederatedFields("arn", null, "aud", null, null, "http://endpoint", "us-east-1").resolveAuthMode()
         );
     }
 
@@ -80,7 +80,7 @@ public class S3CredentialsProviderTests extends ESTestCase {
     }
 
     public void testSessionTokenWithoutKeysRejectedAtCreate() {
-        // auth=auto with only a session_token resolves to nothing (no complete static credential, no keyless
+        // auth=auto with only a session_token resolves to nothing (no complete static credential, no federated
         // settings), so it is rejected at create time rather than deferred to query time.
         ValidationException e = expectThrows(
             ValidationException.class,

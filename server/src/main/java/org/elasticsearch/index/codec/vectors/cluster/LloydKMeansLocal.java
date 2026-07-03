@@ -33,9 +33,6 @@ abstract class LloydKMeansLocal<V> extends KMeansLocal<V> {
         this.maxIterations = maxIterations;
     }
 
-    /** Number of workers to use for parallelism */
-    protected abstract int numWorkers();
-
     /** assign to each vector the closest centroid */
     protected abstract boolean stepLloyd(
         ClusteringVectorValues<V> vectors,
@@ -45,17 +42,6 @@ abstract class LloydKMeansLocal<V> extends KMeansLocal<V> {
         int[] assignments,
         NeighborHood[] neighborHoods
     ) throws IOException;
-
-    /** assign to each vector the soar assignment */
-    protected abstract int[] assignSpilled(
-        ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kmeansIntermediate,
-        NeighborHood[] neighborhoods,
-        float soarLambda
-    ) throws IOException;
-
-    /** compute the neighborhoods for the given centroids and clustersPerNeighborhood */
-    protected abstract NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException;
 
     @Override
     protected void innerCluster(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate, NeighborHood[] neighborhoods)
@@ -126,10 +112,16 @@ abstract class LloydKMeansLocal<V> extends KMeansLocal<V> {
      * @param sampleSize the subset of vectors to use when shifting centroids
      * @param maxIterations the max iterations to shift centroids
      */
-    public static <V> void cluster(ClusteringVectorValues<V> vectors, CentroidOps<V> ops, V[] centroids, int sampleSize, int maxIterations)
-        throws IOException {
+    public static <V> void cluster(
+        ClusteringVectorValues<V> vectors,
+        CentroidOps<V> ops,
+        V[] centroids,
+        int sampleSize,
+        int maxIterations,
+        float soarLambda
+    ) throws IOException {
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, new int[vectors.size()], vectors::ordToDoc);
-        LloydKMeansLocal<V> kMeans = new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations);
+        LloydKMeansLocal<V> kMeans = new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda);
         kMeans.cluster(vectors, kMeansIntermediate);
     }
 }

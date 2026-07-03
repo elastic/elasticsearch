@@ -44,7 +44,6 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
             try (
                 DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
                     dir,
-                    rnd,
                     4,
                     64,
                     oversampleA,
@@ -93,7 +92,6 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
             try (
                 DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
                     dir,
-                    rnd,
                     4,
                     64,
                     oversampleA,

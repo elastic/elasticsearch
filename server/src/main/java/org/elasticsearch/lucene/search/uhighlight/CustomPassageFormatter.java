@@ -12,6 +12,8 @@ package org.elasticsearch.lucene.search.uhighlight;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 
 /**
@@ -25,6 +27,7 @@ public class CustomPassageFormatter extends PassageFormatter {
     private final String postTag;
     private final Encoder encoder;
     private final int numberOfFragments;
+    private static final Logger logger = LogManager.getLogger(CustomPassageFormatter.class);
 
     public CustomPassageFormatter(String preTag, String postTag, Encoder encoder, int numberOfFragments) {
         this.preTag = preTag;
@@ -66,7 +69,11 @@ public class CustomPassageFormatter extends PassageFormatter {
             // Replace the null separator (used to join multi-value fields) with a space,
             // and remove the paragraph separator if present at the end of the snippet.
             String snippetText = sb.toString().replace(HighlightUtils.NULL_SEPARATOR, ' ');
-            if (snippetText.charAt(snippetText.length() - 1) == HighlightUtils.PARAGRAPH_SEPARATOR) {
+            if (sb.isEmpty()) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Got empty highlight format for passage [{}], pre tag [{}], post tag [{}]", passage, preTag, postTag);
+                }
+            } else if (snippetText.charAt(snippetText.length() - 1) == HighlightUtils.PARAGRAPH_SEPARATOR) {
                 snippetText = snippetText.substring(0, snippetText.length() - 1);
             }
             if (numberOfFragments > 0) {

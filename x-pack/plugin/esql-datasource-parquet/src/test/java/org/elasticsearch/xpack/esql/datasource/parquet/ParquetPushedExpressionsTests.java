@@ -1164,6 +1164,44 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     // --- helpers ---
 
+    // IS NULL / IS NOT NULL over a top-level list must NOT push a predicate (esql-planning#1056): the
+    // attribute name resolves to a LIST group, so notEq(column("tags"), null) names a leaf-absent
+    // column that parquet-mr drops. They decline so the multivalue-safe null-mask evaluator answers.
+    // (Value predicates — comparisons/IN/LIKE — are NOT declined here; their evaluator is not MV-safe.)
+
+    private static MessageType intListSchema() {
+        return new MessageType("test", Types.optionalList().optionalElement(INT32).named("ints"));
+    }
+
+    private static MessageType stringListSchema() {
+        return new MessageType(
+            "test",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("tags")
+        );
+    }
+
+    public void testTopLevelListIsNotNullDeclines() {
+        Expression expr = new IsNotNull(Source.EMPTY, attr("ints", DataType.INTEGER));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(intListSchema()));
+    }
+
+    public void testTopLevelStringListIsNotNullDeclines() {
+        Expression expr = new IsNotNull(Source.EMPTY, attr("tags", DataType.KEYWORD));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(stringListSchema()));
+    }
+
+    public void testFlatColumnStillPushesControl() {
+        // The list guard must not regress flat columns: a plain INT32 still pushes.
+        MessageType schema = new MessageType("test", Types.optional(INT32).named("flat"));
+        Expression expr = new IsNotNull(Source.EMPTY, attr("flat", DataType.INTEGER));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("flat"));
+    }
+
     private static Expression eq(String name, DataType type, Object value) {
         return new Equals(Source.EMPTY, attr(name, type), lit(value, type), null);
     }

@@ -352,8 +352,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 false,
                 m -> builder(m).preserveLeafArrays.get(),
                 indexSettings.getValue(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING) == SourceKeepMode.NONE
-                    ? PreserveLeafArrays.LOSSY
-                    : PreserveLeafArrays.EXACT,
+                    && indexSettings.getMode().isStrictColumnar() == false ? PreserveLeafArrays.LOSSY : PreserveLeafArrays.EXACT,
                 PreserveLeafArrays.class
             );
             this.indexDisabledByDefault = indexDisabledByDefault;

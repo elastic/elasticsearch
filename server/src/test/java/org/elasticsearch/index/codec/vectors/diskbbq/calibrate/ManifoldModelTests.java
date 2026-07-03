@@ -104,7 +104,7 @@ public class ManifoldModelTests extends ESTestCase {
         for (int i = 0; i < queryOrdinals.length; i++) {
             queryOrdinals[i] = i;
         }
-        double[] params = ManifoldModel.estimateManifoldParameters(
+        CalibrationSource source = new CalibrationSource(
             VectorSimilarityFunction.EUCLIDEAN,
             8,
             fvv,
@@ -112,10 +112,11 @@ public class ManifoldModelTests extends ESTestCase {
             8,
             false,
             false,
-            fvv,
+            null,
             corpusOrdinals,
             10
         );
+        double[] params = ManifoldModel.estimateManifoldParameters(source);
         assertTrue(Double.isFinite(params[0]));
         assertTrue(Double.isFinite(params[1]));
     }
@@ -132,7 +133,7 @@ public class ManifoldModelTests extends ESTestCase {
         int numQueries = 64;
         ColinearFixture fixture = newColinearFixture(dim, corpusSize, numQueries, new Random(17));
 
-        double[] params = ManifoldModel.estimateManifoldParameters(
+        CalibrationSource source = new CalibrationSource(
             VectorSimilarityFunction.EUCLIDEAN,
             dim,
             fixture.fvv(),
@@ -140,10 +141,11 @@ public class ManifoldModelTests extends ESTestCase {
             dim,
             false,
             false,
-            fixture.fvv(),
+            null,
             fixture.corpusOrdinals(),
             calibrationK
         );
+        double[] params = ManifoldModel.estimateManifoldParameters(source);
         double logAlpha = params[0];
         double invDim = params[1];
 
@@ -200,7 +202,7 @@ public class ManifoldModelTests extends ESTestCase {
         int numQueries = 32;
         ColinearFixture fixture = newColinearFixture(dim, corpusSize, numQueries, new Random(19), false);
 
-        double[] params = ManifoldModel.estimateManifoldParameters(
+        CalibrationSource cosineSource = new CalibrationSource(
             VectorSimilarityFunction.EUCLIDEAN,
             dim,
             fixture.fvv(),
@@ -208,10 +210,11 @@ public class ManifoldModelTests extends ESTestCase {
             dim,
             true,
             false,
-            fixture.fvv(),
+            null,
             fixture.corpusOrdinals(),
             calibrationK
         );
+        double[] params = ManifoldModel.estimateManifoldParameters(cosineSource);
         assertTrue(Double.isFinite(params[0]));
         assertTrue(Double.isFinite(params[1]));
         assertThat(params[1], greaterThan(0.0));
@@ -229,7 +232,7 @@ public class ManifoldModelTests extends ESTestCase {
         int liftedDim = dim + 1;
         ColinearFixture fixture = newColinearLiftedFixture(dim, corpusSize, numQueries, new Random(23));
 
-        double[] params = ManifoldModel.estimateManifoldParameters(
+        CalibrationSource neyshaburSource = new CalibrationSource(
             VectorSimilarityFunction.EUCLIDEAN,
             dim,
             fixture.fvv(),
@@ -237,10 +240,11 @@ public class ManifoldModelTests extends ESTestCase {
             dim,
             false,
             true,
-            fixture.fvv(),
+            null,
             fixture.corpusOrdinals(),
             calibrationK
         );
+        double[] params = ManifoldModel.estimateManifoldParameters(neyshaburSource);
         assertTrue(Double.isFinite(params[0]));
         assertTrue(Double.isFinite(params[1]));
         assertThat(params[1], greaterThan(0.0));

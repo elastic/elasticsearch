@@ -100,8 +100,7 @@ public class InternalCardinality extends InternalNumericMetricsAggregation.Singl
                 if (reduced == null) {
                     return new InternalCardinality(name, null, getMetadata());
                 }
-                HyperLogLogPlusPlus toRelease = reduced;
-                long cloneBytes = toRelease.ramBytesUsed();
+                long cloneBytes = reduced.ramBytesUsed();
                 CircuitBreaker breaker = reduceContext.bigArrays().breakerService() == null
                     ? null
                     : reduceContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
@@ -109,7 +108,9 @@ public class InternalCardinality extends InternalNumericMetricsAggregation.Singl
                     breaker.addEstimateBytesAndMaybeBreak(cloneBytes, "cardinality reduce result clone");
                 }
                 try {
-                    AbstractHyperLogLogPlusPlus result = toRelease.clone(0, BigArrays.NON_RECYCLING_INSTANCE);
+                    AbstractHyperLogLogPlusPlus result = reduced.clone(0, BigArrays.NON_RECYCLING_INSTANCE);
+                    // Avoid closing again from close().
+                    HyperLogLogPlusPlus toRelease = reduced;
                     reduced = null;
                     Releasables.close(toRelease);
                     return new InternalCardinality(name, result, getMetadata());

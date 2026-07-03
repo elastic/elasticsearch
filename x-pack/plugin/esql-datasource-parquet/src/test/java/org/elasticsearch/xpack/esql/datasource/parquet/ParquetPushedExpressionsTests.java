@@ -1073,6 +1073,49 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     // --- helpers ---
 
+    // --- IS NOT NULL over a top-level list column must NOT push a predicate (esql-planning#1056) ---
+    //
+    // For a top-level 3-level LIST the file's only leaf lives at "<name>.list.element", so the
+    // attribute name resolves to a LIST group (not a primitive). Pushing notEq(column("tags"), null)
+    // names a column absent from every row group and parquet-mr's StatisticsFilter drops them all —
+    // silently returning zero rows. IS NULL / IS NOT NULL therefore decline so the multivalue-safe
+    // null-mask evaluator answers over the decoded block. (Value predicates — comparisons / IN / LIKE
+    // — are intentionally NOT declined here; their decoded-block evaluator is not multivalue-safe, so
+    // that is deferred to a dedicated fix. This test asserts only the null-predicate behavior.)
+
+    private static MessageType intListSchema() {
+        return new MessageType("test", Types.optionalList().optionalElement(INT32).named("ints"));
+    }
+
+    private static MessageType stringListSchema() {
+        return new MessageType(
+            "test",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("tags")
+        );
+    }
+
+    public void testTopLevelListIsNotNullDeclines() {
+        Expression expr = new IsNotNull(Source.EMPTY, attr("ints", DataType.INTEGER));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(intListSchema()));
+    }
+
+    public void testTopLevelStringListIsNotNullDeclines() {
+        Expression expr = new IsNotNull(Source.EMPTY, attr("tags", DataType.KEYWORD));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(stringListSchema()));
+    }
+
+    public void testFlatColumnStillPushesControl() {
+        // The list guard must not regress flat columns: a plain INT32 still pushes.
+        MessageType schema = new MessageType("test", Types.optional(INT32).named("flat"));
+        Expression expr = new IsNotNull(Source.EMPTY, attr("flat", DataType.INTEGER));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("flat"));
+    }
+
     private static Expression eq(String name, DataType type, Object value) {
         return new Equals(Source.EMPTY, attr(name, type), lit(value, type), null);
     }

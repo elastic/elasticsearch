@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.NanoTime;
@@ -15,11 +16,17 @@ import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.io.LocalInputFile;
+import org.apache.parquet.io.LocalOutputFile;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -69,6 +76,8 @@ import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -79,6 +88,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -3906,7 +3916,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         var eventIdStats = colStats.get("event.id");
         assertEquals(Optional.of(1L), eventIdStats.minValue());
         assertEquals(Optional.of(1050L), eventIdStats.maxValue());
-        assertEquals(java.util.OptionalLong.of(0L), eventIdStats.nullCount());
+        assertEquals(OptionalLong.of(0L), eventIdStats.nullCount());
 
         // event.action: KEYWORD → min/max are BytesRef-backed; we only assert presence to avoid
         // coupling to parquet-mr's internal Binary representation.
@@ -3918,6 +3928,218 @@ public class ParquetFormatReaderTests extends ESTestCase {
         var topIdStats = colStats.get("id");
         assertEquals(Optional.of(1L), topIdStats.minValue());
         assertEquals(Optional.of(1050L), topIdStats.maxValue());
+    }
+
+    /**
+     * Regression for the {@code COUNT(<col>)} correctness bug on external Parquet sources: when a
+     * column's {@code null_count} footer statistic is absent (a conformant writer may omit it, e.g.
+     * an Arrow null-typed / all-null column, reproduced here by disabling statistics for a single
+     * column), the reader must report the null count as <b>unknown</b> — {@link OptionalLong#empty()}
+     * in {@link org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics.ColumnStatistics#nullCount()}
+     * and no {@code null_count} key in the per-split stats — rather than a known zero. A known zero
+     * would let the aggregate pushdown answer {@code COUNT(col) = rowCount - 0 = rowCount} instead of
+     * the true non-null count, silently returning the row count for an all-null column.
+     * <p>
+     * The file carries three columns over 200 rows: {@code n} (no nulls, stats on), {@code rare}
+     * (196 of 200 null, stats on) and {@code always_null} (all null, stats <b>off</b>). Only
+     * {@code always_null} must surface as unknown; {@code n}/{@code rare} keep exact null counts,
+     * and {@code always_null} keeps its {@code size_bytes} so it still reads as a present column.
+     */
+    public void testMissingNullCountStatisticReportedAsUnknown() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("n")
+            .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("rare")
+            .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("always_null")
+            .named("test_schema");
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                // Disable statistics only for always_null so its footer carries no null_count, while
+                // n and rare keep theirs — exactly the mixed situation the bug fires on.
+                .withStatisticsEnabled("always_null", false)
+                .build()
+        ) {
+            for (int i = 0; i < 200; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("n", (long) i);
+                if (i < 4) {
+                    g.add("rare", (double) i);
+                }
+                // always_null: never assigned → all 200 rows null.
+                writer.write(g);
+            }
+        }
+        byte[] parquetData = outputStream.toByteArray();
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject so = createStorageObject(parquetData);
+
+        // --- extractStatistics path (metadata) ---
+        SourceMetadata metadata = reader.metadata(so);
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        assertEquals(OptionalLong.of(200L), metadata.statistics().get().rowCount());
+        var colStats = metadata.statistics().get().columnStatistics().orElseThrow();
+
+        assertEquals("no-null column keeps a known zero null count", OptionalLong.of(0L), colStats.get("n").nullCount());
+        assertEquals("partially-null column keeps its exact null count", OptionalLong.of(196L), colStats.get("rare").nullCount());
+
+        var alwaysNullStats = colStats.get("always_null");
+        assertNotNull("always_null must still be published (it is a present column)", alwaysNullStats);
+        assertEquals(
+            "missing null_count statistic must be reported as unknown, not zero",
+            OptionalLong.empty(),
+            alwaysNullStats.nullCount()
+        );
+        assertTrue("always_null has no non-null values, so no min", alwaysNullStats.minValue().isEmpty());
+        assertTrue("always_null has no non-null values, so no max", alwaysNullStats.maxValue().isEmpty());
+        assertTrue("always_null column is present, so its size is known", alwaysNullStats.sizeInBytes().isPresent());
+
+        // --- buildRowGroupStats path (discoverSplitRanges) ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(so);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            assertFalse(
+                "always_null must not carry a null_count key when the footer omits the statistic",
+                stats.containsKey("_stats.columns.always_null.null_count")
+            );
+            assertTrue(
+                "always_null is a present column, so its size_bytes key must be written",
+                stats.containsKey("_stats.columns.always_null.size_bytes")
+            );
+            assertEquals("rare keeps its exact null count in split stats", 196L, stats.get("_stats.columns.rare.null_count"));
+            assertEquals("n keeps a known zero null count in split stats", 0L, stats.get("_stats.columns.n.null_count"));
+        }
+    }
+
+    /**
+     * Companion to {@link #testMissingNullCountStatisticReportedAsUnknown} that pins the
+     * <b>cross-row-group</b> accumulation in {@code extractStatistics}: the null count must degrade to
+     * unknown as soon as <b>any</b> covering row group omits the {@code null_count} statistic, even when
+     * other row groups record it. This is the only case that exercises the
+     * {@code nullCount != null && unknownNullCounts.contains(name) == false} conjunction &mdash; an
+     * all-unknown column trips the {@code != null} guard on its own.
+     * <p>
+     * A single Parquet writer emits statistics uniformly for a column across all its row groups, so the
+     * mixed situation is stitched from two independently written single-row-group files with
+     * {@link ParquetFileWriter#appendFile(org.apache.parquet.io.InputFile)}: row group 0 records
+     * {@code x}'s null count, row group 1 (statistics disabled for {@code x}) does not. Control column
+     * {@code y} keeps statistics in both row groups and must surface the summed null count, proving the
+     * accumulation still adds across row groups when every group reports.
+     */
+    public void testMissingNullCountAcrossRowGroupsReportedAsUnknown() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("x")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("y")
+            .named("test_schema");
+
+        // Row group 0: statistics on for both columns -> x and y both record null_count.
+        Path rgWithStats = writeSingleRowGroup(schema, Set.of(), 2, 1);
+        // Row group 1: statistics disabled for x only -> x carries no null_count, y still does.
+        Path rgWithoutXStats = writeSingleRowGroup(schema, Set.of("x"), 3, 2);
+
+        Path merged = createTempFile();
+        try (
+            ParquetFileWriter writer = new ParquetFileWriter(
+                new LocalOutputFile(merged),
+                schema,
+                ParquetFileWriter.Mode.OVERWRITE,
+                ParquetWriter.DEFAULT_BLOCK_SIZE,
+                ParquetWriter.MAX_PADDING_SIZE_DEFAULT
+            )
+        ) {
+            writer.start();
+            for (Path source : List.of(rgWithStats, rgWithoutXStats)) {
+                // Zero-copy row group transfer preserves each source's footer verbatim, including whether
+                // it recorded null_count. Read footers via PlainParquetConfiguration so no Hadoop runtime
+                // classes are required — mirrors the reader's own Hadoop-free open path.
+                LocalInputFile inputFile = new LocalInputFile(source);
+                ParquetReadOptions options = ParquetReadOptions.builder(new PlainParquetConfiguration()).build();
+                try (ParquetFileReader fileReader = new ParquetFileReader(inputFile, options)) {
+                    List<BlockMetaData> blocks = fileReader.getFooter().getBlocks();
+                    try (SeekableInputStream stream = inputFile.newStream()) {
+                        writer.appendRowGroups(stream, blocks, false);
+                    }
+                }
+            }
+            writer.end(Map.of());
+        }
+        byte[] parquetData = Files.readAllBytes(merged);
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject so = createStorageObject(parquetData);
+
+        // --- extractStatistics path (metadata): the sticky-across-row-groups accumulation ---
+        SourceMetadata metadata = reader.metadata(so);
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        assertEquals("two 5-row row groups", OptionalLong.of(10L), metadata.statistics().get().rowCount());
+        var colStats = metadata.statistics().get().columnStatistics().orElseThrow();
+
+        assertEquals(
+            "null_count recorded in one row group but omitted in another must degrade to unknown",
+            OptionalLong.empty(),
+            colStats.get("x").nullCount()
+        );
+        assertEquals(
+            "column with null_count in every row group keeps the summed count",
+            OptionalLong.of(3L),
+            colStats.get("y").nullCount()
+        );
+
+        // --- buildRowGroupStats path (per split): only the row group that records the stat carries the key ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(so);
+        assertEquals("one split per row group", 2, ranges.size());
+        long xNullCountKeys = ranges.stream().filter(r -> r.statistics().containsKey("_stats.columns.x.null_count")).count();
+        assertEquals("exactly one row group records x's null_count", 1L, xNullCountKeys);
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            assertTrue("y records null_count in every row group", range.statistics().containsKey("_stats.columns.y.null_count"));
+        }
+    }
+
+    /**
+     * Writes a single-row-group Parquet file (5 rows) with two optional {@code INT64} columns {@code x}
+     * and {@code y} to a temp file, disabling footer statistics for the columns named in
+     * {@code statsDisabledColumns}. The first {@code xNulls}/{@code yNulls} rows are left null for the
+     * respective column. Returned as a {@link Path} so the caller can stitch several such files into a
+     * multi-row-group file via {@link ParquetFileWriter#appendFile(org.apache.parquet.io.InputFile)}.
+     */
+    private Path writeSingleRowGroup(MessageType schema, Set<String> statsDisabledColumns, int xNulls, int yNulls) throws IOException {
+        Path path = createTempFile();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        ExampleParquetWriter.Builder builder = ExampleParquetWriter.builder(new LocalOutputFile(path))
+            .withConf(new PlainParquetConfiguration())
+            .withCodecFactory(new PlainCompressionCodecFactory())
+            .withType(schema)
+            .withWriteMode(ParquetFileWriter.Mode.OVERWRITE)
+            .withCompressionCodec(CompressionCodecName.UNCOMPRESSED);
+        for (String col : statsDisabledColumns) {
+            builder = builder.withStatisticsEnabled(col, false);
+        }
+        try (ParquetWriter<Group> writer = builder.build()) {
+            for (int i = 0; i < 5; i++) {
+                Group g = groupFactory.newGroup();
+                if (i >= xNulls) {
+                    g.add("x", (long) i);
+                }
+                if (i >= yNulls) {
+                    g.add("y", (long) i);
+                }
+                writer.write(g);
+            }
+        }
+        return path;
     }
 
     public void testNestedStructEndToEndWithThreeWayNullPropagation() throws Exception {

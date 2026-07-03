@@ -225,9 +225,64 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * End-to-end regression for the {@code COUNT(<col>)} correctness bug: over an external Parquet
+     * file with an all-null column whose {@code null_count} footer statistic is absent (written here
+     * with per-column statistics disabled), {@code COUNT(always_null)} must return the non-null count
+     * (0), not the row count (200). Because the null count is unknown from the footer, the aggregate
+     * pushdown must decline and fall back to actually reading the column (an {@code External*} source
+     * operator appears), whereas a column that does carry a {@code null_count} ({@code rare}) still
+     * pushes down from statistics (served from a {@code LocalSourceExec}, no source read), and
+     * {@code COUNT(*)} is unaffected.
+     */
+    public void testCountOverAllNullColumnWithoutNullCountStatFallsBackToZero() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        int totalRows = 200;
+        int rareNonNull = 4;
+        Path parquetFile = writeNullableParquetFile(totalRows, rareNonNull);
+        try {
+            String uri = StoragePath.fileUri(parquetFile);
+
+            // COUNT(always_null): null_count stat absent -> pushdown must decline and scan the column,
+            // returning the true non-null count of 0 (the bug returned the row count, 200).
+            try (var response = runCount(uri, "non_null = COUNT(always_null)")) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+                assertPushdownBypassed(response);
+            }
+
+            // COUNT(rare): 196 of 200 null, null_count stat present -> pushdown fires from statistics
+            // and returns rowCount - nullCount = 4.
+            try (var response = runCount(uri, "c = COUNT(rare)")) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo((long) rareNonNull));
+                assertPushdownFired(response);
+            }
+
+            // COUNT(*) is answered from the row count regardless and stays pushed down.
+            try (var response = runCount(uri, "c = COUNT(*)")) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo((long) totalRows));
+                assertPushdownFired(response);
+            }
+        } finally {
+            Files.deleteIfExists(parquetFile);
+        }
+    }
+
+    private EsqlQueryResponse runCount(String uri, String statsClause) {
+        var request = syncEsqlQueryRequest("EXTERNAL \"" + uri + "\" | STATS " + statsClause);
+        request.profile(true);
+        return run(request);
+    }
+
+    /**
      * Asserts that no Async* operator appears in any driver profile.
      * When pushdown fires, the plan is a LocalSourceExec — there is no
      * AsyncExternalSourceOperatorFactory executing file reads.
+     * <p>
+     * Weaker than {@link #assertPushdownFired}, which matches the actual {@code External*} profile
+     * operator names; prefer that for new assertions. This helper stays for the COUNT(*) tests below.
      */
     private static void assertNoPushdownBypass(EsqlQueryResponse response) {
         var profile = response.profile();
@@ -238,6 +293,51 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
                 assertFalse(
                     "expected no Async* operators (pushdown should have fired) but found: " + op.operator(),
                     op.operator().startsWith("Async")
+                );
+            }
+        }
+    }
+
+    /**
+     * Inverse of {@link #assertNoPushdownBypass}: asserts the query actually read the external source,
+     * proving the aggregate pushdown declined rather than being answered from statistics. When
+     * pushdown fires the source is replaced by a {@code LocalSourceExec} and no {@code External*}
+     * operator runs; when it declines the file is scanned via an {@code AsyncExternalSourceOperator}
+     * or a synchronous {@code ExternalSourceOperator}/{@code ExternalFieldExtractOperator} (which
+     * one depends on the chosen distribution). Match on the {@code External} substring to stay robust
+     * across those shapes. Used for the unknown-{@code null_count} case.
+     */
+    private static void assertPushdownBypassed(EsqlQueryResponse response) {
+        var profile = response.profile();
+        assertNotNull("profile must be present (request had profile=true)", profile);
+
+        boolean readSource = false;
+        for (var driver : profile.drivers()) {
+            for (var op : driver.operators()) {
+                if (op.operator().contains("External")) {
+                    readSource = true;
+                }
+            }
+        }
+        assertTrue("expected an External* source operator (pushdown must decline for an unknown null_count)", readSource);
+    }
+
+    /**
+     * Stronger complement of {@link #assertPushdownBypassed} for the "pushdown fired" controls: when
+     * the aggregate is answered from statistics the {@code ExternalSourceExec} is replaced by a
+     * {@code LocalSourceExec}, so no {@code External*} source operator runs at all. This observes the
+     * actual profile operator names ({@code ExternalDataSourceOperator} / {@code ExternalSourceOperator}
+     * / {@code ExternalFieldExtractOperator}) rather than the {@code Async*} class-name proxy.
+     */
+    private static void assertPushdownFired(EsqlQueryResponse response) {
+        var profile = response.profile();
+        assertNotNull("profile must be present (request had profile=true)", profile);
+
+        for (var driver : profile.drivers()) {
+            for (var op : driver.operators()) {
+                assertFalse(
+                    "expected pushdown from statistics (no source read) but found: " + op.operator(),
+                    op.operator().contains("External")
                 );
             }
         }
@@ -269,6 +369,46 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
         }
 
         Path tempFile = createTempDir().resolve("pushdown_test.parquet");
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
+    }
+
+    /**
+     * Writes a single-row-group file with three columns: {@code id} (no nulls), {@code rare}
+     * ({@code rowCount - rareNonNull} nulls, statistics on) and {@code always_null} (all null,
+     * statistics <b>disabled</b> so its footer carries no {@code null_count}). This reproduces the
+     * mixed situation from the bug report where only {@code always_null} lacks the statistic.
+     */
+    private Path writeNullableParquetFile(int rowCount, int rareNonNull) throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType(
+            "message test { required int64 id; optional double rare; optional double always_null; }"
+        );
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(baos);
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                // Disable statistics only for always_null so its footer omits null_count, while
+                // id and rare keep theirs.
+                .withStatisticsEnabled("always_null", false)
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                if (i < rareNonNull) {
+                    g.add("rare", (double) i);
+                }
+                // always_null: never assigned -> all rows null.
+                writer.write(g);
+            }
+        }
+
+        Path tempFile = createTempDir().resolve("null_count_test.parquet");
         Files.write(tempFile, baos.toByteArray());
         return tempFile;
     }

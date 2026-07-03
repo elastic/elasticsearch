@@ -210,6 +210,24 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
         return null;
     }
 
+    /**
+     * Returns a node id for a node on the old or new side of the upgrade, using the build hash to distinguish
+     * them when both sides share the same version string (bcUpgradeTest scenario).
+     */
+    private String getNodeId(boolean findOldNode) throws IOException {
+        Response response = client().performRequest(new Request("GET", "_nodes"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+        for (String id : nodesAsMap.keySet()) {
+            String version = objectPath.evaluate("nodes." + id + ".version");
+            String buildHash = objectPath.evaluate("nodes." + id + ".build_hash");
+            if (isOldClusterVersion(version, buildHash) == findOldNode) {
+                return id;
+            }
+        }
+        return null;
+    }
+
     public void testRelocationWithConcurrentIndexing() throws Exception {
         final String index = "relocation_with_concurrent_indexing";
         if (isOldCluster()) {
@@ -228,8 +246,11 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
             // node stops, we lose the master too, so a replica will not be promoted)
             updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
         } else if (isFirstMixedCluster()) {
-            final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
-            final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
+            final String newNode = getNodeId(false);
+            final String oldNode = getNodeId(true);
+            assert newNode != null : "New node is null";
+            assert oldNode != null : "Old node is null";
+
             // remove the replica and guaranteed the primary is placed on the old node
             updateIndexSettingsPermittingSlowlogDeprecationWarning(
                 index,

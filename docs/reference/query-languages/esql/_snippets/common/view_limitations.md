@@ -24,13 +24,9 @@ combination as long as there is never more than one branch point:
     * If a remote index matches a local view name, the query will fail.
 * Serverless and [Cross-project search](/reference/query-languages/esql/esql-cross-serverless-projects.md):
     * Views are available in serverless, but with some restrictions:
-      * As in CCS, remote views are not allow (ie. `FROM project:view` will only
-        match remote indexes with the name `view`. If a remote view is found,
-        the query will fail).
-      * This is also the case for flat-world views, for example `FROM abc` can
-        match local views with the name `abc`, but only remote indexes with that name.
-        If a remote view with the name `abc` is found, the query will fail.
-      * Unlike in CCS, if a local view does not match a remote view, but does match a remote index,
+      * Remote views are not supported. A query will fail if its pattern (ie `FROM remote:name`) matches any remote views.
+      * The same applies to flat expressions (ie `FROM name`), if the name is resolved to a view on any of the linked projects, the query will fail.
+      * Unlike in CCS, if a local view name does not match a remote view name, but does match a remote index name,
         the query will succeed and produce results from both the local view and the remote index.
       * If a local view definition contains index patterns that match local and remote indexes,
         data from both local and remote indexes will be returned.

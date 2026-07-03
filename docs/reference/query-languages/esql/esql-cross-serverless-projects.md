@@ -355,8 +355,8 @@ The lookup index must exist on every project being queried, because each project
 [{{esql}} views](/reference/query-languages/esql/esql-views.md) allows virtual indexes to be defined using {{esql}} queries.
 These queries will run in serverless just like a normal {{esql}} query. For example if the query contains `FROM abc`, then the name `abc` will be searched for across all linked projects.
 If `abc` matches indexes on any of the linked projects, results from those will be included. If it matches a view `abc` in the origin project, it will be resolved as a nested view, and the contents of that view will also be subject to the same conditions.
-The primary restriction here is that if any local view or index matches a remote view, the query will fail.
-As in cross-cluster search, remote views are not supported.
+Remote views are currently unsupported in both CCS and CPS.
+If the index pattern of the toplevel query or any of the nested views is resolved to a remote view, the query will fail.
 
 ## Related pages
 

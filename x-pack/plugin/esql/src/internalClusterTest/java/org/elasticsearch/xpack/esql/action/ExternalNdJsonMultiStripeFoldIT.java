@@ -14,8 +14,10 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -66,7 +68,13 @@ public class ExternalNdJsonMultiStripeFoldIT extends AbstractEsqlIntegTestCase {
             // chunks -> the per-stripe fold across chunks is exercised instead of the whole-chunk shortcut.
             // NodeScope/restart-only, so it must be a static node setting, not a dynamic cluster update.
             .put("esql.source.cache.stripe.size", "64kb")
+            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
             .build();
+    }
+
+    @Before
+    public void requireLocalFilesystemFeatureFlag() {
+        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
     @Override

@@ -1226,6 +1226,28 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     /**
+     * A base64 data URI with an empty payload (e.g. {@code data:image/png;base64,}) carries no data to embed and should be rejected with a
+     * {@code 400 Bad Request} before any inference is performed. The failure message should identify the field and the offending source
+     * field, matching the shape of the oversized-input failure.
+     */
+    public void testBase64InputWithEmptyPayloadIsRejected() throws Exception {
+        assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
+        assumeTrue(
+            "Multimodal base64 inputs require the semantic field feature",
+            SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
+        );
+
+        // A valid data URI prefix with no base64 payload after the comma.
+        InferenceString emptyPayload = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;base64,");
+
+        BulkItemResponse.Failure failure = runSingleInputThroughFilter(ByteSizeValue.ofBytes(1024), emptyPayload);
+        assertNotNull("a base64 input with an empty payload should be rejected", failure);
+        assertThat(failure.getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("Input for field [semantic_field] from source field [semantic_field]"));
+        assertThat(failure.getMessage(), containsString("has an empty base64 payload"));
+    }
+
+    /**
      * A base64 input whose decoded size is exactly at the configured maximum should be accepted. This also verifies that base64 padding
      * characters are correctly excluded from the decoded size calculation: without accounting for padding, the inputs below would be
      * computed as larger than their true decoded size and incorrectly rejected.

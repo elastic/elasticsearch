@@ -33,17 +33,12 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
 
     public void testIllegalClustersPerNeighborhood() {
         CentroidOps<V> ops = centroidOps();
-        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, randomInt(), randomInt());
+        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, randomInt(), randomInt(), randomFloat());
         V[] emptyCentroids = ops.newCentroidArrayShallow(0);
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(emptyCentroids, new int[0], i -> i);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> kMeansLocal.cluster(
-                buildEmptyVectors(randomInt(1024)),
-                kMeansIntermediate,
-                randomIntBetween(Integer.MIN_VALUE, 1),
-                randomFloat()
-            )
+            () -> kMeansLocal.cluster(buildEmptyVectors(randomInt(1024)), kMeansIntermediate, randomIntBetween(Integer.MIN_VALUE, 1))
         );
         assertThat(ex.getMessage(), containsString("clustersPerNeighborhood must be at least 2"));
     }
@@ -61,8 +56,8 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         int[] assignments = new int[nVectors];
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments);
 
-        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations);
-        kMeansLocal.cluster(vectors, kMeansIntermediate, nClusters, -1f);
+        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations, -1f);
+        kMeansLocal.cluster(vectors, kMeansIntermediate, nClusters);
 
         for (int a : kMeansIntermediate.assignments()) {
             assertTrue("Invalid assignment: " + a, a >= 0 && a < centroids.length);
@@ -82,7 +77,7 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         int sampleSize = nVectors;
 
         V[] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, ops);
-        BalancedOTKMeansLocal.cluster(vectors, ops, centroids, sampleSize, maxIterations);
+        BalancedOTKMeansLocal.cluster(vectors, ops, centroids, sampleSize, maxIterations, soarLambda);
 
         int[] assignments = new int[nVectors];
         int[] assignmentOrdinals = new int[nVectors];
@@ -92,8 +87,8 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         }
 
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations);
-        var result = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda);
+        var result = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood);
 
         assertEquals(nClusters, centroids.length);
         assertNotNull(result.soarAssignments());
@@ -114,7 +109,7 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         CentroidOps<V> ops = centroidOps();
         ClusteringVectorValues<V> vectors = generateData(nVectors, dims, nClusters);
         V[] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, ops);
-        LloydKMeansLocal.cluster(vectors, ops, centroids, sampleSize, maxIterations);
+        LloydKMeansLocal.cluster(vectors, ops, centroids, sampleSize, maxIterations, soarLambda);
 
         int[] assignments = new int[vectors.size()];
         int[] assignmentOrdinals = new int[vectors.size()];
@@ -134,8 +129,8 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         }
 
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations);
-        var result = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda);
+        var result = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood);
 
         assertEquals(nClusters, centroids.length);
         assertNotNull(result.soarAssignments());

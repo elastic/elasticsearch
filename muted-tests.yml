@@ -298,9 +298,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:ints.valuesLongGrouped}
   issue: https://github.com/elastic/elasticsearch/issues/149905
-- class: org.elasticsearch.xpack.esql.datasources.DecompressingStorageObjectTests
-  method: testDecompressStreamZstd
-  issue: https://github.com/elastic/elasticsearch/issues/149944
 - class: org.elasticsearch.xpack.stateless.allocation.StatelessDesiredBalanceReconcilerTests
   method: testStatelessFallbackAllocation
   issue: https://github.com/elastic/elasticsearch/issues/149947
@@ -569,9 +566,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
   issue: https://github.com/elastic/elasticsearch/issues/147251
-- class: org.elasticsearch.xpack.esql.datasources.CompressionDelegatingFormatReaderTests
-  method: testDelegatesMetadataAndReadZstd
-  issue: https://github.com/elastic/elasticsearch/issues/151784
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793

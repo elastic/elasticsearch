@@ -87,9 +87,8 @@ import static org.elasticsearch.blobcache.BlobCacheMetrics.LUCENE_FILE_EXTENSION
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.CacheMissEviction;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Decay;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Demote;
-import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.ForceEvictByKey;
-import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.ForceEvictByShard;
-import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.PrefetchEviction;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.ForceEvict;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.LowestFrequencyEviction;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Promote;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.SlotAssignment;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_ES_EXECUTOR_TO_RECORD;
@@ -2370,7 +2369,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         }
                     }
                 }
-                blobCacheMetrics.recordLockAcquire(afterLockNanoTime - beforeLockNanoTime, ForceEvictByKey);
+                blobCacheMetrics.recordLockAcquire(afterLockNanoTime - beforeLockNanoTime, ForceEvict);
             }
             blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
             return evictedCount;
@@ -2452,7 +2451,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         }
                     }
                 }
-                blobCacheMetrics.recordLockAcquire(afterLockNanoTime - beforeLockNanoTime, ForceEvictByShard);
+                blobCacheMetrics.recordLockAcquire(afterLockNanoTime - beforeLockNanoTime, ForceEvict);
             }
             blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
             return evictedCount;
@@ -2898,7 +2897,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     }
                 }
             }
-            blobCacheMetrics.recordLockAcquire(afterLockAndBeforeScanningNanoTime - beforeLockNanoTime, PrefetchEviction);
+            blobCacheMetrics.recordLockAcquire(afterLockAndBeforeScanningNanoTime - beforeLockNanoTime, LowestFrequencyEviction);
             logAndMetricEvictionScan(
                 relativeNanosProvider.getAsLong() - afterLockAndBeforeScanningNanoTime,
                 LowestFrequency,

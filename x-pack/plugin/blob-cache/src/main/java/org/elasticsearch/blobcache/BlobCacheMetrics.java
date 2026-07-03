@@ -121,12 +121,9 @@ public class BlobCacheMetrics {
         /// Cache-hit path: promoting a region's frequency on first access within an epoch (maybePromote).
         Promote,
         /// Best-effort prefetch/warming path: lowest-frequency eviction scan (maybeEvictLeastUsed).
-        PrefetchEviction,
-        /// Bulk eviction driven by a file-key predicate over the whole key mapping, spanning all shards (forceEvict(Predicate)).
-        ForceEvictByKey,
-        /// Bulk eviction of a set of regions pre-collected for a single shard (forceEvictEntries, via
-        /// forceEvict(ShardId, Predicate) / forceEvict(ShardId, BiPredicate)).
-        ForceEvictByShard,
+        LowestFrequencyEviction,
+        /// Bulk eviction via any of the forceEvict methods.
+        ForceEvict,
         /// Bulk demotion of a relocated shard's regions to frequency 0 (demoteAll).
         Demote,
         /// Background LFU decay / new-epoch task (computeDecay).

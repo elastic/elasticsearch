@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.env.Environment;
@@ -56,6 +57,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
@@ -70,6 +72,7 @@ import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
@@ -84,9 +87,8 @@ import static org.elasticsearch.blobcache.BlobCacheMetrics.LOCK_ACQUIRE_SITE_ATT
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.CacheMissEviction;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Decay;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Demote;
-import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.ForceEvictByKey;
-import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.ForceEvictByShard;
-import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.PrefetchEviction;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.ForceEvict;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.LowestFrequencyEviction;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Promote;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.SlotAssignment;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -94,6 +96,7 @@ import static org.elasticsearch.telemetry.InstrumentType.DOUBLE_HISTOGRAM;
 import static org.elasticsearch.telemetry.InstrumentType.LONG_HISTOGRAM;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -2252,7 +2255,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     /// We place `freq0Regions` protected entries at frequency 0 (filled then decayed) and `freq1Regions` entries at frequency 1
     /// (filled afterwards, no decay), protecting all of the freq-0 entries plus the first `skipFreq1Regions` of the freq-1 entries.
     /// A single scan then walks every protected freq-0 entry, finds nothing freed at the freq-1 boundary,
-    /// skips the `skipB` protected freq-1 entries, and evicts the first eligible one,
+    /// skips the `skipFreq1Regions` protected freq-1 entries, and evicts the first eligible one,
     /// so `entriesScanned == freq0Regions + skipFreq1Regions + 1` (strictly greater than 1, spanning both buckets).
     /// As in the lowest-frequency variant, protection is keyed so the victim stays put as the scan proceeds.
     public void testEvictionScanMetricsSkipsAcrossFrequencyBuckets() throws Exception {
@@ -2357,312 +2360,144 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     /// Drives a single [SharedBlobCacheService#get] of a fresh key into a cache with a free slot and asserts the resulting
     /// [BlobCacheMetrics.LockAcquireSite#SlotAssignment] sample. No eviction is needed, so the cache-miss eviction site is untouched.
     public void testLockAcquireMetricsSlotAssignment() throws Exception {
-        final int numRegions = randomIntBetween(2, 10);
-        final long regionSize = size(1L);
-        final long clockStepMicros = randomLongBetween(1, 10_000);
-        final long clockStepNanos = TimeUnit.MICROSECONDS.toNanos(clockStepMicros);
-        final AtomicLong clock = new AtomicLong();
-        final Settings settings = lockAcquireCacheSettings(numRegions, regionSize);
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<TestCacheKey>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
-                () -> clock.addAndGet(clockStepNanos),
-                new DefaultEvictionPolicy<>()
-            )
-        ) {
-            cacheService.get(generateCacheKey(), regionSize, 0);
+        runLockAcquireMetricsTest(ctx -> {
+            ctx.cacheService().get(generateCacheKey(), ctx.regionSize(), 0);
 
-            assertLockAcquireSamples(recording, SlotAssignment, 1, clockStepMicros);
+            assertLockAcquireSamples(ctx.recording(), SlotAssignment, 1, ctx.clockStepMicros());
             // a free slot was available, so no eviction victim had to be scanned for
-            assertThat(lockAcquireMeasurements(recording, CacheMissEviction), empty());
-        }
+            assertThat(lockAcquireMeasurements(ctx.recording(), CacheMissEviction), empty());
+        });
     }
 
     /// Fills the cache, then drives an evicting [SharedBlobCacheService#get] on a brand-new key with zero free regions: the
     /// cache-miss path scans for a victim (one [BlobCacheMetrics.LockAcquireSite#CacheMissEviction]) then installs the incoming
     /// region ([BlobCacheMetrics.LockAcquireSite#SlotAssignment]). The fill produces one {@code SlotAssignment} per region.
     public void testLockAcquireMetricsCacheMissEviction() throws Exception {
-        final int numRegions = randomIntBetween(2, 10);
-        final long regionSize = size(1L);
-        final long clockStepMicros = randomLongBetween(1, 10_000);
-        final long clockStepNanos = TimeUnit.MICROSECONDS.toNanos(clockStepMicros);
-        final AtomicLong clock = new AtomicLong();
-        final Settings settings = lockAcquireCacheSettings(numRegions, regionSize);
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<TestCacheKey>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
-                () -> clock.addAndGet(clockStepNanos),
-                new DefaultEvictionPolicy<>()
-            )
-        ) {
-            for (int i = 0; i < numRegions; i++) {
-                cacheService.get(generateCacheKey(), regionSize, 0);
+        runLockAcquireMetricsTest(ctx -> {
+            for (int i = 0; i < ctx.numRegions(); i++) {
+                ctx.cacheService().get(generateCacheKey(), ctx.regionSize(), 0);
             }
-            assertThat(cacheService.freeRegionCount(), equalTo(0));
+            assertThat(ctx.cacheService().freeRegionCount(), equalTo(0));
             // filling used free slots only, so no eviction has happened yet
-            assertThat(lockAcquireMeasurements(recording, CacheMissEviction), empty());
+            assertThat(lockAcquireMeasurements(ctx.recording(), CacheMissEviction), empty());
+            // one SlotAssignment per fill, before any eviction
+            assertLockAcquireSamples(ctx.recording(), SlotAssignment, ctx.numRegions(), ctx.clockStepMicros());
+
+            // reset so the only SlotAssignment we assert after this is the post-eviction install
+            ctx.recording().getRecorder().resetCalls();
 
             // brand-new key with no free region: initChunk -> maybeEvictAndTake (CacheMissEviction) -> assignToSlot (SlotAssignment)
-            cacheService.get(generateCacheKey(), regionSize, 0);
+            ctx.cacheService().get(generateCacheKey(), ctx.regionSize(), 0);
 
-            assertLockAcquireSamples(recording, CacheMissEviction, 1, clockStepMicros);
-            // one SlotAssignment per fill plus one for the post-eviction install
-            assertLockAcquireSamples(recording, SlotAssignment, numRegions + 1, clockStepMicros);
-        }
+            assertLockAcquireSamples(ctx.recording(), CacheMissEviction, 1, ctx.clockStepMicros());
+            assertLockAcquireSamples(ctx.recording(), SlotAssignment, 1, ctx.clockStepMicros());
+        });
     }
 
     /// Drives a cache hit after the epoch has advanced past the entry's last-accessed epoch, exercising the
     /// [BlobCacheMetrics.LockAcquireSite#Promote] site. The decay task that advances the epoch records exactly one
     /// [BlobCacheMetrics.LockAcquireSite#Decay] sample, which is filtered out of the promote assertion.
     public void testLockAcquireMetricsPromote() throws Exception {
-        final int numRegions = randomIntBetween(2, 10);
-        final long regionSize = size(1L);
-        final long clockStepMicros = randomLongBetween(1, 10_000);
-        final long clockStepNanos = TimeUnit.MICROSECONDS.toNanos(clockStepMicros);
-        final AtomicLong clock = new AtomicLong();
-        final Settings settings = lockAcquireCacheSettings(numRegions, regionSize);
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<TestCacheKey>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
-                () -> clock.addAndGet(clockStepNanos),
-                new DefaultEvictionPolicy<>()
-            )
-        ) {
+        runLockAcquireMetricsTest(ctx -> {
             final var key = generateCacheKey();
-            cacheService.get(key, regionSize, 0);
+            ctx.cacheService().get(key, ctx.regionSize(), 0);
 
             // advance the epoch so the next access to key promotes it; this decay task records one Decay sample
-            cacheService.maybeScheduleDecayAndNewEpoch();
-            taskQueue.runAllRunnableTasks();
+            ctx.cacheService().maybeScheduleDecayAndNewEpoch();
+            ctx.taskQueue().runAllRunnableTasks();
+            assertLockAcquireSamples(ctx.recording(), Decay, 1, ctx.clockStepMicros());
 
-            cacheService.get(key, regionSize, 0);
-
-            assertLockAcquireSamples(recording, Promote, 1, clockStepMicros);
-            assertLockAcquireSamples(recording, Decay, 1, clockStepMicros);
-        }
+            ctx.cacheService().get(key, ctx.regionSize(), 0);
+            assertLockAcquireSamples(ctx.recording(), Promote, 1, ctx.clockStepMicros());
+        });
     }
 
     /// Drives the best-effort prefetch scanner `SharedBlobCacheService::maybeEvictLeastUsed` on an empty freq-0 list: the lock is
-    /// taken unconditionally, so a single [BlobCacheMetrics.LockAcquireSite#PrefetchEviction] sample is recorded even though nothing
+    /// taken unconditionally, so a single [BlobCacheMetrics.LockAcquireSite#LowestFrequencyEviction] sample is recorded even though nothing
     /// is evicted.
     public void testLockAcquireMetricsPrefetchEviction() throws Exception {
-        final int numRegions = randomIntBetween(2, 10);
-        final long regionSize = size(1L);
-        final long clockStepMicros = randomLongBetween(1, 10_000);
-        final long clockStepNanos = TimeUnit.MICROSECONDS.toNanos(clockStepMicros);
-        final AtomicLong clock = new AtomicLong();
-        final Settings settings = lockAcquireCacheSettings(numRegions, regionSize);
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<TestCacheKey>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
-                () -> clock.addAndGet(clockStepNanos),
-                new DefaultEvictionPolicy<>()
-            )
-        ) {
-            assertThat(cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0), is(false));
+        runLockAcquireMetricsTest(ctx -> {
+            assertThat(ctx.cacheService().maybeEvictLeastUsed(generateCacheKey(), ctx.regionSize(), 0), is(false));
 
-            assertLockAcquireSamples(recording, PrefetchEviction, 1, clockStepMicros);
-        }
+            assertLockAcquireSamples(ctx.recording(), LowestFrequencyEviction, 1, ctx.clockStepMicros());
+        });
     }
 
-    /// Drives the whole-key-mapping bulk eviction [SharedBlobCacheService#forceEvict(Predicate)}] and asserts the
-    /// [BlobCacheMetrics.LockAcquireSite#ForceEvictByKey] site. A no-match call takes no lock and records nothing.
+    /// Drives the whole-key-mapping bulk eviction [SharedBlobCacheService#forceEvict(Predicate)] and asserts the
+    /// [BlobCacheMetrics.LockAcquireSite#ForceEvict] site. A no-match call takes no lock and records nothing.
     public void testLockAcquireMetricsForceEvictByKey() throws Exception {
-        final int numRegions = randomIntBetween(2, 10);
-        final long regionSize = size(1L);
-        final long clockStepMicros = randomLongBetween(1, 10_000);
-        final long clockStepNanos = TimeUnit.MICROSECONDS.toNanos(clockStepMicros);
-        final AtomicLong clock = new AtomicLong();
-        final Settings settings = lockAcquireCacheSettings(numRegions, regionSize);
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<TestCacheKey>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
-                () -> clock.addAndGet(clockStepNanos),
-                new DefaultEvictionPolicy<>()
-            )
-        ) {
+        runLockAcquireMetricsTest(ctx -> {
             final var key = generateCacheKey();
-            cacheService.get(key, regionSize, 0);
+            ctx.cacheService().get(key, ctx.regionSize(), 0);
 
             // no matching entries: the lock is never taken
-            assertThat(cacheService.forceEvict(k -> false), equalTo(0));
-            assertThat(lockAcquireMeasurements(recording, ForceEvictByKey), empty());
+            assertThat(ctx.cacheService().forceEvict(k -> false), equalTo(0));
+            assertThat(lockAcquireMeasurements(ctx.recording(), ForceEvict), empty());
 
-            assertThat(cacheService.forceEvict(key::equals), equalTo(1));
-            assertLockAcquireSamples(recording, ForceEvictByKey, 1, clockStepMicros);
-        }
+            assertThat(ctx.cacheService().forceEvict(key::equals), equalTo(1));
+            assertLockAcquireSamples(ctx.recording(), ForceEvict, 1, ctx.clockStepMicros());
+        });
     }
 
-    /// Asserts the async whole-key-mapping eviction path [SharedBlobCacheService#forceEvictAsync}] funnels into the same
-    /// [BlobCacheMetrics.LockAcquireSite#ForceEvictByKey] site, recording exactly one sample once the queued task runs.
+    /// Asserts the async whole-key-mapping eviction path [SharedBlobCacheService#forceEvictAsync] funnels into the same
+    /// [BlobCacheMetrics.LockAcquireSite#ForceEvict] site, recording exactly one sample once the queued task runs.
     public void testLockAcquireMetricsForceEvictByKeyAsync() throws Exception {
-        final int numRegions = randomIntBetween(2, 10);
-        final long regionSize = size(1L);
-        final long clockStepMicros = randomLongBetween(1, 10_000);
-        final long clockStepNanos = TimeUnit.MICROSECONDS.toNanos(clockStepMicros);
-        final AtomicLong clock = new AtomicLong();
-        final Settings settings = lockAcquireCacheSettings(numRegions, regionSize);
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<TestCacheKey>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
-                () -> clock.addAndGet(clockStepNanos),
-                new DefaultEvictionPolicy<>()
-            )
-        ) {
+        runLockAcquireMetricsTest(ctx -> {
             final var key = generateCacheKey();
-            cacheService.get(key, regionSize, 0);
+            ctx.cacheService().get(key, ctx.regionSize(), 0);
 
-            cacheService.forceEvictAsync(key::equals);
+            ctx.cacheService().forceEvictAsync(key::equals);
             // nothing recorded until the queued task runs
-            assertThat(lockAcquireMeasurements(recording, ForceEvictByKey), empty());
+            assertThat(lockAcquireMeasurements(ctx.recording(), ForceEvict), empty());
 
-            taskQueue.runAllRunnableTasks();
-            assertLockAcquireSamples(recording, ForceEvictByKey, 1, clockStepMicros);
-        }
+            ctx.taskQueue().runAllRunnableTasks();
+            assertLockAcquireSamples(ctx.recording(), ForceEvict, 1, ctx.clockStepMicros());
+        });
     }
 
     /// Drives the shard-scoped bulk eviction [SharedBlobCacheService#forceEvict(ShardId, Predicate)] and asserts the
-    /// [BlobCacheMetrics.LockAcquireSite#ForceEvictByShard] site. A no-match {@code BiPredicate} call takes no lock and records
+    /// [BlobCacheMetrics.LockAcquireSite#ForceEvict] site. A no-match {@code BiPredicate} call takes no lock and records
     /// nothing.
     public void testLockAcquireMetricsForceEvictByShard() throws Exception {
-        final int numRegions = randomIntBetween(2, 10);
-        final long regionSize = size(1L);
-        final long clockStepMicros = randomLongBetween(1, 10_000);
-        final long clockStepNanos = TimeUnit.MICROSECONDS.toNanos(clockStepMicros);
-        final AtomicLong clock = new AtomicLong();
-        final Settings settings = lockAcquireCacheSettings(numRegions, regionSize);
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<TestCacheKey>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
-                () -> clock.addAndGet(clockStepNanos),
-                new DefaultEvictionPolicy<>()
-            )
-        ) {
+        runLockAcquireMetricsTest(ctx -> {
             final ShardId shard = randomShardId();
             final var key = randomTestCacheKey(shard);
-            cacheService.get(key, regionSize, 0);
+            ctx.cacheService().get(key, ctx.regionSize(), 0);
 
             // no matching regions for the shard: the lock is never taken
-            assertThat(cacheService.forceEvict(shard, (k, region) -> false), equalTo(0));
-            assertThat(lockAcquireMeasurements(recording, ForceEvictByShard), empty());
+            assertThat(ctx.cacheService().forceEvict(shard, (k, region) -> false), equalTo(0));
+            assertThat(lockAcquireMeasurements(ctx.recording(), ForceEvict), empty());
 
-            assertThat(cacheService.forceEvict(shard, key::equals), equalTo(1));
-            assertLockAcquireSamples(recording, ForceEvictByShard, 1, clockStepMicros);
-        }
+            assertThat(ctx.cacheService().forceEvict(shard, key::equals), equalTo(1));
+            assertLockAcquireSamples(ctx.recording(), ForceEvict, 1, ctx.clockStepMicros());
+        });
     }
 
     /// Drives [SharedBlobCacheService#demoteAll] on a shard holding a freq>0 region and asserts the
     /// [BlobCacheMetrics.LockAcquireSite#Demote] site. Demoting an unknown shard matches nothing, takes no lock, and records nothing.
     public void testLockAcquireMetricsDemote() throws Exception {
-        final int numRegions = randomIntBetween(2, 10);
-        final long regionSize = size(1L);
-        final long clockStepMicros = randomLongBetween(1, 10_000);
-        final long clockStepNanos = TimeUnit.MICROSECONDS.toNanos(clockStepMicros);
-        final AtomicLong clock = new AtomicLong();
-        final Settings settings = lockAcquireCacheSettings(numRegions, regionSize);
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<TestCacheKey>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
-                () -> clock.addAndGet(clockStepNanos),
-                new DefaultEvictionPolicy<>()
-            )
-        ) {
+        runLockAcquireMetricsTest(ctx -> {
             final ShardId shard = randomShardId();
             final var key = randomTestCacheKey(shard);
-            cacheService.get(key, regionSize, 0); // lands at frequency 1
+            ctx.cacheService().get(key, ctx.regionSize(), 0); // lands at frequency 1
 
             // unknown shard, no matching entries: the lock is never taken
-            assertThat(cacheService.demoteAll(randomShardId()), equalTo(0));
-            assertThat(lockAcquireMeasurements(recording, Demote), empty());
+            assertThat(ctx.cacheService().demoteAll(randomShardId()), equalTo(0));
+            assertThat(lockAcquireMeasurements(ctx.recording(), Demote), empty());
 
-            assertThat(cacheService.demoteAll(shard), equalTo(1));
-            assertLockAcquireSamples(recording, Demote, 1, clockStepMicros);
-        }
+            assertThat(ctx.cacheService().demoteAll(shard), equalTo(1));
+            assertLockAcquireSamples(ctx.recording(), Demote, 1, ctx.clockStepMicros());
+        });
     }
 
     /// Drives the background LFU decay directly [SharedBlobCacheService#computeDecay] and asserts the single
     /// [BlobCacheMetrics.LockAcquireSite#Decay] sample it records unconditionally.
     public void testLockAcquireMetricsDecay() throws Exception {
-        final int numRegions = randomIntBetween(2, 10);
-        final long regionSize = size(1L);
-        final long clockStepMicros = randomLongBetween(1, 10_000);
-        final long clockStepNanos = TimeUnit.MICROSECONDS.toNanos(clockStepMicros);
-        final AtomicLong clock = new AtomicLong();
-        final Settings settings = lockAcquireCacheSettings(numRegions, regionSize);
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<TestCacheKey>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
-                () -> clock.addAndGet(clockStepNanos),
-                new DefaultEvictionPolicy<>()
-            )
-        ) {
-            cacheService.computeDecay();
+        runLockAcquireMetricsTest(ctx -> {
+            ctx.cacheService().computeDecay();
 
-            assertLockAcquireSamples(recording, Decay, 1, clockStepMicros);
-        }
+            assertLockAcquireSamples(ctx.recording(), Decay, 1, ctx.clockStepMicros());
+        });
     }
 
     private static List<Measurement> evictionScanMeasurements(
@@ -2716,8 +2551,55 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         assertThat(samples, hasSize(expectedCount));
         for (Measurement sample : samples) {
             assertThat(sample.getDouble(), is((double) clockStepMicros));
+            assertThat(sample.attributes().keySet(), hasSize(1));
             assertThat(sample.attributes(), hasKey(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY));
             assertThat(sample.attributes().get(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY), is(site.name()));
+        }
+    }
+
+    /// Bundles the objects created by [#runLockAcquireMetricsTest] so a test body can drive the cache and assert against the
+    /// recorded lock-acquire samples without repeating the shared setup.
+    private record LockAcquireMetricsTestContext(
+        SharedBlobCacheService<TestCacheKey> cacheService,
+        RecordingMeterRegistry recording,
+        DeterministicTaskQueue taskQueue,
+        int numRegions,
+        long regionSize,
+        long clockStepMicros
+    ) {
+        private LockAcquireMetricsTestContext {
+            Stream.of(cacheService, recording, taskQueue).forEach(Objects::requireNonNull);
+            assertThat(numRegions, greaterThan(0));
+            assertThat(regionSize, greaterThan(0L));
+            assertThat(clockStepMicros, greaterThan(0L));
+        }
+    }
+
+    /// Builds the settings, environment and cache shared by every {@code testLockAcquireMetrics*} test (a fixed number of
+    /// single-region slots, a deterministic clock that advances a random step per read, and a [DefaultEvictionPolicy]) and runs
+    /// {@code body} against the resulting [LockAcquireMetricsTestContext].
+    private void runLockAcquireMetricsTest(CheckedConsumer<LockAcquireMetricsTestContext, Exception> body) throws Exception {
+        final int numRegions = randomIntBetween(2, 10);
+        final long regionSize = size(1L);
+        final long clockStepMicros = randomLongBetween(1, 10_000);
+        final long clockStepNanos = TimeUnit.MICROSECONDS.toNanos(clockStepMicros);
+        final AtomicLong clock = new AtomicLong();
+        final Settings settings = lockAcquireCacheSettings(numRegions, regionSize);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recording),
+                () -> clock.addAndGet(clockStepNanos),
+                new DefaultEvictionPolicy<>()
+            )
+        ) {
+            body.accept(new LockAcquireMetricsTestContext(cacheService, recording, taskQueue, numRegions, regionSize, clockStepMicros));
         }
     }
 

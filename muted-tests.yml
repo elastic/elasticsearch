@@ -68,6 +68,9 @@ tests:
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
+- class: org.elasticsearch.xpack.esql.planner.LocalExecutionPlannerTests
+  method: testLuceneTopNSourceOperator {estimatedRowSizeIsHuge=true}
+  issue: https://github.com/elastic/elasticsearch/issues/152799
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.convertCartesianFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144580
@@ -110,6 +113,9 @@ tests:
 - class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
   method: testHAProxyModeConnectionWorks
   issue: https://github.com/elastic/elasticsearch/issues/139171
+- class: org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExecSerializationTests
+  method: testEncryptedDatasourceSecretStrippedForOlderTransportVersion
+  issue: https://github.com/elastic/elasticsearch/issues/152657
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PROMQL}
   issue: https://github.com/elastic/elasticsearch/issues/146923
@@ -476,9 +482,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
   method: test {p0=ml/estimate_model_memory/Test partition field with independent influencer}
   issue: https://github.com/elastic/elasticsearch/issues/151052
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
-  method: testMixedOperationsDuringSplitWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/151090
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testUnhollowOnUpdates
   issue: https://github.com/elastic/elasticsearch/issues/151100
@@ -551,9 +554,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
   method: detects missing POM elements and reports structured problems
   issue: https://github.com/elastic/elasticsearch/issues/151636
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=scroll/10_basic/Basic scroll}
-  issue: https://github.com/elastic/elasticsearch/issues/151698
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/151709
@@ -620,9 +620,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115
-- class: org.elasticsearch.index.engine.InternalEngineTests
-  method: testLookupSeqNoByIdInLucene
-  issue: https://github.com/elastic/elasticsearch/issues/152120
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
@@ -638,18 +635,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalSourceProfileIT
   method: testCsvCountStarScansColdThenSkipsWarm
   issue: https://github.com/elastic/elasticsearch/issues/152132
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:stats_sparkline.sparklineWithWeightedAvg}
-  issue: https://github.com/elastic/elasticsearch/issues/152159
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:stats_sparkline.avgAndSparklineWithWeightedAvg}
-  issue: https://github.com/elastic/elasticsearch/issues/152160
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:stats_sparkline.weightedAvgAndTwoSparklinesWithSameWeightedAvg}
-  issue: https://github.com/elastic/elasticsearch/issues/152161
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:stats_sparkline.weightedAvgAndSparklineWithSameWeightedAvg}
-  issue: https://github.com/elastic/elasticsearch/issues/152162
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/149746
@@ -683,9 +668,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
   method: testFold {TestCase=cartesian_shape and cartesian_point}
   issue: https://github.com/elastic/elasticsearch/issues/152309
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:approximation.No confidence intervals}
-  issue: https://github.com/elastic/elasticsearch/issues/152310
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/152311
@@ -829,3 +811,57 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/152734
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testEachInstallOrRotationAddsExactlyOneNewKey
+  issue: https://github.com/elastic/elasticsearch/issues/152776
+- class: org.elasticsearch.transport.RemoteClusterClientTests
+  method: testGetConnectionFailureCompletesOnResponseExecutor
+  issue: https://github.com/elastic/elasticsearch/issues/152779
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search only}
+  issue: https://github.com/elastic/elasticsearch/issues/152784
+- class: org.elasticsearch.search.suggest.CompletionSuggestSearchIT
+  method: testBigSizeCircuitBreak
+  issue: https://github.com/elastic/elasticsearch/issues/152785
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search plus query}
+  issue: https://github.com/elastic/elasticsearch/issues/152786
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testCloseWhileShardsAreHollowed
+  issue: https://github.com/elastic/elasticsearch/issues/151861
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testConsecutiveRotations
+  issue: https://github.com/elastic/elasticsearch/issues/152472
+- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
+  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double>, <dense_vector>}
+  issue: https://github.com/elastic/elasticsearch/issues/152794
+- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
+  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<long>, <dense_vector>}
+  issue: https://github.com/elastic/elasticsearch/issues/152795
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSourceRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/152800
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndTwoExpressions}
+  issue: https://github.com/elastic/elasticsearch/issues/152801
+- class: org.elasticsearch.packaging.test.PackageUpgradeTests
+  method: test12SetupBwcVersion
+  issue: https://github.com/elastic/elasticsearch/issues/152818
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
+  method: testMixedOperationsDuringSplitWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/151090
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationContinuesAfterMasterFailover
+  issue: https://github.com/elastic/elasticsearch/issues/152676
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: initializationError
+  issue: https://github.com/elastic/elasticsearch/issues/152849
+- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
+  method: testDefaultSettingsFailsOnCrossFileScalarObjectConflict
+  issue: https://github.com/elastic/elasticsearch/issues/152865
+- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
+  method: testSkipRowPolicyNullFillsAndWarnsClient
+  issue: https://github.com/elastic/elasticsearch/issues/152866
+- class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with multiple _slice values searches across the requested slices}
+  issue: https://github.com/elastic/elasticsearch/issues/152870

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
@@ -48,6 +49,27 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
  * only the base dataset fields are accepted, preserving backward compatibility.
  */
 public class FileDataSourceValidator implements DataSourceValidator {
+
+    /**
+     * Gates provisioning data sources that use workload-identity federation (e.g. S3 {@code role_arn},
+     * GCS {@code sts_audience}, Azure {@code tenant_id}/{@code client_id}). A single flag covers every file-based
+     * provider, since they all funnel through this validator and share the
+     * {@link DataSourceConfiguration#hasFederatedAuth()} mechanism. Snapshot-on, release-off; override in release with
+     * {@code -Des.esql_external_datasources_federated_identity_feature_flag_enabled=true}. The federated fields themselves remain
+     * registered on each configuration regardless, so a PUT carrying them produces the explicit
+     * {@link #FEDERATED_IDENTITY_DISABLED_MESSAGE} rather than an "unknown setting" error.
+     */
+    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG = new FeatureFlag(
+        "esql_external_datasources_federated_identity"
+    );
+
+    /**
+     * Error shown when a data source is provisioned with federated authentication settings while the
+     * {@link #ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG} feature flag is disabled.
+     */
+    public static final String FEDERATED_IDENTITY_DISABLED_MESSAGE =
+        "federated authentication settings require the [esql_external_datasources_federated_identity] feature flag to be enabled; "
+            + "it is disabled by default in release builds";
 
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
     private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
@@ -107,13 +129,14 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final FormatConfigKeyResolver formatConfigKeyResolver;
     private final Set<String> compressionExtensions;
     private final BooleanSupplier managedIdentityEnabled;
+    private final BooleanSupplier federatedIdentityEnabled;
 
     public FileDataSourceValidator(
         String type,
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false);
+        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false);
     }
 
     private FileDataSourceValidator(
@@ -122,7 +145,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
         Set<String> compressionExtensions,
-        BooleanSupplier managedIdentityEnabled
+        BooleanSupplier managedIdentityEnabled,
+        BooleanSupplier federatedIdentityEnabled
     ) {
         this.type = type;
         this.configFactory = configFactory;
@@ -130,6 +154,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.formatConfigKeyResolver = formatConfigKeyResolver;
         this.compressionExtensions = compressionExtensions;
         this.managedIdentityEnabled = managedIdentityEnabled;
+        this.federatedIdentityEnabled = federatedIdentityEnabled;
     }
 
     /**
@@ -143,7 +168,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * runtime resolution in {@code FormatReaderRegistry}/{@code DecompressionCodecRegistry}.
      */
     public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver, Set<String> compressionExtensions) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions, managedIdentityEnabled);
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            resolver,
+            compressionExtensions,
+            managedIdentityEnabled,
+            federatedIdentityEnabled
+        );
     }
 
     /**
@@ -154,7 +187,33 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * without a node restart.
      */
     public FileDataSourceValidator withManagedIdentityEnabled(BooleanSupplier supplier) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, formatConfigKeyResolver, compressionExtensions, supplier);
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            compressionExtensions,
+            supplier,
+            federatedIdentityEnabled
+        );
+    }
+
+    /**
+     * Returns a new validator that gates federated workload-identity authentication on the supplied boolean supplier.
+     * The supplier is called on each validation. Wire it to
+     * {@link #ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG} in production; tests pass a fixed supplier to exercise
+     * both states without flipping the process-wide feature flag.
+     */
+    public FileDataSourceValidator withFederatedIdentityEnabled(BooleanSupplier supplier) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            compressionExtensions,
+            managedIdentityEnabled,
+            supplier
+        );
     }
 
     @Override
@@ -170,6 +229,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
         DataSourceConfiguration config = configFactory.apply(datasourceSettings);
         if (config instanceof FileDataSourceConfiguration fc && fc.isManagedIdentity() && managedIdentityEnabled.getAsBoolean() == false) {
             throw new ValidationException().addValidationError(FileDataSourceConfiguration.MANAGED_IDENTITY_DISABLED_MESSAGE);
+        }
+        if (isFederatedIdentityUsed(config) && federatedIdentityEnabled.getAsBoolean() == false) {
+            throw new ValidationException().addValidationError(FEDERATED_IDENTITY_DISABLED_MESSAGE);
         }
         return config != null ? config.toStoredSettings() : Map.of();
     }
@@ -254,6 +316,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         errors.throwIfValidationErrorsExist();
         return result;
+    }
+
+    private boolean isFederatedIdentityUsed(DataSourceConfiguration config) {
+        return (config instanceof FileDataSourceConfiguration fc && fc.isFederatedIdentity()) || config.hasFederatedAuth();
     }
 
     /**

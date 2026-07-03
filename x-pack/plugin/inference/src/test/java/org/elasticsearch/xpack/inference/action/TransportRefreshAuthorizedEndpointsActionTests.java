@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
@@ -71,6 +72,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
     private ModelRegistry mockRegistry;
     private ElasticInferenceServiceAuthorizationRequestHandler mockAuthHandler;
     private Client mockClient;
+    private ElasticInferenceServiceSettings mockEisSettings;
 
     @Before
     public void init() throws Exception {
@@ -82,6 +84,19 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         var mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(mockClient.threadPool()).thenReturn(mockThreadPool);
+        mockEisSettings = mock(ElasticInferenceServiceSettings.class);
+        when(mockEisSettings.getElasticInferenceServiceUrl()).thenReturn(URL);
+    }
+
+    public void testDoesNotSendAuthorizationRequest_WhenEisUrlIsNotConfigured() {
+        when(mockEisSettings.getElasticInferenceServiceUrl()).thenReturn("");
+        var action = createAction();
+
+        var future = new TestPlainActionFuture<ActionResponse.Empty>();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
+
+        assertThat(future.actionGet(), is(ActionResponse.Empty.INSTANCE));
+        verify(mockAuthHandler, never()).getAuthorization(any(), any());
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenModelRegistryIsNotReady() {
@@ -322,7 +337,8 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
             mockAuthHandler,
             mock(Sender.class),
             inferenceFeatureServiceMock,
-            mockClient
+            mockClient,
+            mockEisSettings
         );
     }
 

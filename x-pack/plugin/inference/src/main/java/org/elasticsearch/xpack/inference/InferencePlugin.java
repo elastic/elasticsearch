@@ -426,7 +426,8 @@ public class InferencePlugin extends Plugin
             serviceComponents.get(),
             elasticInferenceServiceFactory.get().createSender(),
             modelRegistry.get(),
-            ccmFeature.get()
+            ccmFeature.get(),
+            inferencePreferencesCache
         );
         components.addAll(ccmRelatedComponents.components());
 
@@ -535,7 +536,8 @@ public class InferencePlugin extends Plugin
         ServiceComponents serviceComponents,
         Sender sender,
         ModelRegistry modelRegistry,
-        CCMFeature ccmFeature
+        CCMFeature ccmFeature,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
@@ -561,7 +563,8 @@ public class InferencePlugin extends Plugin
             services.threadPool(),
             ccmAuthApplierFactory,
             ccmFeature,
-            ccmService
+            ccmService,
+            inferencePreferencesCache
         );
 
         var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());

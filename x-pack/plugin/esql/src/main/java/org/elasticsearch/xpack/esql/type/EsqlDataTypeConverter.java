@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -272,13 +273,13 @@ public class EsqlDataTypeConverter {
             if (to == DataType.DATETIME) {
                 return l -> EsqlDataTypeConverter.dateTimeToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                    DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                 );
             }
             if (to == DATE_NANOS) {
                 return l -> EsqlDataTypeConverter.dateNanosToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                    DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                 );
             }
             if (to == DataType.IP) {

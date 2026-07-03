@@ -11,17 +11,16 @@
 // cross-file column-type widening and are intentionally excluded here. The UBN tests below
 // only project columns that do not require widening.
 //
-// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
-// backends (S3) ParquetFormatSpecIT registers the dataset and runs the FROM query verbatim; the other backends
-// rebuild the equivalent EXTERNAL query. The dataset name encodes the schema_resolution option so the same name
-// always carries the same settings.
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. ParquetFormatSpecIT
+// registers the dataset on every storage backend and runs the FROM query verbatim. The dataset name encodes
+// the schema_resolution option so the same name always carries the same settings.
 
 // ===== UNION_BY_NAME on divergent Parquet schemas =====
 // Unified schema: name:keyword, age:long (widened), score:double (null in B), city:keyword (null in A)
 // Only tests that project columns NOT requiring cross-file widening are included.
 
 parquetUbnCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
@@ -33,7 +32,7 @@ count:long
 ;
 
 parquetUbnProjectPruning
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
@@ -54,7 +53,7 @@ dave         | london
 // so the entire column is returned as null with a warning, score is missing → null.
 
 parquetFfwAllRows
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
 
@@ -71,7 +70,7 @@ dave         | null        | null
 ;
 
 parquetFfwCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
 
@@ -85,7 +84,7 @@ count:long
 ;
 
 parquetFfwFilterAnchorOnly
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
 

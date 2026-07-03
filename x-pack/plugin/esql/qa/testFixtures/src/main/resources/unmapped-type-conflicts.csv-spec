@@ -459,6 +459,7 @@ emp_no:integer | gender:text           | _index:keyword
 typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -467,6 +468,7 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 | LIMIT 6
 ;
 
+warning:Field [gender] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 emp_no:integer | gender:text           | _index:keyword
 10001          | M                     | employees_gender_text
 10001          | null                  | employees_no_gender

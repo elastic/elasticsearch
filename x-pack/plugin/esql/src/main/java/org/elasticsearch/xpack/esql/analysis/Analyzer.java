@@ -3187,11 +3187,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
      * This should not spill into the query output, so we drop such attributes at the end.
      */
-    private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
-        public LogicalPlan apply(LogicalPlan plan) {
+    private static class UnionTypesCleanup extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
 
             // We start by dropping synthetic attributes if the plan is resolved
             LogicalPlan cleanPlan = plan.resolved() ? planWithoutSyntheticAttributes(plan) : plan;
+
+            // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it into a
+            // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once for each such field whose value the user can
+            // actually observe (it reaches the final output or is consumed by some expression). Loadable casts produced a separate
+            // attribute with its own id (see ResolveUnionTypes#createIfDoesNotAlreadyExist), so matching by id excludes them for free.
+            //
+            // The LOAD gate looks redundant — a PUNK is only ever created when unmapped-field-index tracking is on — but it isn't, because
+            // that tracking keys off the *raw* unmapped_fields setting while the analyzer may run with a different resolution. Concretely,
+            // a
+            // query carrying a PROMQL command is forced to NULLIFY (EsqlSession#analyzeWithRetry), yet if the raw setting was "load" the
+            // indices were still tracked, so PUNKs reach cleanup under NULLIFY. Warning there would be wrong (we're nullifying, not failing
+            // to load). Tracking-despite-nullify is arguably an EsqlSession bug (see the #145920 TODO there); until it's fixed this gate
+            // keeps the warning honest. Analyzer/golden tests also build PUNK indices directly and run them under NULLIFY.
+            if (context.unmappedResolution() == UnmappedResolution.LOAD && cleanPlan.resolved()) {
+                warnObservedNonLoadablePunks(cleanPlan);
+            }
 
             // If not, we apply checkUnresolved to the field attributes of the original plan, resulting in unsupported attributes
             // This removes attributes such as converted types if they are aliased, but retains them otherwise, while also guaranteeing that
@@ -3205,6 +3221,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         : fa.flagTypeConflicts()
                 )
             );
+        }
+
+        private static void warnObservedNonLoadablePunks(LogicalPlan plan) {
+            Set<NameId> observedFieldIds = observedFieldIds(plan);
+            Set<NameId> warned = new HashSet<>();
+            plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+                if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk && observedFieldIds.contains(fa.id())) {
+                    DataType mappedType = punk.mappedField().getDataType();
+                    // dense_vector has a KEYWORD converter, but it reads hexadecimal strings while an unmapped dense_vector loads from
+                    // _source as an array of numbers (#152184), so the "no implicit conversion from KEYWORD" wording would be misleading.
+                    if (mappedType != DENSE_VECTOR && warned.add(fa.id())) {
+                        HeaderWarning.addWarning(
+                            "Field [{}] of type [{}] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will "
+                                + "not be loaded from _source; values will be null in those indices",
+                            fa.name(),
+                            mappedType.typeName()
+                        );
+                    }
+                }
+            });
+        }
+
+        /** Ids of every attribute that reaches the final output or is referenced by some node — i.e. whose value the user can observe. */
+        private static Set<NameId> observedFieldIds(LogicalPlan plan) {
+            Set<NameId> ids = new HashSet<>();
+            plan.output().forEach(a -> ids.add(a.id()));
+            plan.forEachDown(p -> p.references().forEach(a -> ids.add(a.id())));
+            return ids;
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
@@ -3351,9 +3395,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (context.unmappedResolution() != UnmappedResolution.LOAD) {
                 return plan;
             }
-            Set<String> keywordCastableFieldNames = keywordCastableFieldNames(plan);
-            Set<String> explicitlyMentionedFields = explicitlyMentionedFields(plan);
-
             return plan.transformUp(EsRelation.class, esRelation -> {
                 if (esRelation.indexMode() == IndexMode.LOOKUP) {
                     return esRelation;
@@ -3374,14 +3415,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         ConvertFunction convert = convertFactory == null
                             ? null
                             : convertFactory.apply(fa.source(), fa, context.configuration());
-                        // A two-legged PUNK is read from _source only via a conversion from KEYWORD: either the implicit converter for
-                        // its mapped type accepts KEYWORD, or the user wrapped it in an explicit cast that does. Otherwise it falls back
-                        // to null where unmapped; warn when it was referenced explicitly.
-                        boolean loadableFromSource = (convert != null && convert.supportedTypes().contains(KEYWORD))
-                            || keywordCastableFieldNames.contains(fa.name());
-                        if (loadableFromSource == false) {
-                            warnFieldNotLoadable(fa, mappedType, explicitlyMentionedFields);
-                        }
                         // We can only load an unmapped field from _source as KEYWORD, so without a converter accepting KEYWORD input we
                         // can't auto-cast. Leave the PUNK in place: a cast applied directly to the field is resolved by ResolveUnionTypes
                         // (which loads the unmapped leg from _source), while every other use falls back to the mapped type in
@@ -3423,34 +3456,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return fa;
                 });
             });
-        }
-
-        /** Fields wrapped in an explicit cast that accepts KEYWORD input, hence loadable from _source even without an implicit converter. */
-        private static Set<String> keywordCastableFieldNames(LogicalPlan plan) {
-            Set<String> fieldNames = new HashSet<>();
-            plan.forEachExpressionDown(Expression.class, expression -> {
-                if (expression instanceof ConvertFunction convert && convert.supportedTypes().contains(KEYWORD)) {
-                    convert.field().forEachDown(Attribute.class, attr -> fieldNames.add(attr.name()));
-                }
-            });
-            return fieldNames;
-        }
-
-        private static Set<String> explicitlyMentionedFields(LogicalPlan plan) {
-            Set<String> fieldNames = new HashSet<>();
-            plan.forEachExpressionDown(UnresolvedAttribute.class, attr -> fieldNames.add(attr.name()));
-            return fieldNames;
-        }
-
-        private static void warnFieldNotLoadable(FieldAttribute fa, DataType mappedType, Set<String> explicitlyMentionedFields) {
-            if (explicitlyMentionedFields.contains(fa.name())) {
-                HeaderWarning.addWarning(
-                    "Field [{}] of type [{}] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be "
-                        + "loaded from _source; values will be null in those indices",
-                    fa.name(),
-                    mappedType.typeName()
-                );
-            }
         }
     }
 

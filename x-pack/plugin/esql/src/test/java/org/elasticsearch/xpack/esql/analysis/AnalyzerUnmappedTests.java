@@ -1186,6 +1186,13 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             }
         }
         assertThat(noConverterTypes, equalTo(NO_IMPLICIT_KEYWORD_CONVERTER_PUNK_TYPES));
+        // Each non-loadable PUNK reaches the default output (bare FROM) and warns; dense_vector is deliberately excluded.
+        assertWarnings(
+            noConverterTypes.stream()
+                .filter(dt -> dt.widenSmallNumeric() != DataType.DENSE_VECTOR)
+                .map(dt -> nonLoadablePunkWarning("test_field", dt.widenSmallNumeric().typeName()))
+                .toArray(String[]::new)
+        );
     }
 
     private static boolean supportsKeywordConversionUnderLoad(DataType mappedType) {
@@ -1562,24 +1569,113 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
     }
 
-    public void testWarnsOnlyForExplicitlyMentionedNonLoadablePunk() {
+    public void testNonLoadablePunkWarnsWhenInOutputNotWhenExcluded() {
         assumeTrue(
             "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
             EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
         );
 
-        var mentioned = new EsField("mentioned_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
-        var unmentioned = new EsField("unmentioned_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var kept = new EsField("kept_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var excluded = new EsField("excluded_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
         var esIndex = partialIndex(
-            Map.of("mentioned_text", mentioned, "unmentioned_text", unmentioned, "common", keywordField("common")),
-            Set.of("mentioned_text", "unmentioned_text")
+            Map.of("kept_text", kept, "excluded_text", excluded, "common", keywordField("common")),
+            Set.of("kept_text", "excluded_text")
         );
         var analyzer = analyzer().addIndex(esIndex);
 
-        var plan = analyzer.statement(setUnmappedLoad("FROM idx* | KEEP mentioned_text, common"));
-        var mentionedAttr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("mentioned_text")).toList());
-        assertThat(mentionedAttr.dataType(), equalTo(DataType.TEXT));
-        assertWarnings(nonLoadablePunkWarning("mentioned_text", "text"));
+        // excluded_text never reaches the output, so it produces no warning; kept_text does.
+        var plan = analyzer.statement(setUnmappedLoad("FROM idx* | KEEP kept_text, common"));
+        var keptAttr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("kept_text")).toList());
+        assertThat(keptAttr.dataType(), equalTo(DataType.TEXT));
+        assertWarnings(nonLoadablePunkWarning("kept_text", "text"));
+    }
+
+    public void testNonLoadablePunkWarnsUnderBareFrom() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        var esIndex = partialIndex(
+            Map.of("partial_text", textField("partial_text"), "common", keywordField("common")),
+            Set.of("partial_text")
+        );
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx*"));
+        var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_text")).toList());
+        assertThat(attr.dataType(), equalTo(DataType.TEXT));
+        assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
+    }
+
+    public void testNonLoadablePunkWarnsUnderKeepWildcard() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        var esIndex = partialIndex(
+            Map.of("partial_text", textField("partial_text"), "common", keywordField("common")),
+            Set.of("partial_text")
+        );
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | KEEP *"));
+        var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_text")).toList());
+        assertThat(attr.dataType(), equalTo(DataType.TEXT));
+        assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
+    }
+
+    public void testNonLoadablePunkNoWarnWhenExcludedByKeepWildcard() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        var esIndex = partialIndex(
+            Map.of("partial_text", textField("partial_text"), "common", keywordField("common")),
+            Set.of("partial_text")
+        );
+        // partial_text is excluded by the wildcard, so it never reaches the output and must not warn.
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | KEEP comm*"));
+        var attr = EsqlTestUtils.singleValue(plan.output());
+        assertThat(attr.name(), equalTo("common"));
+    }
+
+    public void testNonLoadablePunkNoWarnWhenDropped() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        var esIndex = partialIndex(
+            Map.of("partial_text", textField("partial_text"), "common", keywordField("common")),
+            Set.of("partial_text")
+        );
+        // A dropped PUNK, whether named explicitly or matched by a wildcard, leaves the output and must not warn.
+        for (String query : List.of("FROM idx* | DROP partial_text", "FROM idx* | DROP partial*")) {
+            var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad(query));
+            var attr = EsqlTestUtils.singleValue(plan.output());
+            assertThat("query [" + query + "]", attr.name(), equalTo("common"));
+        }
+    }
+
+    public void testNonLoadablePunkDirectCastLeavesKeptRawFieldAsFallback() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        var esIndex = partialIndex(Map.of("partial_text", textField("partial_text")), Set.of("partial_text"));
+        var plan = analyzer().addIndex(esIndex)
+            .statement(setUnmappedLoad("FROM idx* | EVAL x = partial_text::keyword | KEEP x, partial_text"));
+        // The cast loads into a separate KEYWORD attribute (x); the kept raw field keeps its own identity, stays a TEXT null fallback,
+        // and therefore still warns.
+        var x = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("x")).toList());
+        assertThat(x.dataType(), equalTo(DataType.KEYWORD));
+        var raw = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_text")).toList());
+        assertThat(raw.dataType(), equalTo(DataType.TEXT));
+        assertTrue(
+            "Expected x to load unmapped rows from _source via a KEYWORD union",
+            unionFields(plan).stream().anyMatch(u -> u.getDataType() == DataType.KEYWORD && u.getUnmappedConversionExpression() != null)
+        );
+        assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
     }
 
     public void testLoadWithPartiallyMappedNonKeywordInSortAutoCast() {
@@ -1897,6 +1993,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 ((AbstractConvertFunction) compact.getUnmappedConversionExpression()).field().dataType(),
                 is(DataType.KEYWORD)
             );
+            // The raw (uncast) field reaches the default output and falls back to null where unmapped.
+            assertWarnings(nonLoadablePunkWarning(smallTypeField, dt.typeName()));
         }
     }
 

@@ -343,6 +343,10 @@ public final class ParquetFixtureGenerator {
         return switch (type) {
             case "integer", "short", "byte" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32);
             case "long" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64);
+            // uint32 is physical INT32 (ESQL widens it to LONG — esql-planning#1030); uint16
+            // stays physical INT32 too, but always fits ESQL INTEGER without widening.
+            case "uint32" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.intType(32, false));
+            case "uint16" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.intType(16, false));
             case "double", "scaled_float" -> Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE);
             case "float", "half_float" -> Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT);
             case "boolean" -> Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN);
@@ -402,6 +406,9 @@ public final class ParquetFixtureGenerator {
             switch (type) {
                 case "integer", "short", "byte" -> g.add(leafName, ((Number) value).intValue());
                 case "long" -> g.add(leafName, ((Number) value).longValue());
+                // Truncating a uint32 long to int preserves the raw bit pattern the physical
+                // INT32 column stores; uint16 values already fit in int.
+                case "uint32", "uint16" -> g.add(leafName, ((Number) value).intValue());
                 case "double", "scaled_float" -> g.add(leafName, ((Number) value).doubleValue());
                 case "float", "half_float" -> g.add(leafName, ((Number) value).floatValue());
                 case "boolean" -> g.add(leafName, Boolean.TRUE.equals(value));

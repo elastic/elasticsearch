@@ -104,6 +104,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosT
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
@@ -1484,8 +1485,11 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             throw new UncheckedIOException(e);
                         }
                     }
-                    case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> {
-                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
+                    case GEO_POINT, GEO_SHAPE -> {
+                        BytesRef wkb = stringToGeo(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
+                    }
+                    case CARTESIAN_POINT, CARTESIAN_SHAPE -> {
                         BytesRef wkb = stringToSpatial(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }

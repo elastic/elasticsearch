@@ -9,6 +9,7 @@
 
 package org.elasticsearch.geometry;
 
+import org.elasticsearch.geometry.utils.CartesianValidator;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -119,5 +120,24 @@ public class GeometryValidatorTests extends ESTestCase {
         assertEquals("invalid latitude 1.5; must be between -1.0 and 1.0", ex.getMessage());
         ex = expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(validator, true, "MULTIPOINT (0 1, -2 1)"));
         assertEquals("invalid longitude -2.0; must be between -1.0 and 1.0", ex.getMessage());
+    }
+
+    public void testGeographyValidatorAllowsAntimeridianCrossingBBox() throws Exception {
+        // minX > maxX is a legitimate encoding of an envelope crossing the antimeridian; it must not be rejected.
+        GeometryValidator validator = GeographyValidator.instance(true);
+        WellKnownText.fromWKT(validator, false, "BBOX (170.0, -170.0, 10.0, -10.0)");
+    }
+
+    public void testCartesianValidatorRejectsInvertedXBBox() throws Exception {
+        GeometryValidator validator = CartesianValidator.INSTANCE;
+        // A valid envelope is unaffected.
+        WellKnownText.fromWKT(validator, false, "BBOX (0.0, 12.0, 60.0, 30.0)");
+
+        // maxX < minX has no antimeridian-crossing meaning for cartesian coordinates and must be rejected.
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> WellKnownText.fromWKT(validator, false, "BBOX (12.0, 0.0, 60.0, 30.0)")
+        );
+        assertEquals("max x cannot be less than min x", ex.getMessage());
     }
 }

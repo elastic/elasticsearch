@@ -23,4 +23,17 @@ public interface GeometryValidator {
      */
     void validate(Geometry geometry);
 
+    /**
+     * Validates the ordinate ordering of a rectangle/envelope, throwing IllegalArgumentException if the
+     * envelope is invalid. The default implementation only checks that maxY is not less than minY, since that
+     * is always invalid, regardless of CRS. It deliberately does not check x-ordinate ordering: geographic
+     * coordinates allow minX to legitimately exceed maxX, to represent an envelope that crosses the
+     * antimeridian, so only implementations for CRSes without that concept (e.g. {@link CartesianValidator})
+     * need to additionally check that maxX is not less than minX.
+     */
+    default void validateBBox(double minX, double maxX, double maxY, double minY) {
+        if (maxY < minY) {
+            throw new IllegalArgumentException("max y cannot be less than min y");
+        }
+    }
 }

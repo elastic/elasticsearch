@@ -70,8 +70,7 @@ public final class ExternalSourceSettings {
     }
 
     /**
-     * Thread count for the dedicated {@code esql_external_io} pool ({@code EsqlPlugin}) and the ceiling the
-     * streaming parse pipeline clamps its parallelism against ({@code LocalExecutionPlanner}). Tracks the single
+     * Thread count for the dedicated {@code esql_external_io} pool ({@code EsqlPlugin}). Tracks the single
      * concurrency knob {@link #blobStoreConcurrency(Settings)} so the pool cannot outgrow the concurrency the reads
      * are permitted, with one exception: {@code max_concurrent_requests=0} disables the <em>permit</em> limiter
      * (unbounded in-flight reads), but the I/O pool still needs threads to run the reads and parse pipeline, so it

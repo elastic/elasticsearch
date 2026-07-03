@@ -124,7 +124,6 @@ import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFacto
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
@@ -1914,7 +1913,7 @@ public class LocalExecutionPlanner {
             .schemaMap(externalSource.schemaMap())
             .partitionColumnNames(virtualColumnNames)
             .sliceQueue(sliceQueue)
-            .parsingParallelism(effectiveParsingParallelism(context))
+            .parsingParallelism(context.queryPragmas().parsingParallelism())
             .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
@@ -1925,31 +1924,6 @@ public class LocalExecutionPlanner {
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
-    }
-
-    /**
-     * Threads reserved on the dedicated {@code esql_external_io} pool so a single file's streaming parse
-     * pipeline can never occupy every thread and starve its own drain: the segmentator plus up to
-     * {@code parallelism + 1} one-shot parser tasks run on that pool, and the drain-consumer that empties
-     * their page queues re-submits onto the same pool — it needs a free thread to make progress. If parse
-     * parallelism were allowed to consume the whole pool the parsers would block on full page queues while
-     * their drain could never be scheduled, deadlocking the query (observed as the stalled heap-attack
-     * external read). Reserving {@value} guarantees a runnable drain slot above the worst-case blocked set.
-     */
-    private static final int PARSE_PIPELINE_DRAIN_HEADROOM = 3;
-
-    /**
-     * Effective streaming-parse parallelism: the {@code parsing_parallelism} pragma clamped to what the
-     * dedicated {@code esql_external_io} pool can drain without self-deadlock (see
-     * {@link #PARSE_PIPELINE_DRAIN_HEADROOM}). The clamp reads the exact pool capacity via
-     * {@link ExternalSourceSettings#externalIoThreads(Settings)} from these node settings — the same value
-     * {@code EsqlPlugin} sizes the pool with. For the default pragma (allocated processors) on ordinary node
-     * sizes the clamp is a no-op; it only bites on very high core counts or an explicitly oversized pragma.
-     */
-    private int effectiveParsingParallelism(LocalExecutionPlannerContext context) {
-        int requested = context.queryPragmas().parsingParallelism();
-        int poolMax = ExternalSourceSettings.externalIoThreads(settings);
-        return Math.max(1, Math.min(requested, poolMax - PARSE_PIPELINE_DRAIN_HEADROOM));
     }
 
     private PhysicalOperation planShow(ShowExec showExec) {

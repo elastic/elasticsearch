@@ -434,24 +434,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
   method: test {csv-spec:external-basic.inlineStatsMaxSalary [AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/150791
-- class: org.elasticsearch.xpack.esql.qa.csv.ExternalCsvMultiNodePushdownIT
-  method: testCountStarColdThenWarmShortCircuitsAcrossNodes
-  issue: https://github.com/elastic/elasticsearch/issues/150594
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvMultiScanPushdownIT
-  method: testMultiScanColdDoesNotDoubleCountWarmCountStar
-  issue: https://github.com/elastic/elasticsearch/issues/150836
-- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonAggregatePushdownIT
-  method: testCountStarColdThenWarmShortCircuits
-  issue: https://github.com/elastic/elasticsearch/issues/150614
-- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonAggregatePushdownIT
-  method: testMinMaxColdThenWarmShortCircuits
-  issue: https://github.com/elastic/elasticsearch/issues/150616
-- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonAggregatePushdownIT
-  method: testCountColumnColdThenWarmShortCircuits
-  issue: https://github.com/elastic/elasticsearch/issues/150615
-- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonMultiScanPushdownIT
-  method: testMultiScanColdDoesNotDoubleCountWarmCountStar
-  issue: https://github.com/elastic/elasticsearch/issues/150837
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
   method: test {csv-spec:external-basic.forkTwoBranches [AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/150844
@@ -620,6 +602,18 @@ tests:
 - class: org.elasticsearch.xpack.ml.datafeed.CredentialTransitionsTests
   method: testValidateSearchBeforeMintWhenProbeReturnsNoMatchingProjectForQualifiedIndexShouldFail
   issue: https://github.com/elastic/elasticsearch/issues/152131
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.sparklineWithWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152159
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.avgAndSparklineWithWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152160
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.weightedAvgAndTwoSparklinesWithSameWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152161
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.weightedAvgAndSparklineWithSameWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152162
 - class: org.elasticsearch.xpack.esql.action.ExternalSourceProfileIT
   method: testCsvCountStarScansColdThenSkipsWarm
   issue: https://github.com/elastic/elasticsearch/issues/152132

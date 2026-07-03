@@ -41,6 +41,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -1246,10 +1247,29 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * column's min/max and null count" so MIN/MAX/COUNT fall back to a scan rather than trusting a physical value
      * that disagrees with what the scan produces. A raw physical value is only returned for non-temporal columns
      * (and INT96, whose non-chronological footer stats keep their pre-existing fallback).
+     * <p>
+     * A {@code uint32} column's raw {@code INT32} stat is widened to its true unsigned magnitude
+     * (see {@link ParquetColumnDecoding#isUnsignedInt32}), matching the SPI contract that stat
+     * values must already be in ESQL's in-memory representation (here, the widened {@code LONG})
+     * — otherwise a value above {@link Integer#MAX_VALUE} would sign-extend into a negative
+     * {@code long} downstream (aggregate pushdown, split-skip classification), mirroring the fix
+     * in {@link ParquetPushedExpressions#narrowLongToPhysicalInt32}.
+     * <p>
+     * Similarly, a {@code uint64} column's raw {@code INT64} stat is sign-flip-encoded (see
+     * {@link ParquetColumnDecoding#encodeUnsignedLong}) to match ESQL's {@code UNSIGNED_LONG}
+     * in-memory representation — the scan path already applies this same encoding to every value
+     * it reads, so stats must match or MIN/MAX pushdown and split-skip classification would
+     * compare against the wrong domain.
      */
     private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
         if (ParquetColumnDecoding.hasTemporalStatEncoding(primitiveType)) {
             return ParquetColumnDecoding.decodeTemporalStat(value, primitiveType);
+        }
+        if (value instanceof Integer i && ParquetColumnDecoding.isUnsignedInt32(primitiveType)) {
+            return Integer.toUnsignedLong(i);
+        }
+        if (value instanceof Long l && ParquetColumnDecoding.isUnsignedInt64(primitiveType)) {
+            return ParquetColumnDecoding.encodeUnsignedLong(l);
         }
         if (value instanceof Binary binary) {
             return binary.toStringUsingUTF8();
@@ -2175,6 +2195,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     yield DataType.DOUBLE;
                 }
                 if (logical instanceof LogicalTypeAnnotation.BsonLogicalTypeAnnotation) {
+                    // BSON is a binary document container, not UTF-8 text, so it is not KEYWORD-safe.
                     yield DataType.UNSUPPORTED;
                 }
                 if (logical instanceof LogicalTypeAnnotation.IntervalLogicalTypeAnnotation) {
@@ -2182,6 +2203,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // DATE_PERIOD is year/quarter/months/week/days, and TIME_DURATION is hours/minutes/secs/millis.
                     yield DataType.UNSUPPORTED;
                 }
+                // Everything else maps to KEYWORD: string/enum/json annotations, UUID (rendered as a hex
+                // string), and un-annotated BINARY/FIXED_LEN_BYTE_ARRAY. Legacy writers (Impala, older Spark)
+                // and much real-world data store strings as un-annotated BINARY, so mapping those to
+                // UNSUPPORTED would silently drop legitimate string columns. ES|QL requires KEYWORD bytes to
+                // be valid UTF-8 (the TopN Utf8 encoders index a table by the raw lead byte), so the reader
+                // sanitizes malformed bytes to U+FFFD on read, keeping KEYWORD operations total even when a
+                // column genuinely holds arbitrary bytes.
                 yield DataType.KEYWORD;
             }
             default -> DataType.UNSUPPORTED;
@@ -2781,7 +2809,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     } else if (isUuid) {
                         builder.appendBytesRef(new BytesRef(ParquetColumnDecoding.formatUuid(cr.getBinary().getBytes())));
                     } else {
-                        builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
+                        builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(cr.getBinary().getBytes())));
                     }
                     cr.consume();
                 }

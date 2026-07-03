@@ -479,17 +479,6 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Returns {@code true} when {@code ptype} is the Parquet {@code UINT_32} logical annotation
-     * (physical {@code INT32}, {@code intType(32, false)}) — the shape that widens to ESQL
-     * {@code LONG} because unsigned 32-bit values can exceed signed {@code int} range.
-     */
-    private static boolean isUnsignedInt32(PrimitiveType ptype) {
-        return ptype.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
-            && intLogical.isSigned() == false
-            && intLogical.getBitWidth() == 32;
-    }
-
-    /**
      * Narrows an ESQL {@code LONG} literal to the raw {@code int} bit pattern to push against a
      * physical {@code INT32} column, or returns {@code null} when {@code value} cannot possibly be
      * held by that column (in which case the caller must not push a predicate for it — see
@@ -506,7 +495,7 @@ final class ParquetPushedExpressions {
      */
     @Nullable
     private static Integer narrowLongToPhysicalInt32(long value, PrimitiveType ptype) {
-        if (isUnsignedInt32(ptype)) {
+        if (ParquetColumnDecoding.isUnsignedInt32(ptype)) {
             return (value >= 0 && value <= 0xFFFFFFFFL) ? (int) value : null;
         }
         int narrowed = (int) value;

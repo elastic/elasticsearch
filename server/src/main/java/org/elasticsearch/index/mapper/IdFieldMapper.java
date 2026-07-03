@@ -49,9 +49,16 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
             var indexMode = parserContext.getIndexSettings().getMode();
             if (indexMode == IndexMode.TIME_SERIES) {
                 throw new MapperParsingException(name + " is not configurable if index mode is time_series");
-            } else {
-                return super.parse(name, node, parserContext);
             }
+            Builder builder = super.parse(name, node, parserContext);
+            if (indexMode.isStrictColumnar()
+                && builder instanceof ProvidedIdFieldMapper.Builder idBuilder
+                && idBuilder.getMode() == ProvidedIdFieldMapper.Mode.DOCUMENT) {
+                throw new MapperParsingException(
+                    name + " does not support [mode=document] in a strictly columnar index mode [" + indexMode.getName() + "]"
+                );
+            }
+            return builder;
         }
     };
 

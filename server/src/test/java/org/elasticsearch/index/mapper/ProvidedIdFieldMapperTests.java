@@ -151,7 +151,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocumentModeRejectedInStrictColumnarIndexMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexMode indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
         MapperParsingException e = expectThrows(
@@ -163,7 +162,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModeAllowedInStrictColumnarIndexMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexMode indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
         MapperService mapperService = createMapperService(
@@ -175,7 +173,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocumentModeAllowedInStandardIndexMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // The strictly columnar gate must not over-reach: explicit document mode is still allowed in a standard index.
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "document").endObject()));
         ProvidedIdFieldMapper idMapper = mapperService.mappingLookup().getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);

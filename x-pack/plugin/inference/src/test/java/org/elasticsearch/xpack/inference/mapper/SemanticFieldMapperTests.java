@@ -97,7 +97,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
      */
     public void testSemanticFieldAcceptedInColumnar() throws IOException {
         assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
         IndexVersion version = IndexVersion.current();
         String dvFieldName = SemanticTextField.getOriginalValuesFieldName("my_field");

@@ -605,7 +605,6 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testHighCardinalityAllowedForIndexSortField() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // LOGSDB_COLUMNAR (strict columnar) defaults doc values to high cardinality; cardinality is not user-configurable.
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.name())

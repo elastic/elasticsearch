@@ -814,3 +814,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:unmapped-type-conflicts.noTypeConflictKeywordKeepTriggersLoadInlineStats}
   issue: https://github.com/elastic/elasticsearch/issues/152904
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=get/60_realtime_refresh/Realtime Refresh}
+  issue: https://github.com/elastic/elasticsearch/issues/152906

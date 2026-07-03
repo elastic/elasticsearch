@@ -17,6 +17,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DocValuesParameterTests extends MapperServiceTestCase {
 
@@ -130,7 +131,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
             mapper.docValuesParameters(),
-            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, false))
+            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, false, true))
         );
     }
 
@@ -167,7 +168,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
             mapper.docValuesParameters(),
-            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, false))
+            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, false, true))
         );
     }
 
@@ -182,7 +183,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         NumberFieldMapper mapper = (NumberFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
             mapper.docValuesParameters(),
-            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, false))
+            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, false, true))
         );
     }
 
@@ -246,5 +247,200 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         ).documentMapper();
         // must not throw
         mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(4), randomAlphanumericOfLength(4))));
+    }
+
+    // -----------------------------------------------------------------------
+    // nullability
+    // -----------------------------------------------------------------------
+
+    public void testNullabilityFalseParsedFromMapForm() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().nullability(), equalTo(false));
+        assertThat(mapper.isNullable(), equalTo(false));
+    }
+
+    public void testIndexSettingNullabilityFalseRequiresValue() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
+        assertThat(e.getMessage(), containsString("configured with [nullability=false] but no value was provided"));
+    }
+
+    public void testDynamicFieldDoesNotMaskMissingRequiredField() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // With the index-level setting, a dynamically-mapped field inherits nullability=false and marks itself satisfied. It must not
+        // count toward the statically-required "field": a document supplying only the dynamic field is still rejected for missing "field".
+        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("other", randomAlphanumericOfLength(5))))
+        );
+        assertThat(e.getMessage(), containsString("[field]"));
+        assertThat(e.getMessage(), containsString("nullability=false"));
+    }
+
+    public void testFastPathSizeCheckRejectsAndAcceptsWithoutDynamicMappers() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // No dynamic fields are created here, so enforcement takes the O(1) size-check fast path. Two static required fields.
+        DocumentMapper mapper = createMapperService(mapping(b -> {
+            b.startObject("a").field("type", "keyword").startObject("doc_values").field("nullability", false).endObject().endObject();
+            b.startObject("b").field("type", "keyword").startObject("doc_values").field("nullability", false).endObject().endObject();
+        })).documentMapper();
+        // both present => sizes match => accepted
+        mapper.parse(source(b -> b.field("a", randomAlphanumericOfLength(5)).field("b", randomAlphanumericOfLength(5))));
+        // one missing => size mismatch on the fast path => rejected, naming the missing field
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("a", randomAlphanumericOfLength(5))))
+        );
+        assertThat(e.getMessage(), containsString("[b]"));
+        assertThat(e.getMessage(), containsString("nullability=false"));
+    }
+
+    public void testDynamicIntroductionUsesContainmentThenFastPathOnLaterDocuments() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword")));
+        // doc1 introduces dynamic numeric "dyn": hasDynamicMappers() is true, so enforcement uses containment. "field" is present so the
+        // doc
+        // is accepted, and the stray dynamic "dyn" (absent from the pre-doc required set) does not trigger a false rejection on that path.
+        int dynValue = randomInt();
+        var doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "a").field("dyn", dynValue)));
+        assertThat(doc1.dynamicMappingsUpdate(), notNullValue());
+        mergeDynamicUpdate(mapperService, doc1.dynamicMappingsUpdate());
+        // "dyn" is now a static required field. A later doc that omits it creates no dynamic mapper, so the size-check fast path runs and,
+        // because "dyn" is now in the required set, correctly rejects the document.
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.field("field", "b")))
+        );
+        assertThat(e.getMessage(), containsString("[dyn]"));
+        // a later doc carrying both required fields is accepted on the fast path
+        mapperService.documentMapper().parse(source(b -> b.field("field", "c").field("dyn", randomInt())));
+    }
+
+    public void testFieldLevelNullabilityTrueOverridesIndexSettingFalse() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", true).endObject())
+        ).documentMapper();
+        // must not throw: the field opts back into accepting missing values
+        mapper.parse(source(b -> {}));
+    }
+
+    public void testNullabilityIsSealedAgainstUpdate() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // false -> true is rejected
+        MapperService sealedFalse = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
+        );
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(
+                sealedFalse,
+                fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", true).endObject())
+            )
+        );
+        assertThat(e1.getMessage(), containsString("Cannot update parameter [doc_values]"));
+        // true -> false is also rejected
+        MapperService startTrue = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", true).endObject())
+        );
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(
+                startTrue,
+                fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
+            )
+        );
+        assertThat(e2.getMessage(), containsString("Cannot update parameter [doc_values]"));
+    }
+
+    public void testNullabilityFalseExemptedByNullValue() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword").field("null_value", "NA");
+            b.startObject("doc_values").field("nullability", false).endObject();
+        })).documentMapper();
+        // null_value defined => field is never required: both missing and explicit null are accepted.
+        mapper.parse(source(b -> {}));
+        mapper.parse(source(b -> b.nullField("field")));
+    }
+
+    public void testNullabilityFalseSatisfiedByCopyTo() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createMapperService(mapping(b -> {
+            b.startObject("src").field("type", "keyword").field("copy_to", "dst").endObject();
+            b.startObject("dst").field("type", "keyword").startObject("doc_values").field("nullability", false).endObject().endObject();
+        })).documentMapper();
+        // a value copied into dst satisfies it even though dst was never set directly
+        mapper.parse(source(b -> b.field("src", randomAlphanumericOfLength(5))));
+        // neither src nor dst provided => dst stays empty => rejected
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
+        assertThat(e.getMessage(), containsString("[dst]"));
+    }
+
+    public void testNullabilityFalseNestedEnforcedPerInstance() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createMapperService(mapping(b -> {
+            b.startObject("a");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("b").field("type", "integer").startObject("doc_values").field("nullability", false).endObject().endObject();
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
+
+        // every instance carries b => accepted
+        mapper.parse(
+            source(b -> b.startArray("a").startObject().field("b", 1).endObject().startObject().field("b", 2).endObject().endArray())
+        );
+        // one instance missing b => rejected (per-instance, not satisfied by the sibling)
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.startArray("a").startObject().field("b", 1).endObject().startObject().endObject().endArray()))
+        );
+        assertThat(e.getMessage(), containsString("[a.b]"));
+        assertThat(e.getMessage(), containsString("nullability=false"));
+        // absent nested array => zero Lucene docs => vacuously satisfied
+        mapper.parse(source(b -> {}));
+        // empty nested array => zero instances => accepted
+        mapper.parse(source(b -> b.startArray("a").endArray()));
+        // a single empty nested object => one instance with no b => rejected
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.startObject("a").endObject())));
+    }
+
+    /**
+     * A scalar {@code [nullability=false]} field gets checked on the single root Lucene doc, so arrays that yield no value are rejected: an
+     * empty array and an all-null array both mark nothing, while any array carrying at least one non-null value satisfies that requirement.
+     */
+    public void testNullabilityFalseRejectsEmptyAndAllNullArraysButAcceptsValueArray() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
+        ).documentMapper();
+        // empty array => loop body never runs => nothing marked => rejected, same as a missing field
+        DocumentParsingException empty = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.startArray("field").endArray()))
+        );
+        assertThat(empty.getMessage(), containsString("[field]"));
+        assertThat(empty.getMessage(), containsString("nullability=false"));
+        // array of only nulls => each null routes past the value mark => still rejected
+        DocumentParsingException nulls = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", new Object[] { null, null })))
+        );
+        assertThat(nulls.getMessage(), containsString("[field]"));
+        // at least one non-null value marks the field satisfied => accepted
+        mapper.parse(source(b -> b.array("field", new Object[] { null, randomAlphanumericOfLength(5) })));
     }
 }

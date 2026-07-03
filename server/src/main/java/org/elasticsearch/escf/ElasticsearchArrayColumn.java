@@ -37,7 +37,7 @@ final class ElasticsearchArrayColumn extends ElasticsearchColumn {
 
     /** Reconstructs an array column from its serialized {@code child_kind(1) | child_values} data field. */
     static ElasticsearchArrayColumn fromData(int columnIndex, int docCount, FixedBitSet absent, ElasticsearchColumnData col) {
-        int[] rowOffsets = toOffsets(col.offsets(), docCount);
+        int[] rowOffsets = col.offsets();
         int totalElems = rowOffsets[docCount];
         BytesRef d = col.data().toBytesRef();
         byte childKind = d.bytes[d.offset];

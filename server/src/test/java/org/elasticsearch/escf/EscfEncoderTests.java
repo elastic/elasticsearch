@@ -108,6 +108,18 @@ public class EscfEncoderTests extends ESTestCase {
         assertRoundTrip(docs.toArray(new String[0]));
     }
 
+    public void testAbsentBitsetNarrowerThanDocCount() throws IOException {
+        // Regression: a column absent only in an early doc but present in every trailing doc has an absent
+        // bitset sized to that early doc (one word), which is narrower than docCount. Reading a high-index
+        // present doc must not index past the bitset. Use > 64 docs so the single-word bitset is exceeded.
+        List<String> docs = new ArrayList<>();
+        docs.add("{\"other\":0}"); // doc 0: "v" absent -> "v" absent bitset stays 64 bits wide
+        for (int i = 1; i < 70; i++) {
+            docs.add("{\"v\":" + i + "}"); // docs 1..69: "v" present, well past bit 64
+        }
+        assertRoundTrip(docs.toArray(new String[0]));
+    }
+
     private static void assertRoundTrip(String... jsonDocs) throws IOException {
         List<BytesReference> sources = new ArrayList<>(jsonDocs.length);
         for (String doc : jsonDocs) {

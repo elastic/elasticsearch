@@ -10,6 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -112,23 +113,30 @@ public final class EscfBatch implements SourceBatch {
             int dataLen = data.getIntLE(entryBase + 18);
 
             int pos = base;
-            BytesReference absent = null;
+            FixedBitSet absent = null;
             if ((flags & FLAG_ABSENT) != 0) {
-                absent = data.slice(pos, absentLen);
+                absent = bytesToFixedBitSet(data, pos, docCount);
                 pos += absentLen;
             }
-            BytesReference typeVector = null;
+            byte[] typeVector = null;
             if ((flags & FLAG_TYPE_VECTOR) != 0) {
-                typeVector = data.slice(pos, typeVecLen);
+                typeVector = bytesToByteArray(data, pos, typeVecLen);
                 pos += typeVecLen;
             }
-            BytesReference offsets = null;
+            int[] offsets = null;
             if ((flags & FLAG_OFFSETS) != 0) {
-                offsets = data.slice(pos, offsetsLen);
+                offsets = bytesToOffsets(data, pos, docCount);
                 pos += offsetsLen;
             }
-            BytesReference colData = data.slice(pos, dataLen);
-            columns[c] = new ElasticsearchColumnData(kind, docCount, absent, typeVector, offsets, colData);
+            // For BOOL the data field carries the value bitset; every other kind keeps its payload as a byte slice.
+            FixedBitSet values = null;
+            BytesReference colData = null;
+            if (kind == ElasticsearchColumnKind.BOOL) {
+                values = bytesToFixedBitSet(data, pos, docCount);
+            } else {
+                colData = data.slice(pos, dataLen);
+            }
+            columns[c] = new ElasticsearchColumnData(kind, docCount, absent, values, typeVector, offsets, colData);
         }
     }
 
@@ -202,50 +210,56 @@ public final class EscfBatch implements SourceBatch {
         }
         long total = 64L;
         for (ElasticsearchColumnData col : columns) {
-            total += refLen(col.absentBitset()) + refLen(col.typeVector()) + refLen(col.offsets()) + refLen(col.data());
+            total += bitsetRam(col.absent()) + bitsetRam(col.values()) + (col.typeVector() != null ? col.typeVector().length : 0L) + (col
+                .offsets() != null ? col.offsets().length * 4L : 0L) + refLen(col.data());
         }
         return total;
     }
 
+    private static long bitsetRam(FixedBitSet bs) {
+        return bs == null ? 0L : (long) bs.getBits().length * 8;
+    }
+
     private static ElasticsearchColumnData sliceColumn(ElasticsearchColumnData col, int from, int newCount) {
-        BytesReference absent = newCount > 0 && col.absentBitset() != null ? copyBitset(col.absentBitset(), from, newCount) : null;
+        FixedBitSet absent = col.absent() != null ? sliceBitset(col.absent(), from, newCount) : null;
         if (col.kind() == ElasticsearchColumnKind.ARRAY) {
             return sliceArrayColumn(col, from, newCount, absent);
         }
-        BytesReference typeVector = col.typeVector() != null ? copyRange(col.typeVector(), from, newCount) : null;
-        BytesReference offsets;
-        BytesReference data;
         if (col.offsets() != null) {
-            int byteFrom = col.offsets().getIntLE(from * 4);
-            int byteTo = col.offsets().getIntLE((from + newCount) * 4);
-            data = copyRange(col.data(), byteFrom, byteTo - byteFrom);
-            offsets = rebasedOffsets(col.offsets(), from, newCount, byteFrom);
-        } else if (col.kind() == ElasticsearchColumnKind.BOOL) {
-            offsets = null;
-            data = copyBitset(col.data(), from, newCount);
-        } else {
-            offsets = null;
-            data = copyRange(col.data(), from * 8, newCount * 8);
+            byte[] typeVector = col.typeVector() != null ? Arrays.copyOfRange(col.typeVector(), from, from + newCount) : null;
+            int[] srcOffsets = col.offsets();
+            int byteFrom = srcOffsets[from];
+            int byteTo = srcOffsets[from + newCount];
+            BytesReference data = copyRange(col.data(), byteFrom, byteTo - byteFrom);
+            int[] offsets = rebasedOffsets(srcOffsets, from, newCount, byteFrom);
+            return new ElasticsearchColumnData(col.kind(), newCount, absent, null, typeVector, offsets, data);
         }
-        return new ElasticsearchColumnData(col.kind(), newCount, absent, typeVector, offsets, data);
+        if (col.kind() == ElasticsearchColumnKind.BOOL) {
+            FixedBitSet values = col.values() != null ? sliceBitset(col.values(), from, newCount) : null;
+            return new ElasticsearchColumnData(col.kind(), newCount, absent, values, null, null, null);
+        }
+        // LONG / DOUBLE: 8-byte slots
+        BytesReference data = copyRange(col.data(), from * 8, newCount * 8);
+        return new ElasticsearchColumnData(col.kind(), newCount, absent, null, null, null, data);
     }
 
     /** Slices an Arrow array column: the offsets are element ranges and the data is {@code child_kind | child_values}. */
-    private static ElasticsearchColumnData sliceArrayColumn(ElasticsearchColumnData col, int from, int newCount, BytesReference absent) {
-        BytesReference rowOffsets = col.offsets();
-        int elemFrom = rowOffsets.getIntLE(from * 4);
-        int elemTo = rowOffsets.getIntLE((from + newCount) * 4);
+    private static ElasticsearchColumnData sliceArrayColumn(ElasticsearchColumnData col, int from, int newCount, FixedBitSet absent) {
+        int[] rowOffsets = col.offsets();
+        int elemFrom = rowOffsets[from];
+        int elemTo = rowOffsets[from + newCount];
         int newElemCount = elemTo - elemFrom;
-        BytesReference newRowOffsets = rebasedOffsets(rowOffsets, from, newCount, elemFrom);
+        int[] newRowOffsets = rebasedOffsets(rowOffsets, from, newCount, elemFrom);
 
         BytesRef d = col.data().toBytesRef();
         byte childKind = d.bytes[d.offset];
         int childBase = d.offset + 1;
         byte[] newData;
         if (childKind == ElasticsearchColumnKind.STRING) {
+            int oldElemCount = rowOffsets[col.docCount()];
             int byteFrom = readIntLE(d.bytes, childBase + elemFrom * 4);
             int byteTo = readIntLE(d.bytes, childBase + elemTo * 4);
-            int childDataBase = childBase + (oldElemCount(rowOffsets, col.docCount()) + 1) * 4;
+            int childDataBase = childBase + (oldElemCount + 1) * 4;
             int prefix = 1 + (newElemCount + 1) * 4;
             newData = new byte[prefix + (byteTo - byteFrom)];
             newData[0] = childKind;
@@ -259,23 +273,19 @@ public final class EscfBatch implements SourceBatch {
             newData[0] = childKind;
             System.arraycopy(d.bytes, childBase + elemFrom * 8, newData, 1, newElemCount * 8);
         }
-        return new ElasticsearchColumnData(col.kind(), newCount, absent, null, newRowOffsets, new BytesArray(newData));
-    }
-
-    private static int oldElemCount(BytesReference rowOffsets, int docCount) {
-        return rowOffsets.getIntLE(docCount * 4);
+        return new ElasticsearchColumnData(col.kind(), newCount, absent, null, null, newRowOffsets, new BytesArray(newData));
     }
 
     private static int readIntLE(byte[] b, int off) {
         return (b[off] & 0xFF) | ((b[off + 1] & 0xFF) << 8) | ((b[off + 2] & 0xFF) << 16) | ((b[off + 3] & 0xFF) << 24);
     }
 
-    private static BytesReference rebasedOffsets(BytesReference offsets, int from, int newCount, int rebase) {
-        byte[] out = new byte[(newCount + 1) * 4];
+    private static int[] rebasedOffsets(int[] offsets, int from, int newCount, int rebase) {
+        int[] out = new int[newCount + 1];
         for (int i = 0; i <= newCount; i++) {
-            ByteUtils.writeIntLE(offsets.getIntLE((from + i) * 4) - rebase, out, i * 4);
+            out[i] = offsets[from + i] - rebase;
         }
-        return new BytesArray(out);
+        return out;
     }
 
     private static BytesReference copyRange(BytesReference src, int from, int length) {
@@ -283,15 +293,17 @@ public final class EscfBatch implements SourceBatch {
         return new BytesArray(Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + length));
     }
 
-    private static BytesReference copyBitset(BytesReference src, int from, int count) {
-        byte[] out = new byte[ElasticsearchColumnBuilder.bitsetBytes(count)];
+    /** Copies bits {@code [from, from + count)} of {@code src} into a fresh bitset at {@code [0, count)}; out-of-range bits read as clear. */
+    private static FixedBitSet sliceBitset(FixedBitSet src, int from, int count) {
+        FixedBitSet out = new FixedBitSet(Math.max(1, count));
+        int cap = src.length();
         for (int i = 0; i < count; i++) {
-            long word = src.getLongLE((from + i) / 64 * 8);
-            if (((word >>> ((from + i) & 63)) & 1L) != 0) {
-                out[i / 64 * 8 + (i & 63) / 8] |= (byte) (1 << ((i & 63) & 7));
+            int idx = from + i;
+            if (idx < cap && src.get(idx)) {
+                out.set(i);
             }
         }
-        return new BytesArray(out);
+        return out;
     }
 
     private static BytesReference serialize(SourceSchema schema, int docCount, ElasticsearchColumnData[] columns) {
@@ -316,26 +328,39 @@ public final class EscfBatch implements SourceBatch {
         int columnIndexOffset = schemaOffset + schemaSize;
         int dataOffset = columnIndexOffset + columnIndexSize;
 
+        // Encode each column's native fields into their wire byte parts — this is the only place ESCF serializes.
+        BytesReference[] absentPart = new BytesReference[colCount];
+        BytesReference[] typeVecPart = new BytesReference[colCount];
+        BytesReference[] offsetsPart = new BytesReference[colCount];
+        BytesReference[] dataPart = new BytesReference[colCount];
+        for (int c = 0; c < colCount; c++) {
+            ElasticsearchColumnData col = columns[c];
+            absentPart[c] = col.absent() != null ? bitsetToRef(col.absent(), docCount) : null;
+            typeVecPart[c] = col.typeVector() != null ? new BytesArray(col.typeVector()) : null;
+            offsetsPart[c] = col.offsets() != null ? intArrayToRef(col.offsets()) : null;
+            // BOOL keeps its value bitset in the data slot; every other kind already has a byte payload.
+            dataPart[c] = col.kind() == ElasticsearchColumnKind.BOOL ? bitsetToRef(col.values(), docCount) : col.data();
+        }
+
         int[] flags = new int[colCount];
         int[] baseOffsets = new int[colCount];
         int cumDataOffset = 0;
         for (int c = 0; c < colCount; c++) {
-            ElasticsearchColumnData col = columns[c];
             baseOffsets[c] = cumDataOffset;
             int f = 0;
-            if (col.absentBitset() != null) {
+            if (absentPart[c] != null) {
                 f |= FLAG_ABSENT;
-                cumDataOffset += col.absentBitset().length();
+                cumDataOffset += absentPart[c].length();
             }
-            if (col.typeVector() != null) {
+            if (typeVecPart[c] != null) {
                 f |= FLAG_TYPE_VECTOR;
-                cumDataOffset += col.typeVector().length();
+                cumDataOffset += typeVecPart[c].length();
             }
-            if (col.offsets() != null) {
+            if (offsetsPart[c] != null) {
                 f |= FLAG_OFFSETS;
-                cumDataOffset += col.offsets().length();
+                cumDataOffset += offsetsPart[c].length();
             }
-            cumDataOffset += col.data().length();
+            cumDataOffset += dataPart[c].length();
             flags[c] = f;
         }
         int totalSize = dataOffset + cumDataOffset;
@@ -374,31 +399,29 @@ public final class EscfBatch implements SourceBatch {
 
         pos = columnIndexOffset;
         for (int c = 0; c < colCount; c++) {
-            ElasticsearchColumnData col = columns[c];
-            header[pos] = col.kind();
+            header[pos] = columns[c].kind();
             header[pos + 1] = (byte) flags[c];
             ByteUtils.writeIntLE(baseOffsets[c], header, pos + 2);
-            ByteUtils.writeIntLE(col.absentBitset() != null ? col.absentBitset().length() : 0, header, pos + 6);
-            ByteUtils.writeIntLE(col.typeVector() != null ? col.typeVector().length() : 0, header, pos + 10);
-            ByteUtils.writeIntLE(col.offsets() != null ? col.offsets().length() : 0, header, pos + 14);
-            ByteUtils.writeIntLE(col.data().length(), header, pos + 18);
+            ByteUtils.writeIntLE(absentPart[c] != null ? absentPart[c].length() : 0, header, pos + 6);
+            ByteUtils.writeIntLE(typeVecPart[c] != null ? typeVecPart[c].length() : 0, header, pos + 10);
+            ByteUtils.writeIntLE(offsetsPart[c] != null ? offsetsPart[c].length() : 0, header, pos + 14);
+            ByteUtils.writeIntLE(dataPart[c].length(), header, pos + 18);
             pos += COLUMN_INDEX_ENTRY_SIZE;
         }
 
         List<BytesReference> parts = new ArrayList<>(1 + colCount * 4);
         parts.add(new BytesArray(header));
         for (int c = 0; c < colCount; c++) {
-            ElasticsearchColumnData col = columns[c];
-            if (col.absentBitset() != null) {
-                parts.add(col.absentBitset());
+            if (absentPart[c] != null) {
+                parts.add(absentPart[c]);
             }
-            if (col.typeVector() != null) {
-                parts.add(col.typeVector());
+            if (typeVecPart[c] != null) {
+                parts.add(typeVecPart[c]);
             }
-            if (col.offsets() != null) {
-                parts.add(col.offsets());
+            if (offsetsPart[c] != null) {
+                parts.add(offsetsPart[c]);
             }
-            parts.add(col.data());
+            parts.add(dataPart[c]);
         }
         return CompositeBytesReference.of(parts.toArray(new BytesReference[0]));
     }
@@ -410,6 +433,58 @@ public final class EscfBatch implements SourceBatch {
 
     private static long refLen(BytesReference ref) {
         return ref == null ? 0L : ref.length();
+    }
+
+    /** Number of bytes needed to hold {@code docCount} bits as little-endian 64-bit words. */
+    static int bitsetBytes(int docCount) {
+        return ((docCount + 63) / 64) * 8;
+    }
+
+    /** Serialises {@code bs} (or an all-clear bitset when {@code bs == null}) to {@code bitsetBytes(docCount)} LE bytes. */
+    private static BytesReference bitsetToRef(FixedBitSet bs, int docCount) {
+        int n = bitsetBytes(docCount);
+        byte[] out = new byte[n];
+        if (bs != null) {
+            long[] words = bs.getBits();
+            int wordCount = n / 8;
+            for (int w = 0; w < wordCount; w++) {
+                long value = w < words.length ? words[w] : 0L;
+                ByteUtils.writeLongLE(value, out, w * 8);
+            }
+        }
+        return new BytesArray(out);
+    }
+
+    private static BytesReference intArrayToRef(int[] values) {
+        byte[] out = new byte[values.length * 4];
+        for (int i = 0; i < values.length; i++) {
+            ByteUtils.writeIntLE(values[i], out, i * 4);
+        }
+        return new BytesArray(out);
+    }
+
+    /** Parses {@code bitsetBytes(docCount)} LE bytes at {@code pos} into a {@link FixedBitSet}. */
+    private static FixedBitSet bytesToFixedBitSet(BytesReference data, int pos, int docCount) {
+        int words = bitsetBytes(docCount) / 8;
+        long[] bits = new long[words];
+        for (int w = 0; w < words; w++) {
+            bits[w] = data.getLongLE(pos + w * 8);
+        }
+        return new FixedBitSet(bits, words * 64);
+    }
+
+    private static byte[] bytesToByteArray(BytesReference data, int pos, int len) {
+        BytesRef ref = data.slice(pos, len).toBytesRef();
+        return Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + len);
+    }
+
+    /** Parses {@code (count + 1)} LE i32 values at {@code pos} into an {@code int[]}. */
+    private static int[] bytesToOffsets(BytesReference data, int pos, int count) {
+        int[] offsets = new int[count + 1];
+        for (int i = 0; i <= count; i++) {
+            offsets[i] = data.getIntLE(pos + i * 4);
+        }
+        return offsets;
     }
 
     private static SourceSchema parseSchema(BytesReference data, int offset) {

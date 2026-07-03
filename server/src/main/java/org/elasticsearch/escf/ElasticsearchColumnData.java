@@ -9,30 +9,31 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 
 /**
- * The serialized form of a single ESCF column, held as up to four independent fields rather than one
- * pre-concatenated blob:
+ * A single ESCF column held in its <b>native</b> in-memory representation — the metadata factors are
+ * live arrays/bitsets rather than pre-serialized bytes, so the in-memory build→index path never round
+ * trips through the wire encoding. Bytes are produced only when {@link EscfBatch#data()} serializes.
  * <ul>
- *   <li>{@code absentBitset} — LE-long bitset, bit set = absent; {@code null} when no document is absent.</li>
+ *   <li>{@code absent} — validity bitset (bit set = absent); {@code null} when every document is present.</li>
+ *   <li>{@code values} — the BOOL value bitset (bit set = {@code true}); {@code null} for every other kind.</li>
  *   <li>{@code typeVector} — one {@link org.elasticsearch.sourcebatch.SourceValueType} byte per document; {@code null}
  *       for kinds whose per-document type is implied by {@link #kind} (everything except UNION).</li>
- *   <li>{@code offsets} — {@code (docCount + 1)} little-endian {@code i32} values; {@code null} for
- *       fixed-width kinds (LONG, DOUBLE) and BOOL. For STRING/BINARY/UNION these are byte offsets into
- *       {@code data}; for ARRAY they are per-row element-range offsets into the child sub-column.</li>
- *   <li>{@code data} — the value payload; never {@code null}, may be empty. For ARRAY it is
- *       {@code child_kind(1) | child_values}.</li>
+ *   <li>{@code offsets} — {@code (docCount + 1)} entries; {@code null} for fixed-width kinds (LONG, DOUBLE) and BOOL.
+ *       For STRING/BINARY/UNION these are byte offsets into {@code data}; for ARRAY they are per-row element-range
+ *       offsets into the child sub-column.</li>
+ *   <li>{@code data} — the recycler-backed value payload ({@code null} for BOOL, whose values live in
+ *       {@code values}). For ARRAY it is {@code child_kind(1) | child_values}.</li>
  * </ul>
- *
- * <p>This holder performs no concatenation: an in-memory {@link EscfBatch} reads directly from these
- * fields, and they are joined into a single {@link BytesReference} only on {@link EscfBatch#data()}.
  */
 record ElasticsearchColumnData(
     byte kind,
     int docCount,
-    BytesReference absentBitset,
-    BytesReference typeVector,
-    BytesReference offsets,
+    FixedBitSet absent,
+    FixedBitSet values,
+    byte[] typeVector,
+    int[] offsets,
     BytesReference data
 ) {}

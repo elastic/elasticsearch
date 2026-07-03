@@ -11,11 +11,8 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -244,10 +241,6 @@ final class ElasticsearchColumnBuilder {
             return absent != null && absent.get(d);
         }
 
-        final BytesReference absentRef(int docCount) {
-            return absent == null ? null : bitsetToRef(absent, docCount);
-        }
-
         @Override
         public void addLong(long value) {
             throw unsupported("long");
@@ -346,7 +339,7 @@ final class ElasticsearchColumnBuilder {
         @Override
         public ElasticsearchColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
-            return new ElasticsearchColumnData(kind, docCount, absentRef(docCount), null, null, data.moveToBytesReference());
+            return new ElasticsearchColumnData(kind, docCount, absent, null, null, null, data.moveToBytesReference());
         }
 
         @Override
@@ -355,8 +348,9 @@ final class ElasticsearchColumnBuilder {
         }
     }
 
-    /** BOOL: a value bitset (bit set = true) as the data field. */
+    /** BOOL: a value bitset (bit set = true). */
     private static final class BoolBuilder extends BaseBuilder {
+
         private FixedBitSet values;
 
         @Override
@@ -395,14 +389,7 @@ final class ElasticsearchColumnBuilder {
         @Override
         public ElasticsearchColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
-            return new ElasticsearchColumnData(
-                ElasticsearchColumnKind.BOOL,
-                docCount,
-                absentRef(docCount),
-                null,
-                null,
-                bitsetToRef(values, docCount)
-            );
+            return new ElasticsearchColumnData(ElasticsearchColumnKind.BOOL, docCount, absent, values, null, null, null);
         }
     }
 
@@ -472,9 +459,10 @@ final class ElasticsearchColumnBuilder {
             return new ElasticsearchColumnData(
                 kind,
                 docCount,
-                absentRef(docCount),
+                absent,
                 null,
-                intArrayToRef(offsets, docCount + 1),
+                null,
+                Arrays.copyOf(offsets, docCount + 1),
                 data.moveToBytesReference()
             );
         }
@@ -598,9 +586,10 @@ final class ElasticsearchColumnBuilder {
             return new ElasticsearchColumnData(
                 ElasticsearchColumnKind.ARRAY,
                 docCount,
-                absentRef(docCount),
+                absent,
                 null,
-                intArrayToRef(rowOffsets, docCount + 1),
+                null,
+                rowOffsets,
                 childData.moveToBytesReference()
             );
         }
@@ -710,9 +699,10 @@ final class ElasticsearchColumnBuilder {
             return new ElasticsearchColumnData(
                 ElasticsearchColumnKind.UNION,
                 docCount,
-                absentRef(docCount),
-                byteArrayToRef(typeVec, docCount),
-                intArrayToRef(offsets, docCount + 1),
+                absent,
+                null,
+                Arrays.copyOf(typeVec, docCount),
+                Arrays.copyOf(offsets, docCount + 1),
                 data.moveToBytesReference()
             );
         }
@@ -745,37 +735,5 @@ final class ElasticsearchColumnBuilder {
 
     private static byte[] ensureByteCapacity(byte[] array, int minSize) {
         return array.length >= minSize ? array : Arrays.copyOf(array, Math.max(minSize, array.length * 2));
-    }
-
-    /** Size of a bitset in bytes for {@code docCount} bits. */
-    static int bitsetBytes(int docCount) {
-        return ((docCount + 63) / 64) * 8;
-    }
-
-    /** Serialises {@code bs} (or an all-clear bitset when {@code bs == null}) to {@code bitsetBytes(docCount)} LE bytes. */
-    static BytesReference bitsetToRef(FixedBitSet bs, int docCount) {
-        int n = bitsetBytes(docCount);
-        byte[] out = new byte[n];
-        if (bs != null) {
-            long[] words = bs.getBits();
-            int wordCount = n / 8;
-            for (int w = 0; w < wordCount; w++) {
-                long value = w < words.length ? words[w] : 0L;
-                ByteUtils.writeLongLE(value, out, w * 8);
-            }
-        }
-        return new BytesArray(out);
-    }
-
-    private static BytesReference intArrayToRef(int[] values, int length) {
-        byte[] out = new byte[length * 4];
-        for (int i = 0; i < length; i++) {
-            ByteUtils.writeIntLE(values[i], out, i * 4);
-        }
-        return new BytesArray(out);
-    }
-
-    private static BytesReference byteArrayToRef(byte[] values, int length) {
-        return new BytesArray(values, 0, length);
     }
 }

@@ -216,7 +216,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
             final boolean rawTextMode = firePathSink && sink.passRawText();
             switch (token) {
                 case START_ARRAY -> {
-                    EirfEncoder.PackedArrayResult arr = EirfEncoder.packArray(parser);
+                    EirfEncoder.PackedArray arr = EirfEncoder.packArray(parser);
                     scratchType[colIdx] = arr.arrayType();
                     scratchVar[colIdx] = arr.packed();
                     if (firePathSink) {

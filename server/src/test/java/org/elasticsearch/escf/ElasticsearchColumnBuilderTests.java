@@ -28,7 +28,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         b.addLong(3);
         ElasticsearchColumnData data = b.finish(3);
         assertEquals(ElasticsearchColumnKind.LONG, data.kind());
-        assertNull("dense column has no validity bitset", data.absentBitset());
+        assertNull("dense column has no validity bitset", data.absent());
         ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
         assertEquals(1L, col.getLongValue(0));
         assertEquals(2L, col.getLongValue(1));
@@ -43,7 +43,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         b.addLong(30);
         ElasticsearchColumnData data = b.finish(3);
         assertEquals(ElasticsearchColumnKind.LONG, data.kind());
-        assertNotNull("a column with an absent row carries a validity bitset", data.absentBitset());
+        assertNotNull("a column with an absent row carries a validity bitset", data.absent());
         ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
         assertFalse(col.isAbsent(0));
         assertTrue(col.isAbsent(1));

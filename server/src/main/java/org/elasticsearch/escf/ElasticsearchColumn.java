@@ -11,7 +11,6 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -20,7 +19,7 @@ import org.elasticsearch.xcontent.Text;
 /**
  * A direct-access view over a single ESCF leaf column. Each kind is a subtype that holds its data
  * unwrapped into the primitive representation it needs ({@code byte[]} / {@code int[]} /
- * {@link FixedBitSet}) rather than chained {@link BytesReference}s, removing per-read indirection.
+ * {@link FixedBitSet}) rather than chained {@code BytesReference}s, removing per-read indirection.
  *
  * <p>The shared base owns identity ({@link #columnIndex()} / {@link #docCount()}) and the optional
  * validity (absent) set, and resolves {@link #getTypeByte}/{@link #isAbsent}/{@link #isNull} once.
@@ -53,10 +52,10 @@ abstract class ElasticsearchColumn {
     /** The column kind (see {@link ElasticsearchColumnKind}). */
     abstract byte kind();
 
-    /** Builds the typed column view for {@code col}, dispatching on its kind and unwrapping its fields. */
+    /** Builds the typed column view for {@code col}, dispatching on its kind. The fields are already native. */
     static ElasticsearchColumn from(int columnIndex, ElasticsearchColumnData col) {
         int docCount = col.docCount();
-        FixedBitSet absent = toFixedBitSet(col.absentBitset(), docCount);
+        FixedBitSet absent = col.absent();
         return switch (col.kind()) {
             case ElasticsearchColumnKind.LONG -> {
                 BytesRef d = col.data().toBytesRef();
@@ -70,75 +69,47 @@ abstract class ElasticsearchColumn {
                 columnIndex,
                 docCount,
                 absent,
-                toBitsetWords(col.data(), docCount)
+                boolWords(col.values(), docCount)
             );
             case ElasticsearchColumnKind.STRING -> {
                 BytesRef d = col.data().toBytesRef();
-                yield new ElasticsearchStringColumn(columnIndex, docCount, absent, d.bytes, d.offset, toOffsets(col.offsets(), docCount));
+                yield new ElasticsearchStringColumn(columnIndex, docCount, absent, d.bytes, d.offset, col.offsets());
             }
             case ElasticsearchColumnKind.BINARY -> {
                 BytesRef d = col.data().toBytesRef();
-                yield new ElasticsearchBinaryColumn(columnIndex, docCount, absent, d.bytes, d.offset, toOffsets(col.offsets(), docCount));
+                yield new ElasticsearchBinaryColumn(columnIndex, docCount, absent, d.bytes, d.offset, col.offsets());
             }
             case ElasticsearchColumnKind.ARRAY -> ElasticsearchArrayColumn.fromData(columnIndex, docCount, absent, col);
             case ElasticsearchColumnKind.UNION -> {
                 BytesRef d = col.data().toBytesRef();
-                BytesRef tv = col.typeVector().toBytesRef();
-                yield new ElasticsearchUnionColumn(
-                    columnIndex,
-                    docCount,
-                    absent,
-                    tv.bytes,
-                    tv.offset,
-                    toOffsets(col.offsets(), docCount),
-                    d.bytes,
-                    d.offset
-                );
+                yield new ElasticsearchUnionColumn(columnIndex, docCount, absent, col.typeVector(), 0, col.offsets(), d.bytes, d.offset);
             }
             default -> throw new IllegalStateException("Unknown ESCF column kind: " + ElasticsearchColumnKind.name(col.kind()));
         };
     }
 
-    /** Materializes an absent bitset ({@code null} = dense) into a {@link FixedBitSet}. */
-    static FixedBitSet toFixedBitSet(BytesReference ref, int docCount) {
-        if (ref == null) {
-            return null;
+    /**
+     * Materializes the BOOL value bitset into full-width little-endian words ({@code ceil(docCount / 64)}),
+     * zero-filled when {@code values == null} or shorter than {@code docCount} (documents past the last set
+     * bit read as {@code false}).
+     */
+    private static long[] boolWords(FixedBitSet values, int docCount) {
+        int words = (docCount + 63) >>> 6;
+        long[] out = new long[Math.max(1, words)];
+        if (values != null) {
+            long[] bits = values.getBits();
+            System.arraycopy(bits, 0, out, 0, Math.min(bits.length, out.length));
         }
-        int words = ElasticsearchColumnBuilder.bitsetBytes(docCount) / 8;
-        long[] bits = new long[words];
-        for (int w = 0; w < words; w++) {
-            bits[w] = ref.getLongLE(w * 8);
-        }
-        return new FixedBitSet(bits, words * 64);
-    }
-
-    /** Materializes a value bitset (BOOL data) into LE-long words; tolerates an empty/short payload (all false). */
-    private static long[] toBitsetWords(BytesReference ref, int docCount) {
-        int words = ElasticsearchColumnBuilder.bitsetBytes(docCount) / 8;
-        long[] bits = new long[words];
-        int len = ref.length();
-        for (int w = 0; w < words; w++) {
-            if (w * 8 + 8 <= len) {
-                bits[w] = ref.getLongLE(w * 8);
-            }
-        }
-        return bits;
-    }
-
-    /** Materializes a {@code count} LE i32 offset vector into an {@code int[]}. */
-    static int[] toOffsets(BytesReference ref, int count) {
-        int[] offsets = new int[count + 1];
-        for (int i = 0; i <= count; i++) {
-            offsets[i] = ref.getIntLE(i * 4);
-        }
-        return offsets;
+        return out;
     }
 
     final boolean isAbsent(int d) {
         if (d < 0 || d >= docCount) {
             return true;
         }
-        return absent != null && absent.get(d);
+        // The absent bitset is only sized to the last absent document (it may be narrower than docCount when
+        // the trailing documents are all present), so any doc beyond its length is present.
+        return absent != null && d < absent.length() && absent.get(d);
     }
 
     final byte getTypeByte(int d) {

@@ -123,6 +123,97 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString(String.valueOf(millis * 1_000_000)));
     }
 
+    // --- DATE_NANOS pushdown (production path for timestamp[us]/[ns]) ---
+
+    public void testToFilterPredicateDateNanosOnNanosColumnIsExact() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_789L;
+        Expression expr = eq("ts", DataType.DATE_NANOS, nanos);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanos)));
+    }
+
+    public void testToFilterPredicateDateNanosOnMicrosColumnScalesToMicros() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_000L; // exact multiple of 1_000 ns
+        long expectedMicros = nanos / 1_000;
+        Expression expr = eq("ts", DataType.DATE_NANOS, nanos);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(expectedMicros)));
+    }
+
+    public void testToFilterPredicateDateNanosMicrosGreaterThanRoundsOutward() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_789L; // not a multiple of 1_000 ns
+        // GT widens downward (floorDiv) so no matching micro is excluded (pushdown is RECHECK).
+        long expectedMicros = Math.floorDiv(nanos, 1_000L);
+        Expression expr = new GreaterThan(Source.EMPTY, attr("ts", DataType.DATE_NANOS), lit(nanos, DataType.DATE_NANOS), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(expectedMicros)));
+    }
+
+    public void testToFilterPredicateDateNanosMicrosEqNonDivisibleSkipsPushdown() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_789L; // not a multiple of 1_000 ns: no micro equals it exactly
+        Expression expr = eq("ts", DataType.DATE_NANOS, nanos);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        // No predicate is pushed; the scan + FilterExec recheck still yields the correct (empty) result.
+        assertNull(pushed.toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateInListOnDateNanosMicros() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+
+        long nanos1 = 1_000_000L; // 1_000 micros
+        long nanos2 = 2_000_000L; // 2_000 micros
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("ts", DataType.DATE_NANOS),
+            List.of(lit(nanos1, DataType.DATE_NANOS), lit(nanos2, DataType.DATE_NANOS))
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        String repr = fp.toString();
+        assertThat(repr, containsString(String.valueOf(nanos1 / 1_000)));
+        assertThat(repr, containsString(String.valueOf(nanos2 / 1_000)));
+    }
+
     // --- DATE (INT32) ---
 
     public void testToFilterPredicateDateInt32() {

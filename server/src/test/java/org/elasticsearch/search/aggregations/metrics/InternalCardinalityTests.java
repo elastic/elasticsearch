@@ -150,6 +150,44 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    public void testReduceSucceedsWithBreakerLimitAboveResultClonePeakMemory() {
+        int precision = AbstractHyperLogLog.MAX_PRECISION;
+        InternalCardinality input = createTestInstance("cardinality", null, precision);
+        long reducedHllBytes;
+        try (
+            HyperLogLogPlusPlus reduced = new HyperLogLogPlusPlus(
+                precision,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
+                1
+            )
+        ) {
+            reduced.merge(0, input.getCounts(), 0);
+            reducedHllBytes = reduced.ramBytesUsed();
+        }
+        CircuitBreakerService breakerService = LimitedBreaker.service(
+            CircuitBreaker.REQUEST,
+            ByteSizeValue.ofBytes(reducedHllBytes * 3)
+        );
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService).withCircuitBreaking();
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+            bigArrays,
+            null,
+            () -> false,
+            AggregatorFactories.builder(),
+            b -> {},
+            null
+        );
+
+        try (AggregatorReducer reducer = input.getReducer(reduceContext, 1)) {
+            reducer.accept(input);
+            assertThat(breaker.getUsed(), greaterThan(0L));
+            InternalCardinality result = (InternalCardinality) reducer.get();
+            assertThat(result.value(), equalTo(input.value()));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     @Override
     protected void assertReduced(InternalCardinality reduced, List<InternalCardinality> inputs) {
         HyperLogLogPlusPlus[] algos = inputs.stream().map(InternalCardinality::getState).toArray(size -> new HyperLogLogPlusPlus[size]);

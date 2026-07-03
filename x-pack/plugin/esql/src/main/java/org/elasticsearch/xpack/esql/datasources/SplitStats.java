@@ -12,8 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 
@@ -417,10 +415,10 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      * temporal resolutions (e.g. a Parquet {@code timestamp[ms]} file and a {@code timestamp[us]} file, or a
      * DATE_NANOS Arrow file), which {@link SchemaReconciliation} widens to DATE_NANOS while the per-split
      * stats retain their original units. Reconciling stat units requires threading the reconciled column type
-     * into this value-only merge; a follow-up (elastic/elasticsearch#152859) does exactly that in
-     * {@link MergedSplitStats}, rescaling temporal values to a common unit (or poisoning on unknown/overflow)
-     * before this compare. Until it lands such a mixed-unit merge can produce a wrong extremum; uniform-schema
-     * datasets (the overwhelmingly common case) are correct regardless, because every split reports the same unit.
+     * into the merge, which {@link MergedSplitStats#mergeExtremum} does (elastic/elasticsearch#152859): it
+     * rescales each temporal value to a common unit (or poisons on unknown/overflow) BEFORE calling this
+     * value-only compare, so a mixed-unit cross-file merge is handled there. This method stays value-only and is
+     * correct for uniform-schema datasets (the overwhelmingly common case), where every split reports the same unit.
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Nullable

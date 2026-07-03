@@ -197,22 +197,22 @@ public class GcsConfigurationTests extends ESTestCase {
         );
     }
 
-    public void testAuthAnonymousConflictsWithKeylessAuth() {
+    public void testAuthAnonymousConflictsWithFederatedAuth() {
         expectThrows(
             ValidationException.class,
             () -> GcsConfiguration.fromFields(null, null, "http://endpoint", null, "anonymous", "jwt-audience", null, null)
         );
     }
 
-    public void testCredentialsConflictsWithKeylessAuth() {
+    public void testCredentialsConflictsWithFederatedAuth() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> GcsConfiguration.fromFields("{\"type\":\"service_account\"}", null, null, null, null, "jwt-audience", null, null)
         );
-        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with keyless authentication settings"));
+        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with federated authentication settings"));
     }
 
-    public void testHasKeylessAuth() {
+    public void testHasFederatedAuth() {
         GcsConfiguration config = GcsConfiguration.fromFields(
             null,
             "my-project",
@@ -223,11 +223,11 @@ public class GcsConfigurationTests extends ESTestCase {
             "sts-audience",
             "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@project.iam.gserviceaccount.com:generateAccessToken"
         );
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertFalse(config.hasCredentials());
     }
 
-    public void testKeylessAuthRequiresStsAudience() {
+    public void testFederatedAuthRequiresStsAudience() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> GcsConfiguration.fromFields(null, null, null, null, null, "jwt-audience", null, null)
@@ -235,16 +235,16 @@ public class GcsConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("sts_audience is required"));
     }
 
-    public void testKeylessAuthAllowsOmittingJwtAudience() {
+    public void testFederatedAuthAllowsOmittingJwtAudience() {
         GcsConfiguration config = GcsConfiguration.fromFields(null, null, null, null, null, null, "sts-audience", null);
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertNull(config.jwtAudience());
         assertEquals("sts-audience", config.stsAudience());
     }
 
-    public void testKeylessAuthAllowsOmittingServiceAccountImpersonationUrl() {
+    public void testFederatedAuthAllowsOmittingServiceAccountImpersonationUrl() {
         GcsConfiguration config = GcsConfiguration.fromFields(null, null, null, null, null, "jwt-audience", "sts-audience", null);
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertEquals("jwt-audience", config.jwtAudience());
         assertEquals("sts-audience", config.stsAudience());
         assertNull(config.serviceAccountImpersonationUrl());
@@ -363,7 +363,7 @@ public class GcsConfigurationTests extends ESTestCase {
             Map.of("auth", "federated_identity", "jwt_audience", "aud", "sts_audience", "sts")
         );
         assertTrue(config.isFederatedIdentity());
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertEquals("federated_identity", config.auth());
     }
 

@@ -196,17 +196,15 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
      * {@code COUNT(*)} is unaffected.
      */
     public void testCountOverAllNullColumnWithoutNullCountStatFallsBackToZero() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 200;
         int rareNonNull = 4;
         Path parquetFile = writeNullableParquetFile(totalRows, rareNonNull);
         try {
-            String uri = StoragePath.fileUri(parquetFile);
+            String dataset = registerDataset("null_count_pushdown", StoragePath.fileUri(parquetFile), Map.of());
 
             // COUNT(always_null): null_count stat absent -> pushdown must decline and scan the column,
             // returning the true non-null count of 0 (the bug returned the row count, 200).
-            try (var response = runCount(uri, "non_null = COUNT(always_null)")) {
+            try (var response = runCount(dataset, "non_null = COUNT(always_null)")) {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
                 assertPushdownBypassed(response);
@@ -214,14 +212,14 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
 
             // COUNT(rare): 196 of 200 null, null_count stat present -> pushdown fires from statistics
             // and returns rowCount - nullCount = 4.
-            try (var response = runCount(uri, "c = COUNT(rare)")) {
+            try (var response = runCount(dataset, "c = COUNT(rare)")) {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo((long) rareNonNull));
                 assertPushdownFired(response);
             }
 
             // COUNT(*) is answered from the row count regardless and stays pushed down.
-            try (var response = runCount(uri, "c = COUNT(*)")) {
+            try (var response = runCount(dataset, "c = COUNT(*)")) {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo((long) totalRows));
                 assertPushdownFired(response);
@@ -231,8 +229,8 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
         }
     }
 
-    private EsqlQueryResponse runCount(String uri, String statsClause) {
-        var request = syncEsqlQueryRequest("EXTERNAL \"" + uri + "\" | STATS " + statsClause);
+    private EsqlQueryResponse runCount(String dataset, String statsClause) {
+        var request = syncEsqlQueryRequest("FROM " + dataset + " | STATS " + statsClause);
         request.profile(true);
         return run(request);
     }
@@ -372,48 +370,5 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
         Path tempFile = createTempDir().resolve("null_count_test.parquet");
         Files.write(tempFile, baos.toByteArray());
         return tempFile;
-    }
-
-    private static OutputFile createOutputFile(ByteArrayOutputStream baos) {
-        return new OutputFile() {
-            @Override
-            public PositionOutputStream create(long blockSizeHint) {
-                return new PositionOutputStream() {
-                    private long position = 0;
-
-                    @Override
-                    public long getPos() {
-                        return position;
-                    }
-
-                    @Override
-                    public void write(int b) throws IOException {
-                        baos.write(b);
-                        position++;
-                    }
-
-                    @Override
-                    public void write(byte[] b, int off, int len) throws IOException {
-                        baos.write(b, off, len);
-                        position += len;
-                    }
-                };
-            }
-
-            @Override
-            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
-                return create(blockSizeHint);
-            }
-
-            @Override
-            public boolean supportsBlockSize() {
-                return false;
-            }
-
-            @Override
-            public long defaultBlockSize() {
-                return 0;
-            }
-        };
     }
 }

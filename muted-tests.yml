@@ -865,3 +865,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/151090
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: initializationError
+  issue: https://github.com/elastic/elasticsearch/issues/152849
+- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
+  method: testDefaultSettingsFailsOnCrossFileScalarObjectConflict
+  issue: https://github.com/elastic/elasticsearch/issues/152865
+- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
+  method: testSkipRowPolicyNullFillsAndWarnsClient
+  issue: https://github.com/elastic/elasticsearch/issues/152866

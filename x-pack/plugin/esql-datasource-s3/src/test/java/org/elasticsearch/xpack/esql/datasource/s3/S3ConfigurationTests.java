@@ -283,8 +283,8 @@ public class S3ConfigurationTests extends ESTestCase {
         assertNotEquals(config1, config2);
     }
 
-    public void testKeylessAuthAllFields() {
-        S3Configuration config = S3Configuration.fromKeylessFields(
+    public void testFederatedAuthAllFields() {
+        S3Configuration config = S3Configuration.fromFederatedFields(
             "arn:aws:iam::123456789012:role/example",
             "my-session",
             "arn:aws:iam::123456789012:role/example",
@@ -294,7 +294,7 @@ public class S3ConfigurationTests extends ESTestCase {
             "us-east-1"
         );
         assertNotNull(config);
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertFalse(config.hasCredentials());
         assertFalse(config.isAnonymous());
         assertEquals("arn:aws:iam::123456789012:role/example", config.roleArn());
@@ -305,10 +305,10 @@ public class S3ConfigurationTests extends ESTestCase {
         assertEquals("us-east-1", config.region());
     }
 
-    public void testKeylessAuthMinimalFields() {
-        S3Configuration config = S3Configuration.fromKeylessFields("role-arn", null, "audience", null, null, null, null);
+    public void testFederatedAuthMinimalFields() {
+        S3Configuration config = S3Configuration.fromFederatedFields("role-arn", null, "audience", null, null, null, null);
         assertNotNull(config);
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertEquals("role-arn", config.roleArn());
         assertEquals("audience", config.jwtAudience());
         assertNull(config.roleSessionName());
@@ -316,60 +316,60 @@ public class S3ConfigurationTests extends ESTestCase {
         assertNull(config.stsRegion());
     }
 
-    public void testKeylessAuthStsRegionDistinctFromBucketRegion() {
+    public void testFederatedAuthStsRegionDistinctFromBucketRegion() {
         S3Configuration config = S3Configuration.fromMap(
             Map.of("role_arn", "role-arn", "jwt_audience", "audience", "region", "eu-west-1", "sts_region", "us-east-1")
         );
         assertNotNull(config);
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertEquals("eu-west-1", config.region());
         assertEquals("us-east-1", config.stsRegion());
     }
 
-    public void testKeylessAuthRequiresRoleArn() {
+    public void testFederatedAuthRequiresRoleArn() {
         ValidationException e = expectThrows(
             ValidationException.class,
-            () -> S3Configuration.fromKeylessFields(null, null, "audience", null, null, null, null)
+            () -> S3Configuration.fromFederatedFields(null, null, "audience", null, null, null, null)
         );
-        assertThat(e.getMessage(), containsString("role_arn is required when keyless authentication settings are configured"));
+        assertThat(e.getMessage(), containsString("role_arn is required when federated authentication settings are configured"));
     }
 
-    public void testKeylessAuthAllowsOmittingJwtAudience() {
-        S3Configuration config = S3Configuration.fromKeylessFields("role-arn", null, null, null, null, null, null);
+    public void testFederatedAuthAllowsOmittingJwtAudience() {
+        S3Configuration config = S3Configuration.fromFederatedFields("role-arn", null, null, null, null, null, null);
         assertNotNull(config);
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertEquals("role-arn", config.roleArn());
         assertNull(config.jwtAudience());
     }
 
-    public void testKeylessAuthConflictsWithCredentials() {
+    public void testFederatedAuthConflictsWithCredentials() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> S3Configuration.fromMap(
                 Map.of("access_key", "ak", "secret_key", "sk", "role_arn", "role-arn", "jwt_audience", "audience")
             )
         );
-        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with keyless authentication settings"));
+        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with federated authentication settings"));
     }
 
-    public void testKeylessAuthConflictsWithAuthAnonymous() {
+    public void testFederatedAuthConflictsWithAuthAnonymous() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> S3Configuration.fromMap(Map.of("auth", "anonymous", "role_arn", "role-arn", "jwt_audience", "audience"))
         );
-        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with keyless authentication settings"));
+        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with federated authentication settings"));
     }
 
-    public void testKeylessAuthFromMap() {
+    public void testFederatedAuthFromMap() {
         S3Configuration config = S3Configuration.fromMap(Map.of("role_arn", "role-arn", "jwt_audience", "audience", "region", "eu-west-1"));
         assertNotNull(config);
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertEquals("role-arn", config.roleArn());
         assertEquals("audience", config.jwtAudience());
         assertEquals("eu-west-1", config.region());
     }
 
-    public void testKeylessAuthFromQueryConfigDropsUnknownKeys() {
+    public void testFederatedAuthFromQueryConfigDropsUnknownKeys() {
         Map<String, Object> raw = new HashMap<>();
         raw.put("role_arn", "role-arn");
         raw.put("jwt_audience", "audience");
@@ -377,7 +377,7 @@ public class S3ConfigurationTests extends ESTestCase {
         Configured<S3Configuration> result = S3Configuration.fromQueryConfig(raw);
         S3Configuration config = result.value();
         assertNotNull(config);
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertThat(result.consumedKeys(), containsInAnyOrder("role_arn", "jwt_audience"));
     }
 
@@ -418,30 +418,30 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("auth=static_credentials requires complete explicit credentials"));
     }
 
-    public void testAuthStaticCredentialsConflictsWithKeyless() {
+    public void testAuthStaticCredentialsConflictsWithFederated() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> S3Configuration.fromMap(
                 Map.of("auth", "static_credentials", "access_key", "ak", "secret_key", "sk", "role_arn", "role", "jwt_audience", "aud")
             )
         );
-        assertThat(e.getMessage(), containsString("auth=static_credentials cannot be combined with keyless authentication settings"));
+        assertThat(e.getMessage(), containsString("auth=static_credentials cannot be combined with federated authentication settings"));
     }
 
     public void testAuthFederatedIdentityExplicit() {
         S3Configuration config = S3Configuration.fromMap(Map.of("auth", "federated_identity", "role_arn", "role", "jwt_audience", "aud"));
         assertTrue(config.isFederatedIdentity());
         assertFalse(config.isManagedIdentity());
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertEquals("federated_identity", config.auth());
     }
 
-    public void testAuthFederatedIdentityRequiresKeyless() {
+    public void testAuthFederatedIdentityRequiresFederatedSettings() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> S3Configuration.fromMap(Map.of("auth", "federated_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("auth=federated_identity requires keyless authentication settings"));
+        assertThat(e.getMessage(), containsString("auth=federated_identity requires federated authentication settings"));
     }
 
     public void testAuthFederatedIdentityConflictsWithCredentials() {

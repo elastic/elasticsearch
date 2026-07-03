@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 150305
-pr: 151234
-summary: "Ids Query: Throw `IllegalArgumentException`"
-type: bug

@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -329,11 +328,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Map.of(),
             Map.of(),
             null,
-            FormatReader.NO_LIMIT,
-            10,
-            null,
-            List.of(coalesced)
-        );
+            10
+        ).withSplits(List.of(coalesced));
 
         planner(operatorFactoryRegistry).plan(
             "test",
@@ -415,11 +411,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Map.of(),
             Map.of(),
             null,
-            FormatReader.NO_LIMIT,
-            10,
-            resolved,
-            List.of(coalesced)
-        );
+            10
+        ).withFileList(resolved).withSplits(List.of(coalesced));
 
         planner(operatorFactoryRegistry).plan(
             "test",
@@ -518,11 +511,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Map.of(),
             Map.of(),
             null,
-            FormatReader.NO_LIMIT,
-            10,
-            null,
-            List.of(coalesced)
-        );
+            10
+        ).withSplits(List.of(coalesced));
 
         planner(operatorFactoryRegistry).plan(
             "test",
@@ -587,10 +577,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Map.of(),
             Map.of(),
             null,
-            FormatReader.NO_LIMIT,
-            10,
-            null,
-            List.of()
+            10
         );
 
         planner(operatorFactoryRegistry).plan(
@@ -662,6 +649,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
             PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
             PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
+            PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
+            PlannerSettings.PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
             PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY)
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
@@ -841,7 +830,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             esPhysicalOperationProviders(shardContexts),
-            operatorFactoryRegistry
+            operatorFactoryRegistry,
+            null, // parallelWorkerExecutor - not needed for these tests
+            0     // esqlWorkerPoolSize - not needed for these tests
         );
     }
 

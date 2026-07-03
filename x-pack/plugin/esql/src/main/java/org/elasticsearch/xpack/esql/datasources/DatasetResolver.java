@@ -113,6 +113,9 @@ public class DatasetResolver {
                 );
             });
         }
+        // Remote-dataset detection rides the field-caps rail (EsqlResolveFieldsAction, surfaced as
+        // RemoteDatasetNotSupportedException). This resolver only does the LOCAL rewrite + read-authz; under CPS it
+        // additionally preserves the remote half of a matched dataset (see DatasetRewriter.rewrite, crossProjectEnabled=true).
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled))
             .addListener(listener);

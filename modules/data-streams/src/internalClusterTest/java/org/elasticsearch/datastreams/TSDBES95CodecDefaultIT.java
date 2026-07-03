@@ -24,7 +24,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -48,11 +47,6 @@ public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(DataStreamsPlugin.class);
         return plugins;
-    }
-
-    @Before
-    public void requireFeatureFlag() {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
     }
 
     public void testEs95EnabledByDefault() throws Exception {

@@ -102,6 +102,48 @@ public final class ColumnStatsAccumulator {
         states[blockIndex].accept(block, scratch);
     }
 
+    // Primitive single-value feed: lets a typed producer (e.g. the direct-to-block CSV parser) accumulate
+    // stats straight from the values it already has, avoiding a second, megamorphic pass over the built
+    // blocks. Each call contributes exactly one (single-valued) cell at page position {@code blockIndex};
+    // the result is identical to feeding the equivalent single-valued block through {@link #acceptBlockAt}.
+    // Values for columns whose type is untracked contribute nothing beyond the null count.
+
+    public void acceptNullAt(int blockIndex) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].nullCount++;
+        }
+    }
+
+    public void acceptBooleanAt(int blockIndex, boolean value) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].acceptBoolean(value);
+        }
+    }
+
+    public void acceptIntAt(int blockIndex, int value) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].acceptInt(value);
+        }
+    }
+
+    public void acceptLongAt(int blockIndex, long value) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].acceptLong(value);
+        }
+    }
+
+    public void acceptDoubleAt(int blockIndex, double value) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].acceptDouble(value);
+        }
+    }
+
+    public void acceptBytesRefAt(int blockIndex, BytesRef value) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].acceptBytesRef(value);
+        }
+    }
+
     /**
      * Feeds a single already-typed value into the accumulator at column position {@code columnIndex}.
      * This is the {@link StripeColumnScope#ALL ALL}-scope entry point: the row-format readers hand a
@@ -259,6 +301,41 @@ public final class ColumnStatsAccumulator {
                 case T_DOUBLE -> updateDouble((Double) value);
                 case T_BYTESREF -> updateBytesRef((BytesRef) value);
                 default -> throw new AssertionError("unexpected type ordinal: " + typeOrdinal);
+            }
+        }
+
+        // Single-value feed counterparts of the block walk in accept(...), for main's direct-to-block CSV/TSV
+        // path (elastic/elasticsearch#152300). Each guards on the column's cached typeOrdinal so a value whose
+        // kind does not match the tracked type (e.g. an untracked column) contributes nothing to min/max,
+        // exactly as the block path's T_UNTRACKED branch does.
+
+        void acceptBoolean(boolean val) {
+            if (typeOrdinal == T_BOOLEAN) {
+                updateBoolean(val);
+            }
+        }
+
+        void acceptInt(int val) {
+            if (typeOrdinal == T_INT) {
+                updateInt(val);
+            }
+        }
+
+        void acceptLong(long val) {
+            if (typeOrdinal == T_LONG) {
+                updateLong(val);
+            }
+        }
+
+        void acceptDouble(double val) {
+            if (typeOrdinal == T_DOUBLE) {
+                updateDouble(val);
+            }
+        }
+
+        void acceptBytesRef(BytesRef val) {
+            if (typeOrdinal == T_BYTESREF) {
+                updateBytesRef(val);
             }
         }
 

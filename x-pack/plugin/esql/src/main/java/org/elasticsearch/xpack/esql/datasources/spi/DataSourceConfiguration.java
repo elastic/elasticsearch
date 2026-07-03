@@ -150,12 +150,12 @@ public abstract class DataSourceConfiguration {
         return Strings.hasText(get(key)) || preexistingSecretKeys.contains(key);
     }
 
-    /** Returns true if any field marked as keyless auth has a value set. Null values are already excluded. */
-    public boolean hasKeylessAuth() {
+    /** Returns true if any field marked as federated identity (aka keyless auth) has a value set. Null values are already excluded. */
+    public boolean hasFederatedAuth() {
         for (var entry : values.entrySet()) {
             DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
             assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
-            if (def.keylessAuth()) {
+            if (def.federatedAuth()) {
                 return true;
             }
         }

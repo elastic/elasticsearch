@@ -20,11 +20,11 @@ public class Similarities {
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
 
-    static int dotProductI7u(MemorySegment a, MemorySegment b, int length) {
+    public static int dotProductI7u(MemorySegment a, MemorySegment b, int length) {
         return DISTANCE_FUNCS.dotProductI7u(a, b, length);
     }
 
-    static void dotProductI7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+    public static void dotProductI7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
         DISTANCE_FUNCS.dotProductI7uBulk(a, b, length, count, scores);
     }
 

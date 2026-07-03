@@ -97,7 +97,6 @@ public class VectorScorerInt8BulkOperationBenchmark {
     // Java-side results array, returned from benchmarks to prevent dead-code elimination.
     private float[] scores;
 
-
     // although this is not a directory-based BulkBenchmark, we can still use some bits in the VectorData impl
     static final class VectorData extends VectorScorerBulkBenchmark.VectorData {
         private final byte[][] vectors;

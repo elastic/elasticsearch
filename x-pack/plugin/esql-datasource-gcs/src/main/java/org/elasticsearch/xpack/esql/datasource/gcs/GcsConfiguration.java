@@ -25,8 +25,8 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  * {@code auto}, which infers the mode from the fields present. Supported modes:
  * <ul>
  *   <li>{@code auth=static_credentials} — service account JSON credentials (inline) or a short-lived OAuth2 access token</li>
- *   <li>{@code auth=federated_identity} — workload identity federation via {@code jwt_audience}, {@code sts_audience},
- *       and {@code service_account_impersonation_url}</li>
+ *   <li>{@code auth=federated_identity} — workload identity federation via {@code sts_audience}
+ *       (and optionally {@code service_account_impersonation_url}, and {@code jwt_audience})</li>
  *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
  *   <li>{@code auth=managed_identity} — the node's own GCE/GKE metadata-server credentials,
  *       gated by the {@code esql.datasource.managed_identity.enabled} cluster setting</li>
@@ -43,10 +43,10 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
     private static final DataSourceConfigDefinition PROJECT_ID = plaintext("project_id");
     private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
     private static final DataSourceConfigDefinition TOKEN_URI = plaintext("token_uri");
-    private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asKeylessAuth();
-    private static final DataSourceConfigDefinition STS_AUDIENCE = plaintext("sts_audience").asKeylessAuth();
+    private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asFederatedAuth();
+    private static final DataSourceConfigDefinition STS_AUDIENCE = plaintext("sts_audience").asFederatedAuth();
     private static final DataSourceConfigDefinition SERVICE_ACCOUNT_IMPERSONATION_URL = plaintext("service_account_impersonation_url")
-        .asKeylessAuth();
+        .asFederatedAuth();
 
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         CREDENTIALS,
@@ -68,12 +68,9 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
     protected void validateCredentials(ValidationException errors) {
         // service_account_impersonation_url is optional: direct workload-identity federation maps the
         // federated identity straight to a principal without impersonating a service account.
-        if (hasKeylessAuth()) {
-            if (jwtAudience() == null) {
-                errors.addValidationError("jwt_audience is required when keyless authentication settings are configured");
-            }
+        if (hasFederatedAuth()) {
             if (stsAudience() == null) {
-                errors.addValidationError("sts_audience is required when keyless authentication settings are configured");
+                errors.addValidationError("sts_audience is required when federated authentication settings are configured");
             }
         }
     }
@@ -161,7 +158,8 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
     }
 
     /**
-     * Audience passed to the workload-identity issuer {@code IssueTokenRequest} when minting a JWT.
+     * Audience override passed to the workload-identity issuer {@code IssueTokenRequest} when minting a JWT.
+     * By default, it mirrors the value of {@link #stsAudience()}.
      */
     public String jwtAudience() {
         return get(JWT_AUDIENCE.name());
@@ -195,6 +193,6 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
             + "set auth=anonymous for public buckets; "
             + "set auth=managed_identity to use the node's metadata-server credentials "
             + "(requires the esql.datasource.managed_identity.enabled cluster setting); "
-            + "or configure keyless authentication with jwt_audience and sts_audience";
+            + "or configure federated authentication with sts_audience";
     }
 }

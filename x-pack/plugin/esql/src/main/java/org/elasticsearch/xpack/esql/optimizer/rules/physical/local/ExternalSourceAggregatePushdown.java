@@ -90,10 +90,14 @@ public final class ExternalSourceAggregatePushdown {
         }
         return switch (type) {
             case INTEGER -> exactIntegerInRange(value, Integer.MIN_VALUE, Integer.MAX_VALUE) ? value : null;
-            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> exactIntegerInRange(value, Long.MIN_VALUE, Long.MAX_VALUE)
-                ? value
-                : null;
-            default -> value; // DOUBLE / KEYWORD / BOOLEAN / IP etc. — buildBlock coerces without integral truncation
+            case LONG, DATETIME, DATE_NANOS, COUNTER_LONG -> exactIntegerInRange(value, Long.MIN_VALUE, Long.MAX_VALUE) ? value : null;
+            // The non-integral buildBlock arms coerce without integral truncation, so these serve as-is.
+            case DOUBLE, COUNTER_DOUBLE, BOOLEAN, KEYWORD, TEXT, IP -> value;
+            // Any other type has NO buildBlock arm — serving it would hit buildBlock's throwing default, a crash on
+            // an otherwise-valid query (e.g. MIN(uint64) on parquet, whose pushdown gate has no type filter, or a
+            // future type added to buildBlock but not here). Safe-miss instead so the aggregate re-scans and answers
+            // correctly. INVARIANT: this servable set MUST equal buildBlock's arm set (see buildBlock).
+            default -> null;
         };
     }
 

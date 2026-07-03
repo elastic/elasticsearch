@@ -83,6 +83,21 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         assertNull(ExternalSourceAggregatePushdown.servableExtremum(3.0e10, DataType.INTEGER)); // double beyond int range
         assertNull(ExternalSourceAggregatePushdown.servableExtremum(5_000_000_000L, DataType.INTEGER)); // LONG beyond int range
         assertNull(ExternalSourceAggregatePushdown.servableExtremum(null, DataType.LONG));
+
+        // F1 (elastic/elasticsearch#150920): a type with NO buildBlock arm MUST safe-miss here. The parquet
+        // pushdown gate has no type filter, so MIN(uint64_col) would otherwise reach buildBlock's throwing
+        // default and crash an otherwise-valid query. servableExtremum's servable set MUST equal buildBlock's
+        // arm set — a non-buildable type re-scans (correct) rather than throwing or serving a wrong coercion.
+        assertNull(
+            "UNSIGNED_LONG has no buildBlock arm -> safe-miss",
+            ExternalSourceAggregatePushdown.servableExtremum(5L, DataType.UNSIGNED_LONG)
+        );
+        assertNull(
+            "VERSION has no buildBlock arm -> safe-miss",
+            ExternalSourceAggregatePushdown.servableExtremum(new BytesRef("1.0.0"), DataType.VERSION)
+        );
+        // The buildable non-integral arms still serve as-is.
+        assertEquals(true, ExternalSourceAggregatePushdown.servableExtremum(true, DataType.BOOLEAN));
     }
 
     public void testBuildBlockServesIpAsEncodedBytesRefNotNull() {

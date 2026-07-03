@@ -158,20 +158,18 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
      * {@code COUNT(value)} is the true count, not 0.
      */
     public void testCountColumnWarmAfterCountStarColdReScansNotZero() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 40;
         Path csvFile = writeCsvFile(totalRows);
         try {
-            String fileUri = StoragePath.fileUri(csvFile);
+            String dataset = registerDataset("csv_agg", StoragePath.fileUri(csvFile), Map.of());
             // Cold COUNT(*): caches row_count only, no per-column stats harvested.
-            try (var response = run(syncEsqlQueryRequest("EXTERNAL \"" + fileUri + "\" | STATS c = COUNT(*)").profile(true))) {
+            try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)").profile(true))) {
                 assertCount(response, totalRows);
             }
             // Warm COUNT(value): value was never harvested, so the rule must safe-miss and re-scan rather than
             // serve 0. The true count is totalRows (value is non-null for every row), and documentsFound shows
             // the re-scan happened (it is not a zero-scan LocalSourceExec serve).
-            try (var response = run(syncEsqlQueryRequest("EXTERNAL \"" + fileUri + "\" | STATS c = COUNT(value)").profile(true))) {
+            try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(value)").profile(true))) {
                 assertCount(response, totalRows);
                 assertThat(
                     "warm COUNT(value) of an un-harvested text column must re-scan, not serve 0",

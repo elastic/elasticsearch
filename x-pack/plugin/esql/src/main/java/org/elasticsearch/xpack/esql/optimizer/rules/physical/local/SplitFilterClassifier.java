@@ -341,7 +341,7 @@ final class SplitFilterClassifier {
         }
         if (minMaxCmp == 0) {
             for (Object lit : literalValues) {
-                if (compareValues(min, lit) == 0 && hasNoNulls(columnName, splitStats)) {
+                if (compareValues(min, lit) == 0 && matchableColumn(columnName, splitStats)) {
                     return SplitMatch.MATCH;
                 }
             }
@@ -369,7 +369,7 @@ final class SplitFilterClassifier {
         if (minCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minCmp > 0 && hasNoNulls(columnName, splitStats)) {
+        if (minCmp > 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -395,7 +395,7 @@ final class SplitFilterClassifier {
         if (minCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minCmp >= 0 && hasNoNulls(columnName, splitStats)) {
+        if (minCmp >= 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -421,7 +421,7 @@ final class SplitFilterClassifier {
         if (maxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (maxCmp < 0 && hasNoNulls(columnName, splitStats)) {
+        if (maxCmp < 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -447,7 +447,7 @@ final class SplitFilterClassifier {
         if (maxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (maxCmp <= 0 && hasNoNulls(columnName, splitStats)) {
+        if (maxCmp <= 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -470,7 +470,7 @@ final class SplitFilterClassifier {
         if (minCmp < 0 || maxCmp > 0) {
             return SplitMatch.MISS;
         }
-        if (minCmp == 0 && maxCmp == 0 && hasNoNulls(columnName, splitStats)) {
+        if (minCmp == 0 && maxCmp == 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -497,7 +497,7 @@ final class SplitFilterClassifier {
         if (minMaxCmp == 0 && minCmp == 0) {
             return SplitMatch.MISS;
         }
-        if (minMaxCmp == 0 && minCmp != 0 && hasNoNulls(columnName, splitStats)) {
+        if (minMaxCmp == 0 && minCmp != 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -507,9 +507,21 @@ final class SplitFilterClassifier {
      * Returns true when the column has zero null values in this split.
      * When null_count is unavailable, assumes nulls may exist (conservative).
      */
-    private static boolean hasNoNulls(String columnName, SplitStats splitStats) {
-        long nullCount = splitStats.columnNullCount(columnName);
-        return nullCount == 0;
+    /**
+     * A comparison/IN MATCH may only be served from min/max stats when EVERY row contributes exactly one value
+     * the bound describes: no nulls AND single-valued. A null row's comparison is NULL (not true), and a
+     * MULTIVALUED row's comparison is ALSO NULL — e.g. {@code [5,5] == 5} yields NULL, so the row does NOT match,
+     * yet {@code min == max == 5} would say it does; serving the count would over-count. With zero nulls,
+     * {@code value_count == rowCount} proves exactly one value per row. An unknown value_count ({@code -1}, e.g.
+     * a scope that did not harvest it) cannot prove single-valuedness, so the split is not matchable and the
+     * classifier stays AMBIGUOUS — the engine re-scans rather than serving a wrong count.
+     */
+    private static boolean matchableColumn(String columnName, SplitStats splitStats) {
+        if (splitStats.columnNullCount(columnName) != 0) {
+            return false;
+        }
+        long valueCount = splitStats.columnValueCount(columnName);
+        return valueCount >= 0 && valueCount == splitStats.rowCount();
     }
 
     private static String extractColumnName(Expression expr) {

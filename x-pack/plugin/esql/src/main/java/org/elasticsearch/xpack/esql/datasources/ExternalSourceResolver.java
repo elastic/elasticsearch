@@ -689,10 +689,22 @@ public class ExternalSourceResolver {
             // rely on incomplete sourceMetadata stats.
             return markStatsAsPartial(base);
         }
-        // Replace anchor-only stats with globally-aggregated stats. Preserve all non-stats keys from base (e.g.
-        // file_count, config).
+        // Replace anchor-only stats with globally-aggregated stats. The aggregated stats are authoritative across
+        // all files: a column the cross-file merge dropped (e.g. a text column harvested in only some files, under
+        // implicitNulls=false) must NOT survive via the anchor file's own per-column keys. So strip every _stats.*
+        // key from the anchor base before overlaying — putAll alone only overwrites keys the aggregate still has,
+        // which would leak the anchor's stale per-column stats (value_count/min/max/null_count) against the GLOBAL
+        // row count and serve a wrong COUNT/MIN/MAX. Non-stats keys (file_count, config) are preserved. Mirrors
+        // buildUnifiedMetadata's strip.
         Map<String, Object> current = base.sourceMetadata();
-        Map<String, Object> merged = current != null ? new HashMap<>(current) : new HashMap<>();
+        Map<String, Object> merged = new HashMap<>();
+        if (current != null) {
+            for (Map.Entry<String, Object> entry : current.entrySet()) {
+                if (entry.getKey().startsWith(SourceStatisticsSerializer.STATS_KEY_PREFIX) == false) {
+                    merged.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
         merged.putAll(aggregatedStats);
         // Do NOT add STATS_PARTIAL — stats are now complete across all files.
         merged.remove(SourceStatisticsSerializer.STATS_PARTIAL);

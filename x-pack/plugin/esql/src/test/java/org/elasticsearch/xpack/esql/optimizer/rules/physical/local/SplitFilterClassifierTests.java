@@ -223,7 +223,8 @@ public class SplitFilterClassifierTests extends ESTestCase {
         ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
         SplitStats.Builder builder = new SplitStats.Builder();
         builder.rowCount(100);
-        builder.addColumn("score", 0L, 1.5, 9.5, -1);
+        int scoreCol = builder.addColumn("score", 0L, 1.5, 9.5, -1);
+        builder.valueCount(scoreCol, 100); // single-valued (one value per row) — required for comparison MATCH
         SplitStats stats = builder.build();
         assertEquals(MATCH, classify(greaterThanOf(score, of(0.5)), stats));
     }
@@ -232,7 +233,8 @@ public class SplitFilterClassifierTests extends ESTestCase {
         ReferenceAttribute name = referenceAttribute("name", DataType.KEYWORD);
         SplitStats.Builder builder = new SplitStats.Builder();
         builder.rowCount(100);
-        builder.addColumn("name", 0L, "alice", "charlie", -1);
+        int nameCol = builder.addColumn("name", 0L, "alice", "charlie", -1);
+        builder.valueCount(nameCol, 100); // single-valued (one value per row) — required for comparison MATCH
         SplitStats stats = builder.build();
         assertEquals(MATCH, classify(greaterThanOf(name, of("aaron")), stats));
     }
@@ -413,13 +415,32 @@ public class SplitFilterClassifierTests extends ESTestCase {
     }
 
     private static SplitStats colStats(String colName, Object min, Object max, long rowCount, long nullCount) {
+        // Single-valued: value_count == rowCount - nullCount (one value per non-null row). A comparison MATCH is
+        // only sound for single-valued columns, so the classifier requires this; these fixtures model that reality.
+        return colStats(colName, min, max, rowCount, nullCount, rowCount - nullCount);
+    }
+
+    private static SplitStats colStats(String colName, Object min, Object max, long rowCount, long nullCount, long valueCount) {
         SplitStats.Builder builder = new SplitStats.Builder();
         builder.rowCount(rowCount);
         int col = builder.addColumn(colName);
         builder.nullCount(col, nullCount);
+        builder.valueCount(col, valueCount);
         builder.min(col, min);
         builder.max(col, max);
         return builder.build();
+    }
+
+    public void testComparisonOnMultivaluedColumnIsAmbiguousNotMatch() {
+        // B3 (elastic/elasticsearch#150920): a MULTIVALUED column's comparison evaluates to NULL in the engine
+        // (e.g. [5,5] == 5 -> NULL, so the row does NOT match), yet min==max would classify MATCH and serve the
+        // full count -> an over-count. A split where value_count > rowCount - nullCount (some row has >1 value)
+        // must NOT MATCH a comparison/IN -> AMBIGUOUS (the engine re-scans). MISS stays sound.
+        SplitStats mv = colStats(COL, 10L, 20L, 100L, 0L, 150L); // 100 rows, 0 nulls, 150 values -> multivalued
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(AGE, of(5L)), mv)); // min 10 > 5 -> MATCH if single-valued
+        assertEquals(AMBIGUOUS, classify(equalsOf(AGE, of(15L)), colStats(COL, 15L, 15L, 100L, 0L, 200L))); // == on MV
+        // MISS is still sound on a multivalued column (every value out of range -> no row can match).
+        assertEquals(MISS, classify(greaterThanOf(AGE, of(25L)), mv));
     }
 
     private static Expression or(Expression left, Expression right) {

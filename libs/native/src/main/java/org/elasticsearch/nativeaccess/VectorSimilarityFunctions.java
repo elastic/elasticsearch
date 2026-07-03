@@ -364,7 +364,29 @@ public interface VectorSimilarityFunctions {
 
     void dotProductF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
 
+    void dotProductF32BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
     float squareDistanceF32(MemorySegment a, MemorySegment b, int length);
+
+    void squareDistanceF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void squareDistanceF32BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
 
     void squareDistanceF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
 
@@ -376,17 +398,63 @@ public interface VectorSimilarityFunctions {
 
     void dotProductDBF16QF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
 
+    void dotProductDBF16QF32BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
     float squareDistanceDBF16QF32(MemorySegment a, MemorySegment b, int length);
+
+    void squareDistanceDBF16QF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
 
     void squareDistanceDBF16QF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
 
+    void squareDistanceDBF16QF32BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
     float dotProductDBF16QBF16(MemorySegment a, MemorySegment b, int length);
+
+    void dotProductDBF16QBF16Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
 
     void dotProductDBF16QBF16BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
 
+    void dotProductDBF16QBF16BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
+
     float squareDistanceDBF16QBF16(MemorySegment a, MemorySegment b, int length);
 
+    void squareDistanceDBF16QBF16Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
+
     void squareDistanceDBF16QBF16BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
+
+    void squareDistanceDBF16QBF16BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    );
 
     // --- BBQ: dot product for all BBQ types ---
 
@@ -448,8 +516,6 @@ public interface VectorSimilarityFunctions {
         MemorySegment scores
     );
 
-    void dotProductD2Q4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
-
     long dotProductD2Q4Packed(MemorySegment a, MemorySegment b, int length);
 
     void dotProductD2Q4PackedBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores);
@@ -477,8 +543,6 @@ public interface VectorSimilarityFunctions {
         int count,
         MemorySegment scores
     );
-
-    void dotProductD4Q4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores);
 
     // --- Corrections (DiskBBQ) ---
 

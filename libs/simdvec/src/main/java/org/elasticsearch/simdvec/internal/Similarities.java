@@ -228,10 +228,6 @@ public class Similarities {
         DISTANCE_FUNCS.dotProductD2Q4BulkWithOffsets(a, query, length, pitch, offsets, count, scores);
     }
 
-    public static void dotProductD2Q4BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
-        DISTANCE_FUNCS.dotProductD2Q4BulkSparse(addresses, query, length, count, scores);
-    }
-
     public static long dotProductD2Q4Packed(MemorySegment a, MemorySegment query, int length) {
         return DISTANCE_FUNCS.dotProductD2Q4Packed(a, query, length);
     }
@@ -270,10 +266,6 @@ public class Similarities {
         MemorySegment scores
     ) {
         DISTANCE_FUNCS.dotProductD4Q4BulkWithOffsets(a, query, length, pitch, offsets, count, scores);
-    }
-
-    public static void dotProductD4Q4BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
-        DISTANCE_FUNCS.dotProductD4Q4BulkSparse(addresses, query, length, count, scores);
     }
 
     public static float dotProductDBF16QF32(MemorySegment a, MemorySegment b, int length) {

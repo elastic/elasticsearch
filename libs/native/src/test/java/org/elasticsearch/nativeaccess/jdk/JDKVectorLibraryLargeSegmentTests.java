@@ -13,9 +13,6 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.DataType;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Function;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Operation;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -150,7 +147,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         }
     }
 
-    public void testFloat32DotProductBulkWithOffsetsLargeSegment() throws Throwable {
+    public void testFloat32DotProductBulkWithOffsetsLargeSegment() {
         final int dims = 128;
         final int numVecs = 2;
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs * Float.BYTES;
@@ -171,8 +168,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             var querySegment = vectorsSegment.asSlice(0, (long) dims * Float.BYTES);
             var scoresSegment = arena.allocate(Float.BYTES);
 
-            functions.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK_OFFSETS)
-                .invokeExact(vectorsSegment, querySegment, dims, pitch, offsetsSegment, 1, scoresSegment);
+            functions.dotProductF32BulkWithOffsets(vectorsSegment, querySegment, dims, pitch, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
             float expected = ScalarOperations.dotProduct(vectors[0], vectors[1]);

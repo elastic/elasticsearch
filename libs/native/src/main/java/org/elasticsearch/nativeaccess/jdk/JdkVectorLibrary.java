@@ -1539,8 +1539,20 @@ public final class JdkVectorLibrary implements VectorLibrary {
         private static final MethodHandle dotProductF32Bulk$mh = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK)
         );
+        private static final MethodHandle squareDistanceF32Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.FLOAT32, Operation.BULK)
+        );
         private static final MethodHandle dotProductDBF16QF32Bulk$mh = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, BFloat16QueryType.FLOAT32, Operation.BULK)
+        );
+        private static final MethodHandle squareDistanceDBF16QF32Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, BFloat16QueryType.FLOAT32, Operation.BULK)
+        );
+        private static final MethodHandle dotProductDBF16QBF16Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BFloat16QueryType.BFLOAT16, Operation.BULK)
+        );
+        private static final MethodHandle squareDistanceDBF16QBF16Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, BFloat16QueryType.BFLOAT16, Operation.BULK)
         );
         private static final MethodHandle dotProductD1Q1Bulk$mh = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q1, Operation.BULK)
@@ -1578,6 +1590,24 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
         private static final MethodHandle squareDistanceI8BulkWithOffsets$mh = HANDLES.get(
             new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT8, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle dotProductF32BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle squareDistanceF32BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.FLOAT32, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle dotProductDBF16QF32BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BFloat16QueryType.FLOAT32, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle squareDistanceDBF16QF32BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, BFloat16QueryType.FLOAT32, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle dotProductDBF16QBF16BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BFloat16QueryType.BFLOAT16, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle squareDistanceDBF16QBF16BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, BFloat16QueryType.BFLOAT16, Operation.BULK_OFFSETS)
         );
         private static final MethodHandle dotProductD1Q1BulkWithOffsets$mh = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q1, Operation.BULK_OFFSETS)
@@ -1636,12 +1666,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
         private static final MethodHandle dotProductD1Q4BulkSparse$mh = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.BULK_SPARSE)
-        );
-        private static final MethodHandle dotProductD2Q4BulkSparse$mh = HANDLES.get(
-            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.BULK_SPARSE)
-        );
-        private static final MethodHandle dotProductD4Q4BulkSparse$mh = HANDLES.get(
-            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D4Q4, Operation.BULK_SPARSE)
         );
 
         // --- INT7U: dot product and square distance ---
@@ -1936,8 +1960,54 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         @Override
+        public void dotProductF32BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBulkOffsets(DataType.FLOAT32.bits(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductF32BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
         public float squareDistanceF32(MemorySegment a, MemorySegment b, int length) {
             return squareDistanceF32Checked(a, b, length);
+        }
+
+        @Override
+        public void squareDistanceF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulk(DataType.FLOAT32.bits(), a, b, length, count, scores);
+            try {
+                squareDistanceF32Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void squareDistanceF32BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBulkOffsets(DataType.FLOAT32.bits(), a, b, length, pitch, offsets, count, scores);
+            try {
+                squareDistanceF32BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
         }
 
         @Override
@@ -1978,8 +2048,36 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         @Override
+        public void dotProductDBF16QF32BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBFloat16BulkOffsets(BFloat16QueryType.FLOAT32.bytes(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductDBF16QF32BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
         public float squareDistanceDBF16QF32(MemorySegment a, MemorySegment b, int length) {
             return squareDistanceDBF16QF32Checked(a, b, length);
+        }
+
+        @Override
+        public void squareDistanceDBF16QF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBFloat16Bulk(BFloat16QueryType.FLOAT32.bytes(), a, b, length, count, scores);
+            try {
+                squareDistanceDBF16QF32Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
         }
 
         @Override
@@ -1999,8 +2097,36 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         @Override
+        public void squareDistanceDBF16QF32BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBFloat16BulkOffsets(BFloat16QueryType.FLOAT32.bytes(), a, b, length, pitch, offsets, count, scores);
+            try {
+                squareDistanceDBF16QF32BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
         public float dotProductDBF16QBF16(MemorySegment a, MemorySegment b, int length) {
             return dotProductDBF16QBF16Checked(a, b, length);
+        }
+
+        @Override
+        public void dotProductDBF16QBF16Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBFloat16Bulk(BFloat16QueryType.BFLOAT16.bytes(), a, b, length, count, scores);
+            try {
+                dotProductDBF16QBF16Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
         }
 
         @Override
@@ -2014,8 +2140,36 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         @Override
+        public void dotProductDBF16QBF16BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBFloat16BulkOffsets(BFloat16QueryType.BFLOAT16.bytes(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductDBF16QBF16BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
         public float squareDistanceDBF16QBF16(MemorySegment a, MemorySegment b, int length) {
             return squareDistanceDBF16QBF16Checked(a, b, length);
+        }
+
+        @Override
+        public void squareDistanceDBF16QBF16Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBFloat16Bulk(BFloat16QueryType.BFLOAT16.bytes(), a, b, length, count, scores);
+            try {
+                squareDistanceDBF16QBF16Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
         }
 
         @Override
@@ -2029,6 +2183,24 @@ public final class JdkVectorLibrary implements VectorLibrary {
             checkBFloat16BulkSparse(BFloat16QueryType.BFLOAT16.bytes(), addresses, b, length, count, scores);
             try {
                 squareDistanceDBF16QBF16BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void squareDistanceDBF16QBF16BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBFloat16BulkOffsets(BFloat16QueryType.BFLOAT16.bytes(), a, b, length, pitch, offsets, count, scores);
+            try {
+                squareDistanceDBF16QBF16BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }
@@ -2179,16 +2351,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         @Override
-        public void dotProductD2Q4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
-            checkBBQBulkSparse(BBQType.D2Q4.queryBytesPerDocByte(), addresses, b, length, count, scores);
-            try {
-                dotProductD2Q4BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        @Override
         public long dotProductD2Q4Packed(MemorySegment a, MemorySegment b, int length) {
             return dotProductD2Q4_PACKEDChecked(a, b, length);
         }
@@ -2249,16 +2411,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             checkBBQBulkOffsets(BBQType.D4Q4.queryBytesPerDocByte(), a, b, length, pitch, offsets, count, scores);
             try {
                 dotProductD4Q4BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        @Override
-        public void dotProductD4Q4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
-            checkBBQBulkSparse(BBQType.D4Q4.queryBytesPerDocByte(), addresses, b, length, count, scores);
-            try {
-                dotProductD4Q4BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }

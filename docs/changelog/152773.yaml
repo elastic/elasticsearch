@@ -2,5 +2,5 @@ area: Aggregations
 issues:
  - 150290
 pr: 152773
-summary: "Aggs: Account memory on `InternalCardinality` reduction"
+summary: "Aggs: Avoid OOMs by account memory on cardinality agg reduction phase"
 type: bug

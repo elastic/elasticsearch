@@ -107,6 +107,16 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
         super(raw, fieldDefs);
     }
 
+    /** Like {@link #FileDataSourceConfiguration(Map, Map)}, but for a PUT-as-update; see
+     *  {@link DataSourceConfiguration#DataSourceConfiguration(Map, Map, Set)}. */
+    protected FileDataSourceConfiguration(
+        Map<String, Object> raw,
+        Map<String, DataSourceConfigDefinition> fieldDefs,
+        Set<String> preexistingSecretKeys
+    ) {
+        super(raw, fieldDefs, preexistingSecretKeys);
+    }
+
     @Override
     protected void normalize(Map<String, Object> parsed) {
         Object value = parsed.get(AUTH.name());

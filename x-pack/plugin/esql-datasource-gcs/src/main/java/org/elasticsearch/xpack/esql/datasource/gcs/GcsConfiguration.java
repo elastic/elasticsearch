@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.secret;
@@ -64,6 +64,10 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
         super(raw, FIELDS);
     }
 
+    private GcsConfiguration(Map<String, Object> raw, Set<String> preexistingSecretKeys) {
+        super(raw, FIELDS, preexistingSecretKeys);
+    }
+
     @Override
     protected void validateCredentials(ValidationException errors) {
         // service_account_impersonation_url is optional: direct workload-identity federation maps the
@@ -77,6 +81,10 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
 
     public static GcsConfiguration fromMap(Map<String, Object> raw) {
         return raw == null || raw.isEmpty() ? null : new GcsConfiguration(raw);
+    }
+
+    public static GcsConfiguration fromMap(Map<String, Object> raw, Set<String> preexistingSecretKeys) {
+        return raw == null || raw.isEmpty() ? null : new GcsConfiguration(raw, preexistingSecretKeys);
     }
 
     /**
@@ -183,7 +191,7 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
 
     @Override
     public boolean hasCredentials() {
-        return Strings.hasText(serviceAccountCredentials()) || Strings.hasText(accessToken());
+        return hasStoredSecret(CREDENTIALS.name()) || hasStoredSecret(ACCESS_TOKEN.name());
     }
 
     @Override

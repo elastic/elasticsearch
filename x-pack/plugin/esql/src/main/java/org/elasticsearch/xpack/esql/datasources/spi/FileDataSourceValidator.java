@@ -22,8 +22,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateEnum;
@@ -101,7 +101,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     private final String type;
-    private final Function<Map<String, Object>, DataSourceConfiguration> configFactory;
+    private final BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory;
     private final Set<String> supportedSchemes;
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
@@ -110,7 +110,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     public FileDataSourceValidator(
         String type,
-        Function<Map<String, Object>, DataSourceConfiguration> configFactory,
+        BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
         this(type, configFactory, supportedSchemes, null, Set.of(), () -> false);
@@ -118,7 +118,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     private FileDataSourceValidator(
         String type,
-        Function<Map<String, Object>, DataSourceConfiguration> configFactory,
+        BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
         Set<String> compressionExtensions,
@@ -164,10 +164,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     @Override
     public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+        return validateDatasource(datasourceSettings, Set.of());
+    }
+
+    @Override
+    public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings, Set<String> existingSecretKeys) {
         if (datasourceSettings == null || datasourceSettings.isEmpty()) {
             return Map.of();
         }
-        DataSourceConfiguration config = configFactory.apply(datasourceSettings);
+        DataSourceConfiguration config = configFactory.apply(datasourceSettings, existingSecretKeys);
         if (config instanceof FileDataSourceConfiguration fc && fc.isManagedIdentity() && managedIdentityEnabled.getAsBoolean() == false) {
             throw new ValidationException().addValidationError(FileDataSourceConfiguration.MANAGED_IDENTITY_DISABLED_MESSAGE);
         }

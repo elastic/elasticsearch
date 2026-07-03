@@ -166,6 +166,83 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
+    /**
+     * Regression: a PUT that omits an already-stored secret (as Kibana's edit-and-save flow does, since the
+     * corresponding GET masks it) must carry the secret forward rather than wiping it.
+     */
+    public void testPutOmittingSecretPreservesExistingSecret() throws Exception {
+        final String dsName = "omit_secret_ds";
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                putDataSourceRequest(dsName, Map.of("region", "us-east-1", "secret_access_key", "AKIAXYZ"))
+            )
+        );
+
+        // Update omitting the secret entirely; only region changes.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-west-2"))));
+
+        DataSource after = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName))
+            .get()
+            .getDataSources()
+            .iterator()
+            .next();
+        assertThat(after.settings().get("region").nonSecretValue(), equalTo("us-west-2"));
+        DataSourceSetting secretAfter = after.settings().get("secret_access_key");
+        assertNotNull("secret omitted from an update must be carried forward, not wiped", secretAfter);
+        assertTrue("carried-forward secret must remain encrypted", secretAfter.isEncrypted());
+
+        DataSourceCredentials credentials = new DataSourceCredentials(new EncryptionService() {
+            @Override
+            public EncryptedData encrypt(byte[] bytes) {
+                return new EncryptedData(TestEncryptionServicePlugin.TEST_KEY_ID, bytes);
+            }
+
+            @Override
+            public byte[] decrypt(EncryptedData encryptedData) {
+                return encryptedData.payload();
+            }
+        });
+        Map<String, Object> connectorInput = new HashMap<>();
+        connectorInput.put("secret_access_key", secretAfter.rawValue());
+        Map<String, Object> decrypted = credentials.decryptInPlace(connectorInput);
+        assertThat("carried-forward secret must decrypt to the original value", decrypted.get("secret_access_key"), equalTo("AKIAXYZ"));
+
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    /**
+     * Counterpart to {@link #testPutOmittingSecretPreservesExistingSecret}: an explicit JSON {@code null}
+     * clears a secret, rather than carrying the old value forward.
+     */
+    public void testPutExplicitNullClearsSecret() throws Exception {
+        final String dsName = "null_clear_ds";
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                putDataSourceRequest(dsName, Map.of("region", "us-east-1", "secret_access_key", "AKIAXYZ"))
+            )
+        );
+
+        Map<String, Object> clearing = new HashMap<>();
+        clearing.put("region", "us-east-1");
+        clearing.put("secret_access_key", null);
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, clearing)));
+
+        DataSource after = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName))
+            .get()
+            .getDataSources()
+            .iterator()
+            .next();
+        DataSourceSetting secretAfter = after.settings().get("secret_access_key");
+        assertTrue(
+            "an explicit null must clear the secret rather than carry it forward",
+            secretAfter == null || secretAfter.rawValue() == null
+        );
+
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
     public void testGatewayPersistence() throws Exception {
         final String dsName = "persists_across_restart";
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-west-2"))));

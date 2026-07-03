@@ -1,12 +1,12 @@
 pr: 152861
-summary: Make ES95 the default TSDB doc values codec on stateful
+summary: Make ES95 the default TSDB doc values codec
 area: TSDB
 type: feature
 issues: []
 highlight:
-  title: ES95 is the default TSDB doc values codec on stateful
+  title: ES95 is the default TSDB doc values codec
   body: |-
-    New time series indices on stateful Elasticsearch now use the ES95 doc values
-    codec by default. Set `index.time_series.es95_codec.enabled` to `false` at index
-    creation to keep the previous ES819 codec. Existing indices are unaffected.
+    New time series indices now use the ES95 doc values codec by default. Set
+    `index.time_series.es95_codec.enabled` to `false` at index creation to keep the
+    previous ES819 codec. Existing indices are unaffected.
   notable: true

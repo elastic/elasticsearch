@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -28,18 +29,19 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -47,6 +49,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -87,7 +91,14 @@ public class ExternalSourceResolver {
 
     public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION, DATASOURCE_CONFIG_KEY);
 
-    private static final int MAX_PARALLEL_METADATA_READS = 16;
+    /**
+     * Default cap on in-flight per-file metadata reads during a multi-file discovery when a caller does not supply
+     * one. Production wires the {@code esql_worker} pool size here (via {@code TransportEsqlQueryAction}/{@code
+     * PlanExecutor}) so the fan-out is bounded by an in-flight permit equal to the pool size; because footer reads
+     * are async (released across the network round-trip) that permit does not translate into that many pinned
+     * threads. Kept as a fallback for the constructors used by tests and by callers that do not thread the pool size.
+     */
+    static final int DEFAULT_METADATA_READ_CONCURRENCY = 16;
 
     private static final String RESOLUTION_CANCELLED_MESSAGE = "ES|QL external source resolution cancelled";
 
@@ -140,6 +151,7 @@ public class ExternalSourceResolver {
     private final ExternalSourceCacheService cacheService;
     /** Node telemetry sink, taken from the module ({@link ExternalSourceMetrics#NOOP} when no module is wired, e.g. tests). */
     private final ExternalSourceMetrics metrics;
+    private final int metadataReadConcurrency;
 
     /**
      * Supplier consulted before each per-file footer read so that an in-flight resolution of a large
@@ -149,9 +161,30 @@ public class ExternalSourceResolver {
     @Nullable
     private final BooleanSupplier isCancelled;
 
+    /**
+     * The {@link #executor} decorated so that every task it runs has the query cancellation signal installed as the
+     * ambient {@link StorageRetryCancellation} scope. This is the executor handed to factories for the async footer
+     * reads: for storage backends whose {@code readBytesAsync} is an executor-backed synchronous read (local, GCS,
+     * S3-without-async-client) the blocking read — and its retry/throttle backoff — runs inside one of these tasks, so
+     * a query cancelled mid-backoff aborts promptly (the backoff polls the ambient signal). Backends with a native
+     * async client return from the executor task before the SDK callback and are not covered here (nor by the
+     * synchronous path), matching {@link StorageRetryCancellation}'s documented thread-affinity limits.
+     */
+    private final Executor metadataReadExecutor;
+
     /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
     public ExternalSourceCacheService cacheService() {
         return cacheService;
+    }
+
+    /** Maximum in-flight per-file metadata reads for a multi-file discovery. Visible for wiring tests. */
+    public int metadataReadConcurrency() {
+        return metadataReadConcurrency;
+    }
+
+    /** Executor the discovery fan-out runs on. Visible for wiring/isolation tests. */
+    public Executor executor() {
+        return executor;
     }
 
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
@@ -168,7 +201,7 @@ public class ExternalSourceResolver {
         Settings settings,
         @Nullable ExternalSourceCacheService cacheService
     ) {
-        this(executor, dataSourceModule, settings, cacheService, null);
+        this(executor, dataSourceModule, settings, cacheService, (BooleanSupplier) null, DEFAULT_METADATA_READ_CONCURRENCY);
     }
 
     public ExternalSourceResolver(
@@ -178,12 +211,52 @@ public class ExternalSourceResolver {
         @Nullable ExternalSourceCacheService cacheService,
         @Nullable BooleanSupplier isCancelled
     ) {
+        this(executor, dataSourceModule, settings, cacheService, isCancelled, DEFAULT_METADATA_READ_CONCURRENCY);
+    }
+
+    /**
+     * @param metadataReadConcurrency maximum number of in-flight per-file metadata reads during a multi-file
+     *            discovery. Production passes the {@code esql_worker} pool size.
+     */
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        int metadataReadConcurrency
+    ) {
+        this(executor, dataSourceModule, settings, cacheService, null, metadataReadConcurrency);
+    }
+
+    /**
+     * @param isCancelled consulted before each per-file footer read so a wide-glob discovery aborts promptly on
+     *            cancellation; {@code null} means "never cancelled".
+     * @param metadataReadConcurrency maximum number of in-flight per-file metadata reads during a multi-file
+     *            discovery. Production passes the {@code esql_worker} pool size.
+     */
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        @Nullable BooleanSupplier isCancelled,
+        int metadataReadConcurrency
+    ) {
+        if (metadataReadConcurrency < 1) {
+            throw new IllegalArgumentException("metadataReadConcurrency must be >= 1, got: " + metadataReadConcurrency);
+        }
         this.executor = executor;
         this.dataSourceModule = dataSourceModule;
         this.settings = settings;
         this.cacheService = cacheService;
         this.isCancelled = isCancelled;
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
+        this.metadataReadConcurrency = metadataReadConcurrency;
+        // Install the query cancellation signal as the ambient StorageRetryCancellation scope for every footer read
+        // dispatched to the executor, so an executor-backed synchronous read's backoff aborts promptly on cancel.
+        this.metadataReadExecutor = command -> executor.execute(
+            () -> StorageRetryCancellation.runWithCancellation(this::isCancelled, command::run)
+        );
     }
 
     /**
@@ -274,93 +347,125 @@ public class ExternalSourceResolver {
             return;
         }
 
-        // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH
-        // so a wide wildcard cannot starve regular ES searches). A multi-file resolve pins one worker on
-        // the BoundedParallelGather latch while dispatching up to MAX_PARALLEL_METADATA_READS more tasks
-        // on the same pool (join pattern), for a peak of MAX_PARALLEL_METADATA_READS + 1 running slots.
-        // When the pool is smaller, ThrottledTaskRunner throttles submission rather than overflowing the
-        // queue; on saturation across concurrent ES|QL queries it fails fast per-slot via running-slot
-        // rejection rather than deadlocking. Splitting the coordinator from the footer fan-out onto a
-        // dedicated I/O pool would require a second executor here and is deferred until the
-        // esql_external_blocking_io pool's sizing and lifecycle are resolved; the caller-supplied
-        // executor is the current re-routing hook.
-        executor.execute(() -> {
-            try {
-                Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
-
-                for (String path : paths) {
-                    Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
-                    List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
-                    boolean hivePartitioning = isHivePartitioningEnabled(config);
-                    // null => legacy eager for every path; non-null => eager only for listed paths.
-                    boolean requiresStats = pathsRequiringStats == null || pathsRequiringStats.contains(path);
-
-                    try {
-                        ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(
-                            path,
-                            config,
-                            hints,
-                            hivePartitioning,
-                            requiresStats
-                        );
-                        resolved.put(path, resolvedSource);
-                        LOGGER.debug("Successfully resolved external source: {}", path);
-                    } catch (TaskCancelledException e) {
-                        // Surface cancellation unwrapped so the client sees a clean cancellation (4xx) rather
-                        // than a generic "Failed to resolve external source" wrapper (500).
-                        LOGGER.debug("External source resolution cancelled for [{}]", path);
-                        listener.onFailure(e);
-                        return;
-                    } catch (IllegalArgumentException | UnsupportedOperationException e) {
-                        // A footer read (e.g. the FFW anchor or a single-file source) can fail because the query was
-                        // cancelled mid-read; surface that as cancellation rather than a bad-request/unsupported error.
-                        if (reportIfCancelled(path, listener)) {
-                            return;
-                        }
-                        recordDiscoveryFailure();
-                        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-                        listener.onFailure(e);
-                        return;
-                    } catch (Exception e) {
-                        // Same guard for wrapped failures (e.g. the schema cache wraps a cancelled anchor read in
-                        // ExecutionException): a cancelled query must not surface as a generic 500.
-                        if (reportIfCancelled(path, listener)) {
-                            return;
-                        }
-                        recordDiscoveryFailure();
-                        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-                        String exceptionMessage = e.getMessage();
-                        String errorDetail = exceptionMessage != null ? exceptionMessage : e.getClass().getSimpleName();
-                        String errorMessage = String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, errorDetail);
-                        listener.onFailure(new ElasticsearchException(errorMessage, e));
-                        return;
-                    }
-                }
-
-                listener.onResponse(new ExternalSourceResolution(resolved));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
+        // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
+        // expansion, the FFW anchor / single-file footer read) and then hands the multi-file fan-out to async footer
+        // reads bounded by metadataReadConcurrency in-flight reads, so the executor thread is not held across the N
+        // network round-trips. Paths are resolved sequentially (see resolveNextPath) so the accumulation map needs no
+        // synchronization and the first failure short-circuits the rest — mirroring the previous synchronous loop.
+        //
+        // Dispatch on metadataReadExecutor (not the bare executor) so the query cancellation signal is installed as the
+        // ambient StorageRetryCancellation scope for the whole sequential prep: a cancelled wide-glob discovery then
+        // aborts its glob-expansion and anchor/single-file read backoff promptly, matching the per-read wrapping the
+        // async fan-out already gets.
+        Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
+        metadataReadExecutor.execute(() -> resolveNextPath(paths, 0, pathConfigs, filterHints, pathsRequiringStats, resolved, listener));
     }
 
-    private ExternalSourceResolution.ResolvedSource resolveSource(
+    /**
+     * Resolves {@code paths[index]} asynchronously, then chains to the next path on success. Paths are resolved
+     * sequentially so the accumulation map needs no synchronization and the first failure short-circuits the rest.
+     */
+    private void resolveNextPath(
+        List<String> paths,
+        int index,
+        Map<String, Map<String, Object>> pathConfigs,
+        @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        @Nullable Set<String> pathsRequiringStats,
+        Map<String, ExternalSourceResolution.ResolvedSource> resolved,
+        ActionListener<ExternalSourceResolution> listener
+    ) {
+        if (index == paths.size()) {
+            listener.onResponse(new ExternalSourceResolution(resolved));
+            return;
+        }
+        String path = paths.get(index);
+        Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
+        boolean hivePartitioning = isHivePartitioningEnabled(config);
+        // null => legacy eager for every path; non-null => eager only for listed paths.
+        boolean requiresStats = pathsRequiringStats == null || pathsRequiringStats.contains(path);
+
+        resolveSource(path, config, hints, hivePartitioning, requiresStats, ActionListener.wrap(resolvedSource -> {
+            resolved.put(path, resolvedSource);
+            LOGGER.debug("Successfully resolved external source: {}", path);
+            resolveNextPath(paths, index + 1, pathConfigs, filterHints, pathsRequiringStats, resolved, listener);
+        }, e -> listener.onFailure(mapResolveFailure(path, e))));
+    }
+
+    /**
+     * Reproduces the previous loop's error contract: a cancelled query surfaces {@link TaskCancelledException}
+     * unwrapped (so the client sees a clean 4xx rather than a generic 500), {@link IllegalArgumentException} and
+     * {@link UnsupportedOperationException} (client-caused) propagate unwrapped, and any other failure is wrapped in
+     * an {@link ElasticsearchException} carrying the path and detail. A footer read can fail <em>because</em> the
+     * query was cancelled mid-read and arrive wrapped (e.g. the schema cache wraps loader failures), so the
+     * cancellation state is consulted directly rather than matched on the exception type.
+     */
+    private RuntimeException mapResolveFailure(String path, Exception e) {
+        if (e instanceof TaskCancelledException tce) {
+            LOGGER.debug("External source resolution cancelled for [{}]", path);
+            return tce;
+        }
+        if (isCancelled()) {
+            LOGGER.debug("External source resolution cancelled for [{}]", path);
+            return new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE);
+        }
+        if (e instanceof IllegalArgumentException || e instanceof UnsupportedOperationException) {
+            recordDiscoveryFailure();
+            LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+            return (RuntimeException) e;
+        }
+        recordDiscoveryFailure();
+        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+        String detail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+        return new ElasticsearchException(String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, detail), e);
+    }
+
+    private void resolveSource(
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
-        boolean requiresStats
-    ) throws Exception {
+        boolean requiresStats,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) {
         LOGGER.debug("Resolving external source: path=[{}]", path);
+        try {
+            resolveSourceInner(path, config, hints, hivePartitioning, requiresStats, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 
+    private void resolveSourceInner(
+        String path,
+        Map<String, Object> config,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        boolean requiresStats,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) throws Exception {
         // A query cancelled before resolution starts must do no storage I/O at all: bail before glob
         // expansion, cache listing, or any footer read.
         throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
-            return resolveMultiFileSource(path, config, hints, hivePartitioning, requiresStats);
+            resolveMultiFileSource(path, config, hints, hivePartitioning, requiresStats, listener);
+        } else {
+            resolveSingleFileSource(path, config, listener);
         }
+    }
 
+    /**
+     * Resolves a single, explicitly-referenced file. The footer read here is one bounded read on the resolver
+     * executor thread (not the fan-out), so it stays synchronous — matching the coordinator/anchor read cost. The
+     * multi-file fan-out is what goes async (see {@link #gatherPerFile}).
+     */
+    private void resolveSingleFileSource(
+        String path,
+        Map<String, Object> config,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) throws Exception {
         /*
          * A concrete one-entry FileList is required so {@link org.elasticsearch.xpack.esql.datasources.FileSplitProvider}
          * can discover block-aligned splits for compressed files (e.g. .json.bz2). UNRESOLVED lists skip split discovery,
@@ -404,7 +509,7 @@ public class ExternalSourceResolver {
         );
         // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
+        listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
     }
 
     private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
@@ -418,12 +523,13 @@ public class ExternalSourceResolver {
         return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, null));
     }
 
-    private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
+    private void resolveMultiFileSource(
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
-        boolean requiresStats
+        boolean requiresStats,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
@@ -442,7 +548,8 @@ public class ExternalSourceResolver {
             if (raw.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
-            return resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable);
+            resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable, listener);
+            return;
         }
 
         FileList listing;
@@ -475,109 +582,167 @@ public class ExternalSourceResolver {
         // Glob expansion / cache listing above can be slow on wide globs; re-check before the anchor footer read.
         throwIfCancelled();
 
-        ExternalSourceMetadata extMetadata;
+        // The anchor's length/mtime are already known from the listing, so seed a ListingHint and resolve it on the
+        // async footer-read path (like the fan-out) rather than a synchronous resolveSingleSource. This both skips
+        // the existence/HEAD + length probe and, more importantly, avoids pinning the metadata-read executor thread
+        // across the anchor footer read. Unlike the single-file getOrComputeSchema path this does not coalesce
+        // concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is safe
+        // because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
+        ListingHint anchorHint = new ListingHint(listing.size(anchor), anchorMtime);
+        final FileList finalListing = listing;
+        ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
+            anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, requiresStats, cacheable, listener),
+            listener::onFailure
+        );
         if (cacheable) {
-            String formatType = detectFormatType(anchorPath);
-            SchemaCacheKey schemaKey = SchemaCacheKey.build(anchorPath.toString(), anchorMtime, formatType, config);
-            SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                return SchemaCacheEntry.from(resolveSingleSource(anchorPath.toString(), config));
-            });
-            List<Attribute> schema = schemaEntry.toAttributes();
-            extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+            // cachedResolveSingleSourceAsync always completes with the ExternalSourceMetadata built by
+            // buildMetadataFromCache, so the cast is safe.
+            cachedResolveSingleSourceAsync(anchorPath, anchorHint, config, anchorListener.map(meta -> (ExternalSourceMetadata) meta));
         } else {
-            SourceMetadata metadata = resolveSingleSource(anchorPath.toString(), config);
-            extMetadata = wrapAsExternalSourceMetadata(metadata, config);
+            resolveSingleSourceAsync(
+                anchorPath.toString(),
+                anchorHint,
+                config,
+                anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, config))
+            );
         }
+    }
 
-        extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
-        if (listing.fileCount() > 1 && requiresStats) {
-            // For multi-file FIRST_FILE_WINS, read all files' metadata in parallel during Phase 1
-            // to aggregate statistics across all files. This allows aggregate pushdown
-            // (COUNT/MIN/MAX) to use accurate global stats and to skip Phase 2 (split discovery)
-            // entirely for those queries.
-            //
-            // This eager all-file aggregation is gated on requiresStats: only query shapes that can
-            // consume the global stats — an ungrouped aggregate over the relation, detected by
-            // ExternalStatsRequirementExtractor#pathsRequiringEagerStats — pay the N footer reads.
-            // Every other shape (LIMIT, SELECT *, grouped STATS ... BY, INLINESTATS) takes the
-            // defer branch below: it keeps STATS_FILE_COUNT (from enrichWithFileCount above) but
-            // marks stats partial, so Phase 2 split discovery reads footers once instead of twice.
-            // Legacy callers pass requiresStats == true for every path (the resolve overload with a
-            // null pathsRequiringStats set), preserving the original eager-for-all behavior.
-            //
-            // For an eager (requiresStats) resolve the cost is acceptable because:
-            // - the cacheable path consults the schema cache, so repeat resolves are free;
-            // - the non-cacheable path reads footers in parallel up to MAX_PARALLEL_METADATA_READS;
-            // - the aggregated stats unlock skipping Phase 2 entirely for pushable aggregates
-            // (see ComputeService#canSkipSplitDiscovery), which dominates the savings.
-            Map<String, Object> aggregatedStats = cacheable
-                ? readAndAggregateAllFileStatsWithCache(listing, config)
-                : readAndAggregateAllFileStats(listing, config);
-            if (aggregatedStats != null) {
-                // Replace anchor-only stats with globally-aggregated stats.
-                // Preserve all non-stats keys from the current extMetadata (e.g. file_count, config).
-                Map<String, Object> current = extMetadata.sourceMetadata();
-                Map<String, Object> merged = current != null ? new HashMap<>(current) : new HashMap<>();
-                merged.putAll(aggregatedStats);
-                // Do NOT add STATS_PARTIAL — stats are now complete across all files.
-                merged.remove(SourceStatisticsSerializer.STATS_PARTIAL);
-                final Map<String, Object> finalMerged = Map.copyOf(merged);
-                final ExternalSourceMetadata baseMetadata = extMetadata;
-                extMetadata = new ExternalSourceMetadata() {
-                    @Override
-                    public String location() {
-                        return baseMetadata.location();
+    /**
+     * Builds the FIRST_FILE_WINS result from the resolved anchor metadata and the discovered listing. Runs as the
+     * continuation of the async anchor footer read, so any synchronous failure here is funnelled to
+     * {@code listener::onFailure} rather than escaping onto the executor thread.
+     */
+    private void completeFirstFileWins(
+        ExternalSourceMetadata anchorMetadata,
+        FileList listing,
+        Map<String, Object> config,
+        boolean requiresStats,
+        boolean cacheable,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) {
+        try {
+            final ExternalSourceMetadata base = enrichWithFileCount(anchorMetadata, listing.fileCount());
+            if (listing.fileCount() > 1 && requiresStats) {
+                // For multi-file FIRST_FILE_WINS, read all files' metadata during Phase 1 to aggregate statistics
+                // across all files. This allows aggregate pushdown (COUNT/MIN/MAX) to use accurate global stats and
+                // to skip Phase 2 (split discovery) entirely for those queries.
+                //
+                // This eager all-file aggregation is gated on requiresStats: only query shapes that can consume the
+                // global stats — an ungrouped aggregate over the relation, detected by
+                // ExternalStatsRequirementExtractor#pathsRequiringEagerStats — pay the N footer reads. Every other
+                // shape (LIMIT, SELECT *, grouped STATS ... BY, INLINESTATS) takes the defer branch below: it keeps
+                // STATS_FILE_COUNT (from enrichWithFileCount above) but marks stats partial, so Phase 2 split
+                // discovery reads footers once instead of twice. Legacy callers pass requiresStats == true for every
+                // path (the resolve overload with a null pathsRequiringStats set), preserving the original
+                // eager-for-all behavior.
+                //
+                // For an eager (requiresStats) resolve the cost is acceptable because:
+                // - the cacheable path consults the schema cache, so repeat resolves are free;
+                // - the non-cacheable path reads footers with an async fan-out bounded by an in-flight permit
+                // (metadataReadConcurrency), releasing the pool thread across each footer read;
+                // - the aggregated stats unlock skipping Phase 2 entirely for pushable aggregates
+                // (see ComputeService#canSkipSplitDiscovery), which dominates the savings.
+                ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
+                    try {
+                        listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, aggregatedStats)));
+                    } catch (Exception e) {
+                        listener.onFailure(e);
                     }
-
-                    @Override
-                    public List<Attribute> schema() {
-                        return baseMetadata.schema();
-                    }
-
-                    @Override
-                    public String sourceType() {
-                        return baseMetadata.sourceType();
-                    }
-
-                    @Override
-                    public Map<String, Object> sourceMetadata() {
-                        return finalMerged;
-                    }
-
-                    @Override
-                    public Map<String, Object> config() {
-                        return baseMetadata.config();
-                    }
-                };
+                }, listener::onFailure);
+                if (cacheable) {
+                    readAndAggregateAllFileStatsWithCache(listing, config, statsListener);
+                } else {
+                    readAndAggregateAllFileStats(listing, config, statsListener);
+                }
+            } else if (listing.fileCount() > 1) {
+                // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
+                // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
+                // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
+                // rather than consuming anchor stats as global). STATS_FILE_COUNT, stamped above, is preserved.
+                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base)));
             } else {
-                // Could not aggregate stats (some files lacked statistics) — mark as partial
-                // so the optimizer does not rely on incomplete sourceMetadata stats.
-                extMetadata = markStatsAsPartial(extMetadata);
+                listener.onResponse(finishFirstFileWins(listing, base));
             }
-        } else if (listing.fileCount() > 1) {
-            // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats
-            // are not representative of the whole glob, so mark them partial — exactly the state the
-            // failed-aggregation path above produces, which downstream already handles
-            // (SplitStats.resolveEffectiveStats returns null rather than consuming anchor stats as
-            // global). STATS_FILE_COUNT, stamped by enrichWithFileCount above, is preserved.
-            extMetadata = markStatsAsPartial(extMetadata);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
+    }
 
-        // The anchor's pre-enrichment schema is the physical read schema every file's reader parses.
-        // Partition columns are path-derived (injected by VirtualColumnIterator at read time), so they
-        // are never part of the physical read schema; the data-only view below drives the mapping
-        // output width.
+    /**
+     * Overlays globally-aggregated statistics onto the anchor metadata for the FIRST_FILE_WINS path. When
+     * {@code aggregatedStats} is {@code null} (some file lacked statistics or a read failed) the stats are marked
+     * partial so the optimizer does not rely on incomplete aggregations.
+     */
+    private static ExternalSourceMetadata applyFirstFileWinsAggregatedStats(
+        ExternalSourceMetadata base,
+        @Nullable Map<String, Object> aggregatedStats
+    ) {
+        if (aggregatedStats == null) {
+            // Could not aggregate stats (some files lacked statistics) — mark as partial so the optimizer does not
+            // rely on incomplete sourceMetadata stats.
+            return markStatsAsPartial(base);
+        }
+        // Replace anchor-only stats with globally-aggregated stats. Preserve all non-stats keys from base (e.g.
+        // file_count, config).
+        Map<String, Object> current = base.sourceMetadata();
+        Map<String, Object> merged = current != null ? new HashMap<>(current) : new HashMap<>();
+        merged.putAll(aggregatedStats);
+        // Do NOT add STATS_PARTIAL — stats are now complete across all files.
+        merged.remove(SourceStatisticsSerializer.STATS_PARTIAL);
+        return replaceSourceMetadata(base, Map.copyOf(merged));
+    }
+
+    /** Returns a wrapper that delegates to {@code base} but replaces {@code sourceMetadata()} with {@code replacement}. */
+    private static ExternalSourceMetadata replaceSourceMetadata(ExternalSourceMetadata base, Map<String, Object> replacement) {
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return base.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return base.schema();
+            }
+
+            @Override
+            public String sourceType() {
+                return base.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return replacement;
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return base.config();
+            }
+        };
+    }
+
+    /**
+     * Completes the FIRST_FILE_WINS path once per-file stats (if any) have been folded into {@code extMetadata}:
+     * applies Hive partition-key shadowing (the partition value wins over a same-named physical column), enriches the
+     * coordinator schema with partition columns, and pins the anchor's physical schema for every file via an
+     * (identity or narrowing) per-file mapping. Purely CPU-bound.
+     */
+    private ExternalSourceResolution.ResolvedSource finishFirstFileWins(FileList listing, ExternalSourceMetadata extMetadata) {
+        // The anchor's pre-enrichment schema is the physical read schema every file's reader parses. Partition
+        // columns are path-derived (injected by VirtualColumnIterator at read time), so they are never part of the
+        // physical read schema; the data-only view below drives the mapping output width.
         List<Attribute> physicalSchema = extMetadata.schema();
         List<Attribute> dataOnlySchema = physicalSchema;
 
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-            // Shadow same-named physical columns: when a physical column collides with a partition
-            // key, the partition (path-derived) value wins (Spark/DuckDB semantics). The reader still
-            // parses the physical column (CSV is positional), but the per-file mapping drops it from
-            // the output so the mapping width agrees with the data-only unified schema at
-            // ColumnMapping#pruneToPerFileQuery and with queryDataSchema at the SchemaAdaptingIterator
-            // guard. enrichSchemaWithPartitionColumns appends the partition column and warns.
+            // Shadow same-named physical columns: when a physical column collides with a partition key, the partition
+            // (path-derived) value wins (Spark/DuckDB semantics). The reader still parses the physical column (CSV is
+            // positional), but the per-file mapping drops it from the output so the mapping width agrees with the
+            // data-only unified schema at ColumnMapping#pruneToPerFileQuery and with queryDataSchema at the
+            // SchemaAdaptingIterator guard. enrichSchemaWithPartitionColumns appends the partition column and warns.
             dataOnlySchema = ExternalSchema.dataAttributesOf(physicalSchema, partitionMetadata.partitionColumns().keySet()).attributes();
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
@@ -585,9 +750,9 @@ public class ExternalSourceResolver {
         // _file.* columns are request-driven now; no auto-attach to the schema. See
         // ResolveExternalRelations / the EXTERNAL shim.
 
-        // FFW: every file's readSchema is the anchor's physical schema; the mapping is identity unless
-        // a partition key shadows a physical column, in which case it narrows the output to the
-        // data-only columns (the shadowed physical column is parsed but not emitted).
+        // FFW: every file's readSchema is the anchor's physical schema; the mapping is identity unless a partition
+        // key shadows a physical column, in which case it narrows the output to the data-only columns (the shadowed
+        // physical column is parsed but not emitted).
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         if (physicalSchema != null && physicalSchema.isEmpty() == false) {
             Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = Maps.newHashMapWithExpectedSize(listing.fileCount());
@@ -703,70 +868,76 @@ public class ExternalSourceResolver {
         };
     }
 
-    private ExternalSourceResolution.ResolvedSource resolveMultiFileWithReconciliation(
+    private void resolveMultiFileWithReconciliation(
         FileList fileList,
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
-        boolean cacheable
-    ) throws Exception {
+        boolean cacheable,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) {
         long startNanos = System.nanoTime();
-        Map<StoragePath, SourceMetadata> allMetadata = readAllFileMetadata(fileList, config, cacheable);
-        long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
+        readAllFileMetadata(fileList, config, cacheable, ActionListener.wrap(allMetadata -> {
+            try {
+                long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
+                LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
 
-        LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
+                StoragePath firstFile = fileList.path(0);
+                SchemaReconciliation.Result result;
+                if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
+                    result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
+                } else {
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata);
+                }
 
-        StoragePath firstFile = fileList.path(0);
-        SchemaReconciliation.Result result;
-        if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
-            result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
-        } else {
-            result = SchemaReconciliation.reconcileUnionByName(allMetadata);
-        }
+                // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
+                // value wins (Spark/DuckDB semantics), so the unified schema and every per-file mapping's
+                // output must drop the physical column. The file (physical) schema is preserved so positional
+                // readers (CSV) still parse the column; enrichSchemaWithPartitionColumns re-adds the partition
+                // column to the coordinator-facing schema below. Keeping the mapping width data-only keeps it
+                // in agreement with the data-only unified schema at ColumnMapping#pruneToPerFileQuery and with
+                // queryDataSchema at the data-node SchemaAdaptingIterator guard.
+                //
+                // Ordering matters: shadowPartitionCollisions emits the single shadow warning and prunes the
+                // collision here, so the enrichSchemaWithPartitionColumns call below sees a data-only schema and
+                // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
+                PartitionMetadata partitionMetadata = fileList.partitionMetadata();
+                Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
+                result = shadowPartitionCollisions(result, partitionNames);
 
-        // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
-        // value wins (Spark/DuckDB semantics), so the unified schema and every per-file mapping's
-        // output must drop the physical column. The file (physical) schema is preserved so positional
-        // readers (CSV) still parse the column; enrichSchemaWithPartitionColumns re-adds the partition
-        // column to the coordinator-facing schema below. Keeping the mapping width data-only keeps it
-        // in agreement with the data-only unified schema at ColumnMapping#pruneToPerFileQuery and with
-        // queryDataSchema at the data-node SchemaAdaptingIterator guard.
-        //
-        // Ordering matters: shadowPartitionCollisions emits the single shadow warning and prunes the
-        // collision here, so the enrichSchemaWithPartitionColumns call below sees a data-only schema and
-        // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
-        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
-        Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
-        result = shadowPartitionCollisions(result, partitionNames);
+                List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
+                SourceMetadata firstMeta = allMetadata.get(firstFile);
+                // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
+                // no second cache or storage hit per file.
+                Map<String, Object> aggregatedStats = aggregateFileStatistics(allMetadata.values());
+                ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
 
-        List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
-        SourceMetadata firstMeta = allMetadata.get(firstFile);
-        // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
-        // no second cache or storage hit per file.
-        Map<String, Object> aggregatedStats = aggregateFileStatistics(allMetadata.values());
-        ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
+                // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
+                // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
+                extMetadata = enrichWithFileCount(extMetadata, fileList.fileCount());
+                if (aggregatedStats == null && fileList.fileCount() > 1) {
+                    extMetadata = markStatsAsPartial(extMetadata);
+                }
 
-        // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
-        // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
-        extMetadata = enrichWithFileCount(extMetadata, fileList.fileCount());
-        if (aggregatedStats == null && fileList.fileCount() > 1) {
-            extMetadata = markStatsAsPartial(extMetadata);
-        }
+                if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+                    // No-double-warning invariant: shadowPartitionCollisions above already pruned any physical
+                    // column that collides with a partition key (and emitted the one shadow warning), so the
+                    // post-shadow schema must be collision-free before enrich runs its own shadow detection.
+                    final ExternalSourceMetadata metaForAssert = extMetadata;
+                    assert metaForAssert.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
+                        : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
+                            + "column still collides with a partition key, which would warn twice";
+                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
+                }
 
-        if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-            // No-double-warning invariant: shadowPartitionCollisions above already pruned any physical
-            // column that collides with a partition key (and emitted the one shadow warning), so the
-            // post-shadow schema must be collision-free before enrich runs its own shadow detection.
-            assert extMetadata.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
-                : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
-                    + "column still collides with a partition key, which would warn twice";
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
-        }
+                // _file.* columns are request-driven now; no auto-attach to the schema. See
+                // ResolveExternalRelations / the EXTERNAL shim.
 
-        // _file.* columns are request-driven now; no auto-attach to the schema. See
-        // ResolveExternalRelations / the EXTERNAL shim.
-
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
+                Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
+                listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        }, listener::onFailure));
     }
 
     /**
@@ -812,46 +983,142 @@ public class ExternalSourceResolver {
         return new SchemaReconciliation.Result(new ExternalSchema(dataOnlyUnified), Map.copyOf(perFileInfo));
     }
 
-    /** Per-file metadata, in parallel. When {@code cacheable} is true, each resolve goes through
-     *  the schema cache (keyed on path + mtime) so warm queries against the same paths hit cache. */
-    private Map<StoragePath, SourceMetadata> readAllFileMetadata(FileList fileList, Map<String, Object> config, boolean cacheable)
-        throws Exception {
+    /**
+     * Per-file metadata, read with an async fan-out bounded by {@link #metadataReadConcurrency} in-flight reads (see
+     * {@link #gatherPerFile}). When {@code cacheable} is true each resolve peeks the schema cache (keyed on path +
+     * mtime) and, on a miss, resolves asynchronously and stores the result so warm queries against the same paths hit
+     * cache. The result preserves the file order of {@code fileList}.
+     */
+    private void readAllFileMetadata(
+        FileList fileList,
+        Map<String, Object> config,
+        boolean cacheable,
+        ActionListener<Map<StoragePath, SourceMetadata>> listener
+    ) {
         int fileCount = fileList.fileCount();
-        List<Integer> indices = new ArrayList<>(fileCount);
-        for (int i = 0; i < fileCount; i++) {
-            indices.add(i);
-        }
-
-        List<Map.Entry<StoragePath, SourceMetadata>> entries = BoundedParallelGather.gather(indices, i -> {
-            throwIfCancelled();
-            StoragePath filePath = fileList.path(i);
-            // Carry the cancellation signal across the synchronous footer read so a backoff sleep in
-            // the storage retry layer aborts promptly on cancel.
-            SourceMetadata meta = StorageRetryCancellation.callWithCancellation(
-                this::isCancelled,
-                () -> cacheable
-                    ? cachedResolveSingleSource(filePath, fileList.lastModifiedMillis(i), config)
-                    : resolveSingleSource(filePath.toString(), config)
-            );
-            return Map.entry(filePath, meta);
-        }, MAX_PARALLEL_METADATA_READS, executor);
-
-        Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
-        for (Map.Entry<StoragePath, SourceMetadata> entry : entries) {
-            result.put(entry.getKey(), entry.getValue());
-        }
-        return result;
+        gatherPerFile(fileList, config, cacheable, ActionListener.wrap(perFile -> {
+            Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
+            for (int i = 0; i < fileCount; i++) {
+                result.put(fileList.path(i), perFile.get(i));
+            }
+            listener.onResponse(result);
+        }, listener::onFailure));
     }
 
-    /** Cache-aware single-file resolve. Mirrors the FFW path — exceptions propagate (no catch). */
-    private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) throws Exception {
+    /**
+     * Runs an async, bounded fan-out over every file in {@code fileList}, resolving each file's {@link SourceMetadata}
+     * and returning results in file order. Concurrency is capped at {@link #metadataReadConcurrency} in-flight reads
+     * via {@link ThrottledIterator}; because the per-file resolve is itself async (the footer read is released across
+     * the network round-trip), that permit bounds in-flight reads rather than pinning that many executor threads. The
+     * cancellation signal is checked before each dispatch (a cancelled wide glob stops issuing reads promptly and
+     * surfaces {@link TaskCancelledException}), and the async reads run on {@link #metadataReadExecutor} so an
+     * executor-backed synchronous read's backoff aborts on cancel. The first failure is propagated to {@code listener}
+     * and short-circuits the remaining files.
+     */
+    private void gatherPerFile(
+        FileList fileList,
+        Map<String, Object> config,
+        boolean cacheable,
+        ActionListener<List<SourceMetadata>> listener
+    ) {
+        int fileCount = fileList.fileCount();
+        AtomicReferenceArray<SourceMetadata> results = new AtomicReferenceArray<>(fileCount);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        Iterator<Integer> indices = indexIterator(fileCount);
+        ThrottledIterator.run(indices, (releasable, i) -> {
+            if (failure.get() != null) {
+                // A previous file already failed (or the query was cancelled) — drain the remaining items
+                // without issuing reads.
+                releasable.close();
+                return;
+            }
+            ActionListener<SourceMetadata> itemListener = ActionListener.runAfter(
+                ActionListener.wrap(meta -> results.set(i, meta), e -> failure.compareAndSet(null, e)),
+                releasable::close
+            );
+            // ThrottledIterator's itemConsumer must not throw: an escaped exception would leave this item's ref
+            // permanently held (its releasable never closed) and onCompletion would never fire — a hang. A check-
+            // before-dispatch cancellation and any synchronous throw from the resolve dispatch (e.g. a factory that
+            // rejects the executor submission or throws before completing the listener) are therefore funnelled into
+            // itemListener.onFailure so runAfter(..., releasable::close) always runs.
+            try {
+                throwIfCancelled();
+                StoragePath filePath = fileList.path(i);
+                // Length + mtime come from the directory listing: thread them through so the factory can build the
+                // storage object without a synchronous existence/HEAD probe on the executor thread before the async
+                // footer read.
+                ListingHint hint = new ListingHint(fileList.size(i), fileList.lastModifiedMillis(i));
+                if (cacheable) {
+                    cachedResolveSingleSourceAsync(filePath, hint, config, itemListener);
+                } else {
+                    resolveSingleSourceAsync(filePath.toString(), hint, config, itemListener);
+                }
+            } catch (Exception e) {
+                itemListener.onFailure(e);
+            }
+        }, metadataReadConcurrency, () -> {
+            Exception e = failure.get();
+            if (e != null) {
+                listener.onFailure(e);
+                return;
+            }
+            List<SourceMetadata> out = new ArrayList<>(fileCount);
+            for (int i = 0; i < fileCount; i++) {
+                out.add(results.get(i));
+            }
+            listener.onResponse(out);
+        }, executor, e -> {
+            // A continuation was rejected/failed (e.g. executor shutdown): record it so onCompletion surfaces the
+            // failure rather than returning a partially-populated result.
+            failure.compareAndSet(null, e);
+        });
+    }
+
+    /**
+     * Cache-aware async single-file resolve for the multi-file fan-out. Peeks the schema cache and, on a miss,
+     * resolves asynchronously (without pinning a thread across the footer read) and stores the result. Unlike the
+     * single-file {@code getOrComputeSchema} path this does not coalesce concurrent misses for the same key: two
+     * concurrent misses may both fetch. That is acceptable here because each fan-out file is a distinct key and
+     * footer resolution is idempotent; see {@link ExternalSourceCacheService#getSchemaIfPresent}.
+     */
+    private void cachedResolveSingleSourceAsync(
+        StoragePath filePath,
+        ListingHint hint,
+        Map<String, Object> config,
+        ActionListener<SourceMetadata> listener
+    ) {
         String formatType = detectFormatType(filePath);
-        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
-        SchemaCacheEntry entry = cacheService.getOrComputeSchema(
-            schemaKey,
-            k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))
-        );
-        return buildMetadataFromCache(entry, entry.toAttributes(), config);
+        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, config);
+        SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
+        if (cached != null) {
+            listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
+            return;
+        }
+        resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
+            SchemaCacheEntry entry = SchemaCacheEntry.from(meta);
+            cacheService.putSchema(schemaKey, entry);
+            return buildMetadataFromCache(entry, entry.toAttributes(), config);
+        }));
+    }
+
+    /** Sequential {@code 0..count} iterator for {@link ThrottledIterator}; avoids a stream in production code. */
+    private static Iterator<Integer> indexIterator(int count) {
+        return new Iterator<>() {
+            private int next = 0;
+
+            @Override
+            public boolean hasNext() {
+                return next < count;
+            }
+
+            @Override
+            public Integer next() {
+                if (next >= count) {
+                    throw new java.util.NoSuchElementException();
+                }
+                return next++;
+            }
+        };
     }
 
     /**
@@ -879,86 +1146,73 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Reads metadata from all files in {@code listing} in parallel (bounded concurrency)
-     * via {@link BoundedParallelGather}, then aggregates statistics across all files.
-     * Returns a merged flat stats map, or {@code null} if any file fails or lacks statistics.
-     * Errors reading individual files are logged at DEBUG and cause the method to return {@code null}
-     * (the caller will then mark stats as partial instead of using incomplete aggregations).
+     * Reads metadata from all files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
+     * then aggregates statistics across all files. Responds with a merged flat stats map, or {@code null} if any file
+     * lacks statistics (via {@link #aggregateFileStatistics}). A read failure is treated as "could not aggregate" and
+     * responds with {@code null} so the caller marks stats partial — except cancellation, which is surfaced as a
+     * failure so the query aborts promptly instead of silently degrading.
      */
-    @Nullable
-    private Map<String, Object> readAndAggregateAllFileStats(FileList listing, Map<String, Object> config) {
-        int fileCount = listing.fileCount();
-        List<StoragePath> paths = new ArrayList<>(fileCount);
-        for (int i = 0; i < fileCount; i++) {
-            paths.add(listing.path(i));
-        }
-        List<SourceMetadata> allMeta;
-        try {
-            allMeta = BoundedParallelGather.gather(paths, filePath -> {
-                throwIfCancelled();
-                return StorageRetryCancellation.callWithCancellation(
-                    this::isCancelled,
-                    () -> resolveSingleSource(filePath.toString(), config)
-                );
-            }, MAX_PARALLEL_METADATA_READS, executor);
-        } catch (TaskCancelledException e) {
-            // Cancellation is not a "could not aggregate stats" condition — propagate it so the query
-            // aborts promptly instead of silently degrading to partial stats and continuing.
-            throw e;
-        } catch (Exception e) {
-            // If the query was cancelled, a read may have failed for that reason; surface cancellation
-            // rather than masking it as partial stats.
-            throwIfCancelled();
-            LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
-            return null;
-        }
-        return aggregateFileStatistics(allMeta);
+    private void readAndAggregateAllFileStats(FileList listing, Map<String, Object> config, ActionListener<Map<String, Object>> listener) {
+        gatherPerFile(
+            listing,
+            config,
+            false,
+            ActionListener.wrap(allMeta -> { listener.onResponse(aggregateFileStatistics(allMeta)); }, e -> {
+                // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
+                // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
+                // was cancelled mid-flight can arrive wrapped (the schema cache wraps loader failures), so consult the
+                // cancellation state directly rather than matching only on the exception type.
+                if (e instanceof TaskCancelledException) {
+                    listener.onFailure(e);
+                    return;
+                }
+                if (isCancelled()) {
+                    listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
+                    return;
+                }
+                LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
+                listener.onResponse(null);
+            })
+        );
     }
 
     /**
-     * Cache-aware variant of {@link #readAndAggregateAllFileStats}.
-     * Uses the schema cache (keyed by path + mtime) for each file so that repeated
-     * multi-file resolves do not re-read footers unnecessarily.
-     * Returns {@code null} if any file cannot be resolved or lacks statistics.
+     * Cache-aware variant of {@link #readAndAggregateAllFileStats}. Peeks the schema cache (keyed by path + mtime) for
+     * each file so repeated multi-file resolves do not re-read footers. Responds with {@code null} if any file cannot
+     * be resolved or lacks statistics; a bare cancellation is surfaced as a failure so it is never masked as partial
+     * stats.
      */
-    @Nullable
-    private Map<String, Object> readAndAggregateAllFileStatsWithCache(FileList listing, Map<String, Object> config) {
-        int fileCount = listing.fileCount();
-        List<Map<String, Object>> perFileStats = new ArrayList<>(fileCount);
-        for (int i = 0; i < fileCount; i++) {
-            // Cancellation is checked before the per-file try so it is never swallowed as "partial stats".
-            throwIfCancelled();
-            StoragePath filePath = listing.path(i);
-            long mtime = listing.lastModifiedMillis(i);
-            String formatType = detectFormatType(filePath);
-            SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
-            try {
-                SchemaCacheEntry entry = StorageRetryCancellation.callWithCancellation(
-                    this::isCancelled,
-                    () -> cacheService.getOrComputeSchema(
-                        schemaKey,
-                        k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))
-                    )
-                );
-                Map<String, Object> fileMeta = entry.safeMetadata();
+    private void readAndAggregateAllFileStatsWithCache(
+        FileList listing,
+        Map<String, Object> config,
+        ActionListener<Map<String, Object>> listener
+    ) {
+        gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
+            List<Map<String, Object>> perFileStats = new ArrayList<>(allMeta.size());
+            for (SourceMetadata meta : allMeta) {
+                Map<String, Object> fileMeta = meta.sourceMetadata();
                 if (fileMeta == null || fileMeta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false) {
                     // This file has no statistics — cannot produce accurate global stats.
-                    return null;
+                    listener.onResponse(null);
+                    return;
                 }
                 perFileStats.add(fileMeta);
-            } catch (TaskCancelledException e) {
-                // A bare cancellation (e.g. from a cache wait point) must abort, not degrade to partial stats.
-                throw e;
-            } catch (Exception e) {
-                // The schema cache wraps loader failures in ExecutionException, so a cancellation observed
-                // while reading a footer can arrive wrapped here; re-check the supplier so it surfaces as
-                // cancellation rather than being masked as partial stats.
-                throwIfCancelled();
-                LOGGER.debug(() -> "Failed to get cached stats for [" + filePath + "], will use partial stats: " + e.getMessage());
-                return null;
             }
-        }
-        return SourceStatisticsSerializer.mergeStatistics(perFileStats);
+            listener.onResponse(SourceStatisticsSerializer.mergeStatistics(perFileStats));
+        }, e -> {
+            // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps
+            // loader failures, so consult the state directly), must abort rather than degrade to partial stats.
+            if (e instanceof TaskCancelledException) {
+                listener.onFailure(e);
+                return;
+            }
+            if (isCancelled()) {
+                listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
+                return;
+            }
+            LOGGER.debug(() -> "Failed to get cached stats, will use partial stats: " + e.getMessage());
+            listener.onResponse(null);
+        }));
     }
 
     private ExternalSourceMetadata buildUnifiedMetadata(
@@ -1087,6 +1341,93 @@ public class ExternalSourceResolver {
                 + sources
                 + "]."
         );
+    }
+
+    /**
+     * Async counterpart of {@link #resolveSingleSource}. Performs the cheap scheme validation synchronously (no I/O),
+     * then dispatches to the first factory that claims the path via {@link #resolveWithFactory}, falling through to
+     * the next candidate on failure exactly like the synchronous path. The async factory read runs on
+     * {@link #metadataReadExecutor} so the read's retry backoff aborts on cancellation.
+     */
+    private void resolveSingleSourceAsync(
+        String path,
+        @Nullable ListingHint hint,
+        Map<String, Object> config,
+        ActionListener<SourceMetadata> listener
+    ) {
+        try {
+            StoragePath parsed = StoragePath.of(path);
+            DataSourceCapabilities capabilities = dataSourceModule.capabilities();
+            if (capabilities != null && capabilities.supportsScheme(parsed.scheme()) == false) {
+                listener.onFailure(
+                    new UnsupportedSchemeException(
+                        "Unsupported storage scheme [" + parsed.scheme() + "]. Supported: " + capabilities.supportedSchemesString()
+                    )
+                );
+                return;
+            }
+        } catch (UnsupportedSchemeException e) {
+            listener.onFailure(e);
+            return;
+        } catch (IllegalArgumentException e) {
+            // Path parsing failed -- let the factory iteration handle it
+        }
+
+        List<ExternalSourceFactory> candidates = new ArrayList<>();
+        for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
+            if (factory.canHandle(path)) {
+                candidates.add(factory);
+            }
+        }
+        resolveWithFactory(path, hint, config, candidates, 0, null, listener);
+    }
+
+    /**
+     * Tries each claiming factory in order, asynchronously. On a factory failure (sync throw from dispatch or async
+     * {@code onFailure}) it records the failure and advances to the next candidate, mirroring the synchronous
+     * fall-through in {@link #resolveSingleSource}. When no candidate remains it fails with the last recorded error,
+     * or a "no handler" error if none claimed the path.
+     */
+    private void resolveWithFactory(
+        String path,
+        @Nullable ListingHint hint,
+        Map<String, Object> config,
+        List<ExternalSourceFactory> candidates,
+        int index,
+        @Nullable Exception lastFailure,
+        ActionListener<SourceMetadata> listener
+    ) {
+        if (index >= candidates.size()) {
+            if (lastFailure != null) {
+                listener.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure));
+                return;
+            }
+            var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
+            listener.onFailure(
+                new UnsupportedOperationException(
+                    "No handler found for source at path ["
+                        + path
+                        + "]. "
+                        + "Please ensure the appropriate data source plugin is installed. "
+                        + "Known handlers: ["
+                        + sources
+                        + "]."
+                )
+            );
+            return;
+        }
+        ExternalSourceFactory factory = candidates.get(index);
+        ActionListener<SourceMetadata> next = ActionListener.wrap(listener::onResponse, e -> {
+            LOGGER.debug("Factory [{}] claimed path [{}] but failed: {}", factory.type(), path, e.getMessage());
+            resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
+        });
+        try {
+            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, next);
+        } catch (Exception e) {
+            // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
+            // whole resolve: fall through to the next candidate exactly as the async onFailure path does.
+            next.onFailure(e);
+        }
     }
 
     /**

@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;

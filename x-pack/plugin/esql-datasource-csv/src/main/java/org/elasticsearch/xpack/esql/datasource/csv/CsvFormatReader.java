@@ -827,6 +827,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private List<Attribute> inferSchemaFromSample(String headerLine, CsvLogicalRecordReader recordReader, String sourceLocation)
         throws IOException {
         String[] columnNames = splitFieldsForOptions(headerLine, options);
+        if (options.quoting()) {
+            // No type annotations on this path, so the fields are bare names — unwrap RFC 4180 quoting.
+            unquoteHeaderNames(columnNames, options.quoteChar());
+        }
         Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
@@ -1471,7 +1475,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (parts.length != 2) {
                 throw new ParsingException("Invalid CSV schema format: [{}]. Expected 'name:type'", column);
             }
-            String name = parts[0].trim();
+            String name = options.quoting() ? unquoteHeaderName(parts[0], options.quoteChar()) : parts[0].trim();
             String trimmedType = parts[1].trim();
             String typeName = trimmedType.toUpperCase(Locale.ROOT);
             DataType dataType = parseDataType(typeName);
@@ -1607,25 +1611,37 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Splits a <strong>header</strong> line into fields using the same comma/bracket/quote awareness as the data
-     * splitter, but <em>preserves the original substring</em> of each field — including any surrounding quote
-     * characters. Header fields like {@code "host:port"} need quotes intact so {@link #hasTypeAnnotations} can tell
-     * a quoted name from a {@code name:type} annotation.
+     * Splits a <strong>header</strong> line into fields. A quoting dialect (CSV) tokenizes the header by the
+     * same delimiter/quote/escape awareness as data cells — so a quoted name, a quoted field containing the
+     * delimiter, and RFC 4180 {@code ""} all round-trip the way they do for data — while <em>preserving the
+     * original substring</em> of each field, quotes included: header fields like {@code "host:port"} keep their
+     * quotes so {@link #hasTypeAnnotations} can tell a quoted name from a {@code name:type} annotation (the
+     * name is unquoted later, once that decision has been made). A non-quoting dialect ({@code mode: plain} /
+     * {@code escaped}) treats a quote as literal data, so the raw delimiter split is correct there.
      */
     private static String[] splitFieldsForOptions(String line, CsvFormatOptions options) {
-        if (options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ',') {
-            return splitHeaderCommaDelimiterBracketAware(line, options.quoteChar(), options.escapeChar());
+        // The header is the file's first line, so a UTF-8 BOM (Excel/Windows) lands on its first field.
+        line = stripLeadingBom(line);
+        if (options.quoting()) {
+            return splitHeaderQuoteAware(
+                line,
+                options.delimiter(),
+                options.quoteChar(),
+                options.escapeChar(),
+                options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS
+            );
         }
         return line.split(Pattern.quote(Character.toString(options.delimiter())));
     }
 
     /**
-     * Header-only variant of {@link #splitCommaDelimiterBracketAwareFields}: tracks the same state machine but
-     * emits the raw substring between commas instead of accumulating into a {@link StringBuilder} that strips
-     * quotes. Used by schema discovery / inference.
+     * Header-only variant of {@link #splitCommaDelimiterBracketAwareFields}: tracks the same quote/escape
+     * (and, when {@code bracketsMode}, bracket) state machine but emits the raw substring between delimiters
+     * instead of accumulating into a {@link StringBuilder} that strips quotes — the caller unquotes the
+     * resolved names after {@link #hasTypeAnnotations} has run. Used by schema discovery / inference for any
+     * delimiter (comma for CSV, tab for TSV).
      */
-    private static String[] splitHeaderCommaDelimiterBracketAware(String line, char quote, char esc) {
-        final char delim = ',';
+    private static String[] splitHeaderQuoteAware(String line, char delim, char quote, char esc, boolean bracketsMode) {
         List<String> entries = new ArrayList<>();
         int start = 0;
         boolean inQuotes = false;
@@ -1663,7 +1679,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 inQuotes = true;
                 continue;
             }
-            if (c == '[' && fieldHasNonWhitespace == false && hasMvcBracketClose(line, i)) {
+            if (bracketsMode && c == '[' && fieldHasNonWhitespace == false && hasMvcBracketClose(line, i)) {
                 bracketDepth = 1;
                 continue;
             }
@@ -1673,6 +1689,40 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         entries.add(line.substring(start).trim());
         return entries.toArray(String[]::new);
+    }
+
+    /** Leading UTF-8 byte-order mark; decoded to this char by the {@link InputStreamReader} before it reaches us. */
+    private static final char BOM = '﻿';
+
+    /**
+     * Strips a leading byte-order mark from the first line of a file. Excel/Windows CSV exports prepend a
+     * UTF-8 BOM ({@code EF BB BF}); without this the first column would be named e.g. {@code ﻿id}.
+     */
+    private static String stripLeadingBom(String line) {
+        return line != null && line.isEmpty() == false && line.charAt(0) == BOM ? line.substring(1) : line;
+    }
+
+    /**
+     * Strips one layer of surrounding {@code quote} characters from a resolved header name and unescapes RFC
+     * 4180 doubled quotes ({@code ""} -> {@code "}), so an unquoted {@code id} and a quoted {@code "id"} both
+     * resolve to {@code id}. A name that is not fully quoted is returned trimmed and otherwise unchanged.
+     * Only meaningful for a quoting dialect; the caller does not invoke it for {@code plain}/{@code escaped},
+     * where a quote is literal name data.
+     */
+    private static String unquoteHeaderName(String name, char quote) {
+        String trimmed = name.trim();
+        if (trimmed.length() >= 2 && trimmed.charAt(0) == quote && trimmed.charAt(trimmed.length() - 1) == quote) {
+            String inner = trimmed.substring(1, trimmed.length() - 1);
+            return inner.replace(String.valueOf(quote) + quote, String.valueOf(quote));
+        }
+        return trimmed;
+    }
+
+    /** Applies {@link #unquoteHeaderName} to each name in place; called on the inference path when quoting. */
+    private static void unquoteHeaderNames(String[] names, char quote) {
+        for (int i = 0; i < names.length; i++) {
+            names[i] = unquoteHeaderName(names[i], quote);
+        }
     }
 
     /**
@@ -2353,6 +2403,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private List<Attribute> inferSchemaFromBatchReader(String headerLine) throws IOException {
             String[] columnNames = splitFieldsForOptions(headerLine, options);
+            if (options.quoting()) {
+                // No type annotations on this path, so the fields are bare names — unwrap RFC 4180 quoting.
+                unquoteHeaderNames(columnNames, options.quoteChar());
+            }
             csvIterator = newCsvIterator(recordReader);
             SchemaSample sample = collectSampleRows(
                 csvIterator,

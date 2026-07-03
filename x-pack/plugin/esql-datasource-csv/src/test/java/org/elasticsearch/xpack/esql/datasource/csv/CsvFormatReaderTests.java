@@ -115,6 +115,54 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- #1051: the header line is parsed with CSV rules (quoting, embedded delimiter, BOM) ---
+
+    /** Quoted header names (pandas/pyarrow/Excel default) resolve without the quote characters. */
+    public void testQuotedHeaderNamesUnquoted() throws IOException {
+        StorageObject object = createStorageObject("\"id\",\"a\",\"b\"\n1,-5,10\n");
+        List<Attribute> schema = new CsvFormatReader(blockFactory).schema(object);
+        assertEquals(List.of("id", "a", "b"), schema.stream().map(Attribute::name).toList());
+    }
+
+    /** A quoted header field containing the delimiter is ONE column, not silently mis-split. */
+    public void testQuotedHeaderEmbeddedDelimiter() throws IOException {
+        StorageObject object = createStorageObject("\"a,b\",\"c\"\n1,2\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        assertEquals(List.of("a,b", "c"), reader.schema(object).stream().map(Attribute::name).toList());
+        try (CloseableIterator<Page> it = reader.read(object, null, 10)) {
+            Page page = it.next();
+            assertEquals(2, page.getBlockCount());
+            assertEquals(1, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertEquals(2, ((IntBlock) page.getBlock(1)).getInt(0));
+        }
+    }
+
+    /** RFC 4180 doubled-quote inside a quoted name unescapes to a single quote. */
+    public void testQuotedHeaderEscapedQuoteInName() throws IOException {
+        StorageObject object = createStorageObject("\"i\"\"d\",x\n1,2\n");
+        List<Attribute> schema = new CsvFormatReader(blockFactory).schema(object);
+        assertEquals("i\"d", schema.get(0).name());
+        assertEquals("x", schema.get(1).name());
+    }
+
+    /** A leading UTF-8 BOM (Excel/Windows) is stripped from the first column name. */
+    public void testLeadingBomStrippedFromHeader() throws IOException {
+        StorageObject object = createStorageObject("﻿id,name\n1,alice\n");
+        List<Attribute> schema = new CsvFormatReader(blockFactory).schema(object);
+        assertEquals("id", schema.get(0).name());
+        assertEquals("name", schema.get(1).name());
+    }
+
+    /** The same quote-aware header rules apply for a tab delimiter (TSV with quoting on). */
+    public void testTabDelimitedQuotedHeaderNames() throws IOException {
+        StorageObject object = createStorageObject("\"i\td\"\t\"c\"\n1\t2\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("delimiter", "\t", "mode", "quoted")
+        );
+        // The quoted first name contains a tab; it must stay one column.
+        assertEquals(List.of("i\td", "c"), reader.schema(object).stream().map(Attribute::name).toList());
+    }
+
     public void testTypedSchemaTextAndTxtAliasesMapToKeyword() throws IOException {
         String csv = """
             a:text,b:txt
@@ -403,7 +451,9 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(2, schema.size());
-        assertEquals("\"host:port\"", schema.get(0).name());
+        // The quoted name is unwrapped (its internal colon is NOT a type annotation), so it resolves to
+        // host:port — not the literal "host:port" with quote characters the naive split used to produce.
+        assertEquals("host:port", schema.get(0).name());
         assertEquals(DataType.KEYWORD, schema.get(0).dataType());
         assertEquals("status", schema.get(1).name());
         assertEquals(DataType.INTEGER, schema.get(1).dataType());

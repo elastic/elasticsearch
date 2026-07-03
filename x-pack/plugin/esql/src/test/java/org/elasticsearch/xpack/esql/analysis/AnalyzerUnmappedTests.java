@@ -706,6 +706,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             List.of()
         );
         var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
+        // This test targets the new LOAD auto-cast behavior only; mixed-cluster behavior is covered in #151863.
+        // Use a version that supports the compact path for now, then switch to the dedicated gate introduced there.
         TestAnalyzer ta = analyzer().minimumTransportVersion(CompactMultiTypeEsField.CompactMultiTypeEsField);
         for (var entry : resolutions.entrySet()) {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
@@ -784,7 +786,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             List.of()
         );
         var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
-        // See testSingleTypeLongUnmappedAutoCast: the field is built compact, so resolve it on a version that supports the compact path.
+        // See testSingleTypeLongUnmappedAutoCast for why this currently pins the compact-path transport version.
         TestAnalyzer ta = analyzer().minimumTransportVersion(CompactMultiTypeEsField.CompactMultiTypeEsField);
         for (var entry : resolutions.entrySet()) {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());

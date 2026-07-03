@@ -483,9 +483,10 @@ public class ComputeService {
         if (stats == null) {
             return false;
         }
-        // Feed the same partition-column set the fold uses: COUNT(partition_col) must safe-miss on both paths, or
-        // the gate skips discovery for a fold that then bails -> the zero-split #985 crash above.
-        Set<String> pathDerivedColumns = ExternalSourceAggregatePushdown.partitionColumnNames(ext.fileList());
+        // Feed the same partition-column set the fold uses (read from serialized sourceMetadata, so it matches the
+        // data-node fold): COUNT(partition_col) must safe-miss on both paths, or the gate skips discovery for a
+        // fold that then bails -> the zero-split #985 crash above.
+        Set<String> pathDerivedColumns = ExternalSourceAggregatePushdown.partitionColumnNames(meta);
         return ExternalSourceAggregatePushdown.canServeAllFromStats(
             agg.aggregates(),
             stats,

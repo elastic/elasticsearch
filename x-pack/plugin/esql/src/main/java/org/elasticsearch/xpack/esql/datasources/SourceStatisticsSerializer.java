@@ -44,6 +44,15 @@ public final class SourceStatisticsSerializer {
     /** Number of files matched by the glob pattern; useful for observability and debugging. */
     public static final String STATS_FILE_COUNT = "_stats.file_count";
     public static final String STATS_COL_PREFIX = "_stats.columns.";
+    /**
+     * Names of the Hive-partition (path-derived) columns, stamped here at resolution so the DATA-NODE fold can
+     * recognize them: the coordinator-only {@code FileList} (which carries {@link PartitionMetadata}) deserializes
+     * to {@code UNRESOLVED} on a remote node, but {@code sourceMetadata} travels with the serialized relation. A
+     * partition column is absent from every file's column stats, so without this signal a data-node
+     * {@code COUNT(partition_col)} would serve {@code rowCount - rowCount = 0}. Deliberately NOT under the
+     * {@code _stats.} prefix so the FirstFileWins / union-by-name stat merges preserve it. Value: {@code List<String>}.
+     */
+    public static final String PARTITION_COLUMNS_KEY = "_partition.columns";
     // Package-private: consumed by the *Key helpers here and by SplitStats.of/toMap (the round-trip between the
     // flat keys and the compact model), all within this package.
     static final String NULL_COUNT_SUFFIX = ".null_count";

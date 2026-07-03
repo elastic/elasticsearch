@@ -134,7 +134,9 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         // IS NULL / IS NOT NULL on a partition column as MATCH/MISS for every split. Bail out so the
         // normal scan path evaluates the partition predicate against the VirtualColumnIterator's
         // constant block. Symmetric with PushFiltersToSource keeping partition predicates in FilterExec.
-        Set<String> pathDerivedColumns = ExternalSourceAggregatePushdown.partitionColumnNames(externalExec.fileList());
+        // Read the partition set from serialized sourceMetadata (not the coordinator-only fileList): on a data node
+        // externalExec.fileList() is UNRESOLVED, so COUNT(partition_col) would otherwise fold to 0 there.
+        Set<String> pathDerivedColumns = ExternalSourceAggregatePushdown.partitionColumnNames(externalExec.sourceMetadata());
         if (filterForClassification != null && referencesAnyColumn(filterForClassification, pathDerivedColumns)) {
             return aggregateExec;
         }

@@ -31,13 +31,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -486,69 +484,24 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         );
     }
 
-    public void testPartitionColumnNamesExtractedFromFileList() {
+    public void testPartitionColumnNamesFromSourceMetadata() {
         // ITEM 3 wiring: the partition set the fold (PushStatsToExternalSource) and the split-discovery gate
-        // (ComputeService) feed to resolveFromStats is derived from the FileList's PartitionMetadata. Verify the
-        // extraction: a partitioned FileList yields its partition column names; a null or unpartitioned FileList
-        // yields the empty set (an unpartitioned source is unguarded, so its physical columns serve normally).
+        // (ComputeService) feed to resolveFromStats is read from the SERIALIZED sourceMetadata, stamped at
+        // resolution under PARTITION_COLUMNS_KEY. This is what makes the guard survive to the DATA-NODE fold,
+        // where the coordinator-only FileList is UNRESOLVED. A null/absent/empty key yields the empty set (an
+        // unpartitioned source is unguarded, so its physical columns serve normally).
         assertEquals(Set.of(), ExternalSourceAggregatePushdown.partitionColumnNames(null));
-        assertEquals(Set.of(), ExternalSourceAggregatePushdown.partitionColumnNames(fileListWithPartition(null)));
+        assertEquals(Set.of(), ExternalSourceAggregatePushdown.partitionColumnNames(Map.of()));
         assertEquals(
             Set.of("p"),
+            ExternalSourceAggregatePushdown.partitionColumnNames(Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("p")))
+        );
+        assertEquals(
+            Set.of("year", "month"),
             ExternalSourceAggregatePushdown.partitionColumnNames(
-                fileListWithPartition(new PartitionMetadata(Map.of("p", DataType.KEYWORD), Map.of()))
+                Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("year", "month"))
             )
         );
-    }
-
-    /** A minimal {@link FileList} whose only meaningful method is {@code partitionMetadata()}. */
-    private static FileList fileListWithPartition(PartitionMetadata partitionMetadata) {
-        return new FileList() {
-            @Override
-            public int fileCount() {
-                return 0;
-            }
-
-            @Override
-            public StoragePath path(int i) {
-                return null;
-            }
-
-            @Override
-            public long size(int i) {
-                return 0;
-            }
-
-            @Override
-            public long lastModifiedMillis(int i) {
-                return 0;
-            }
-
-            @Override
-            public String originalPattern() {
-                return null;
-            }
-
-            @Override
-            public PartitionMetadata partitionMetadata() {
-                return partitionMetadata;
-            }
-
-            @Override
-            public boolean isResolved() {
-                return true;
-            }
-
-            @Override
-            public boolean isEmpty() {
-                return false;
-            }
-
-            @Override
-            public long estimatedBytes() {
-                return 0;
-            }
-        };
     }
 
     /**

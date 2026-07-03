@@ -1642,7 +1642,17 @@ public class ExternalSourceResolver {
             enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, nullability, null, false));
         }
 
-        return withSchema(metadata, List.copyOf(enrichedSchema));
+        ExternalSourceMetadata schemaEnriched = withSchema(metadata, List.copyOf(enrichedSchema));
+        if (partitionNames.isEmpty()) {
+            return schemaEnriched;
+        }
+        // Stamp the partition column names into the serialized sourceMetadata. The fileList that carries
+        // PartitionMetadata is coordinator-only (ExternalRelation deserializes it to UNRESOLVED), so the data-node
+        // fold reads this key instead to safe-miss COUNT(partition_col). Read by
+        // ExternalSourceAggregatePushdown.partitionColumnNames.
+        Map<String, Object> stampedMetadata = new HashMap<>(schemaEnriched.sourceMetadata());
+        stampedMetadata.put(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.copyOf(partitionNames));
+        return replaceSourceMetadata(schemaEnriched, Map.copyOf(stampedMetadata));
     }
 
     /**

@@ -1,0 +1,6 @@
+area: Authorization
+issues: []
+pr: 152821
+summary: Grant built-in `viewer`/`editor` roles read access to Entity Store v2 and
+  Entity Analytics indices
+type: enhancement

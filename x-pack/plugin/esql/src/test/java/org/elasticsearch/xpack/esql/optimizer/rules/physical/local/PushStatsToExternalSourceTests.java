@@ -677,6 +677,9 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         builder.rowCount(rowCount);
         int col = builder.addColumn(colName);
         builder.nullCount(col, nullCount);
+        // Single-valued (one value per non-null row): required for a comparison MATCH after the multivalue guard
+        // (SplitFilterClassifier.matchableColumn). These fixtures model plain single-valued columns.
+        builder.valueCount(col, rowCount - nullCount);
         builder.min(col, min);
         builder.max(col, max);
         return builder.build();

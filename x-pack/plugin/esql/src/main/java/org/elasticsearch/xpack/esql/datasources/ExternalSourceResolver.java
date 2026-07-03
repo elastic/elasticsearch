@@ -700,7 +700,13 @@ public class ExternalSourceResolver {
         Map<String, Object> merged = new HashMap<>();
         if (current != null) {
             for (Map.Entry<String, Object> entry : current.entrySet()) {
-                if (entry.getKey().startsWith(SourceStatisticsSerializer.STATS_KEY_PREFIX) == false) {
+                // Strip the anchor's stale per-file stats, but PRESERVE STATS_FILE_COUNT: it was stamped on base by
+                // enrichWithFileCount before this call and is not part of aggregatedStats (which carries only row
+                // count + per-column stats), so dropping it would lose the file count the eager path needs for
+                // canSkipSplitDiscovery. (buildUnifiedMetadata re-stamps it after its strip; here base already has it.)
+                boolean isStale = entry.getKey().startsWith(SourceStatisticsSerializer.STATS_KEY_PREFIX)
+                    && entry.getKey().equals(SourceStatisticsSerializer.STATS_FILE_COUNT) == false;
+                if (isStale == false) {
                     merged.put(entry.getKey(), entry.getValue());
                 }
             }

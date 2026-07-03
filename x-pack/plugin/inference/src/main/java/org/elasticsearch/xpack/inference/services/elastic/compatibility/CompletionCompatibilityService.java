@@ -96,7 +96,8 @@ public class CompletionCompatibilityService {
 
         return switch (taskType) {
             case CHAT_COMPLETION -> new ReasoningTaskSettingsStrategy(taskType);
-            default -> new ImmutableEmptyTaskSettingsStrategy(taskType);
+            case COMPLETION -> new ImmutableEmptyTaskSettingsStrategy(taskType);
+            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
         };
     }
 

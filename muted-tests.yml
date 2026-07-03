@@ -425,6 +425,12 @@ tests:
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/150762
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
+  method: test {csv-spec:external-basic.inlineStatsMaxSalary [AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/150791
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
+  method: test {csv-spec:external-basic.forkTwoBranches [AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/150844
 - class: org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContextTests
   method: testNullClusterUuidDoesNotNpe
   issue: https://github.com/elastic/elasticsearch/issues/150887
@@ -814,3 +820,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/149663
+- class: org.elasticsearch.common.lucene.LuceneTests
+  method: testSearchWithoutBulkScorer
+  issue: https://github.com/elastic/elasticsearch/issues/152898

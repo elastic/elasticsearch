@@ -30,32 +30,27 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * End-to-end reproduction of the silent wrong-count bug for CSV with quoted multi-line fields
- * (esql-planning#896, problem B, hypothesis (b): a quoted field with an embedded newline straddling
- * a split seam where the probing and reading layers disagree on quote state).
+ * End-to-end regression coverage for CSV with quoted multi-line fields, where a quoted value's embedded
+ * newlines belong to one logical row. A start-anywhere boundary probe assumes {@code inQuotes=false} at
+ * its offset, so probing a quoted file at an arbitrary stride can land <em>inside</em> a quoted value and
+ * misread an interior newline as a record terminator. That once produced two symptoms depending on
+ * {@code error_mode}: a silently inflated {@code COUNT(*)} at HTTP 200 under {@code null_field}, and a
+ * spurious parse error under the default {@code strict} mode, both on files that are perfectly valid.
  * <p>
- * The file has a single column. Every row holds a quoted value with embedded newlines; because the
- * column is quoted, those newlines belong to one logical row. The record-alignment probe
- * ({@code FileSplitProvider#computeRecordAlignedMacroSplitStarts}) assumes {@code inQuotes=false} at
- * each {@code target_split_size} stride offset, so it lands many macro-split starts <em>inside</em>
- * quoted values. Each such split then parses the interior lines as standalone rows.
- * <p>
- * The same defect surfaces with two different symptoms depending on {@code error_mode}, and both are
- * covered here so the fix can be verified against both:
+ * The shipped fix does not make the probe quote-aware; instead it disables start-anywhere splitting for
+ * quoted CSV/TSV. {@code CsvRecordSplitter#supportsStridedProbing()} returns {@code false}, so
+ * {@code FileSplitProvider} emits a single whole-file split and the file is read as one sequential,
+ * quote-aware stream. Consequently {@code target_split_size} is a no-op for quoted files here (they are
+ * never macro-split), and both cases below now return the true row count.
  * <ul>
  *   <li>{@code null_field} ({@link #testCountWithQuotedMultilineFieldStraddlingMacroSplitNullField}):
- *       the malformed mid-quote content is null-filled and the rows kept, so {@code COUNT(*)} comes
- *       back <em>silently</em> wrong at HTTP 200.</li>
+ *       no longer over-counts.</li>
  *   <li>default {@code strict} ({@link #testCountWithQuotedMultilineFieldStraddlingMacroSplitStrict}):
- *       the same valid file fails the query with a parse error ("missing closing quote" /
- *       "unexpected character"), even though no record is actually malformed.</li>
+ *       no longer throws.</li>
  * </ul>
- * Both methods assert the correct outcome (the true row count), so both are red on {@code main} until
- * macro-split boundary alignment becomes quote-aware: the {@code null_field} case currently returns a
- * wrong count, and the {@code strict} case currently throws.
- * <p>
- * The file must exceed twice the reader's {@code minimumSegmentSize()} (1 MB) for macro-splits to be
- * created at all, hence the multi-MB body.
+ * The body is multi-MB so that, absent the fix, macro-splits would form (a file must exceed twice the
+ * reader's {@code minimumSegmentSize()} of 1 MB to be split); it stays large so this pins the whole-file
+ * gate rather than trivially avoiding splits by being small.
  */
 public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractEsqlIntegTestCase {
 
@@ -90,8 +85,9 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractEsqlIntegTes
     }
 
     /**
-     * {@code error_mode=null_field}: the mis-split produces a silently wrong {@code COUNT(*)} at HTTP 200.
-     * Red on {@code main} (returns an inflated count); green once boundary alignment is quote-aware.
+     * {@code error_mode=null_field}: without the fix a mid-quote split would null-fill the interior lines
+     * and keep them, inflating {@code COUNT(*)} at HTTP 200. With quoted files gated to a whole-file
+     * sequential read, the count is exact.
      */
     public void testCountWithQuotedMultilineFieldStraddlingMacroSplitNullField() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -128,11 +124,10 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractEsqlIntegTes
     }
 
     /**
-     * Default {@code strict} mode (no {@code error_mode} option): the very same valid file must parse and
-     * count correctly. Red on {@code main} because the mid-quote macro-split makes the reader see a
-     * "missing closing quote" / "unexpected character" and fail the query, even though no record is
-     * malformed. Green once boundary alignment is quote-aware. This is the more serious face of the bug:
-     * a perfectly valid file is rejected purely because of how it was split.
+     * Default {@code strict} mode (no {@code error_mode} option): the same valid file must parse and count
+     * correctly. Without the fix a mid-quote macro-split makes the reader see a "missing closing quote" /
+     * "unexpected character" and fail the query even though no record is malformed, the more serious face
+     * of the bug (a valid file rejected purely because of how it was split). The whole-file gate removes it.
      */
     public void testCountWithQuotedMultilineFieldStraddlingMacroSplitStrict() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -153,6 +148,51 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractEsqlIntegTes
                 List<List<Object>> values = getValuesList(response);
                 assertThat(values.size(), equalTo(1));
                 assertThat(((Number) values.get(0).get(0)).longValue(), equalTo(TRUE_ROW_COUNT));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /**
+     * Exercises the parallel streaming path end-to-end. The other two tests reach the correct count even
+     * single-threaded (the whole-file gate alone is enough), so on their own they do not prove the
+     * {@code SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL} branch is quote-safe. Here {@code parsing_parallelism>1}
+     * makes {@code AsyncExternalSourceOperatorFactory#openWithParallelism} pass its {@code <=1} short-circuit
+     * and, for a quoted (non-strided) reader, route the single whole-file stream into
+     * {@code StreamingParallelParsingCoordinator}, which segments it quote-aware and parses the chunks
+     * concurrently. That routing is deterministic from the reader/split, so a correct count under
+     * concurrent parsing is the regression signal: were segmentation not quote-aware, the concurrently
+     * parsed chunks would miscount the multi-line rows.
+     */
+    public void testStreamingBranchCountsCorrectlyWithParsingParallelism() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        Path csvFile = writeCsvFile();
+        try {
+            String query = "EXTERNAL \""
+                + StoragePath.fileUri(csvFile)
+                + "\" WITH {\"header_row\":false,\"target_split_size\":\"1kb\"} | STATS c = COUNT(*)";
+
+            var request = syncEsqlQueryRequest(query);
+            // Explicit pragma: run(request, ...) does not apply getPragmas(), and the default parallelism is
+            // allocatedProcessors (machine-dependent). Pin it >1 so this deterministically takes the parallel
+            // streaming branch regardless of host core count.
+            request.pragmas(new QueryPragmas(Settings.builder().put("parsing_parallelism", between(2, 4)).build()));
+            request.profile(true);
+
+            try (var response = run(request, TimeValue.timeValueMinutes(5))) {
+                List<List<Object>> values = getValuesList(response);
+                assertThat(values.size(), equalTo(1));
+                assertThat(((Number) values.get(0).get(0)).longValue(), equalTo(TRUE_ROW_COUNT));
+
+                long asyncOps = response.profile()
+                    .drivers()
+                    .stream()
+                    .flatMap(driver -> driver.operators().stream())
+                    .filter(op -> op.operator().startsWith("ExternalDataSourceOperator"))
+                    .count();
+                assertThat(asyncOps, greaterThanOrEqualTo(1L));
             }
         } finally {
             Files.deleteIfExists(csvFile);

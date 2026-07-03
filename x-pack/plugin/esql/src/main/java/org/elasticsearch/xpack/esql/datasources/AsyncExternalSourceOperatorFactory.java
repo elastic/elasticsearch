@@ -2273,20 +2273,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 //
                 // Split discovery gates quoted files to a single whole-file split, so this branch should only
                 // ever see the whole file: a leader-bearing split at offset 0 that is not a record-aligned
-                // macro-split (a macro-split covers only part of the file). Guard defensively: if that
-                // invariant is somehow violated (e.g. discovery could not resolve the reader and fell back to
-                // strided splitting), decline parallel parsing and let the caller take the single-threaded read
-                // rather than feed a partial or mid-file stream to the streaming coordinator as if it were the
-                // whole file starting at a record boundary.
+                // macro-split (a macro-split covers only part of the file). If that invariant is violated we
+                // fail loud rather than fall back: the split covers only part of the file and cannot be probed
+                // at its arbitrary start (an in-quote newline would be misread as a record terminator), so
+                // neither this streaming path nor the single-threaded fallback can read it correctly. The
+                // reachable cause is a mixed-version cluster where an older coordinator (which lacks this fix)
+                // produced a strided split for a quoted file and shipped it here (FileSplit is a
+                // NamedWriteable). Declining to a single-threaded mid-file read would resurrect the silent
+                // wrong-count bug this fix removes, so throw instead.
                 if (splitIncludesFileLeader == false || baseFileOffset != 0L || recordAlignedMacroSplit) {
-                    assert false
-                        : "quoted uncompressed reads must be whole-file splits; got leader="
+                    throw new IllegalStateException(
+                        "quoted uncompressed reads must be whole-file splits; got leader="
                             + splitIncludesFileLeader
                             + " offset="
                             + baseFileOffset
                             + " recordAlignedMacroSplit="
-                            + recordAlignedMacroSplit;
-                    return null;
+                            + recordAlignedMacroSplit
+                    );
                 }
                 SegmentableFormatReader seg = resolveSegmentableReader(reader);
                 InputStream raw = obj.newStream();
@@ -2369,6 +2372,25 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // the single-threaded path through the CompressionDelegatingFormatReader, which
                 // wraps the StorageObject in a DecompressingStorageObject before reading.
                 CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
+                // Mirror the uncompressed guard: a quoted (non-strided) file cannot be read from an arbitrary
+                // mid-file offset, so a block-aligned or otherwise mid-file split of one has no correct read.
+                // Discovery gates such files to a single whole-file split, so this can only happen with a stale
+                // split from an older, unfixed coordinator (FileSplit is a NamedWriteable). Fail loud instead of
+                // dropping to the single-threaded fallback below, which would read mid-file and silently
+                // miscount. A null splitter (mocks) keeps the strided default and takes the normal fallback.
+                SegmentableFormatReader compressedSeg = resolveSegmentableReader(reader);
+                RecordSplitter compressedSplitter = compressedSeg == null ? null : compressedSeg.recordSplitter();
+                boolean midFileSplit = recordAlignedMacroSplit || baseFileOffset != 0L;
+                if (compressedSplitter != null && compressedSplitter.supportsStridedProbing() == false && midFileSplit) {
+                    throw new IllegalStateException(
+                        "quoted compressed reads must be whole-file splits; got codec="
+                            + cdr.codec().name()
+                            + " offset="
+                            + baseFileOffset
+                            + " recordAlignedMacroSplit="
+                            + recordAlignedMacroSplit
+                    );
+                }
                 logger.debug(
                     "falling back to single-threaded read for splittable/indexed codec [{}]: "
                         + "codec-aware parallel decompression not yet wired",
@@ -2388,7 +2410,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         } else if (parsingParallelism > 1) {
             asyncMode = switch (resolveDispatchMode(formatReader)) {
                 case SEGMENTABLE_UNCOMPRESSED -> "parallel-parse(" + parsingParallelism + ")";
-                case SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL -> "streaming-parallel-parse(" + parsingParallelism + ")";
+                case SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL -> "quoted-sequential-parse(" + parsingParallelism + ")";
                 case STREAM_ONLY_COMPRESSED -> "streaming-parallel-parse(" + parsingParallelism + ")";
                 // Splittable / indexed compressed paths fall back to single-threaded reads
                 // until codec-aware parallel decompression is wired in openWithParallelism.

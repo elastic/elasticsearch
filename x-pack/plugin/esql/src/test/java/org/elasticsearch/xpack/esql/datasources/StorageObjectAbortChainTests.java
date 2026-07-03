@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -125,7 +126,9 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         );
 
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+        // Plain mode: the abort-chain contract is format-agnostic; macro-split discovery now refuses non-strided
+        // (default/quoted) CSV. Plain CSV keeps strided probing.
+        SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
         long stride = fileLength / 4;
         List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
@@ -177,7 +180,9 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         );
 
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+        // Plain mode: the abort-chain contract is format-agnostic; computeSegments now refuses non-strided
+        // (default/quoted) CSV. Plain CSV keeps strided probing.
+        SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(csvReader, chain, fileLength, 4, csvReader.minimumSegmentSize());
 

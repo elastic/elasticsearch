@@ -727,7 +727,13 @@ public class FileSplitProvider implements SplitProvider {
         }
         final FormatReader reader;
         try {
-            reader = formatRegistry.byExtension(objectName);
+            // Config-aware so a WITH override (e.g. mode=plain, quote=none) selects the same splitter the
+            // reader will actually use. byExtension alone yields the extension default (quoted for .csv), whose
+            // non-strided splitter would trip computeRecordAlignedMacroSplitStarts' guard for a plain-mode file.
+            // withConfig returns null only for test mocks; fall back to the base reader in that case.
+            FormatReader base = FormatNameResolver.resolveReader(config, objectName, formatRegistry);
+            FormatReader configured = base.withConfig(config);
+            reader = configured != null ? configured : base;
         } catch (RuntimeException e) {
             LOGGER.debug(() -> "Skipping newline-aligned macro splits: cannot resolve reader for [" + objectName + "]", e);
             return false;
@@ -792,6 +798,15 @@ public class FileSplitProvider implements SplitProvider {
         boundaries.add(0L);
         long minSegment = reader.minimumSegmentSize();
         RecordSplitter splitter = reader.recordSplitter(maxRecordBytes);
+        // Macro-splitting probes record boundaries at arbitrary stride offsets, which is only correct when a
+        // raw newline is unambiguously a record terminator. A non-strided splitter (quoted CSV/TSV) must be
+        // routed to a whole-file split by requiresSequentialWholeFileRead before reaching here; if one arrives,
+        // that gate failed, so fail loud rather than emit mis-aligned macro-splits that silently mis-count.
+        if (splitter.supportsStridedProbing() == false) {
+            throw new IllegalStateException(
+                "record splitter [" + splitter.getClass().getName() + "] does not support strided probing and cannot be macro-split"
+            );
+        }
         long pos = targetStrideBytes;
         while (pos < fileLength) {
             long remaining = fileLength - pos;

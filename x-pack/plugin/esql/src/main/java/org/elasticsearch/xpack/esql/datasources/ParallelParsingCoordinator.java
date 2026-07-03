@@ -438,6 +438,17 @@ public final class ParallelParsingCoordinator {
         }
 
         RecordSplitter splitter = reader.recordSplitter(maxRecordBytes);
+        // Strided segmentation probes record boundaries at arbitrary mid-file offsets, which is only correct
+        // when a raw newline is unambiguously a record terminator. A splitter that reports it does not support
+        // strided probing (quoted CSV/TSV, whose quoted fields may embed newlines) must never be driven this
+        // way: it would misread an in-quote newline as a boundary and silently mis-split. Callers route such
+        // readers to the whole-file sequential path instead; if one reaches here the routing is broken, so
+        // fail loud rather than produce wrong segments.
+        if (splitter.supportsStridedProbing() == false) {
+            throw new IllegalStateException(
+                "record splitter [" + splitter.getClass().getName() + "] does not support strided probing and cannot be segmented"
+            );
+        }
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
 

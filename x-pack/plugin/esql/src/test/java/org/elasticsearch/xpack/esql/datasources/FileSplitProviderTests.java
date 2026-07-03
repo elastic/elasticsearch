@@ -71,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -648,6 +649,8 @@ public class FileSplitProviderTests extends ESTestCase {
         when(mockReader.minimumSegmentSize()).thenReturn(1024L);
         RecordSplitter mockSplitter = mock(RecordSplitter.class);
         when(mockReader.recordSplitter(anyInt())).thenReturn(mockSplitter);
+        // Newline splitting is strided-safe; the mock must say so or the macro-split guard rejects it.
+        when(mockSplitter.supportsStridedProbing()).thenReturn(true);
         when(mockSplitter.findNextRecordBoundary(any())).thenAnswer(invocation -> {
             InputStream in = invocation.getArgument(0);
             long consumed = 0;
@@ -818,17 +821,18 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * Uses the real {@code CsvFormatReader#findNextRecordBoundary} with the default bracket-aware
-     * mode. Rows contain {@code ""}-escaped quotes inside quoted fields so that the boundary
-     * finder's quote-tracking logic is exercised. Asserts that boundaries land on real record
-     * starts and that reading each split yields the correct total row count.
+     * Quoted CSV (the default {@code .csv} mode, whose quoted fields may embed newlines) can no longer be
+     * macro-split: {@link FileSplitProvider#computeRecordAlignedMacroSplitStarts} probes record boundaries at
+     * arbitrary strides, which a quoted grammar cannot satisfy, so the primitive refuses a non-strided
+     * splitter. In production such files are gated to a whole-file sequential read upstream (see
+     * {@code testQuotedCsvIsNotMacroSplit}); this pins the primitive's own self-defense. The payload carries
+     * {@code ""}-escaped quotes so the reader resolves to the quote-aware {@code CsvRecordSplitter}.
      */
-    public void testRecordAlignedMacroSplitBoundariesRespectCsvQuoting() throws IOException {
+    public void testRecordAlignedMacroSplitDiscoveryRejectsQuotedCsv() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
 
-        // Build a CSV payload exceeding 3 MiB so that at least two splits are produced
-        // (minimumSegmentSize defaults to 1 MiB). Every third row contains ""-escaped
-        // quotes inside a quoted field, exercising the boundary finder's quote tracking.
+        // Build a CSV payload exceeding 3 MiB so that, absent the strided-probing guard, macro-splits would
+        // form (minimumSegmentSize defaults to 1 MiB). Every third row contains ""-escaped quotes.
         StringBuilder csv = new StringBuilder();
         csv.append("id,name,note\n");
         int dataRows = 0;
@@ -844,63 +848,24 @@ public class FileSplitProviderTests extends ESTestCase {
         }
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
         long fileLength = payload.length;
-        assertTrue("payload must exceed 2 MiB for multiple splits", fileLength > 2 * 1024 * 1024);
+        assertTrue("payload must exceed 2 MiB so macro-splits would otherwise form", fileLength > 2 * 1024 * 1024);
 
+        // Default construction => quoting on => CsvRecordSplitter, which reports supportsStridedProbing()==false.
         var csvReader = new CsvFormatReader(blockFactory);
         StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
 
         long stride = fileLength / 4;
-        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
-            csvReader,
-            obj,
-            fileLength,
-            stride,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+                csvReader,
+                obj,
+                fileLength,
+                stride,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            )
         );
-
-        assertTrue("Expected multiple macro-split boundaries, got " + starts.size(), starts.size() > 1);
-        assertEquals("First boundary must be 0", 0L, starts.get(0).longValue());
-
-        // Verify each boundary falls right after a \n (record terminator).
-        String payloadStr = csv.toString();
-        for (int i = 1; i < starts.size(); i++) {
-            long boundary = starts.get(i);
-            assertTrue("Boundary " + boundary + " exceeds file length " + fileLength, boundary < fileLength);
-            assertEquals(
-                "Byte before boundary " + boundary + " must be newline (record terminator)",
-                '\n',
-                payloadStr.charAt((int) boundary - 1)
-            );
-        }
-
-        // Read each split range with recordAligned=true and count total rows.
-        var meta = csvReader.metadata(obj);
-        var withSchema = csvReader.withSchema(meta.schema());
-        long totalRows = 0;
-        for (int i = 0; i < starts.size(); i++) {
-            long start = starts.get(i);
-            long end = (i + 1 < starts.size()) ? starts.get(i + 1) : fileLength;
-            StorageObject range = new RangeStorageObject(
-                createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv")),
-                start,
-                end - start
-            );
-            var ctx = FormatReadContext.builder()
-                .projectedColumns(List.of("id", "name", "note"))
-                .batchSize(500)
-                .firstSplit(i == 0)
-                .lastSplit(i == starts.size() - 1)
-                .recordAligned(true)
-                .build();
-            try (CloseableIterator<Page> pages = withSchema.read(range, ctx)) {
-                while (pages.hasNext()) {
-                    Page p = pages.next();
-                    totalRows += p.getPositionCount();
-                    p.releaseBlocks();
-                }
-            }
-        }
-        assertEquals("Total rows across all splits must match data row count", dataRows, totalRows);
+        assertThat(e.getMessage(), containsString("does not support strided probing"));
     }
 
     /**
@@ -921,7 +886,9 @@ public class FileSplitProviderTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
 
-        var csvReader = new CsvFormatReader(blockFactory);
+        // Plain mode: the drain contract is format-agnostic, but macro-split discovery now refuses non-strided
+        // splitters (default/quoted CSV), which are read whole-file instead. Plain CSV keeps strided probing.
+        var csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
         long stride = fileLength / 4;
         List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
             csvReader,
@@ -948,7 +915,9 @@ public class FileSplitProviderTests extends ESTestCase {
         }
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
         StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
-        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+        // Plain mode: max-record-size stop is format-agnostic; macro-split discovery now refuses non-strided
+        // (default/quoted) CSV. Plain CSV keeps strided probing.
+        var csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
         List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, object, payload.length, 4, 16);
 

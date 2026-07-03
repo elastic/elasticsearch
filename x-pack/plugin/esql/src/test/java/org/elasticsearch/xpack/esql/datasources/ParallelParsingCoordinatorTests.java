@@ -131,7 +131,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
 
-        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+        // Plain mode: the drain contract is format-agnostic, but computeSegments now refuses non-strided
+        // splitters (default/quoted CSV), which are read whole-file instead. Plain CSV keeps strided probing.
+        SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(
             csvReader,
             object,
@@ -147,6 +149,31 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan(fileLength / 2)
         );
+    }
+
+    /**
+     * A splitter that does not support strided probing (default/quoted CSV, whose quoted fields may embed
+     * newlines) must never be segmented: {@link ParallelParsingCoordinator#computeSegments} probes record
+     * boundaries at arbitrary offsets and could misread an in-quote newline as a boundary. The primitive
+     * self-defends by throwing, so a routing bug that fed such a reader here fails loud instead of silently
+     * mis-splitting. Production routes quoted CSV to the whole-file sequential reader, so this never fires
+     * there; this adapts the upstream repro that expected the probe itself to become quote-aware.
+     */
+    public void testComputeSegmentsRejectsNonStridedSplitter() throws IOException {
+        StringBuilder csv = new StringBuilder("id,name\n");
+        while (csv.length() < 3 * 1024 * 1024) {
+            csv.append(csv.length()).append(",\"value\"\n");
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(payload);
+        // Default construction => quoting on => CsvRecordSplitter, which reports supportsStridedProbing()==false.
+        CsvFormatReader csvReader = new CsvFormatReader(blockFactory());
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> ParallelParsingCoordinator.computeSegments(csvReader, obj, payload.length, 4, csvReader.minimumSegmentSize())
+        );
+        assertThat(e.getMessage(), Matchers.containsString("does not support strided probing"));
     }
 
     /**
@@ -878,7 +905,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
         byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         StorageObject obj = new InMemoryStorageObject(bytes);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory());
+        // Plain mode: the parallel-segment path applies to strided-safe CSV. Default/quoted CSV is now routed
+        // to the whole-file sequential reader and would be rejected by computeSegments' strided-probing guard.
+        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("mode", "plain"));
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
@@ -910,9 +939,11 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         assertTrue("payload must exceed 2*minimumSegmentSize for parallel parsing", bodyLength > 2 * 1024 * 1024);
         StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bodyLength);
 
-        CsvFormatReader base = new CsvFormatReader(blockFactory());
+        // Plain mode: non-leading macro-splits only exist for strided-safe CSV. Default/quoted CSV is read
+        // whole-file and would be rejected by computeSegments' strided-probing guard.
+        SegmentableFormatReader base = (SegmentableFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("mode", "plain"));
         SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = base.withSchema(meta.schema());
+        SegmentableFormatReader withSchema = (SegmentableFormatReader) base.withSchema(meta.schema());
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {

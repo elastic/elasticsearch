@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -170,6 +171,7 @@ final class PageColumnReader implements Releasable {
             case DOUBLE -> readDoubleBatch(maxRows, blockFactory);
             case KEYWORD, TEXT -> readBytesBatch(maxRows, blockFactory);
             case DATETIME -> readDatetimeBatch(maxRows, blockFactory);
+            case DATE_NANOS -> readDateNanosBatch(maxRows, blockFactory);
             default -> {
                 skipRows(maxRows);
                 yield blockFactory.newConstantNullBlock(maxRows);
@@ -1144,7 +1146,7 @@ final class PageColumnReader implements Releasable {
                 for (int i = 0; i < fromPage; i++) {
                     allValues[produced + i] = isUuid
                         ? new BytesRef(ParquetColumnDecoding.formatUuid(vals[i].bytes, vals[i].offset, vals[i].length))
-                        : vals[i];
+                        : Utf8Sanitizer.sanitize(vals[i]);
                 }
                 advancePosition(fromPage);
                 produced += fromPage;
@@ -1173,7 +1175,7 @@ final class PageColumnReader implements Releasable {
                     BytesRef uuidRef = vals[valIdx++];
                     allValues[produced + i] = new BytesRef(ParquetColumnDecoding.formatUuid(uuidRef.bytes, uuidRef.offset, uuidRef.length));
                 } else {
-                    allValues[produced + i] = vals[valIdx++];
+                    allValues[produced + i] = Utf8Sanitizer.sanitize(vals[valIdx++]);
                 }
             }
             advancePosition(fromPage);
@@ -1271,7 +1273,7 @@ final class PageColumnReader implements Releasable {
         if (nulls == null || nulls.isEmpty()) {
             int constantOrdinal = detectConstantOrdinal(ordinals, produced);
             if (constantOrdinal >= 0) {
-                return blockFactory.newConstantBytesRefBlockWith(dict[constantOrdinal], produced);
+                return blockFactory.newConstantBytesRefBlockWith(Utf8Sanitizer.sanitize(dict[constantOrdinal]), produced);
             }
         }
         IntBlock ordinalsBlock = null;
@@ -1345,7 +1347,9 @@ final class PageColumnReader implements Releasable {
         boolean success = false;
         try {
             for (BytesRef entry : entries) {
-                array.append(entry);
+                // KEYWORD ordinal dictionary path only (buildDictionaryVector -> here); sanitize each
+                // dictionary entry once per chunk so the OrdinalBytesRefBlock never exposes malformed UTF-8.
+                array.append(Utf8Sanitizer.sanitize(entry));
             }
             cachedDictArray = array;
             cachedDictArraySource = dictionary;
@@ -1409,6 +1413,15 @@ final class PageColumnReader implements Releasable {
             Block allNull = ConstantBlockDetection.tryAllNull(combinedNulls.toBitSet(), filled, blockFactory);
             if (allNull != null) {
                 return allNull;
+            }
+        }
+        // KEYWORD materialized fallback: {@code all} mixes raw dictionary entries with scalar values read
+        // after the chunk fell off dictionary encoding (this path is never taken for UUID, see readBytesBatch),
+        // so sanitize each position once before building. sanitize returns the input unchanged when it is
+        // already well-formed, so shared dictionary entries are not copied or mutated.
+        for (int i = 0; i < filled; i++) {
+            if (combinedNulls == null || combinedNulls.get(i) == false) {
+                all[i] = Utf8Sanitizer.sanitize(all[i]);
             }
         }
         return buildBytesRefBlock(all, combinedNulls, filled, blockFactory);
@@ -1486,6 +1499,129 @@ final class PageColumnReader implements Releasable {
                 }
             }
         }
+    }
+
+    /**
+     * Optimized-path counterpart of {@link ParquetFormatReader}'s {@code readDateNanosColumn}: decodes an INT64
+     * {@code TIMESTAMP(MICROS|NANOS)} column into a {@code DATE_NANOS} block of epoch-nanoseconds. {@code NANOS}
+     * passes through; {@code MICROS} is scaled ×1_000. {@code MICROS} values whose scaled instant falls outside the
+     * representable {@code date_nanos} range (~1677-2262) are emitted as null (with one deduplicated warning) rather
+     * than silently wrapping. The common in-range case keeps the existing no-null fast vector path; a null mask is
+     * only materialised when a value actually overflows.
+     */
+    private Block readDateNanosBatch(int maxRows, BlockFactory blockFactory) {
+        boolean micros = ParquetColumnDecoding.isMicrosTimestamp(info.logicalType());
+        long[] values = UninitializedArrays.newLongArray(maxRows);
+        if (maxDefLevel == 0) {
+            int produced = 0;
+            int remaining = maxRows;
+            while (remaining > 0 && ensurePage()) {
+                int fromPage = Math.min(remaining, availableInPage());
+                readLongsDispatch(values, produced, fromPage);
+                advancePosition(fromPage);
+                produced += fromPage;
+                remaining -= fromPage;
+            }
+            WordMask overflow = scaleDateNanosDense(values, produced, micros);
+            if (overflow == null) {
+                Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
+                if (constant != null) return constant;
+                if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
+                return blockFactory.newLongArrayVector(values, produced).asBlock();
+            }
+            ParquetColumnDecoding.warnTimestampOutOfRange(info);
+            Block allNull = ConstantBlockDetection.tryAllNull(overflow.toBitSet(), produced, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
+            return blockFactory.newLongArrayBlock(values, produced, null, overflow.toBitSet(), Block.MvOrdering.UNORDERED);
+        }
+        WordMask nulls = buffers.nullsMask(maxRows);
+        int produced = 0;
+        int remaining = maxRows;
+        while (remaining > 0 && ensurePage()) {
+            int fromPage = Math.min(remaining, availableInPage());
+            int nonNull = defDecoder.readBatch(fromPage, nulls, produced);
+            if (nonNull > 0) {
+                if (nonNull == fromPage) {
+                    readLongsDispatch(values, produced, nonNull);
+                } else {
+                    long[] packed = UninitializedArrays.newLongArray(nonNull);
+                    readLongsDispatch(packed, 0, nonNull);
+                    scatter(packed, values, nulls, produced, fromPage);
+                }
+            }
+            advancePosition(fromPage);
+            produced += fromPage;
+            remaining -= fromPage;
+        }
+        boolean anyOverflow = scaleDateNanosMasked(values, produced, micros, nulls);
+        if (anyOverflow) {
+            ParquetColumnDecoding.warnTimestampOutOfRange(info);
+        }
+        if (nulls.isEmpty()) {
+            Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
+            if (constant != null) return constant;
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
+            return blockFactory.newLongArrayVector(values, produced).asBlock();
+        }
+        Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
+        if (allNull != null) {
+            return allNull;
+        }
+        if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
+        return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
+    }
+
+    /**
+     * Scales a dense (no definition-level nulls) {@code MICROS} timestamp array to epoch-nanoseconds in place. A
+     * {@code NANOS} column is already in its final unit and is left untouched. Returns a mask of positions that
+     * overflowed the representable {@code date_nanos} range (for the caller to null out), or {@code null} when
+     * nothing overflowed (the common case, which keeps the no-null fast path).
+     */
+    private WordMask scaleDateNanosDense(long[] values, int count, boolean micros) {
+        if (micros == false) {
+            return null;
+        }
+        WordMask overflow = null;
+        for (int i = 0; i < count; i++) {
+            long raw = values[i];
+            if (ParquetColumnDecoding.microsOverflowsNanos(raw)) {
+                if (overflow == null) {
+                    overflow = buffers.nullsMask(count);
+                }
+                overflow.set(i);
+            } else {
+                values[i] = raw * ParquetColumnDecoding.NANOS_PER_MICRO;
+            }
+        }
+        return overflow;
+    }
+
+    /**
+     * Scales the non-null {@code MICROS} timestamp positions to epoch-nanoseconds in place, extending {@code nulls}
+     * with any positions that overflow the representable {@code date_nanos} range. A {@code NANOS} column needs no
+     * scaling. Returns whether any overflow occurred.
+     */
+    private static boolean scaleDateNanosMasked(long[] values, int count, boolean micros, WordMask nulls) {
+        if (micros == false) {
+            return false;
+        }
+        boolean anyOverflow = false;
+        for (int i = 0; i < count; i++) {
+            if (nulls.get(i)) {
+                continue;
+            }
+            long raw = values[i];
+            if (ParquetColumnDecoding.microsOverflowsNanos(raw)) {
+                nulls.set(i);
+                anyOverflow = true;
+            } else {
+                values[i] = raw * ParquetColumnDecoding.NANOS_PER_MICRO;
+            }
+        }
+        return anyOverflow;
     }
 
     private Block readInt96Batch(int maxRows, BlockFactory blockFactory) {

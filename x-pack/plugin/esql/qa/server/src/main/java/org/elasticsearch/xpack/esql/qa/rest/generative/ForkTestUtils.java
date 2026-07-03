@@ -53,13 +53,6 @@ public class ForkTestUtils {
             testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName())
         );
 
-        // FORK is not supported with unmapped_fields="load", see https://github.com/elastic/elasticsearch/issues/142033
-        assumeFalse(
-            "FORK is not supported with unmapped_fields=\"load\"",
-            testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_V5.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN.capabilityName())
-        );
-
         assumeFalse(
             "Tests using subqueries are skipped since nested fork/subquery is not supported yet",
             testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())

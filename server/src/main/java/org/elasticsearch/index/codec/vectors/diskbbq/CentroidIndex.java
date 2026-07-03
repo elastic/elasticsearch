@@ -7,12 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
+public interface CentroidIndex {
+    CentroidIndex NO_INDEX = new CentroidIndex() {
+        @Override
+        public boolean hasData() {
+            return false;
+        }
+    };
 
-import java.io.IOException;
-
-interface CentroidIndex {
-    CentroidIterator getIterator() throws IOException;
+    boolean hasData();
 }

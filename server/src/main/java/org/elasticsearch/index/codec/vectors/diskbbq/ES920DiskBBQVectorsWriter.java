@@ -407,12 +407,12 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
     public CentroidSupplier createCentroidSupplier(FieldInfo info, float[][] centroids, float[] globalCentroid) throws IOException {
         CentroidSupplier centroidSupplier = CentroidSupplier.fromArray(
             centroids,
-            KMeansResult.singleCluster(globalCentroid, centroids.length),
+            new FlatCentroidClusters(KMeansResult.singleCluster(globalCentroid, centroids.length)),
             info.getVectorDimension()
         );
         if (centroidSupplier.size() > centroidsPerParentCluster * centroidsPerParentCluster) {
             KMeansResult<float[]> centroidClusters = buildSecondLevelClusters(info, centroidSupplier, false);
-            return CentroidSupplier.fromArray(centroids, centroidClusters, info.getVectorDimension());
+            return CentroidSupplier.fromArray(centroids, new FlatCentroidClusters(centroidClusters), info.getVectorDimension());
         }
         return centroidSupplier;
     }
@@ -440,8 +440,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
                 }
 
                 @Override
-                public KMeansResult<float[]> secondLevelClusters() {
-                    return centroidGroups;
+                public CentroidIndex centroidIndex() {
+                    return new FlatCentroidClusters(centroidGroups);
                 }
 
                 @Override
@@ -492,8 +492,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
     @Override
     protected CentroidGroups writeCentroidIndex(CentroidSupplier centroidSupplier, int[] centroidAssignments, IndexOutput centroidOutput)
         throws IOException {
-        if (centroidSupplier.secondLevelClusters().centroidsSupplier().size() > 1) {
-            return buildCentroidGroups(centroidSupplier);
+        if (centroidSupplier.centroidIndex().hasData()) {
+            return buildCentroidGroups((FlatCentroidClusters) centroidSupplier.centroidIndex());
         } else {
             return null;
         }
@@ -542,7 +542,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         centroidOutput.writeVInt(centroidGroups.centroids.length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength);
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
-            CentroidSupplier.fromArray(centroidGroups.centroids, KMeansResult.emptyFloat(), fieldInfo.getVectorDimension()),
+            CentroidSupplier.fromArray(centroidGroups.centroids, CentroidIndex.NO_INDEX, fieldInfo.getVectorDimension()),
             fieldInfo.getVectorDimension(),
             osq,
             globalCentroid
@@ -630,24 +630,23 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         return result.result();
     }
 
-    private CentroidGroups buildCentroidGroups(CentroidSupplier centroidSupplier) throws IOException {
-        final KMeansResult<float[]> kMeansResult = centroidSupplier.secondLevelClusters();
-        final int[] centroidVectorCount = new int[kMeansResult.centroidsSupplier().size()];
-        for (int i = 0; i < kMeansResult.assignments().length; i++) {
-            centroidVectorCount[kMeansResult.assignments()[i]]++;
+    private static CentroidGroups buildCentroidGroups(FlatCentroidClusters centroidClusters) {
+        final int[] centroidVectorCount = new int[centroidClusters.size()];
+        for (int i = 0; i < centroidClusters.assignments().length; i++) {
+            centroidVectorCount[centroidClusters.assignments()[i]]++;
         }
-        final int[][] vectorsPerCentroid = new int[kMeansResult.centroidsSupplier().size()][];
+        final int[][] vectorsPerCentroid = new int[centroidClusters.size()][];
         int maxVectorsPerCentroidLength = 0;
-        for (int i = 0; i < kMeansResult.centroids().length; i++) {
+        for (int i = 0; i < centroidClusters.size(); i++) {
             vectorsPerCentroid[i] = new int[centroidVectorCount[i]];
             maxVectorsPerCentroidLength = Math.max(maxVectorsPerCentroidLength, centroidVectorCount[i]);
         }
         Arrays.fill(centroidVectorCount, 0);
-        for (int i = 0; i < kMeansResult.assignments().length; i++) {
-            final int c = kMeansResult.assignments()[i];
+        for (int i = 0; i < centroidClusters.assignments().length; i++) {
+            final int c = centroidClusters.assignments()[i];
             vectorsPerCentroid[c][centroidVectorCount[c]++] = i;
         }
-        return new CentroidGroups(kMeansResult.centroids(), vectorsPerCentroid, maxVectorsPerCentroidLength);
+        return new CentroidGroups(centroidClusters.centroids(), vectorsPerCentroid, maxVectorsPerCentroidLength);
     }
 
     @Override
@@ -717,8 +716,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         }
 
         @Override
-        public KMeansResult<float[]> secondLevelClusters() throws IOException {
-            return secondLayerClusters;
+        public CentroidIndex centroidIndex() {
+            return new FlatCentroidClusters(secondLayerClusters);
         }
 
         @Override

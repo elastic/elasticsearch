@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.RETRY;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.RETRY_BACKOFF;
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -668,7 +669,77 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
-    public void testRetryTaskOnRetry() {
+    public void testRetrySingleTask() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            newClusterService(1),
+            new CompositeRecoverySchedulingListener()
+        );
+        RecoveryState recoveryState = newRecoveryState();
+
+        AtomicInteger retryCounter = new AtomicInteger();
+        CountingRecoveryListener countingListener = new CountingRecoveryListener();
+        service.enqueue(countingListener, recoveryState, stats, l -> {
+            if (retryCounter.getAndIncrement() == 0) {
+                l.onRecoveryFailure(
+                    new RecoveryFailedException(recoveryState, "", new Throwable("cause")),
+                    randomBoolean() ? RETRY : RETRY_BACKOFF
+                );
+            } else {
+                l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            }
+        });
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("Expected to retry on failure but did not", retryCounter.get(), equalTo(2));
+        countingListener.assertCount(1, 1, 0);
+    }
+
+    public void testRetryPutTaskAtBackOfQueue() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            newClusterService(1),
+            new CompositeRecoverySchedulingListener()
+        );
+        RecoveryState recoveryState = newRecoveryState();
+
+        // Queue task that should be retried
+        AtomicInteger retryCounter = new AtomicInteger();
+        CountingRecoveryListener countingListener = new CountingRecoveryListener();
+        service.enqueue(countingListener, recoveryState, stats, l -> {
+            if (retryCounter.getAndIncrement() == 0) {
+                l.onRecoveryFailure(
+                    new RecoveryFailedException(recoveryState, "", new Throwable("cause")),
+                    randomBoolean() ? RETRY : RETRY_BACKOFF
+                );
+            } else {
+                l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            }
+        });
+
+        // Queue another task that will execute before retry
+        service.enqueue(
+            RecoveryListener.NOOP,
+            recoveryState,
+            stats,
+            l -> taskQueue.scheduleAt(
+                taskQueue.getCurrentTimeMillis() + 100,
+                () -> l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            )
+        );
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("Expected to retry on failure but did not", retryCounter.get(), equalTo(1));
+        countingListener.assertCount(0, 1, 0);
+
+        taskQueue.runAllTasksInTimeOrder();
+        assertThat("Expected to retry on failure but did not", retryCounter.get(), equalTo(2));
+        countingListener.assertCount(1, 1, 0);
+    }
+
+    public void testRetryTaskPutBackInQueue() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
@@ -713,7 +784,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat("Expected to have succeeded exactly once", doneCounter.get(), equalTo(1));
         assertThat("Expected to have failed exactly once", failedCounter.get(), equalTo(1));
     }
-    // testRetryTaskOnRetryLastInQueue
 
     /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times,
     /// alternating bursty submits and completion periods, and randomly changing the max concurrent limit.
@@ -979,5 +1049,36 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         );
         return new RecoveryState(routing, DiscoveryNodeUtils.create("source"), DiscoveryNodeUtils.create("target"));
+    }
+
+    private static class CountingRecoveryListener implements RecoveryListener {
+        AtomicInteger doneCounter = new AtomicInteger();
+        AtomicInteger failedCounter = new AtomicInteger();
+        AtomicInteger abortCounter = new AtomicInteger();
+
+        @Override
+        public void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
+            doneCounter.incrementAndGet();
+        }
+
+        @Override
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            failedCounter.incrementAndGet();
+        }
+
+        @Override
+        public void onRecoveryAborted() {
+            abortCounter.incrementAndGet();
+        }
+
+        private void assertCount(int done, int failed, int aborted) {
+            assertThat("Actual done counter not as expected", doneCounter.get(), equalTo(done));
+            assertThat("Actual failed counter not as expected", failedCounter.get(), equalTo(failed));
+            assertThat("Actual aborted counter not as expected", abortCounter.get(), equalTo(aborted));
+        }
     }
 }

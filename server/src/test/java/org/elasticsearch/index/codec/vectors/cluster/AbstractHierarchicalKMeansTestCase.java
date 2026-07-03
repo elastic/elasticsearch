@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
+import static org.elasticsearch.index.codec.vectors.cluster.Soar.NO_SOAR_ASSIGNMENT;
 
 /**
  * Abstract base class for HierarchicalKMeans tests, parameterized by vector type.

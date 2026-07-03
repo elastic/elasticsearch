@@ -31,7 +31,6 @@ public class HierarchicalKMeans<V> {
     public static final int MAXK = 128;
     public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     public static final float DEFAULT_SOAR_LAMBDA = 1.0f;
-    public static final int NO_SOAR_ASSIGNMENT = -1;
     private static final int MIN_VECTORS_PER_THREAD = 64;
 
     public static final boolean USE_BALANCING = true;
@@ -178,7 +177,7 @@ public class HierarchicalKMeans<V> {
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
             KMeansLocal<V> kMeansLocal = buildKmeansLocalFinal(vectors.size(), localSampleSize);
-            KMeansWithOverspill<V> res = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+            KMeansWithOverspill<V> res = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood);
 
             if (logger.isDebugEnabled()) {
                 logger.debug("Refinement clustering stats (pre-SOAR):");
@@ -276,12 +275,12 @@ public class HierarchicalKMeans<V> {
         // if there is no executor or there is no enough vectors for more than one thread, use the serial version
         if (USE_BALANCING) {
             return executor == null || numWorkers <= 1
-                ? new BalancedOTKMeansLocalSerial<>(ops, localSampleSize, iterations)
-                : new BalancedOTKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, iterations);
+                ? new BalancedOTKMeansLocalSerial<>(ops, localSampleSize, iterations, soarLambda)
+                : new BalancedOTKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, iterations, soarLambda);
         } else {
             return executor == null || numWorkers <= 1
-                ? new LloydKMeansLocalSerial<>(ops, localSampleSize, iterations)
-                : new LloydKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, iterations);
+                ? new LloydKMeansLocalSerial<>(ops, localSampleSize, iterations, soarLambda)
+                : new LloydKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, iterations, soarLambda);
         }
     }
 
@@ -290,12 +289,12 @@ public class HierarchicalKMeans<V> {
         // if there is no executor or there is no enough vectors for more than one thread, use the serial version
         if (USE_BALANCING) {
             return executor == null || numWorkers <= 1
-                ? new BalancedASKMeansLocalSerial<>(ops, localSampleSize, maxIterations)
-                : new BalancedASKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, maxIterations);
+                ? new BalancedASKMeansLocalSerial<>(ops, localSampleSize, maxIterations, soarLambda)
+                : new BalancedASKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, maxIterations, soarLambda);
         } else {
             return executor == null || numWorkers <= 1
-                ? new LloydKMeansLocalSerial<>(ops, localSampleSize, maxIterations)
-                : new LloydKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, maxIterations);
+                ? new LloydKMeansLocalSerial<>(ops, localSampleSize, maxIterations, soarLambda)
+                : new LloydKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, maxIterations, soarLambda);
         }
     }
 
@@ -437,7 +436,7 @@ public class HierarchicalKMeans<V> {
         V[] reduced = KMeansLocal.pickInitialCentroids(centroids, targetCount, ops);
         // Run a few Lloyd iterations to refine
         KMeansIntermediate<V> intermediate = new KMeansIntermediate<>(reduced, new int[n], centroids::ordToDoc);
-        KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, n, 3);
+        KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, n, 3, -1);
         kMeansLocal.cluster(centroids, intermediate);
         return intermediate.centroids();
     }
@@ -696,10 +695,10 @@ public class HierarchicalKMeans<V> {
         int effectiveWorkers = Math.min(numWorkers, vectors.size() / MIN_VECTORS_PER_THREAD);
         if (executor != null && effectiveWorkers >= 2) {
             return new SoarAssignments(
-                KMeansLocal.assignSpilledConcurrent(executor, effectiveWorkers, vectors, ops, kMeansIntermediate, neighborhoods, soarLambda)
+                Soar.assignSpilledConcurrent(executor, effectiveWorkers, vectors, ops, kMeansIntermediate, neighborhoods, soarLambda)
             );
         } else {
-            return new SoarAssignments(KMeansLocal.assignSpilledSlice(vectors, ops, kMeansIntermediate, neighborhoods, soarLambda));
+            return new SoarAssignments(Soar.assignSpilledSlice(vectors, ops, kMeansIntermediate, neighborhoods, soarLambda));
         }
     }
 
@@ -889,7 +888,7 @@ public class HierarchicalKMeans<V> {
         // One pass is sufficient since the initial assignment is already good.
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             KMeansLocal<V> refinementKMeans = buildKmeansLocal(vectors.size(), vectors.size(), 1);
-            return refinementKMeans.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+            return refinementKMeans.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood);
         }
 
         return new KMeansWithOverspill<>(kMeansIntermediate, null);

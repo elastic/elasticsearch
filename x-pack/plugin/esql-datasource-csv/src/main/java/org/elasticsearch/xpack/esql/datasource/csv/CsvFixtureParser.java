@@ -341,6 +341,11 @@ public final class CsvFixtureParser {
         return switch (type) {
             case "integer", "short", "byte" -> tryParseInt(value);
             case "long" -> tryParseLong(value);
+            // uint32 can exceed Integer.MAX_VALUE (ESQL widens it to LONG), while uint16 always
+            // fits in a signed int (ESQL keeps it as INTEGER) — see ParquetFixtureGenerator's
+            // matching Parquet INT32+IntLogicalTypeAnnotation(bitWidth, false) mapping.
+            case "uint32" -> tryParseLong(value);
+            case "uint16" -> tryParseInt(value);
             case "double", "scaled_float", "float", "half_float" -> tryParseDouble(value);
             case "boolean", "bool" -> tryParseBoolean(value);
             case "date", "datetime", "dt" -> tryParseDatetime(value);

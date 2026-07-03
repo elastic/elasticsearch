@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -291,12 +292,27 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     /**
+     * Maximum number of in-flight per-file metadata (footer) reads a single multi-file resolution may have
+     * outstanding, passed to {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver} as its fan-out
+     * bound. Because footer reads are async (the {@code esql_worker} thread is released across the read), this caps
+     * concurrent in-flight reads rather than pinning that many threads, so the bound may safely exceed the pool
+     * size. It is the shared {@link ExternalSourceSettings#blobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
+     * value — the single effective blob-store access concurrency that the data-read path also reads — so discovery
+     * throttles its footer fan-out with the same node-size-scaled formula ({@code snapshot_meta} shape, capped at
+     * 100, and any operator override once that setting lands) instead of the raw {@code esql_worker.getMax()} pool
+     * size.
+     */
+    protected int externalSourceConcurrency() {
+        return ExternalSourceSettings.blobStoreConcurrency(clusterService.getSettings());
+    }
+
+    /**
      * Name of the thread pool backing {@link #externalSourceExecutor()}. Extracted so unit tests can pin the wiring
      * without needing a live {@link ThreadPool}. Must not resolve to {@link ThreadPool.Names#SEARCH}: a single
      * wildcard external query previously consumed nearly the entire SEARCH pool during resolution, starving unrelated
      * searches and other ES|QL queries.
      */
-    static String externalSourceExecutorName() {
+    public static String externalSourceExecutorName() {
         return ESQL_WORKER_THREAD_POOL_NAME;
     }
 
@@ -393,6 +409,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             planRunner,
             services,
             externalSourceExecutor(),
+            externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);

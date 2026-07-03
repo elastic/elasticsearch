@@ -26,12 +26,15 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.util.BytesRef;
@@ -2419,6 +2422,116 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     }
 
     /**
+     * Exercises the {@link TwoPhaseIterator} bulk overrides ({@code intoBitSet} / {@code docIDRunEnd})
+     * directly, the way Lucene's {@code ConstantScoreBulkScorer} drives them in production. Calling
+     * {@code intoBitSet} on the {@link DocIdSetIterator} returned by {@code tryRangeIterator} would go
+     * through the wrapper's default per-doc confirmation instead, so we unwrap the two-phase first and
+     * drive its overridden bulk methods so the SIMD/skipper dense path stays unit-tested.
+     */
+    public void testRangeIteratorTwoPhaseBulk() throws IOException {
+        final String field = "dense_value";
+        int numDocs = randomIntBetween(1, 4096 * 4);
+        long currentTimestamp = BASE_TIMESTAMP;
+
+        List<Long> values = new ArrayList<>();
+        var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
+        if (randomBoolean()) {
+            config.setIndexSort(
+                new Sort(
+                    new SortedNumericSortField(field, SortField.Type.LONG, false),
+                    new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
+                )
+            );
+        }
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
+                long v = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
+                values.add(v);
+                d.add(new SortedNumericDocValuesField(field, v));
+                currentTimestamp += 1000L;
+                iw.addDocument(d);
+                if (i % 256 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.forceMerge(1);
+
+            long maxValue = Collections.max(values);
+            long sampleValue = randomFrom(values);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().getFirst().reader();
+                assertRangeIteratorTwoPhaseBulk(leafReader, field, numDocs, sampleValue, sampleValue); // exact match
+                assertRangeIteratorTwoPhaseBulk(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE); // empty
+
+                for (int i = 0; i < 5; i++) {
+                    long a = randomLong();
+                    long b = randomLong();
+                    assertRangeIteratorTwoPhaseBulk(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b));
+                }
+            }
+        }
+    }
+
+    /**
+     * A conjunction of two doc-values range filters must return exactly the brute-force result. This drives the
+     * two-phase range iterators together through a conjunction scorer (where {@code docIDRunEnd()} is used without
+     * a per-doc match confirmation) over randomized data and ranges.
+     */
+    public void testConjunctionOfRangeFiltersMatchesBruteForce() throws IOException {
+        final String field1 = "dense_value";
+        final String field2 = "dense_value2";
+        int numDocs = randomIntBetween(1024, 4096 * 4);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
+            long ts = BASE_TIMESTAMP;
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
+                d.add(new SortedNumericDocValuesField(field1, randomLongBetween(0, 16)));
+                d.add(new SortedNumericDocValuesField(field2, randomLongBetween(0, 16)));
+                ts += 1000L;
+                iw.addDocument(d);
+            }
+            iw.forceMerge(1);
+            try (var reader = DirectoryReader.open(iw)) {
+                var leafReader = reader.leaves().getFirst().reader();
+                int maxDoc = leafReader.maxDoc();
+                long[] v1 = readSingleValued(leafReader, field1, maxDoc);
+                long[] v2 = readSingleValued(leafReader, field2, maxDoc);
+                var searcher = new IndexSearcher(reader);
+                for (int iter = 0; iter < 20; iter++) {
+                    long lo1 = randomLongBetween(0, 16), hi1 = randomLongBetween(lo1, 16);
+                    long lo2 = randomLongBetween(0, 16), hi2 = randomLongBetween(lo2, 16);
+                    var query = new BooleanQuery.Builder().add(
+                        SortedNumericDocValuesRangeQuery.newRangeQuery(field1, lo1, hi1),
+                        BooleanClause.Occur.FILTER
+                    ).add(SortedNumericDocValuesRangeQuery.newRangeQuery(field2, lo2, hi2), BooleanClause.Occur.FILTER).build();
+
+                    int expected = 0;
+                    for (int doc = 0; doc < maxDoc; doc++) {
+                        if (lo1 <= v1[doc] && v1[doc] <= hi1 && lo2 <= v2[doc] && v2[doc] <= hi2) {
+                            expected++;
+                        }
+                    }
+                    assertEquals("[" + lo1 + "," + hi1 + "] AND [" + lo2 + "," + hi2 + "]", expected, searcher.count(query));
+                }
+            }
+        }
+    }
+
+    private static long[] readSingleValued(LeafReader reader, String field, int maxDoc) throws IOException {
+        long[] values = new long[maxDoc];
+        var singleton = DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, field));
+        for (int doc = 0; doc < maxDoc; doc++) {
+            values[doc] = singleton.advanceExact(doc) ? singleton.longValue() : Long.MIN_VALUE;
+        }
+        return values;
+    }
+
+    /**
      * Deterministic regression test for the {@code intoBitSet} position-contract bug: after {@code
      * intoBitSet(upTo)}, {@code docID()} must be the first matching doc &ge; {@code upTo} (or
      * {@code NO_MORE_DOCS}), not {@code upTo} unconditionally.
@@ -2698,6 +2811,58 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 expectedFromOffset,
                 collectBitSet(bitSet, numDocs - offset, offset)
             );
+        }
+    }
+
+    private void assertRangeIteratorTwoPhaseBulk(LeafReader leafReader, String field, int numDocs, long lower, long upper)
+        throws IOException {
+        Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
+
+        // Pass 1: drive the overridden intoBitSet window-by-window, exactly like ConstantScoreBulkScorer:
+        // position the approximation, collect each window, and require it to land on the first candidate
+        // doc >= windowMax afterwards.
+        {
+            var ndv = getBaseDenseNumericValues(leafReader, field);
+            var iter = ndv.tryRangeIterator(lower, upper);
+            assertNotNull(iter);
+            TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(iter);
+            assertNotNull("tryRangeIterator must return a TwoPhaseIterator-backed iterator", twoPhase);
+            DocIdSetIterator approximation = twoPhase.approximation();
+
+            var collected = new FixedBitSet(numDocs);
+            approximation.nextDoc();
+            while (approximation.docID() < numDocs) {
+                int windowBase = approximation.docID();
+                int windowMax = Math.min(numDocs, windowBase + randomIntBetween(1, 4096));
+                var windowMatches = new FixedBitSet(windowMax - windowBase);
+                twoPhase.intoBitSet(windowMax, windowMatches, windowBase);
+                windowMatches.forEach(0, windowMax - windowBase, windowBase, collected::set);
+                assertTrue(
+                    "intoBitSet(upTo=" + windowMax + ") must leave the approximation at the first candidate >= upTo",
+                    approximation.docID() >= windowMax
+                );
+            }
+            assertEquals("two-phase bulk intoBitSet [" + lower + "," + upper + "]", expected, collectBitSet(collected, numDocs, 0));
+        }
+
+        // Pass 2: docIDRunEnd() must report runs of consecutive matching docs. The wrapper's nextDoc
+        // confirms a match and positions the approximation, then we read the overridden docIDRunEnd.
+        {
+            var ndv = getBaseDenseNumericValues(leafReader, field);
+            var iter = ndv.tryRangeIterator(lower, upper);
+            assertNotNull(iter);
+            TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(iter);
+            assertNotNull(twoPhase);
+            for (int doc = iter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iter.nextDoc()) {
+                int runEnd = twoPhase.docIDRunEnd();
+                assertTrue("docIDRunEnd " + runEnd + " must be > docID " + doc, runEnd > doc);
+                for (int d = doc; d < runEnd; d++) {
+                    assertTrue(
+                        "doc " + d + " in run [" + doc + "," + runEnd + ") must match [" + lower + "," + upper + "]",
+                        expected.contains(d)
+                    );
+                }
+            }
         }
     }
 

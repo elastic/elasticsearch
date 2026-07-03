@@ -2643,7 +2643,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
         return new ExternalSourceResolver(resolverExecutor, module, Settings.EMPTY, null, permits);

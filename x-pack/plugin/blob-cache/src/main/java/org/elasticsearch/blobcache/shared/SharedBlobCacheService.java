@@ -2350,29 +2350,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     matchingEntries.add(value);
                 }
             });
-            var evictedCount = 0;
-            var nonZeroFrequencyEvictedCount = 0;
-            if (matchingEntries.isEmpty() == false) {
-                final long afterLockNanoTime;
-                final long beforeLockNanoTime = relativeNanosProvider.getAsLong();
-                synchronized (SharedBlobCacheService.this) {
-                    afterLockNanoTime = relativeNanosProvider.getAsLong();
-                    for (LFUCacheEntry entry : matchingEntries) {
-                        int frequency = entry.freq;
-                        boolean evicted = entry.chunk.forceEvict();
-                        if (evicted && entry.chunk.volatileIO() != null) {
-                            unlinkAndRemoveForEviction(entry);
-                            evictedCount++;
-                            if (frequency > 0) {
-                                nonZeroFrequencyEvictedCount++;
-                            }
-                        }
-                    }
-                }
-                blobCacheMetrics.recordLockAcquire(afterLockNanoTime - beforeLockNanoTime, ForceEvict);
-            }
-            blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
-            return evictedCount;
+            return forceEvictEntries(null, matchingEntries);
         }
 
         private boolean removeKeyMappingForEntry(LFUCacheEntry entry) {
@@ -2428,7 +2406,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return forceEvictEntries(shard, matchingEntries);
         }
 
-        private int forceEvictEntries(final ShardId shardId, final List<LFUCacheEntry> matchingEntries) {
+        private int forceEvictEntries(@Nullable final ShardId shardId, final List<LFUCacheEntry> matchingEntries) {
             assert matchingEntries != null;
 
             var evictedCount = 0;
@@ -2442,7 +2420,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         int frequency = entry.freq;
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.volatileIO() != null) {
-                            assert shardId.equals(entry.chunk.regionKey.file.shardId());
+                            assert shardId == null || shardId.equals(entry.chunk.regionKey.file.shardId())
+                                : shardId + " != " + entry.chunk.regionKey.file.shardId();
                             unlinkAndRemoveForEviction(entry);
                             evictedCount++;
                             if (frequency > 0) {

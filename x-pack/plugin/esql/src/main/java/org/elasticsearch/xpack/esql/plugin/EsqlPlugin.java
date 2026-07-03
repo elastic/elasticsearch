@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
@@ -352,6 +353,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 v -> managedIdentityEnabled.set(isStateless == false && v)
             );
 
+        // Local-disk gate: parsed once at startup (NodeScope setting — no update consumer needed).
+        LocalFileAccess localFileAccess = LocalFileAccess.create(settings);
+
         // Kill switch for the flattened data type. The IndexResolver is a node-level singleton, so the dynamic
         // setting is tracked here in an AtomicBoolean and read (at field-caps resolution time) through a supplier.
         AtomicBoolean flattenedDataTypeEnabled = new AtomicBoolean(FLATTENED_ENABLED.get(settings));
@@ -372,7 +376,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool(),
             services.environment(),
             services.resourceWatcherService(),
-            services.telemetryProvider().getMeterRegistry()
+            services.telemetryProvider().getMeterRegistry(),
+            localFileAccess
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();

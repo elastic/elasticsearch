@@ -288,6 +288,26 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testSimpleWhereRuntimeMatchWithScore() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(to_text(concat(content, " extra")), "fox")
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 0.0), List.of(6, 0.0)));
+        }
+    }
+
     public void testMatchWithinEval() {
         var query = """
             FROM test

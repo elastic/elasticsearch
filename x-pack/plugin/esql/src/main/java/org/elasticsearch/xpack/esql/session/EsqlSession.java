@@ -1452,6 +1452,10 @@ public class EsqlSession {
             // be reflected in result.minimumTransportVersion().
             result.minimumTransportVersion(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
+                // TODO: a resolution that is valid overall but missing the index on some cluster in lookupIndexScope
+                // (partial resolution) is not retried here - only a fully invalid resolution is. Partial resolution
+                // should also be retried against COORDINATOR_LOOKUP_SCOPE so mixed local/remote LOOKUP JOINs can fall
+                // back to the coordinator's own copy instead of failing when a remote cluster lacks the index.
                 if (indexResolution.isValid() || lookupIndexScope.equals(COORDINATOR_LOOKUP_SCOPE)) {
                     l.onResponse(receiveLookupIndexResolution(result, lookupIndexScope, localPattern, executionInfo, indexResolution));
                 } else {

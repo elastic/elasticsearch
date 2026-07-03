@@ -197,29 +197,36 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
 
             var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertThat(remoteCluster.getFailures(), not(empty()));
             var failure = remoteCluster.getFailures().get(0);
             assertThat(failure.reason(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
         }
-        // Without local
-        // FIXME: this is inconsistent due to how field-caps works - if there's no index at all, it fails, but if there's one but not
-        // another, it succeeds. Ideally, this would be empty result with remote1 skipped, but field-caps fails.
-        var ex = expectThrows(
-            VerificationException.class,
-            () -> runQuery("FROM c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
-        );
-        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:values_lookup]"));
+        // Without local in the FROM, the lookup index doesn't exist on any queried (remote) cluster,
+        // so resolution falls back to the coordinator's own copy of the lookup index.
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                randomBoolean()
+            )
+        ) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(10));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.getClusters().size(), equalTo(1));
+            var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        }
 
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         // then missing index is an error
-        ex = expectThrows(
+        expectThrows(
             VerificationException.class,
+            containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"),
             () -> runQuery("FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
         );
-        assertThat(ex.getMessage(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
     }
 
     public void testLookupJoinMissingRemoteIndexTwoRemotes() throws IOException {

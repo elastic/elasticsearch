@@ -164,10 +164,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
             reduced.merge(0, input.getCounts(), 0);
             reducedHllBytes = reduced.ramBytesUsed();
         }
-        CircuitBreakerService breakerService = LimitedBreaker.service(
-            CircuitBreaker.REQUEST,
-            ByteSizeValue.ofBytes(reducedHllBytes * 3)
-        );
+        CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(reducedHllBytes * 3));
         CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService).withCircuitBreaking();
         AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(

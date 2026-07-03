@@ -482,7 +482,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 failIfNoDocValues();
             }
 
-            ValuesSourceType valuesSourceType = indexMode.isTsdb() && metricType == TimeSeriesParams.MetricType.POSITION
+            ValuesSourceType valuesSourceType = IndexMode.isTsdb(indexMode) && metricType == TimeSeriesParams.MetricType.POSITION
                 ? TimeSeriesValuesSourceType.POSITION
                 : CoreValuesSourceType.GEOPOINT;
 

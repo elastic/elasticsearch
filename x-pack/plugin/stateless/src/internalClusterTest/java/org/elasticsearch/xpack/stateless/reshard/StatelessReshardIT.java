@@ -1381,6 +1381,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
+        // index documents before resharding so the split has data to copy
+        final int preReshardDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, preReshardDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs);
+
         final int multiple = 2;
 
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
@@ -1388,21 +1394,23 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, multiple);
 
-        assertHitCount(prepareSearchAll(indexName), 0);
+        // documents indexed before resharding must survive the split
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs);
 
+        // All shards should be usable
         var shards = IntStream.range(0, multiple).boxed().collect(Collectors.toSet());
         int docsPerRequest = randomIntBetween(10, 100);
-        int indexedDocs = 0;
+        int postReshardDocs = 0;
         do {
             for (var item : indexDocs(indexName, docsPerRequest).getItems()) {
-                indexedDocs += 1;
+                postReshardDocs += 1;
                 shards.remove(item.getResponse().getShardId().getId());
             }
         } while (shards.isEmpty() == false);
 
         refresh(indexName);
 
-        assertHitCount(prepareSearchAll(indexName), indexedDocs);
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs + postReshardDocs);
     }
 
     public void testReshardSearchShardWillNotBeAllocatedUntilIndexingShard() throws Exception {

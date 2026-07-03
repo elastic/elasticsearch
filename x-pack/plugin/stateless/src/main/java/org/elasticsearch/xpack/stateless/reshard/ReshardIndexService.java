@@ -137,7 +137,7 @@ public class ReshardIndexService {
             return ValidationError.INVALID_INDEX_VERSION;
         }
         IndexMode indexMode = indexMetadata.getIndexMode();
-        if (indexMode != null && indexMode.supportsAutoResharding() == false) {
+        if (indexMode != null && indexMode.supportsResharding() == false) {
             return ValidationError.INVALID_INDEX_MODE;
         }
 

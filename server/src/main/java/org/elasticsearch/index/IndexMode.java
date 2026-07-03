@@ -128,7 +128,7 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean supportsAutoResharding() {
+        public boolean supportsResharding() {
             return true;
         }
     },
@@ -736,7 +736,7 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean supportsAutoResharding() {
+        public boolean supportsResharding() {
             return true;
         }
     };
@@ -970,9 +970,10 @@ public enum IndexMode {
     }
 
     /**
-     * Whether indices in this mode support auto resharding.
+     * Whether indices in this mode support resharding, either through an explicit
+     * resharding request or through serverless auto-reshard.
      */
-    public boolean supportsAutoResharding() {
+    public boolean supportsResharding() {
         return false;
     }
 

@@ -29,14 +29,14 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
         assertThat(IndexMode.fromString("VECTORDB_DOCUMENT"), equalTo(IndexMode.VECTORDB_DOCUMENT));
     }
 
-    public void testSupportsAutoResharding() {
-        assertTrue(IndexMode.VECTORDB_DOCUMENT.supportsAutoResharding());
-        assertTrue(IndexMode.STANDARD.supportsAutoResharding());
-        assertFalse(IndexMode.LOOKUP.supportsAutoResharding());
-        assertFalse(IndexMode.LOGSDB.supportsAutoResharding());
-        assertFalse(IndexMode.TIME_SERIES.supportsAutoResharding());
-        assertFalse(IndexMode.COLUMNAR.supportsAutoResharding());
-        assertFalse(IndexMode.LOGSDB_COLUMNAR.supportsAutoResharding());
+    public void testSupportsResharding() {
+        assertTrue(IndexMode.VECTORDB_DOCUMENT.supportsResharding());
+        assertTrue(IndexMode.STANDARD.supportsResharding());
+        assertFalse(IndexMode.LOOKUP.supportsResharding());
+        assertFalse(IndexMode.LOGSDB.supportsResharding());
+        assertFalse(IndexMode.TIME_SERIES.supportsResharding());
+        assertFalse(IndexMode.COLUMNAR.supportsResharding());
+        assertFalse(IndexMode.LOGSDB_COLUMNAR.supportsResharding());
     }
 
     public void testProviderSetsDefaultSettings() {

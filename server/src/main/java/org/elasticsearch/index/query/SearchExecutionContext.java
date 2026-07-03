@@ -817,4 +817,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
             circuitBreaker.addWithoutBreaking(-memoryToRelease);
         }
     }
+
+    /**
+     * Release {@code bytes} of accumulated query construction memory back to the circuit breaker.
+     *
+     * @param bytes the number of bytes to refund; must be {@code >= 0}
+     */
+    public void releaseQueryConstructionMemory(long bytes) {
+        assert bytes >= 0 : "negative refund: " + bytes;
+        if (circuitBreaker == null || bytes <= 0) {
+            return;
+        }
+        circuitBreaker.addWithoutBreaking(-bytes);
+        queryConstructionMemoryUsed.addAndGet(-bytes);
+    }
 }

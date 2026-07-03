@@ -81,6 +81,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
@@ -195,8 +196,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             );
             return null;
         });
-        // Views can be created before or after ingest, since index resolution is currently only done on the combined query
-        // Only load views for tests in the "views" group (from views.csv-spec) to avoid issues with wildcards like "FROM *"
+        // Views can be created before or after ingest, since index resolution is currently only done on the combined query.
+        // Only load views for groups that reference them (see shouldLoadViews) to avoid issues with wildcards like "FROM *".
         if (shouldLoadViews()) {
             VIEWS.protectedBlock(() -> {
                 if (supportsViews()) {
@@ -273,9 +274,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    // Only load views for tests in the "views" group (from views.csv-spec)
+    // Load views only for groups whose tests reference view fixtures
     protected boolean shouldLoadViews() {
-        return "views".equals(groupName) || "approximation".equals(groupName);
+        return "views".equals(groupName) || "approximation".equals(groupName) || "unmapped-load".equals(groupName);
     }
 
     /**
@@ -296,6 +297,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             assumeTrueLogging("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
+        if (testCase.requiredCapabilities.contains(VIEWS_CRUD_AS_INDEX_ACTIONS.capabilityName())) {
+            assumeTrueLogging("Cluster does not support views", supportsViews());
+        }
         assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         if (supportsSourceFieldMapping() == false) {
             assumeFalseLogging(

@@ -12,10 +12,13 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVectorBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
 import org.elasticsearch.core.Releasables;
@@ -25,6 +28,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public abstract class FuseOperatorTestCase extends OperatorTestCase {
     protected int blocksCount;
@@ -204,5 +210,33 @@ public abstract class FuseOperatorTestCase extends OperatorTestCase {
                 return new Page(blocks);
             }
         };
+    }
+
+    /**
+     * A multivalued group column cannot be grouped, so FUSE assigns that row a null score and emits two
+     * warnings. This mirrors the {@code fuse.fuseWithRowRRFAndMultiValueGroupColumn} and
+     * {@code fuse.fuseWithRowLinearAndMultiValueGroupColumn} csv-spec cases asserted deterministically
+     * at the operator level.
+     */
+    public void testMultivaluedGroupColumnProducesWarning() {
+        DriverContext ctx = driverContext();
+
+        // The first row's group is multivalued; the rest are ordinary. size >= 3 so rows 1 and 2 exist.
+        List<Page> input = CannedSourceOperator.collectPages(simpleInputWithMultivaluedGroup(ctx.blockFactory(), between(3, 100)));
+        List<Page> output = fuseOutput(simple().get(ctx), input);
+
+        try {
+            assertThat(output, hasSize(1));
+            DoubleBlock scores = output.get(0).getBlock(scorePosition);
+            assertThat(scores.isNull(0), equalTo(true));   // multivalued group -> null score
+            assertThat(scores.isNull(1), equalTo(false));  // ordinary rows keep a score
+            assertThat(scores.isNull(2), equalTo(false));
+            assertWarnings(
+                "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores"
+            );
+        } finally {
+            output.forEach(Page::releaseBlocks);
+        }
     }
 }

@@ -10,34 +10,6 @@ highlight:
     indices, which keep emitting/persisting exactly as before (`time_series`
     remains the canonical output string; `tsdb` is a preferred alias).
 
-    - New helpers `IndexMode#isTsdb()`, `IndexMode.isTsdb(IndexMode)` (null-safe), and `IndexMode.isTsdbName(String)` (for raw, un-parsed `index.mode` setting strings) replace direct `== IndexMode.TIME_SERIES` comparisons across the codebase, so both spellings are treated identically everywhere.
-    - `Enum.valueOf(IndexMode.class, ...)` / `IndexMode.valueOf` parse sites were **deliberately left untouched** — since `TSDB` is a new constant (not a rename) whose name already uppercases to match `"tsdb"`, these already accept both spellings for free.
-    - New `TransportVersion` (`index_mode_tsdb_added`) gates `TSDB`'s wire serialization for mixed-version clusters.
-    - New `TsdbIndexModeTests` covering `fromString`, `getName`, `isTsdb`/`isTsdbName`, the `index.mode` setting parser, serialization round-trip + version-gate failure, and behavior parity with `TIME_SERIES`.
-    - New `TimeSeriesToTsdbIndexModeRollingUpgradeIT` — a real rolling-upgrade test that creates a data stream on `time_series`, upgrades the cluster, switches the template to `tsdb` and rolls over, and verifies the old backing index stays `time_series`, the new one is `tsdb`, and both remain queryable together (verified via `FROM ds METADATA _index | STATS count = COUNT(*) BY _index`).
-
-    ## Notable bugs found and fixed along the way
-
-    - `EsqlSession`'s `_index_mode` term filter (used to gate `TS`/`PROMQL` command queries) was built from the command's fixed sentinel mode, so it only ever matched `"time_series"` — it would have silently excluded any concrete `index.mode: tsdb` index from a `TS` query, and incorrectly rejected it as "not a time series index" on retry. Fixed with a `TermsQueryBuilder` matching both aliases.
-    - Two colon-style `switch`/`if` statements (`FollowingEngineTests`, `LogsdbIndexModeSettingsProvider`) with a `default`/hardcoded branch would have broken once `TSDB` became reachable via `randomFrom(IndexMode.availableModes())` — not caught by the compiler since these aren't exhaustive expression switches.
-    - A couple of `randomValueOtherThan(IndexMode.TIME_SERIES, ...)` test patterns would let a randomly-picked `TSDB` slip through as "not time series," causing spurious failures — fixed with `randomValueOtherThanMany(m -> m.isTsdb(), ...)`.
-
-    ## Test plan
-
-    - [x] `TsdbIndexModeTests` (new) — all pass
-    - [x] `IndexSettingsTests`, `MapperServiceTests`, `MappingLookupTests`, `IndexModeFieldTypeTests`, `SourceFieldMapperTests`, `PerFieldMapperCodecTests`, `TSDBDocValuesFormatSelectorTests`, `ResolveIndexTests` — all pass
-    - [x] ESQL `analysis`, `optimizer`, `datasources`, `session` test suites — all pass
-    - [x] `FollowingEngineTests` (ccr), `IndexCommitTimestampFieldRangeTests` (stateless) — all pass
-    - [x] `TimeSeriesToTsdbIndexModeRollingUpgradeIT` (new) — run against real rolling upgrades from both 9.5.0 and 8.19.0
-    - [x] Full compile sweep across every touched module
-    - [x] `spotlessJavaCheck` clean across every touched module
-
-    ## Follow-up (separate PR)
-
-    Updating YAML REST tests and existing Java tests to prefer/cover `tsdb`
-    alongside `time_series` is intentionally deferred to a follow-up PR.
-
-    Related to https://github.com/elastic/elasticsearch/issues/152902
   notable: true
   title: Add `IndexMode.TSDB` as a preferred alias for TIME_SERIES
 issues: []

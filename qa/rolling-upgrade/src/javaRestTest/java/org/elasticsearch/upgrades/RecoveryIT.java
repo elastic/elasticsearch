@@ -227,7 +227,7 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
             // make sure that no shards are allocated, so we can make sure the primary stays on the old node (when one
             // node stops, we lose the master too, so a replica will not be promoted)
             updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
-        } else if (isMixedCluster()) {
+        } else if (isFirstMixedCluster()) {
             final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
             final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
             // remove the replica and guaranteed the primary is placed on the old node

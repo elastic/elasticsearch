@@ -185,7 +185,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client qlClient = mock(Client.class);
-        IndexResolver idxResolver = new IndexResolver(qlClient);
+        IndexResolver idxResolver = new IndexResolver(qlClient, () -> true);
         // simulate a valid field_caps response so we can parse and correctly analyze de query
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);
@@ -199,7 +199,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }).when(qlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
@@ -248,6 +248,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    1,
                     () -> false,
                     new ActionListener<>() {
                         @Override
@@ -288,6 +289,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    1,
                     () -> false,
                     new ActionListener<>() {
                         @Override
@@ -312,7 +314,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
@@ -416,7 +418,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
@@ -494,7 +496,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
@@ -558,7 +560,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
@@ -637,6 +639,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 runPhase,
                 MOCK_TRANSPORT_ACTION_SERVICES,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                1,
                 () -> false,
                 listener
             );

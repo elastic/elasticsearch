@@ -19,8 +19,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMA
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
@@ -49,10 +47,11 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
     @Override
     protected void doTest() throws Throwable {
+        // Dataset-backed specs (FROM <dataset>) need a registered dataset, which this cluster does not
+        // provision; skip them here (they are covered by the external-source suites).
+        assumeFalse("dataset-backed spec; covered by the external-source suites", testCase.datasetSources.isEmpty() == false);
         // we add a LIMIT in one of the branches, so we prevent the filter pushdown that would end up removing one of the branches.
-        // Dataset-backed specs (FROM <dataset>) have no index on this cluster; rebuild their EXTERNAL equivalent first.
-        String query = rebuildExternalFromDatasets(testCase.query)
-            + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork";
+        String query = testCase.query + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork";
         doTest(query);
     }
 
@@ -71,13 +70,6 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "Tests using INSIST are not supported for now",
             testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName())
-        );
-
-        // FORK is not supported with unmapped_fields="load", see https://github.com/elastic/elasticsearch/issues/142033
-        assumeFalse(
-            "FORK is not supported with unmapped_fields=\"load\"",
-            testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_V5.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN.capabilityName())
         );
 
         assumeFalse(

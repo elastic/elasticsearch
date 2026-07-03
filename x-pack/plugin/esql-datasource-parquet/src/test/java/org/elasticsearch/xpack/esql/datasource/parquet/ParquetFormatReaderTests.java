@@ -1443,7 +1443,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     // --- TIMESTAMP MICROS/NANOS tests ---
 
     public void testReadTimestampMicrosColumn() throws Exception {
-        // TIMESTAMP(MICROS, adjustedToUTC=true)
+        // TIMESTAMP(MICROS, adjustedToUTC=true) maps to DATE_NANOS and preserves sub-millisecond precision.
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
@@ -1451,7 +1451,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .named("test_schema");
 
         long epochMillis = 946728000000L; // 2000-01-01T12:00:00Z
-        long epochMicros = epochMillis * 1000;
+        // .123456 fractional seconds: the .456 microseconds must survive (were truncated before the fix).
+        long epochMicros = epochMillis * 1000 + 456;
+        long expectedNanos = epochMicros * 1000;
 
         byte[] parquetData = createParquetFile(schema, factory -> {
             Group g1 = factory.newGroup();
@@ -1463,18 +1465,18 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
         SourceMetadata metadata = reader.metadata(storageObject);
-        assertEquals(DataType.DATETIME, metadata.schema().get(0).dataType());
+        assertEquals(DataType.DATE_NANOS, metadata.schema().get(0).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             LongBlock block = (LongBlock) page.getBlock(0);
-            assertEquals(epochMillis, block.getLong(0));
+            assertEquals("timestamp[us] must decode to epoch-nanos with full precision", expectedNanos, block.getLong(0));
         }
     }
 
     public void testReadTimestampNanosColumn() throws Exception {
-        // TIMESTAMP(NANOS, adjustedToUTC=true)
+        // TIMESTAMP(NANOS, adjustedToUTC=true) maps to DATE_NANOS and passes the epoch-nanos value through unchanged.
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
@@ -1482,7 +1484,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .named("test_schema");
 
         long epochMillis = 946728000000L; // 2000-01-01T12:00:00Z
-        long epochNanos = epochMillis * 1_000_000;
+        // .123456789 fractional seconds: all nine digits must survive (were truncated before the fix).
+        long epochNanos = epochMillis * 1_000_000 + 456_789;
 
         byte[] parquetData = createParquetFile(schema, factory -> {
             Group g1 = factory.newGroup();
@@ -1493,11 +1496,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATE_NANOS, metadata.schema().get(0).dataType());
+
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             LongBlock block = (LongBlock) page.getBlock(0);
-            assertEquals(epochMillis, block.getLong(0));
+            assertEquals("timestamp[ns] must decode to epoch-nanos with full precision", epochNanos, block.getLong(0));
         }
     }
 
@@ -1520,11 +1526,102 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals("timestamp[ms] must remain DATETIME", DataType.DATETIME, metadata.schema().get(0).dataType());
+
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             LongBlock block = (LongBlock) page.getBlock(0);
             assertEquals(epochMillis, block.getLong(0));
+        }
+    }
+
+    /**
+     * A single Parquet file mixing timestamp[ms]/[us]/[ns] columns with distinct sub-millisecond fractions:
+     * the millis column stays DATETIME (epoch-millis) while the micros/nanos columns resolve to DATE_NANOS and
+     * round-trip their full fractional precision (the core of elastic/esql-planning#1027).
+     */
+    public void testReadMixedTimestampUnitsPreservesPrecision() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts_ms")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts_us")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("ts_ns")
+            .named("test_schema");
+
+        long baseMillis = 1_767_225_600_123L; // 2026-01-01T00:00:00.123Z
+        long micros = baseMillis * 1_000 + 456;         // ...00.123456
+        long nanos = baseMillis * 1_000_000 + 456_789;  // ...00.123456789
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts_ms", baseMillis);
+            g.add("ts_us", micros);
+            g.add("ts_ns", nanos);
+            return List.of(g);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATETIME, metadata.schema().get(0).dataType());
+        assertEquals(DataType.DATE_NANOS, metadata.schema().get(1).dataType());
+        assertEquals(DataType.DATE_NANOS, metadata.schema().get(2).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(baseMillis, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(micros * 1_000, ((LongBlock) page.getBlock(1)).getLong(0));
+            assertEquals(nanos, ((LongBlock) page.getBlock(2)).getLong(0));
+        }
+    }
+
+    /**
+     * A timestamp[us] value beyond the representable date_nanos range (~year 2262) has no nanosecond
+     * representation, so it is returned as null rather than silently wrapping around. A defined in-range
+     * value in the same column is unaffected.
+     */
+    public void testReadTimestampMicrosOutOfRangeReturnsNull() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+
+        long inRangeMicros = 946728000000L * 1_000; // 2000-01-01T12:00:00Z
+        // Year ~2600 in micros: in range for micros/millis, but micros*1000 overflows the date_nanos (long-nanos) range.
+        long outOfRangeMicros = 20_000_000_000_000_000L;
+        assertTrue("precondition: value must overflow nanos scaling", ParquetColumnDecoding.microsOverflowsNanos(outOfRangeMicros));
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("ts", inRangeMicros);
+            Group g2 = factory.newGroup();
+            g2.add("ts", outOfRangeMicros);
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATE_NANOS, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertFalse("in-range value must be present", block.isNull(0));
+            assertEquals(inRangeMicros * 1_000, block.getLong(0));
+            assertTrue("out-of-range value must be null", block.isNull(1));
         }
     }
 
@@ -2091,6 +2188,75 @@ public class ParquetFormatReaderTests extends ESTestCase {
             // ESQL multivalue blocks have no distinct empty-list representation). This is pre-existing list behavior,
             // independent of the unsigned encoding, asserted here to document it for the unsigned_long path.
             assertTrue(block.isNull(3));
+        }
+    }
+
+    public void testReadListOfDateNanosColumn() throws Exception {
+        assertReadListOfDateNanosColumn(new ParquetFormatReader(blockFactory, false)); // baseline reader
+    }
+
+    public void testReadListOfDateNanosColumnOptimizedReader() throws Exception {
+        assertReadListOfDateNanosColumn(new ParquetFormatReader(blockFactory, true)); // optimized reader
+    }
+
+    /**
+     * A LIST of timestamp[us] resolves to a DATE_NANOS multivalue column: each element is scaled to epoch-nanos with
+     * full precision, null lists stay null, and null elements within a list are dropped (multivalue blocks have no
+     * per-element null slot). Both reader paths route list columns through the same shared decoder.
+     */
+    private void assertReadListOfDateNanosColumn(ParquetFormatReader reader) throws Exception {
+        Type listType = Types.optionalList()
+            .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("values");
+        MessageType schema = new MessageType("test_schema", listType);
+
+        long micros1 = 946728000000L * 1_000 + 111; // sub-millisecond fraction .000111 ms
+        long micros2 = 946728000000L * 1_000 + 222;
+        long micros3 = 946728000000L * 1_000 + 333;
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            // Row 0: [micros1, micros2]
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("values");
+            list1.addGroup("list").append("element", micros1);
+            list1.addGroup("list").append("element", micros2);
+
+            // Row 1: null list
+            Group g2 = factory.newGroup();
+
+            // Row 2: [micros3, null element]
+            Group g3 = factory.newGroup();
+            Group list3 = g3.addGroup("values");
+            list3.addGroup("list").append("element", micros3);
+            list3.addGroup("list"); // element absent -> null within the list
+
+            return List.of(g1, g2, g3);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATE_NANOS, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+
+            LongBlock block = (LongBlock) page.getBlock(0);
+            // Row 0: [micros1, micros2] scaled to nanos with full precision
+            assertFalse(block.isNull(0));
+            assertEquals(2, block.getValueCount(0));
+            int start0 = block.getFirstValueIndex(0);
+            assertEquals(micros1 * 1_000, block.getLong(start0));
+            assertEquals(micros2 * 1_000, block.getLong(start0 + 1));
+
+            // Row 1: null list
+            assertTrue(block.isNull(1));
+
+            // Row 2: [micros3]; the null element is dropped
+            assertFalse(block.isNull(2));
+            assertEquals(1, block.getValueCount(2));
+            assertEquals(micros3 * 1_000, block.getLong(block.getFirstValueIndex(2)));
         }
     }
 
@@ -4608,6 +4774,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         int days2020 = (int) (millis2020 / ParquetColumnDecoding.MILLIS_PER_DAY);
         long micros2000 = millis2000 * 1_000;
         long micros2020 = millis2020 * 1_000;
+        // timestamp[us] resolves to DATE_NANOS, so its published stats are epoch-nanos (matching the scan).
+        long nanos2000 = millis2000 * 1_000_000;
+        long nanos2020 = millis2020 * 1_000_000;
 
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT32)
@@ -4646,8 +4815,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("date32 max must be epoch-millis", Optional.of(millis2020), d32Stats.maxValue());
 
         var tusStats = colStats.get("tus");
-        assertEquals("timestamp[us] min must be epoch-millis", Optional.of(millis2000), tusStats.minValue());
-        assertEquals("timestamp[us] max must be epoch-millis", Optional.of(millis2020), tusStats.maxValue());
+        assertEquals("timestamp[us] min must be epoch-nanos (DATE_NANOS)", Optional.of(nanos2000), tusStats.minValue());
+        assertEquals("timestamp[us] max must be epoch-nanos (DATE_NANOS)", Optional.of(nanos2020), tusStats.maxValue());
 
         var tmsStats = colStats.get("tms");
         assertEquals("timestamp[ms] min must be epoch-millis (no double-divide)", Optional.of(millis2000), tmsStats.minValue());
@@ -4658,19 +4827,22 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertFalse("expected at least one split range", ranges.isEmpty());
 
         // buildRowGroupStats is wired separately from extractStatistics, so assert every temporal
-        // column here too (date32, timestamp[us], timestamp[ms]) rather than date32 alone.
+        // column here too. date32 and timestamp[ms] publish epoch-millis; timestamp[us] is DATE_NANOS
+        // and publishes epoch-nanos.
         for (RangeAwareFormatReader.SplitRange range : ranges) {
             Map<String, Object> stats = range.statistics();
             for (String col : List.of("d32", "tus", "tms")) {
+                long lo = col.equals("tus") ? nanos2000 : millis2000;
+                long hi = col.equals("tus") ? nanos2020 : millis2020;
                 Object min = stats.get("_stats.columns." + col + ".min");
                 Object max = stats.get("_stats.columns." + col + ".max");
                 if (min != null) {
-                    long minMs = ((Number) min).longValue();
-                    assertTrue(col + " split min must be epoch-millis", minMs == millis2000 || minMs == millis2020);
+                    long minVal = ((Number) min).longValue();
+                    assertTrue(col + " split min must match scan-path decode", minVal == lo || minVal == hi);
                 }
                 if (max != null) {
-                    long maxMs = ((Number) max).longValue();
-                    assertTrue(col + " split max must be epoch-millis", maxMs == millis2000 || maxMs == millis2020);
+                    long maxVal = ((Number) max).longValue();
+                    assertTrue(col + " split max must match scan-path decode", maxVal == lo || maxVal == hi);
                 }
             }
         }
@@ -4721,10 +4893,13 @@ public class ParquetFormatReaderTests extends ESTestCase {
         PrimitiveType date32 = Types.required(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.dateType()).named("d");
         assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat((int) days, date32));
 
+        // timestamp[us]/[ns] resolve to DATE_NANOS, so their stats decode to epoch-nanos (matching the scan).
         PrimitiveType tsMicros = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
             .named("us");
-        assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat(millis * 1_000, tsMicros));
+        assertEquals(Long.valueOf(millis * 1_000_000), ParquetColumnDecoding.decodeTemporalStat(millis * 1_000, tsMicros));
+        // A timestamp[us] stat beyond the date_nanos range returns null so the caller falls back to a scan.
+        assertNull(ParquetColumnDecoding.decodeTemporalStat(20_000_000_000_000_000L, tsMicros));
 
         PrimitiveType tsMillis = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
@@ -4734,7 +4909,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         PrimitiveType tsNanos = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
             .named("ns");
-        assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat(millis * 1_000_000, tsNanos));
+        assertEquals(Long.valueOf(millis * 1_000_000), ParquetColumnDecoding.decodeTemporalStat(millis * 1_000_000, tsNanos));
 
         // TIME must mirror the scan path: TIME_MILLIS (physical INT32) stays raw ms; TIME_MICROS
         // scales x1_000 to nanos; TIME_NANOS is as-is.
@@ -4768,6 +4943,84 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertNull(ParquetColumnDecoding.decodeTemporalStat(5, plainInt));
         PrimitiveType plainLong = Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("l");
         assertNull(ParquetColumnDecoding.decodeTemporalStat(5L, plainLong));
+    }
+
+    /**
+     * A timestamp[us] column that mixes an in-range value with one beyond the date_nanos range: the scan
+     * nulls the out-of-range value out, so the physical footer statistics no longer describe the scan.
+     * Both min/max and the null count must be poisoned (omitted / unknown) so MIN/MAX/COUNT fall back to a
+     * scan instead of trusting a raw micros extremum or an under-counted null count. Covered on both the
+     * {@code extractStatistics} (metadata) and {@code buildRowGroupStats} (split ranges) paths.
+     */
+    public void testOutOfRangeTimestampMicrosPoisonsStats() throws Exception {
+        long millis2000 = Instant.parse("2000-01-01T00:00:00Z").toEpochMilli();
+        long micros2000 = millis2000 * 1_000;
+        // micros * 1000 overflows Long, i.e. beyond the representable date_nanos range; the scan nulls it.
+        long microsOverflow = 20_000_000_000_000_000L;
+
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("tus")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("tus", micros2000);
+            Group g2 = factory.newGroup();
+            g2.add("tus", microsOverflow);
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // --- extractStatistics path (metadata): min/max omitted, null count unknown ---
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        var tusStats = metadata.statistics().get().columnStatistics().get().get("tus");
+        assertNotNull("column statistics entry must still exist (size is published)", tusStats);
+        assertEquals("out-of-range timestamp[us] min must be omitted", Optional.empty(), tusStats.minValue());
+        assertEquals("out-of-range timestamp[us] max must be omitted", Optional.empty(), tusStats.maxValue());
+        assertEquals("out-of-range timestamp[us] null count must be unknown", OptionalLong.empty(), tusStats.nullCount());
+
+        // --- buildRowGroupStats path (discoverSplitRanges): min/max + null_count keys dropped ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            if (stats.containsKey("_stats.columns.tus.min") || stats.containsKey("_stats.columns.tus.max")) {
+                // The row group that only holds the in-range value may still publish a usable min/max; the
+                // one covering the overflow value must publish neither, and never a raw micros extremum.
+                Object min = stats.get("_stats.columns.tus.min");
+                Object max = stats.get("_stats.columns.tus.max");
+                if (min != null) {
+                    assertNotEquals("must never publish raw micros as min", microsOverflow, ((Number) min).longValue());
+                }
+                if (max != null) {
+                    assertNotEquals("must never publish raw micros as max", microsOverflow, ((Number) max).longValue());
+                }
+            }
+        }
+
+        // --- scan parity: the overflow row is nulled, so the scan sees one null the footer never counted ---
+        int nullsSeen = 0;
+        int rows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock block = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    rows++;
+                    if (block.isNull(i)) {
+                        nullsSeen++;
+                    }
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals("both rows scanned", 2, rows);
+        assertEquals("the out-of-range value must be nulled on scan", 1, nullsSeen);
     }
 
 }

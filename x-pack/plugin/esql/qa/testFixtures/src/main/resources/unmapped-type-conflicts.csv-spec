@@ -444,7 +444,7 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 | SORT emp_no, _index
 | LIMIT 6
 ;
-warning:Field [gender] of type [text] is unmapped in some indices and will not be loaded from _source; values will be null in those indices
+warning:Field [gender] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 emp_no:integer | gender:text           | _index:keyword
 10001          | M                     | employees_gender_text
@@ -2777,7 +2777,7 @@ FROM addresses_text, addresses_no_continent METADATA _index
 | KEEP _index, city.country.continent.planet.galaxy
 | SORT _index
 ;
-warning:Field [city.country.continent.planet.galaxy] of type [text] is unmapped in some indices and will not be loaded from _source; values will be null in those indices
+warning:Field [city.country.continent.planet.galaxy] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 _index:keyword           | city.country.continent.planet.galaxy:text
 addresses_no_continent   | null
@@ -2801,7 +2801,7 @@ FROM addresses_text, addresses_no_continent METADATA _index
 | KEEP _index, city.country.continent.name
 | SORT _index
 ;
-warning:Field [city.country.continent.name] of type [text] is unmapped in some indices and will not be loaded from _source; values will be null in those indices
+warning:Field [city.country.continent.name] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 ignoreOrder:true
 
 _index:keyword           | city.country.continent.name:text

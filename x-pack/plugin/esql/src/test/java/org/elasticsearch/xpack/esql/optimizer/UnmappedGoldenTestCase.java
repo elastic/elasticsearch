@@ -23,10 +23,11 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     @Override
     protected List<String> filteredWarnings() {
         List<String> filtered = new ArrayList<>(super.filteredWarnings());
-        // Explicitly mentioning a non-loadable partially unmapped field emits a warning whose text carries the field name and type.
-        // Golden tests only compare plan structure, so match the stable substring; the warning itself is asserted in AnalyzerUnmappedTests
-        // and the csv-spec tests.
-        filtered.add("will not be loaded from _source");
+        // Golden tests compare plan structure, not warnings; the non-loadable PUNK warning is asserted in AnalyzerUnmappedTests and the
+        // csv-spec tests. Match the field/type-agnostic tail of that message.
+        filtered.add(
+            "has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+        );
         return filtered;
     }
 

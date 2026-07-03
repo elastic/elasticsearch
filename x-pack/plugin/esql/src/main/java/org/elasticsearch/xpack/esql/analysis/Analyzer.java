@@ -3445,8 +3445,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static void warnFieldNotLoadable(FieldAttribute fa, DataType mappedType, Set<String> explicitlyMentionedFields) {
             if (explicitlyMentionedFields.contains(fa.name())) {
                 HeaderWarning.addWarning(
-                    "Field [{}] of type [{}] is unmapped in some indices and will not be loaded from _source; "
-                        + "values will be null in those indices",
+                    "Field [{}] of type [{}] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be "
+                        + "loaded from _source; values will be null in those indices",
                     fa.name(),
                     mappedType.typeName()
                 );

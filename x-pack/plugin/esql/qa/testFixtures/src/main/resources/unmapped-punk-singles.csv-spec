@@ -17,7 +17,7 @@ FROM k8s-downsampled, k8s_unmapped METADATA _index
 | EVAL tx = TO_GAUGE(network.eth0.tx)
 | STATS rows = COUNT(*), tx_count = COUNT(tx)
 ;
-warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and will not be loaded from _source; values will be null in those indices
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 rows:long | tx_count:long
 200       | 0
@@ -35,7 +35,7 @@ SET unmapped_fields="load"\;
 FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
 | STATS avg_tx = AVG(network.eth0.tx), sum_tx = SUM(network.eth0.tx), tx_count = COUNT(network.eth0.tx), rows = COUNT(*)
 ;
-warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and will not be loaded from _source; values will be null in those indices
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 avg_tx:double     | sum_tx:double | tx_count:long | rows:long
 575.8033707865169 | 102493.0      | 178           | 229
@@ -52,7 +52,7 @@ FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
 | STATS avg_tx = AVG(network.eth0.tx), sum_tx = SUM(network.eth0.tx), tx_count = COUNT(network.eth0.tx), rows = COUNT(*) BY _index
 | SORT _index
 ;
-warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and will not be loaded from _source; values will be null in those indices
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 avg_tx:double     | sum_tx:double | tx_count:long | rows:long | _index:keyword
 575.8033707865169 | 102493.0      | 178           | 27        | k8s-downsampled
@@ -72,7 +72,7 @@ FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent
 | RENAME network.eth0.tx AS renamed_tx
 | STATS avg_tx = AVG(renamed_tx), sum_tx = SUM(renamed_tx), tx_count = COUNT(renamed_tx), rows = COUNT(*)
 ;
-warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and will not be loaded from _source; values will be null in those indices
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 avg_tx:double     | sum_tx:double | tx_count:long | rows:long
 575.8033707865169 | 102493.0      | 178           | 229
@@ -90,7 +90,7 @@ FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
 | STATS avg_tx = AVG(renamed_tx), sum_tx = SUM(renamed_tx), tx_count = COUNT(renamed_tx), rows = COUNT(*) BY _index
 | SORT _index
 ;
-warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and will not be loaded from _source; values will be null in those indices
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 avg_tx:double     | sum_tx:double | tx_count:long | rows:long | _index:keyword
 575.8033707865169 | 102493.0      | 178           | 27        | k8s-downsampled

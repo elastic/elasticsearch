@@ -1562,12 +1562,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
     }
 
-    /**
-     * Explicitly referencing a non-loadable PUNK (here a TEXT field, which has no KEYWORD converter) under {@code unmapped_fields="load"}
-     * warns that it falls back to null where unmapped. A second, unreferenced non-loadable PUNK stays silent, so exactly one warning fires.
-     */
     public void testWarnsOnlyForExplicitlyMentionedNonLoadablePunk() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
 
         var mentioned = new EsField("mentioned_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
         var unmentioned = new EsField("unmentioned_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
@@ -1578,7 +1577,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var analyzer = analyzer().addIndex(esIndex);
 
         var plan = analyzer.statement(setUnmappedLoad("FROM idx* | KEEP mentioned_text, common"));
-        var mentionedAttr = plan.output().stream().filter(a -> a.name().equals("mentioned_text")).findFirst().orElseThrow();
+        var mentionedAttr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("mentioned_text")).toList());
         assertThat(mentionedAttr.dataType(), equalTo(DataType.TEXT));
         assertWarnings(nonLoadablePunkWarning("mentioned_text", "text"));
     }
@@ -1922,8 +1921,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     private static String nonLoadablePunkWarning(String field, String type) {
         return Strings.format(
-            "Field [%s] of type [%s] is unmapped in some indices and will not be loaded from _source; "
-                + "values will be null in those indices",
+            "Field [%s] of type [%s] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be "
+                + "loaded from _source; values will be null in those indices",
             field,
             type
         );

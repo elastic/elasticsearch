@@ -406,6 +406,33 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         as(applyRule(minAgg), AggregateExec.class);
     }
 
+    public void testFilteredAggregateDeclinesStatServing() {
+        // G1 (elastic/elasticsearch#150920): a PER-AGGREGATE filter (e.g. COUNT(*) WHERE p) cannot be served from
+        // whole-file/split stats — resolveCount/Min/Max bail on hasFilter(). TextAggregatePushdownSupport's type
+        // gate does NOT inspect filters, so a regression dropping this bail would serve the UNFILTERED count. The
+        // servability probe must decline it (safe-miss -> re-scan).
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L);
+        metadata.put("_stats.columns.age.min", 18);
+        metadata.put("_stats.columns.age.max", 99);
+        SplitStats stats = SplitStats.of(metadata);
+        boolean implicitNulls = new TextAggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
+
+        // Unfiltered COUNT(*) IS servable.
+        assertTrue(ExternalSourceAggregatePushdown.canServeAllFromStats(List.of(countStarAlias()), stats, implicitNulls));
+        // The SAME COUNT with a per-aggregate filter must decline.
+        var filteredCount = new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")).withFilter(greaterThanOf(AGE, of(18L)));
+        assertFalse(
+            "COUNT(*) WHERE p must decline stat-serving -> safe-miss",
+            ExternalSourceAggregatePushdown.canServeAllFromStats(List.of(alias("c", filteredCount)), stats, implicitNulls)
+        );
+        // Same for a filtered MIN.
+        var filteredMin = new Min(Source.EMPTY, AGE).withFilter(greaterThanOf(AGE, of(18L)));
+        assertFalse(
+            "MIN(age) WHERE p must decline stat-serving -> safe-miss",
+            ExternalSourceAggregatePushdown.canServeAllFromStats(List.of(alias("m", filteredMin)), stats, implicitNulls)
+        );
+    }
+
     /**
      * COUNT(col) WRONG-DATA safe-miss for a text format under partial harvest. A CSV/NDJSON file can have
      * a complete whole-file row count (count-scope or projected-scope of a different column) but NO

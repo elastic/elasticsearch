@@ -218,32 +218,9 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             equalTo(2500L)
         );
         assertThat(
-            "referenced blob C has no known file timestamp, so it falls back to the notification commit midpoint",
+            "referenced blob C has no known file timestamp, so it resolved to UNKNOWN_TIMESTAMP",
             timestampPerBlob.get(referencedBlobC),
-            equalTo(notificationRange.midpointMillis())
-        );
-    }
-
-    public void testComputeTimestampPerBlobFallsBackToNotificationTimestampForUnknownBlobs() {
-        final BlobFile referencedBlob = blobFile(1);
-
-        final Map<String, BlobLocation> commitFiles = new HashMap<>();
-        commitFiles.put("referenced", new BlobLocation(referencedBlob, 0, 10));
-
-        final var notificationRange = new StatelessCompoundCommit.TimestampFieldValueRange(4000L, 6000L);
-        final StatelessCompoundCommit commit = compoundCommit(commitFiles, Set.of(), notificationRange);
-        final FileTimestampResolver resolver = fileName -> UNKNOWN_TIMESTAMP;
-
-        final Map<BlobFile, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
-            commit,
-            Set.of(referencedBlob),
-            resolver
-        );
-
-        assertThat(
-            "a blob whose files are all unknown falls back to the notification commit midpoint",
-            timestampPerBlob.get(referencedBlob),
-            equalTo(notificationRange.midpointMillis())
+            equalTo(UNKNOWN_TIMESTAMP)
         );
     }
 

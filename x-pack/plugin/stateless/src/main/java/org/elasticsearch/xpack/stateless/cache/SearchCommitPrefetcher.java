@@ -430,14 +430,15 @@ public class SearchCommitPrefetcher {
             if (blobFilesToPrefetch.contains(blobFile) == false) {
                 continue;
             }
+            // This call to fileTimestampResolver has a benign race with searchDirectory. It is possible that the directory is updated
+            // midway through iteration.
             long fileTimestamp = internalFiles.contains(fileName)
                 ? notificationCommitTimestamp
                 : fileTimestampResolver.getTimestampMillis(fileName);
             timestampPerBlob.merge(blobFile, fileTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
         }
-        timestampPerBlob.replaceAll(
-            (blobFile, timestamp) -> timestamp == SharedBlobCacheService.UNKNOWN_TIMESTAMP ? notificationCommitTimestamp : timestamp
-        );
+        // A blob can have an UNKNOWN timestamp if the directory doesn't know about any of the referenced files it contains.
+        // TODO: Avoid pinning such regions forever.
         assert timestampPerBlob.keySet().containsAll(blobFilesToPrefetch);
         return timestampPerBlob;
     }

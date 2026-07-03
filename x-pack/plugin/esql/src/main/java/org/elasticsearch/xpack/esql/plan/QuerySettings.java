@@ -102,7 +102,7 @@ public class QuerySettings {
           {applies_to}`stack: preview 9.5`
           - Full-text search functions are not supported anywhere in the query. {applies_to}`stack: preview =9.4`
         - [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) on partially unmapped
-          `dense_vector` fields is not yet supported. {applies_to}`stack: preview 9.5`
+          `dense_vector` fields is not yet supported.
         - Partially unmapped non-`keyword` fields can be used in expressions. If the field is mapped to a single type and there's an
           available conversion from `keyword` to that type, the implicit conversion is applied. If there's no available conversion,
           and an explicit one has not been provided by the user, values remain typed where mapped and are `null` for rows from

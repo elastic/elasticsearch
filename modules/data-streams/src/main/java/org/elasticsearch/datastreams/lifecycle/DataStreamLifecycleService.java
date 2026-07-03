@@ -1609,11 +1609,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Best-effort deletion of the snapshot backing a frozen searchable snapshot index that data stream lifecycle just deleted.
      * Failures are logged but do not fail the retention run: any snapshot left behind here is reclaimed later by the periodic
      * data stream lifecycle frozen cleanup's orphaned snapshot scan.
-     * <p>
-     * This is called from the completion listener of the index delete request, which is already executing in the project's
-     * context, so the plain (non project-scoped) {@code client} is used here rather than {@code client.projectClient(projectId)};
-     * the latter would attempt to nest a second project context inside the one the index delete's listener is already
-     * executing in, which is rejected.
      */
     private void deleteBackingSnapshot(FrozenBackingSnapshot backingSnapshot, String sourceIndex, Client projectClient) {
         DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(

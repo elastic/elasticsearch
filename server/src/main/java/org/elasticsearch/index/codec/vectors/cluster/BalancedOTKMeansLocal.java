@@ -235,10 +235,16 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
      * @param sampleSize the subset of vectors to use when shifting centroids
      * @param maxIterations the max iterations to shift centroids
      */
-    public static <V> void cluster(ClusteringVectorValues<V> vectors, CentroidOps<V> ops, V[] centroids, int sampleSize, int maxIterations)
-        throws IOException {
+    public static <V> void cluster(
+        ClusteringVectorValues<V> vectors,
+        CentroidOps<V> ops,
+        V[] centroids,
+        int sampleSize,
+        int maxIterations,
+        float soarLambda
+    ) throws IOException {
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, new int[vectors.size()], vectors::ordToDoc);
-        BalancedOTKMeansLocal<V> kMeans = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations);
+        BalancedOTKMeansLocal<V> kMeans = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda);
         kMeans.cluster(vectors, kMeansIntermediate);
     }
 }

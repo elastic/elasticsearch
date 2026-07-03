@@ -37,7 +37,6 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
             try (
                 DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
                     dir,
-                    rnd,
                     4,
                     vectorsPerSegment,
                     2f,
@@ -59,13 +58,11 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
     }
 
     public void testQueryOversampleOverrideWins() throws IOException {
-        Random rnd = random();
         int vectorsPerSegment = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 100;
         try (Directory dir = newDirectory()) {
             try (
                 DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildForceMergedWithDisagreeingFlushCalibration(
                     dir,
-                    rnd,
                     8,
                     vectorsPerSegment,
                     VPC

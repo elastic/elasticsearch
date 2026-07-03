@@ -2131,6 +2131,70 @@ public class BlockHashTests extends BlockHashTestCase {
     }
 
     /**
+     * The page-local tsid dictionary built for a chunked page must contain each referenced tsid exactly once, even when
+     * the tsids referenced by the page are not contiguous by group id (which happens, for example, for groups added by
+     * window expansion). This verifies the ordinals are remapped through a lookup rather than relying on the previous
+     * ordinal of the iteration.
+     */
+    public void testTimeSeriesBlockHashChunkedPageDeduplicatesUnsortedTsids() {
+        BytesRef tsidA = new BytesRef("id-a");
+        BytesRef tsidB = new BytesRef("id-b");
+        int pairs = 10;
+        try (var hash = new TimeSeriesBlockHash(0, 1, false, false, blockFactory)) {
+            // Interleave two tsids across single-row pages so the tsid ordinals alternate by group id (A, B, A, B, ...).
+            for (int t = 0; t < pairs; t++) {
+                addSingleTsidRow(hash, tsidA, t);
+                addSingleTsidRow(hash, tsidB, t);
+            }
+            int totalGroups = 2 * pairs;
+            int pageSize = totalGroups - 1; // a strict subset, so we take the chunked page-local dictionary path
+            Block[] keys = null;
+            try (IntVector selected = blockFactory.newIntRangeVector(0, pageSize)) {
+                keys = hash.getKeys(selected);
+                BytesRefBlock tsids = (BytesRefBlock) keys[0];
+                BytesRef scratch = new BytesRef();
+                for (int p = 0; p < pageSize; p++) {
+                    assertThat(tsids.getBytesRef(p, scratch), equalTo(p % 2 == 0 ? tsidA : tsidB));
+                }
+                OrdinalBytesRefBlock ordinals = tsids.asOrdinals();
+                assertNotNull("a dense page should be ordinal-encoded", ordinals);
+                assertThat(
+                    "page-local dictionary must hold each referenced tsid once",
+                    ordinals.getDictionaryVector().getPositionCount(),
+                    equalTo(2)
+                );
+            } finally {
+                Releasables.close(keys);
+            }
+        }
+    }
+
+    private void addSingleTsidRow(TimeSeriesBlockHash hash, BytesRef tsid, long timestamp) {
+        try (
+            BytesRefVector.Builder tsidBuilder = blockFactory.newBytesRefVectorBuilder(1);
+            LongVector.Builder timestampBuilder = blockFactory.newLongVectorBuilder(1)
+        ) {
+            tsidBuilder.appendBytesRef(tsid);
+            timestampBuilder.appendLong(timestamp);
+            try (var tsidBlock = tsidBuilder.build().asBlock(); var timestampBlock = timestampBuilder.build().asBlock()) {
+                hash.add(new Page(tsidBlock, timestampBlock), new GroupingAggregatorFunction.AddInput() {
+                    @Override
+                    public void add(int positionOffset, IntArrayBlock groupIds) {}
+
+                    @Override
+                    public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {}
+
+                    @Override
+                    public void close() {}
+                });
+            }
+        }
+    }
+
+    /**
      * Hash some values into a single block of group ids. If the hash produces
      * more than one block of group ids this will fail.
      */

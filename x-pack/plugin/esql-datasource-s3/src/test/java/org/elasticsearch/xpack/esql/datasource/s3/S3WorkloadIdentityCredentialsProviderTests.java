@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Tests the keyless workload-identity wiring in {@link S3StorageProvider}: building the
+ * Tests the federated workload-identity wiring in {@link S3StorageProvider}: building the
  * {@link AsyncWebIdentityCredentialsProvider} and the enablement guard on construction.
  */
 public class S3WorkloadIdentityCredentialsProviderTests extends ESTestCase {
@@ -49,7 +49,7 @@ public class S3WorkloadIdentityCredentialsProviderTests extends ESTestCase {
         AtomicReference<AssumeRoleWithWebIdentityRequest> captured = new AtomicReference<>();
         StubStsAsyncClient sts = new StubStsAsyncClient(captured, "AK-1");
 
-        S3Configuration config = S3Configuration.fromKeylessFields(ROLE_ARN, null, JWT_AUDIENCE, null, null, null, null);
+        S3Configuration config = S3Configuration.fromFederatedFields(ROLE_ARN, null, JWT_AUDIENCE, null, null, null, null);
         AsyncWebIdentityCredentialsProvider provider = S3StorageProvider.buildWorkloadIdentityCredentialsProvider(
             config,
             issuerClient,
@@ -72,7 +72,7 @@ public class S3WorkloadIdentityCredentialsProviderTests extends ESTestCase {
         AtomicReference<AssumeRoleWithWebIdentityRequest> captured = new AtomicReference<>();
         StubStsAsyncClient sts = new StubStsAsyncClient(captured, "AK-1");
 
-        S3Configuration config = S3Configuration.fromKeylessFields(ROLE_ARN, "custom-session", JWT_AUDIENCE, null, null, null, null);
+        S3Configuration config = S3Configuration.fromFederatedFields(ROLE_ARN, "custom-session", JWT_AUDIENCE, null, null, null, null);
         AsyncWebIdentityCredentialsProvider provider = S3StorageProvider.buildWorkloadIdentityCredentialsProvider(
             config,
             issuerClient,
@@ -92,7 +92,7 @@ public class S3WorkloadIdentityCredentialsProviderTests extends ESTestCase {
         AtomicReference<AssumeRoleWithWebIdentityRequest> captured = new AtomicReference<>();
         StubStsAsyncClient sts = new StubStsAsyncClient(captured, "AK-1");
 
-        S3Configuration config = S3Configuration.fromKeylessFields(ROLE_ARN, null, null, null, null, null, null);
+        S3Configuration config = S3Configuration.fromFederatedFields(ROLE_ARN, null, null, null, null, null, null);
         AsyncWebIdentityCredentialsProvider provider = S3StorageProvider.buildWorkloadIdentityCredentialsProvider(
             config,
             issuerClient,
@@ -116,14 +116,14 @@ public class S3WorkloadIdentityCredentialsProviderTests extends ESTestCase {
                 throw new UnsupportedOperationException("not expected");
             }
         });
-        S3Configuration config = S3Configuration.fromKeylessFields(ROLE_ARN, null, JWT_AUDIENCE, null, null, null, null);
+        S3Configuration config = S3Configuration.fromFederatedFields(ROLE_ARN, null, JWT_AUDIENCE, null, null, null, null);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> new S3StorageProvider(config));
         assertThat(e.getMessage(), containsString("workload-identity"));
     }
 
     public void testConstructionSucceedsWhenWorkloadIdentityEnabled() throws Exception {
         WorkloadIdentityRegistry.setIssuerClient((request, listener) -> fail("token request is not expected during client construction"));
-        S3Configuration config = S3Configuration.fromKeylessFields(ROLE_ARN, null, JWT_AUDIENCE, null, null, null, "us-east-1");
+        S3Configuration config = S3Configuration.fromFederatedFields(ROLE_ARN, null, JWT_AUDIENCE, null, null, null, "us-east-1");
         try (S3StorageProvider provider = new S3StorageProvider(config)) {
             assertNotNull(provider);
         }

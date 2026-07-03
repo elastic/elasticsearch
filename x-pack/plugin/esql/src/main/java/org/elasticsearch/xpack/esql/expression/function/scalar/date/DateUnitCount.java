@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -153,7 +154,7 @@ public class DateUnitCount extends EsqlConfigurationFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var dateEvaluator = toEvaluator.apply(date);
-        var zoneId = configuration().zoneId();
+        var zoneId = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
 
         DateDiff.Part dst = foldedPart(toUnit, toEvaluator.foldCtx());
         DateDiff.Part src = foldedPart(fromUnit, toEvaluator.foldCtx());

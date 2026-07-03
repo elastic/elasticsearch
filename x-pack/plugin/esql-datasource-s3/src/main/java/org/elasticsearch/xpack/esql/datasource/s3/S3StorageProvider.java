@@ -99,7 +99,7 @@ public class S3StorageProvider implements StorageProvider {
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final S3Configuration config;
-    // Owned only on the keyless workload-identity path; null otherwise. Closed by close().
+    // Owned only on the federated (keyless) workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
     private final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
     /**
@@ -293,7 +293,9 @@ public class S3StorageProvider implements StorageProvider {
     private static WorkloadIdentityIssuerClient enabledWorkloadIdentityIssuerClient() {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException("S3 keyless authentication requires the workload-identity feature to be enabled on this node");
+            throw new IllegalStateException(
+                "S3 federated authentication requires the workload-identity feature to be enabled on this node"
+            );
         }
         return issuerClient;
     }
@@ -509,7 +511,7 @@ public class S3StorageProvider implements StorageProvider {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public bucket, set auth=anonymous. "
                 + "Otherwise, provide credentials via access_key and secret_key, "
-                + "or configure keyless authentication with role_arn";
+                + "or configure federated authentication with role_arn";
         }
         return "";
     }

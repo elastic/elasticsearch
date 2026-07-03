@@ -919,6 +919,73 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
+    public void testSingleTypeTextUnmappedNoCastLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSingleTypeDenseVectorUnmappedNoCastLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM dense_vector, dense_vector_unmapped
+            | KEEP float_vector
+            """, STAGES);
+    }
+
+    public void testSingleTypeAggregateMetricDoubleUnmappedNoCastLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM k8s-downsampled, k8s_unmapped
+            | KEEP network.eth0.tx
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextUnmappedWithMatchOperatorLoadOnly() throws Exception {
+        assumeTrue("Requires match operator", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | WHERE txt:"Faulkner"
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextUnmappedWithMatchFunctionLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | WHERE match(txt, "Faulkner")
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunctionLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped, text_state_nonexistent
+            | WHERE match(txt, "Faulkner") OR txt IS NULL
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunctionAndMetadataKeepLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+            | WHERE match(txt, "Faulkner") OR txt IS NULL
+            | KEEP _index, doc_id, txt
+            | SORT _index
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextUnmappedWithMatchPhraseFunctionLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_PHRASE_FUNCTION", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | WHERE match_phrase(txt, "William Faulkner")
+            | KEEP txt
+            """, STAGES);
+    }
+
     // first_name and last_name are keyword, partially unmapped (missing in employees_no_names).
     // They should appear as PotentiallyUnmappedKeywordEsField in the EsRelation without being explicitly referenced.
     public void testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference() throws Exception {

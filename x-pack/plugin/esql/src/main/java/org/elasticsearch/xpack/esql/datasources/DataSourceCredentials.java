@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -19,43 +18,31 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
- * Decrypts secret values at the connector boundary. Created once per node by {@code EsqlPlugin}, with the
- * {@link EncryptionService} pushed in from {@code TransportPutDataSourceAction}'s ctor; the lazy wrappers
- * in {@code DataSourceModule} call {@link #decryptInPlace} before each connector use.
+ * Decrypts secret values at the connector boundary. Created once per node by {@code EsqlPlugin} with the node's
+ * {@link EncryptionService}; the lazy wrappers in {@code DataSourceModule} call {@link #decryptInPlace} before each connector use.
  *
- * <p>The data-source feature is coupled to the project-encryption-key feature, so the service is always
- * bound when a data source is served; the {@code 503} below guards the otherwise-impossible unbound case.
- *
- * <p>The per-node service slot will need to become a per-project lookup once the encryption service is
- * project-aware.
+ * <p>The per-node service will need to become a per-project lookup once the encryption service is project-aware.
  */
 public final class DataSourceCredentials {
 
-    @Nullable
-    private volatile EncryptionService encryptionService;
+    private final EncryptionService encryptionService;
 
-    public void setEncryptionService(@Nullable EncryptionService encryptionService) {
-        this.encryptionService = encryptionService;
+    public DataSourceCredentials(EncryptionService encryptionService) {
+        this.encryptionService = Objects.requireNonNull(encryptionService, "encryptionService");
     }
 
     public Map<String, Object> decryptInPlace(Map<String, Object> config) {
         if (config == null) {
             return null;
         }
-        EncryptionService service = this.encryptionService;
         Map<String, Object> result = new HashMap<>(config.size());
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             Object value = entry.getValue();
             if (value instanceof EncryptedData encrypted) {
-                if (service == null) {
-                    throw new ElasticsearchStatusException(
-                        "cannot decrypt secret data-source settings: encryption service is not bound on this node",
-                        RestStatus.SERVICE_UNAVAILABLE
-                    );
-                }
-                result.put(entry.getKey(), decryptValue(encrypted, service));
+                result.put(entry.getKey(), decryptValue(encrypted, encryptionService));
             } else {
                 result.put(entry.getKey(), value);
             }

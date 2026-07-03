@@ -754,6 +754,26 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
+    public void testPackAsBytesCorrectness() {
+        // values that fit in a byte unchanged
+        int[] src = { 0, 1, 127 };
+        byte[] dst = new byte[3];
+        ESVectorUtil.packAsBytes(src, dst, 3);
+        assertArrayEquals(new byte[] { 0, 1, 127 }, dst);
+
+        // values > 127 are narrowed via signed cast (two's complement truncation)
+        src = new int[] { 128, 255, 256 };
+        dst = new byte[3];
+        ESVectorUtil.packAsBytes(src, dst, 3);
+        assertArrayEquals(new byte[] { (byte) 128, (byte) 255, (byte) 256 }, dst);
+
+        // partial fill: only len elements are written, remainder is untouched
+        src = new int[] { 10, 20, 30 };
+        dst = new byte[] { 0, 0, 99 };
+        ESVectorUtil.packAsBytes(src, dst, 2);
+        assertArrayEquals(new byte[] { 10, 20, 99 }, dst);
+    }
+
     public void testPackAsBinary() {
         int dims = randomIntBetween(16, 2048);
         int[] toPack = new int[dims];

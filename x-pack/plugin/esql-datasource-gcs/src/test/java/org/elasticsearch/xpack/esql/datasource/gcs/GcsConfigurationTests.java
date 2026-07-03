@@ -227,12 +227,19 @@ public class GcsConfigurationTests extends ESTestCase {
         assertFalse(config.hasCredentials());
     }
 
-    public void testPartialKeylessAuthRequiresBothAudiences() {
+    public void testKeylessAuthRequiresStsAudience() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> GcsConfiguration.fromFields(null, null, null, null, null, "jwt-audience", null, null)
         );
         assertThat(e.getMessage(), containsString("sts_audience is required"));
+    }
+
+    public void testKeylessAuthAllowsOmittingJwtAudience() {
+        GcsConfiguration config = GcsConfiguration.fromFields(null, null, null, null, null, null, "sts-audience", null);
+        assertTrue(config.hasKeylessAuth());
+        assertNull(config.jwtAudience());
+        assertEquals("sts-audience", config.stsAudience());
     }
 
     public void testKeylessAuthAllowsOmittingServiceAccountImpersonationUrl() {

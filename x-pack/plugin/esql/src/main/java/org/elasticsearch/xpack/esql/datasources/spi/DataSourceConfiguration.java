@@ -120,6 +120,16 @@ public abstract class DataSourceConfiguration {
 
     /** True if any field marked secret has a value set, or a preexisting one carries forward (see {@link #hasStoredSecret}). */
     protected boolean hasAnySecretValue() {
+        return hasAnyExplicitSecretValue() || preexistingSecretKeys.isEmpty() == false;
+    }
+
+    /**
+     * True if any field marked secret has a value set in this request specifically, excluding any preexisting
+     * secret carried forward from a stored value. Use this to distinguish "this request supplied credentials"
+     * from "credentials came from the existing entry" in a conflict message — e.g. rejecting {@code
+     * auth=anonymous} because a stored secret wasn't cleared shouldn't say the request supplied one.
+     */
+    protected boolean hasAnyExplicitSecretValue() {
         for (var entry : values.entrySet()) {
             DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
             assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
@@ -127,7 +137,7 @@ public abstract class DataSourceConfiguration {
                 return true;
             }
         }
-        return preexistingSecretKeys.isEmpty() == false;
+        return false;
     }
 
     /**

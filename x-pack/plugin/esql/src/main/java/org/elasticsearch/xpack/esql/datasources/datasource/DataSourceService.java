@@ -92,11 +92,7 @@ public class DataSourceService {
     }
 
     /**
-     * Validate the put-data-source request and build the domain {@link DataSource}. Runs coordinator-side
-     * against local (possibly stale) cluster state, and again master-side (from {@link #putDataSource}) against
-     * authoritative state. {@code project} supplies the existing entry, if any, so a request that omits an
-     * already-stored secret still satisfies credential-completeness checks instead of being rejected as
-     * incomplete.
+     * Validate the put-data-source request and build the domain {@link DataSource}.
      */
     public DataSource validatePutDataSource(ProjectMetadata project, PutDataSourceAction.Request request) {
         DataSourceValidator validator = validatorsByType.get(request.type());
@@ -121,8 +117,10 @@ public class DataSourceService {
      * ({@link #applyEncryption}) off the CAS task thread, since that's expensive and would otherwise block
      * the master on every concurrent PUT. A secret omitted from the request is instead carried forward from
      * the current entry inside the CAS task (via {@link #mergeCarriedForwardSecrets}), where {@code current}
-     * is read fresh against authoritative state and carrying the secret forward needs no encryption. Every
-     * other field is a full replace, matching the pre-existing PUT semantics.
+     * is read fresh against authoritative state and carrying the secret forward needs no encryption. The task
+     * also re-validates against that same fresh state, so a concurrent change to a secret this request relies
+     * on carrying forward fails the PUT instead of silently persisting an incomplete data source. Every other
+     * field is a full replace, matching the pre-existing PUT semantics.
      */
     public void putDataSource(ProjectId projectId, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final ProjectMetadata projectSnapshot = clusterService.state().metadata().getProject(projectId);
@@ -141,6 +139,11 @@ public class DataSourceService {
                         "cannot add data source, the maximum number of data sources is reached: " + maxDataSourcesCount
                     );
                 }
+                // Re-validate here, against the state just read, not the pre-encryption snapshot above: a
+                // concurrent operation could have cleared or removed a secret this request relies on carrying
+                // forward between that snapshot and this task running. Cheap (no I/O); throwing here fails the
+                // whole PUT instead of silently persisting a data source with incomplete credentials.
+                validatePutDataSource(project, request);
                 final DataSourceSettings merged = mergeCarriedForwardSecrets(current, validated.type(), encryptedNew, request);
                 final DataSource encrypted = new DataSource(validated.name(), validated.type(), validated.description(), merged);
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
@@ -156,15 +159,11 @@ public class DataSourceService {
     }
 
     /**
-     * True iff {@code setting} is a secret that the request leaves untouched, so it should carry forward from
-     * the existing entry rather than being wiped. A request that explicitly sets the field to JSON {@code null}
-     * clears it instead; a request that supplies a non-null value overrides it via its own validated settings.
+     * True iff {@code setting} is a secret the request leaves untouched, so it should carry forward from the
+     * existing entry rather than being wiped.
      */
-    private static boolean isUntouchedSecret(DataSourceSetting setting, String key, Map<String, Object> rawSettings) {
-        if (setting.secret() == false) {
-            return false;
-        }
-        return rawSettings.containsKey(key) == false || rawSettings.get(key) != null;
+    static boolean isUntouchedSecret(DataSourceSetting setting, String key, Map<String, Object> rawSettings) {
+        return setting.secret() && setting.rawValue() != null && rawSettings.containsKey(key) == false;
     }
 
     /**

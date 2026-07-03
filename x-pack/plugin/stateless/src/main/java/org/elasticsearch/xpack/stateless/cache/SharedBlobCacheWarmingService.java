@@ -98,29 +98,6 @@ import static org.elasticsearch.core.Strings.format;
 
 public class SharedBlobCacheWarmingService {
 
-    /**
-     * A blob region to warm: the up-to (exclusive) offset in the blob to fetch, together with the representative data timestamp
-     * to stamp the warmed regions with.
-     */
-    public record WarmTarget(long endOffset, long timestampMillis) {
-        /**
-         * A target with an unknown timestamp, for callers that only know how far to warm.
-         */
-        public static WarmTarget withUnknownTimestamp(long endOffset) {
-            return new WarmTarget(endOffset, SharedBlobCacheService.UNKNOWN_TIMESTAMP);
-        }
-
-        /**
-         * Combines two targets aggregated for the same blob: warm the furthest offset and keep the most recent known timestamp.
-         */
-        public static WarmTarget merge(WarmTarget a, WarmTarget b) {
-            return new WarmTarget(
-                Math.max(a.endOffset, b.endOffset),
-                BlobFileRanges.mostRecentKnownTimestamp(a.timestampMillis, b.timestampMillis)
-            );
-        }
-    }
-
     public enum Type {
         INDEXING_EARLY(true),
         INDEXING(true),
@@ -671,10 +648,7 @@ public class SharedBlobCacheWarmingService {
      * may proceed. When {@code endTargetsToWarm} is non-null (internal replicated-files path), {@link #searchRecoveryTimeout} decides
      * whether to race warming against a timeout; otherwise recovery resumes as soon as warming has been scheduled (fire-and-forget via
      * {@link ActionListener#noop()}).
-     * <p>
-     * Callers on the internal replicated-files path must update the search directory (so the cache-boost preference can resolve per-file
-     * timestamps via {@link BlobStoreCacheDirectory#getTimestampMillis}) <em>before</em> invoking this method.
-     * </p>
+     *
      * Notice that this may synchronously invoke the listener.
      */
     public void warmCacheForSearchShardRecovery(
@@ -798,6 +772,29 @@ public class SharedBlobCacheWarmingService {
             } finally {
                 store.decRef();
             }
+        }
+    }
+
+    /**
+     * A blob region to warm: the up-to (exclusive) offset in the blob to fetch, together with the representative data timestamp
+     * to stamp the warmed regions with.
+     */
+    public record WarmTarget(long endOffset, long timestampMillis) {
+        /**
+         * A target with an unknown timestamp, for callers that only know how far to warm.
+         */
+        public static WarmTarget withUnknownTimestamp(long endOffset) {
+            return new WarmTarget(endOffset, SharedBlobCacheService.UNKNOWN_TIMESTAMP);
+        }
+
+        /**
+         * Combines two targets aggregated for the same blob: warm the furthest offset and keep the most recent known timestamp.
+         */
+        public static WarmTarget merge(WarmTarget a, WarmTarget b) {
+            return new WarmTarget(
+                Math.max(a.endOffset, b.endOffset),
+                BlobFileRanges.mostRecentKnownTimestamp(a.timestampMillis, b.timestampMillis)
+            );
         }
     }
 

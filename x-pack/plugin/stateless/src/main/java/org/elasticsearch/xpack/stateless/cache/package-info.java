@@ -62,9 +62,8 @@
  *     <li>
  *         Prefetching, in {@link org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher#computeTimestampPerBlob}, picks a single
  *         timestamp per blob for the blobs being prefetched, both for the blob containing the new commit and for other referenced blobs.
- *         Files internal to the new commit are stamped with the new commit's CC timestamp; referenced files are stamped with their per-CC
- *         timestamp resolved from the search directory, that is, from blobs we have seen before. When a prefetched blob holds files from
- *         multiple commits, the most recent known timestamp among those files is used as an approximation.
+ *         Blob containing the new commit gets the timestamp of the new commit, and other referenced blobs get the most recent known
+ *         timestamp among the CCs referenced in each blob.
  *     </li>
  *     <li>
  *         On-demand search reads, served through {@link org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory} for regions that

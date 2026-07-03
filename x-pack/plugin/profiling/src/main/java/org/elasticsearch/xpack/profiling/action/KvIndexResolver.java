@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.profiling.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -18,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.rest.RestStatus;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -57,24 +59,27 @@ public class KvIndexResolver {
      * @throws IllegalStateException if both K/V indices and a data stream exist for the same name.
      */
     public List<Index> resolve(ClusterState clusterState, String indexPattern, Instant eventStart, Instant eventEnd) {
-        Index[] kvIndices = resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), indexPattern);
+        // Check data stream first. concreteIndices() may also expand a DS name to its backing indices,
+        // so we use hasAlias() to detect KV indices (which expose an alias with the same name) rather
+        // than relying on concreteIndices() returning non-empty as the mixed-schema signal.
         DataStream dataStream = clusterState.metadata().getProject().dataStreams().get(indexPattern);
 
-        if (kvIndices.length > 0 && dataStream != null) {
-            throw new IllegalStateException(
-                "Both K/V indices and a data stream exist for ["
-                    + indexPattern
-                    + "]. Mixed schemas are not supported. Delete the K/V indices to continue using the data stream."
-            );
-        }
-
         if (dataStream != null) {
+            if (clusterState.metadata().getProject().hasAlias(indexPattern)) {
+                throw new ElasticsearchStatusException(
+                    "Both K/V indices and a data stream exist for ["
+                        + indexPattern
+                        + "]. Mixed schemas are not supported. Delete the K/V indices to continue using the data stream.",
+                    RestStatus.CONFLICT
+                );
+            }
             List<Index> dsIndices = dataStream.getIndices();
             log.debug("Resolved [{}] to data stream backing indices {}.", indexPattern, dsIndices.stream().map(Index::getName).toList());
             return Collections.unmodifiableList(dsIndices);
         }
 
         // K/V index path: filter by time range when multiple indices exist.
+        Index[] kvIndices = resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), indexPattern);
         List<Index> matchingIndices = new ArrayList<>();
         if (kvIndices.length > 1) {
             List<Tuple<Index, Instant>> indicesWithTime = new ArrayList<>();

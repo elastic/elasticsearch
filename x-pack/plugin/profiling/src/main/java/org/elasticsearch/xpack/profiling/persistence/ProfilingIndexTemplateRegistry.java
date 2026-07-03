@@ -52,9 +52,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 13: Added 'container.id' keyword mapping to profiling-events
     // version 14: Stop using using _source.mode attribute in index templates
     // version 15: Use LogsDB mode for profiling-events-* (~30% smaller storage footprint)
-    // version 16: Added 'profiling.executable.name' keyword mapping to profiling-events
-    // version 17: Added data stream index templates for profiling-executables, profiling-stacktraces, profiling-stackframes
-    public static final int INDEX_TEMPLATE_VERSION = 17;
+    // version 16: Added data stream index templates for profiling-executables, profiling-stacktraces, profiling-stackframes
+    public static final int INDEX_TEMPLATE_VERSION = 16;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
     public static final int PROFILING_EVENTS_VERSION = 6;

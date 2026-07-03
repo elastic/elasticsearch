@@ -9,28 +9,18 @@ package org.elasticsearch.xpack.profiling.persistence;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.datastreams.CreateDataStreamAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Executor;
-
-import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Manages data streams for Elastic Universal Profiling. Data streams are no longer pre-created at startup;
@@ -57,112 +47,13 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         IndexState<ProfilingDataStream> indexState,
         ActionListener<? super ActionResponse> listener
     ) {
-        IndexStatus status = indexState.getStatus();
-        switch (status) {
-            case NEEDS_CREATION -> createDataStream(indexState.getIndex(), listener);
-            case NEEDS_VERSION_BUMP -> rolloverDataStream(indexState.getIndex(), listener);
-            case NEEDS_MAPPINGS_UPDATE -> applyMigrations(indexState, listener);
-            default -> {
-                logger.trace("Skipping status change [{}] for data stream [{}].", status, indexState.getIndex());
-                // ensure that listener is notified we're done
-                listener.onResponse(null);
-            }
-        }
+        // PROFILING_DATASTREAMS is empty; this method is never called.
+        throw new UnsupportedOperationException("no data streams are managed");
     }
 
     @Override
     protected Iterable<ProfilingDataStream> getManagedIndices() {
         return PROFILING_DATASTREAMS;
-    }
-
-    private void onDataStreamFailure(ProfilingDataStream dataStream, Exception ex) {
-        logger.error(() -> format("error for data stream [%s] for [%s]", dataStream, ClientHelper.PROFILING_ORIGIN), ex);
-    }
-
-    private void rolloverDataStream(final ProfilingDataStream dataStream, ActionListener<? super ActionResponse> listener) {
-        logger.debug("rolling over data stream [{}].", dataStream);
-        final Executor executor = threadPool.generic();
-        executor.execute(() -> {
-            RolloverRequest request = new RolloverRequest(dataStream.getName(), null);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                ClientHelper.PROFILING_ORIGIN,
-                request,
-                new ActionListener<RolloverResponse>() {
-                    @Override
-                    public void onResponse(RolloverResponse response) {
-                        if (response.isAcknowledged() == false) {
-                            logger.error(
-                                "error rolling over data stream [{}] for [{}], request was not acknowledged",
-                                dataStream,
-                                ClientHelper.PROFILING_ORIGIN
-                            );
-                        } else if (response.isShardsAcknowledged() == false) {
-                            logger.warn(
-                                "rolling over data stream [{}] for [{}], shards were not acknowledged",
-                                dataStream,
-                                ClientHelper.PROFILING_ORIGIN
-                            );
-                        } else if (response.isRolledOver() == false) {
-                            logger.warn("could not rollover data stream [{}] for [{}].", dataStream, ClientHelper.PROFILING_ORIGIN);
-                        } else {
-                            logger.debug(
-                                "rolled over data stream [{}] from [{}] to index [{}] for [{}].",
-                                dataStream,
-                                response.getOldIndex(),
-                                response.getNewIndex(),
-                                ClientHelper.PROFILING_ORIGIN
-                            );
-                        }
-                        listener.onResponse(response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        onDataStreamFailure(dataStream, e);
-                        listener.onFailure(e);
-                    }
-                },
-                (req, l) -> client.admin().indices().rolloverIndex(req, l)
-            );
-        });
-    }
-
-    private void createDataStream(ProfilingDataStream dataStream, final ActionListener<? super ActionResponse> listener) {
-        final Executor executor = threadPool.generic();
-        executor.execute(() -> {
-            CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(
-                TimeValue.ONE_MINUTE /* TODO should we wait longer? */,
-                TimeValue.THIRTY_SECONDS /* TODO should we wait longer? */,
-                dataStream.getName()
-            );
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                ClientHelper.PROFILING_ORIGIN,
-                request,
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse response) {
-                        if (response.isAcknowledged() == false) {
-                            logger.error(
-                                "error adding data stream [{}] for [{}], request was not acknowledged",
-                                dataStream,
-                                ClientHelper.PROFILING_ORIGIN
-                            );
-                        }
-                        listener.onResponse(response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        onDataStreamFailure(dataStream, e);
-                        listener.onFailure(e);
-                    }
-                },
-                (req, l) -> client.execute(CreateDataStreamAction.INSTANCE, req, l)
-            );
-        });
     }
 
     /**

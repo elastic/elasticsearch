@@ -9,20 +9,11 @@ package org.elasticsearch.xpack.profiling.persistence;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -30,11 +21,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Executor;
-import java.util.function.Predicate;
-
-import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Manages K/V indices for Elastic Universal Profiling. K/V indices have been superseded by data streams
@@ -61,175 +47,13 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         IndexState<ProfilingIndex> indexState,
         ActionListener<? super ActionResponse> listener
     ) {
-        IndexStatus status = indexState.getStatus();
-        switch (status) {
-            case NEEDS_CREATION -> createIndex(clusterState, indexState.getIndex(), listener);
-            case NEEDS_VERSION_BUMP -> bumpVersion(clusterState, indexState.getIndex(), listener);
-            case NEEDS_MAPPINGS_UPDATE -> applyMigrations(indexState, listener);
-            default -> {
-                logger.trace("Skipping status change [{}] for index [{}].", status, indexState.getIndex());
-                // ensure that listener is notified we're done
-                listener.onResponse(null);
-            }
-        }
-    }
-
-    private void bumpVersion(ClusterState state, ProfilingIndex index, ActionListener<? super ActionResponse> listener) {
-        if (index.getOnVersionBump() == OnVersionBump.DELETE_OLD) {
-            Map<String, IndexMetadata> indicesMetadata = state.metadata().getProject().indices();
-            List<String> priorIndexVersions = indicesMetadata.keySet()
-                .stream()
-                // ignore the current index and look only for old versions
-                .filter(Predicate.not(index::isFullMatch))
-                .filter(index::isMatchWithoutVersion)
-                .toList();
-            if (priorIndexVersions.isEmpty() == false) {
-                logger.debug("deleting indices [{}] on index version bump for [{}].", priorIndexVersions, index.getAlias());
-                deleteIndices(
-                    priorIndexVersions.toArray(new String[0]),
-                    // the cluster state that we are operating on is a snapshot and won't reflect that the alias has just gone.
-                    // Therefore, we use putIndex here which does not check for the existence of an alias
-                    ActionListener.wrap(r -> putIndex(index.getName(), index.getAlias(), listener), listener::onFailure)
-                );
-            } else {
-                createIndex(state, index, listener);
-            }
-        } else {
-            createIndex(state, index, listener);
-        }
+        // PROFILING_INDICES is empty; this method is never called.
+        throw new UnsupportedOperationException("no K/V indices are managed");
     }
 
     @Override
     protected Iterable<ProfilingIndex> getManagedIndices() {
         return PROFILING_INDICES;
-    }
-
-    private void onCreateIndexFailure(String index, Exception ex) {
-        logger.error(() -> format("error adding index [%s] for [%s]", index, ClientHelper.PROFILING_ORIGIN), ex);
-    }
-
-    private void createIndex(final ClusterState state, final ProfilingIndex index, final ActionListener<? super ActionResponse> listener) {
-        if (state.metadata().getProject().hasAlias(index.getAlias())) {
-            // there is an existing index from a prior version. Use the rollover API to move the write alias atomically. This has the
-            // following implications:
-            //
-            // * A new index will be created according to the currently installed version of the matching index template.
-            // * The write alias will point to that index.
-            // * The prior index will continue to be managed by ILM but will advance to the next phase after rollover. As
-            // rollover blocks phase transitions, the prior index may move a bit sooner than expected to the warm tier
-            // after version bumps; still all conditions need to be met, it's just that due to the earlier rollover, the
-            // condition will be reached sooner than without a version bump.
-            rolloverIndex(index.getName(), index.getAlias(), listener);
-        } else {
-            // newly create index
-            putIndex(index.getName(), index.getAlias(), listener);
-        }
-    }
-
-    private void rolloverIndex(final String newIndex, final String alias, ActionListener<? super ActionResponse> listener) {
-        logger.debug("rolling over to index [{}] for alias [{}].", newIndex, alias);
-        final Executor executor = threadPool.generic();
-        executor.execute(() -> {
-            RolloverRequest request = new RolloverRequest(alias, newIndex);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                ClientHelper.PROFILING_ORIGIN,
-                request,
-                new ActionListener<RolloverResponse>() {
-                    @Override
-                    public void onResponse(RolloverResponse response) {
-                        if (response.isAcknowledged() == false) {
-                            logger.error(
-                                "error rolling over index [{}] for [{}], request was not acknowledged",
-                                newIndex,
-                                ClientHelper.PROFILING_ORIGIN
-                            );
-                        } else if (response.isShardsAcknowledged() == false) {
-                            logger.warn(
-                                "rolling over index [{}] for [{}], shards were not acknowledged",
-                                newIndex,
-                                ClientHelper.PROFILING_ORIGIN
-                            );
-                        } else if (response.isRolledOver() == false) {
-                            logger.warn(
-                                "could not rollover alias [{}] to index [{}] for [{}].",
-                                alias,
-                                newIndex,
-                                ClientHelper.PROFILING_ORIGIN
-                            );
-                        } else {
-                            logger.debug(
-                                "rolled over alias [{}] from [{}] to index [{}] for [{}].",
-                                alias,
-                                response.getOldIndex(),
-                                response.getNewIndex(),
-                                ClientHelper.PROFILING_ORIGIN
-                            );
-                        }
-                        listener.onResponse(response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        onCreateIndexFailure(newIndex, e);
-                        listener.onFailure(e);
-                    }
-                },
-                (req, l) -> client.admin().indices().rolloverIndex(req, l)
-            );
-        });
-    }
-
-    private void putIndex(final String index, final String alias, final ActionListener<? super ActionResponse> listener) {
-        final Executor executor = threadPool.generic();
-        executor.execute(() -> {
-            CreateIndexRequest request = new CreateIndexRequest(index);
-            if (alias != null) {
-                try {
-                    Map<String, Object> sourceAsMap = Map.of("aliases", Map.of(alias, Map.of("is_write_index", true)));
-                    request.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
-                } catch (Exception ex) {
-                    onCreateIndexFailure(index, ex);
-                    listener.onFailure(ex);
-                    return;
-                }
-            }
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                ClientHelper.PROFILING_ORIGIN,
-                request,
-                new ActionListener<CreateIndexResponse>() {
-                    @Override
-                    public void onResponse(CreateIndexResponse response) {
-                        if (response.isAcknowledged() == false) {
-                            logger.error(
-                                "error adding index [{}] for [{}], request was not acknowledged",
-                                index,
-                                ClientHelper.PROFILING_ORIGIN
-                            );
-                        } else if (response.isShardsAcknowledged() == false) {
-                            logger.warn("adding index [{}] for [{}], shards were not acknowledged", index, ClientHelper.PROFILING_ORIGIN);
-                        }
-                        listener.onResponse(response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        onCreateIndexFailure(index, e);
-                        listener.onFailure(e);
-                    }
-                },
-                (req, l) -> client.admin().indices().create(req, l)
-            );
-        });
-    }
-
-    private void deleteIndices(final String[] indices, final ActionListener<AcknowledgedResponse> listener) {
-        DeleteIndexRequest request = new DeleteIndexRequest(indices);
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-        executeAsync("delete", request, listener, (req, l) -> client.admin().indices().delete(req, l));
     }
 
     public enum OnVersionBump {

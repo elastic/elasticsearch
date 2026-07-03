@@ -578,6 +578,7 @@ public class EsqlFunctionRegistry {
                 ToRadians.DEFINITION,
                 ToString.DEFINITION,
                 ToTDigest.DEFINITION,
+                ToText.DEFINITION,
                 ToTimeDuration.DEFINITION,
                 ToUnsignedLong.DEFINITION,
                 ToVersion.DEFINITION, },
@@ -664,8 +665,7 @@ public class EsqlFunctionRegistry {
                 RangeMin.DEFINITION,
                 RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
-                ToRange.DEFINITION,
-                ToText.DEFINITION } };
+                ToRange.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -188,13 +188,16 @@ public class GcsStorageProvider implements StorageProvider {
     private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException("GCS keyless authentication requires the workload-identity feature to be enabled on this node");
+            throw new IllegalStateException(
+                "GCS federated authentication requires the workload-identity feature to be enabled on this node"
+            );
         }
 
+        String jwtAudience = Strings.hasText(config.jwtAudience()) ? config.jwtAudience() : config.stsAudience();
         IdentityPoolCredentials.Builder credentialsBuilder = IdentityPoolCredentials.newBuilder()
             .setAudience(config.stsAudience())
             .setSubjectTokenType(ExternalAccountCredentials.SubjectTokenTypes.JWT)
-            .setSubjectTokenSupplier(new GcsWorkloadIdentitySubjectTokenSupplier(issuerClient, config.jwtAudience()));
+            .setSubjectTokenSupplier(new GcsWorkloadIdentitySubjectTokenSupplier(issuerClient, jwtAudience));
 
         // Optional: when absent, the federated identity maps directly to a principal without impersonation.
         if (config.serviceAccountImpersonationUrl() != null) {
@@ -280,7 +283,7 @@ public class GcsStorageProvider implements StorageProvider {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public bucket, set auth=anonymous. "
                 + "Otherwise, provide credentials via credentials or access_token, "
-                + "or configure keyless authentication with jwt_audience and sts_audience";
+                + "or configure federated authentication with sts_audience";
         }
         return "";
     }

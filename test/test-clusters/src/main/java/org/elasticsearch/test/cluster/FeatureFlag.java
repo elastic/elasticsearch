@@ -39,7 +39,12 @@ public enum FeatureFlag {
     ESQL_EXTERNAL_ORC("es.esql_external_orc_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_EXTERNAL_GCS("es.esql_external_gcs_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_EXTERNAL_AZURE("es.esql_external_azure_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
-    ESQL_EXTERNAL_PARQUET_RS("es.esql_external_parquet_rs_feature_flag_enabled=true", Version.fromString("9.5.0"), null);
+    ESQL_EXTERNAL_PARQUET_RS("es.esql_external_parquet_rs_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY(
+        "es.esql_external_datasources_federated_identity_feature_flag_enabled=true",
+        Version.fromString("9.5.0"),
+        null
+    );
 
     public final String systemProperty;
     public final Version from;

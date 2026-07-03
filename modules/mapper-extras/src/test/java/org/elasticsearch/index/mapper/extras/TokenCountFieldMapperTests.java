@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.tests.analysis.Token;
@@ -116,20 +115,10 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         assertThat(TokenCountFieldMapper.countPositions(analyzer, "", "", false), equalTo(2));
     }
 
-    @Override
-    protected boolean supportsMultiValueParameter() {
-        return true;
-    }
-
-    @Override
-    protected boolean supportsNullabilityParameter() {
-        return true;
-    }
-
-    @Override
-    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
-        return DocValuesType.SORTED_NUMERIC;
-    }
+    // Note: token_count has no native synthetic-source support (always FALLBACK), so as a root field it can never be
+    // mapped in a strict-columnar index at all - the multi_value/nullability object form now requires strict-columnar
+    // mode, so this mapper cannot participate in either. In real mappings token_count is only ever used as a
+    // multi-field, which is exempt from the columnar reconstructable-from-doc-values requirement.
 
     private Analyzer createMockAnalyzer() {
         Token t1 = new Token();      // Token without an increment

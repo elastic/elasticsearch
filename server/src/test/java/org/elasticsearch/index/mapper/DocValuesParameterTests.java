@@ -289,7 +289,9 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     public void testNullabilityFalseParsedFromMapForm() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
+            settings,
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
         );
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
@@ -321,8 +323,9 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     public void testFastPathSizeCheckRejectsAndAcceptsWithoutDynamicMappers() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         // No dynamic fields are created here, so enforcement takes the O(1) size-check fast path. Two static required fields.
-        DocumentMapper mapper = createMapperService(mapping(b -> {
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("a").field("type", "keyword").startObject("doc_values").field("nullability", false).endObject().endObject();
             b.startObject("b").field("type", "keyword").startObject("doc_values").field("nullability", false).endObject().endObject();
         })).documentMapper();
@@ -361,7 +364,10 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     public void testFieldLevelNullabilityTrueOverridesIndexSettingFalse() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
+            .build();
         DocumentMapper mapper = createMapperService(
             settings,
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", true).endObject())
@@ -372,8 +378,10 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     public void testNullabilityIsSealedAgainstUpdate() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         // false -> true is rejected
         MapperService sealedFalse = createMapperService(
+            settings,
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
         );
         IllegalArgumentException e1 = expectThrows(
@@ -386,6 +394,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assertThat(e1.getMessage(), containsString("Cannot update parameter [doc_values]"));
         // true -> false is also rejected
         MapperService startTrue = createMapperService(
+            settings,
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", true).endObject())
         );
         IllegalArgumentException e2 = expectThrows(
@@ -400,7 +409,8 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     public void testNullabilityFalseExemptedByNullValue() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createMapperService(fieldMapping(b -> {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> {
             b.field("type", "keyword").field("null_value", "NA");
             b.startObject("doc_values").field("nullability", false).endObject();
         })).documentMapper();
@@ -409,22 +419,13 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         mapper.parse(source(b -> b.nullField("field")));
     }
 
-    public void testNullabilityFalseSatisfiedByCopyTo() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createMapperService(mapping(b -> {
-            b.startObject("src").field("type", "keyword").field("copy_to", "dst").endObject();
-            b.startObject("dst").field("type", "keyword").startObject("doc_values").field("nullability", false).endObject().endObject();
-        })).documentMapper();
-        // a value copied into dst satisfies it even though dst was never set directly
-        mapper.parse(source(b -> b.field("src", randomAlphanumericOfLength(5))));
-        // neither src nor dst provided => dst stays empty => rejected
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
-        assertThat(e.getMessage(), containsString("[dst]"));
-    }
+    // Note: no equivalent "satisfied by copy_to" test exists here, unlike multi_value: copy_to is rejected outright in
+    // strict-columnar index modes, so it can never coexist with the doc_values object form that nullability requires.
 
     public void testNullabilityFalseNestedEnforcedPerInstance() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createMapperService(mapping(b -> {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("a");
             b.field("type", "nested");
             b.startObject("properties");
@@ -458,7 +459,9 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      */
     public void testNullabilityFalseRejectsEmptyAndAllNullArraysButAcceptsValueArray() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
+            settings,
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
         ).documentMapper();
         // empty array => loop body never runs => nothing marked => rejected, same as a missing field

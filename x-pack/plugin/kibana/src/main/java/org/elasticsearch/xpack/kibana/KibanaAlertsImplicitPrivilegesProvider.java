@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -57,7 +56,14 @@ public class KibanaAlertsImplicitPrivilegesProvider implements ImplicitPrivilege
         RoleDescriptor roleDescriptor,
         Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
     ) {
-        Set<String> resources = collectResources(roleDescriptor, storedApplicationPrivileges);
+        // This provider derives privileges from the role's application privileges, so there is
+        // nothing to contribute (and no need to scan the stored privileges) when the role has none.
+        RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = roleDescriptor.getApplicationPrivileges();
+        if (applicationPrivileges.length == 0) {
+            return List.of();
+        }
+
+        Set<String> resources = collectResources(applicationPrivileges, storedApplicationPrivileges);
         if (resources.isEmpty()) {
             return List.of();
         }
@@ -106,7 +112,7 @@ public class KibanaAlertsImplicitPrivilegesProvider implements ImplicitPrivilege
      * (e.g. {@code "kibana-*"}, {@code "*"}).
      */
     private static Set<String> collectResources(
-        RoleDescriptor roleDescriptor,
+        RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges,
         Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
     ) {
         Set<String> kibanaPrivilegesGrantingAlerts = storedApplicationPrivileges.stream()
@@ -116,7 +122,7 @@ public class KibanaAlertsImplicitPrivilegesProvider implements ImplicitPrivilege
             .collect(Collectors.toSet());
 
         Set<String> resources = new HashSet<>();
-        for (RoleDescriptor.ApplicationResourcePrivileges arp : roleDescriptor.getApplicationPrivileges()) {
+        for (RoleDescriptor.ApplicationResourcePrivileges arp : applicationPrivileges) {
             // Application field may be a literal ("kibana-.kibana") or a wildcard ("kibana-*", "*");
             // StringMatcher handles both: it matches a literal with an exact-string predicate and only
             // builds an automaton for entries that actually contain wildcard characters.
@@ -126,9 +132,15 @@ public class KibanaAlertsImplicitPrivilegesProvider implements ImplicitPrivilege
 
             // Short-circuit on the resolved-name path (cheap set lookup) before matching the
             // raw-pattern path with StringMatcher.
-            List<String> privileges = Arrays.asList(arp.getPrivileges());
-            if (privileges.stream().anyMatch(kibanaPrivilegesGrantingAlerts::contains)
-                || StringMatcher.of(privileges).test(ALERTS_ACTION)) {
+            boolean grantsAlertsByName = false;
+            for (String privilege : arp.getPrivileges()) {
+                if (kibanaPrivilegesGrantingAlerts.contains(privilege)) {
+                    grantsAlertsByName = true;
+                    break;
+                }
+            }
+
+            if (grantsAlertsByName || StringMatcher.of(arp.getPrivileges()).test(ALERTS_ACTION)) {
                 Collections.addAll(resources, arp.getResources());
             }
         }
@@ -137,6 +149,8 @@ public class KibanaAlertsImplicitPrivilegesProvider implements ImplicitPrivilege
     }
 
     static String buildSpaceIdsDlsQuery(Set<String> spaceIds) {
+        // Hand-rolled rather than QueryBuilders.termsQuery so the stored/surfaced DLS stays free of
+        // the default "boost":1.0 that the query builder always serializes.
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             builder.startObject("terms");

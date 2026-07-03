@@ -126,6 +126,31 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         );
     }
 
+    public void testValidateDatasourceRejectsExplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of("auth", "federated_identity", "jwt_audience", "//aud", "sts_audience", "//sts");
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
+        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+    }
+
+    public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of("jwt_audience", "//aud", "sts_audience", "//sts");
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
+        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+    }
+
+    public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
+        var federatedValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withFederatedIdentityEnabled(
+            () -> true
+        );
+        var result = federatedValidator.validateDatasource(
+            Map.of("auth", "federated_identity", "jwt_audience", "//aud", "sts_audience", "//sts")
+        );
+        assertEquals("//sts", result.get("sts_audience").nonSecretValue());
+        assertFalse(result.get("sts_audience").secret());
+    }
+
     public void testValidateDatasetValid() {
         var result = validator.validateDataset(Map.of(), "gs://bucket/path/*.parquet", Map.of("partition_detection", "hive"));
         assertEquals("hive", result.get("partition_detection"));

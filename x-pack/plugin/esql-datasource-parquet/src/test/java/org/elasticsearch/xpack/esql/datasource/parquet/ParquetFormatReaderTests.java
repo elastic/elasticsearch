@@ -4368,6 +4368,47 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(List.of(200_000L, 3_000_000_000L, 4_000_000_000L), andSurvivors);
     }
 
+    // esql-planning#1030 follow-up: aggregate (MIN/MAX) pushdown reads a uint32 column's row-group
+    // statistics straight off the Parquet footer, which stores the raw INT32 bit pattern. Without
+    // widening, a value above Integer.MAX_VALUE (e.g. 4_000_000_000) sign-extends into a negative
+    // long, breaking both the SourceStatistics SPI contract (values must match ESQL's in-memory
+    // LONG representation) and any downstream consumer (aggregate pushdown, split-skip
+    // classification). Exercises both statistics paths: extractStatistics (metadata) and
+    // buildRowGroupStats (discoverSplitRanges).
+    public void testUint32StatisticsWidenToUnsignedLong() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false)) // unsigned
+            .named("u32")
+            .named("test_schema");
+
+        long[] u32Values = { 50_000L, 100_000L, 200_000L, 3_000_000_000L, 4_000_000_000L };
+        byte[] data = createParquetFile(schema, f -> {
+            List<Group> groups = new ArrayList<>();
+            for (long value : u32Values) {
+                groups.add(f.newGroup().append("u32", (int) value));
+            }
+            return groups;
+        });
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // --- extractStatistics path (metadata) ---
+        SourceMetadata metadata = reader.metadata(storageObject);
+        var colStats = metadata.statistics().orElseThrow().columnStatistics().orElseThrow().get("u32");
+        assertEquals("min must widen to the true unsigned magnitude, not sign-extend", Optional.of(50_000L), colStats.minValue());
+        assertEquals("max must widen to the true unsigned magnitude, not sign-extend", Optional.of(4_000_000_000L), colStats.maxValue());
+
+        // --- buildRowGroupStats path (discoverSplitRanges) ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            assertEquals(50_000L, stats.get("_stats.columns.u32.min"));
+            assertEquals(4_000_000_000L, stats.get("_stats.columns.u32.max"));
+        }
+    }
+
     public void testLargeUnsignedLong() throws Exception {
         var schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)

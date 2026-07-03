@@ -1214,16 +1214,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * Normalizes Parquet-specific stat values to types that Elasticsearch can serialize.
      * Temporal types (date32, timestamp, INT96) are decoded to epoch-millis.
      * Parquet {@link Binary} (used for BYTE_ARRAY / string columns) is converted to String.
+     * A {@code uint32} column's raw {@code INT32} stat is widened to its true unsigned magnitude
+     * (see {@link #isUnsignedInt32}), matching the SPI contract that stat values must already be
+     * in ESQL's in-memory representation (here, the widened {@code LONG}) — otherwise a value
+     * above {@link Integer#MAX_VALUE} would sign-extend into a negative {@code long} downstream
+     * (aggregate pushdown, split-skip classification), mirroring the fix in
+     * {@link ParquetPushedExpressions#narrowLongToPhysicalInt32}.
      */
     private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
         Long temporal = ParquetColumnDecoding.decodeTemporalStat(value, primitiveType);
         if (temporal != null) {
             return temporal;
         }
+        if (value instanceof Integer i && isUnsignedInt32(primitiveType)) {
+            return Integer.toUnsignedLong(i);
+        }
         if (value instanceof Binary binary) {
             return binary.toStringUsingUTF8();
         }
         return value;
+    }
+
+    private static boolean isUnsignedInt32(PrimitiveType primitiveType) {
+        return primitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
+            && intLogical.isSigned() == false
+            && intLogical.getBitWidth() == 32;
     }
 
     static List<SplitRange> coalesceRowGroupRanges(List<SplitRange> rowGroupRanges, long targetBytes) {

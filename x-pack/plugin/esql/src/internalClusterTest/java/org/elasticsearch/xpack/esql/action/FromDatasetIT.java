@@ -8,24 +8,12 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.View;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
-import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -35,9 +23,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,72 +48,20 @@ import static org.hamcrest.Matchers.not;
  * nodes (covered by {@code ProjectMetadataTests#testDatasetChangeViaDiffRebuildsIndicesLookup}).
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public class FromDatasetIT extends AbstractEsqlIntegTestCase {
+public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
-    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private Path csvFixture;
     private Path csvFixtureAlt;
 
-    /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
-    public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
-        @Override
-        public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-            return Map.of("test", new TestValidator());
-        }
-    }
-
-    private static final class TestValidator implements DataSourceValidator {
-        @Override
-        public String type() {
-            return "test";
-        }
-
-        @Override
-        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
-            Map<String, DataSourceSetting> out = new HashMap<>();
-            for (Map.Entry<String, Object> e : datasourceSettings.entrySet()) {
-                out.put(e.getKey(), new DataSourceSetting(e.getValue(), e.getKey().startsWith("secret_")));
-            }
-            return out;
-        }
-
-        @Override
-        public Map<String, Object> validateDataset(
-            Map<String, DataSourceSetting> datasourceSettings,
-            String resource,
-            Map<String, Object> datasetSettings
-        ) {
-            return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        plugins.add(TestDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class);
     }
 
     /** Determinism over planner-regression diversity here — these tests pin specific plan shapes. */
     @Override
     protected QueryPragmas getPragmas() {
         return QueryPragmas.EMPTY;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireFeatureFlag() {
-        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
     @Before
@@ -139,28 +73,16 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Names every {@code testXxx} body PUTs. New tests must register their dataset name here so the
-     * SUITE-scoped cluster doesn't carry state across methods.
-     */
-    private static final Set<String> CREATED_DATASETS = Set.of(
-        "employees",
-        "employees_alt",
-        "employees_extensionless",
-        "logs_dataset",
-        "events_hive",
-        "employees_external",
-        "employees_mixed",
-        "stats_ds"
-    );
-
-    /**
-     * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
-     * cluster requires explicit teardown so views don't leak across methods.
+     * Names every {@code testXxx} body creates via {@link PutViewAction}. Datasets and the {@code local_ds}
+     * data source are registered through the base {@link AbstractExternalDataSourceIT#registerDataset}/
+     * {@link AbstractExternalDataSourceIT#registerDataSource} helpers, so the base {@code cleanupRegistry()}
+     * tears them down; only views need bespoke teardown here, one at a time so a missing view doesn't skip
+     * deleting the others still present.
      */
     private static final Set<String> CREATED_VIEWS = Set.of("employees_view", "employees_filtered_view");
 
     @After
-    public void cleanupRegistry() throws Exception {
+    public void cleanupViews() throws Exception {
         for (String view : CREATED_VIEWS) {
             try {
                 client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).get(30, java.util.concurrent.TimeUnit.SECONDS);
@@ -170,33 +92,11 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
                 logger.warn("view cleanup [{}] failed", view, e);
             }
         }
-        for (String ds : CREATED_DATASETS) {
-            try {
-                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).get(30, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (ResourceNotFoundException ignored) {
-                // already deleted by the test itself
-            } catch (Exception e) {
-                logger.warn("dataset cleanup [{}] failed", ds, e);
-            }
-        }
-        try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
-                .get(30, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (ResourceNotFoundException ignored) {
-            // already deleted by the test itself
-        } catch (Exception e) {
-            logger.warn("data source cleanup [local_ds] failed", e);
-        }
     }
 
     public void testFromDatasetReadsCsvFixture() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         try (var response = run(syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10"), TIMEOUT)) {
             List<? extends ColumnInfo> columns = response.columns();
@@ -224,18 +124,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         Path noExtFixture = createTempDir().resolve("employees_no_ext");
         Files.writeString(noExtFixture, String.join("\n", "emp_no:integer|first_name:keyword", "1|Alice", "2|Bob", "3|Carol") + "\n");
 
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest(
-                    "employees_extensionless",
-                    "local_ds",
-                    noExtFixture.toUri().toString(),
-                    Map.of("format", "csv", "delimiter", "|")
-                )
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees_extensionless", "local_ds", noExtFixture.toUri().toString(), Map.of("format", "csv", "delimiter", "|"));
 
         try (var response = run(syncEsqlQueryRequest("FROM employees_extensionless | SORT emp_no | LIMIT 10"), TIMEOUT)) {
             List<? extends ColumnInfo> columns = response.columns();
@@ -255,13 +145,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testViewOverExternalDatasetIsQueryable() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         // The view body targets the dataset. View resolution runs before the dataset rewrite, so it inlines the body
         // while it is still a plain index-shaped relation; the rewriter then turns the inlined leaf into an external
         // relation over the CSV fixture. This is the end-to-end realisation of a view "containing" an external source.
@@ -287,13 +172,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testViewOverExternalDatasetWithTransformInBody() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         // A non-trivial view body (a WHERE on top of the dataset) proves the external leaf resolves and executes when
         // it is nested below other commands inside a resolved view, not just as a bare top-level relation.
         assertAcked(
@@ -319,13 +199,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         createIndex("some_real_index");
         ensureGreen("some_real_index");
 
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         // Empty index + 3-row dataset = 3 rows total
         try (var response = run(syncEsqlQueryRequest("FROM some_real_index, employees | STATS c = COUNT(*)"), TIMEOUT)) {
@@ -341,13 +216,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         createIndex("employees_idx_where");
         ensureGreen("employees_idx_where");
 
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees_mixed", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees_mixed", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         try (
             var response = run(
@@ -364,19 +234,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     public void testFromMixedWithStatsCount() throws Exception {
         // Heterogeneous FROM + STATS COUNT: aggregate pushed into each UnionAll branch.
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
         // Two datasets (3 + 2 = 5 rows) plus an empty index = 5 total.
         createIndex("employees_idx_stats");
@@ -390,13 +250,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testTSCommandRejectedOnDataset() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("TS employees | LIMIT 1"), TIMEOUT));
         assertCauseMessageContains(ex, "TS command is not supported for datasets");
@@ -406,13 +261,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // Create some_real_index locally so the test exercises the LOOKUP JOIN rejection rather
         // than failing earlier with "unknown index" under order-dependent runs.
         createIndex("some_real_index");
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         Exception ex = expectThrows(
             Exception.class,
@@ -422,13 +272,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWithWhere() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         try (var response = run(syncEsqlQueryRequest("FROM employees | WHERE emp_no > 1 | SORT emp_no"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
@@ -441,13 +286,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWithKeep() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         try (var response = run(syncEsqlQueryRequest("FROM employees | KEEP first_name | SORT first_name"), TIMEOUT)) {
             List<? extends ColumnInfo> columns = response.columns();
@@ -463,13 +303,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWithStatsCount() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         try (var response = run(syncEsqlQueryRequest("FROM employees | STATS c = COUNT(*)"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
@@ -479,13 +314,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWithEval() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         try (var response = run(syncEsqlQueryRequest("FROM employees | EVAL doubled = emp_no * 2 | SORT emp_no | LIMIT 1"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
@@ -499,19 +329,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromMultipleDatasets() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
         try (var response = run(syncEsqlQueryRequest("FROM employees, employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
@@ -522,19 +342,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWildcardExpansion() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
         // employees + employees_alt = 3 + 2 = 5
         try (var response = run(syncEsqlQueryRequest("FROM employees* | STATS c = COUNT(*)"), TIMEOUT)) {
@@ -545,19 +355,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWildcardWithExclusion() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
         // employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
         try (var response = run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
@@ -571,13 +371,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // Standard metadata fields are accepted on datasets. For the FROM <dataset> path, _index
         // resolves to the user-facing dataset name (not the underlying resource path) for every
         // row, matching the "_index is the dataset name" contract.
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         // METADATA surfaces _index with no KEEP; it resolves to the dataset name.
         try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
@@ -603,13 +398,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         Path beta = Files.createDirectories(root.resolve("_index=beta"));
         Files.writeString(beta.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n3,Carol\n");
 
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("events_hive", "local_ds", root.toUri() + "**/*.csv", Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("events_hive", "local_ds", root.toUri() + "**/*.csv", Map.of("format", "csv"));
 
         // No KEEP: METADATA _index surfaces _index on its own, and the renamed partition column
         // _partition._index surfaces as an ordinary data column. Both are found by name, not position.
@@ -643,13 +433,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // ExternalRowIdentity — fixed 32-char base64url, no path leak. The fixture writes
         // "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n3,Carol\n", so the three sorted rows
         // sit at byte offsets 34, 42, 48 (header 34 bytes; "1,Alice\n" 8 bytes; "2,Bob\n" 6 bytes).
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         // No KEEP: METADATA _id, _file.record_ref surfaces both on their own; columns found by name.
         try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id, _file.record_ref | SORT emp_no | LIMIT 10"), TIMEOUT)) {
@@ -684,13 +469,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // but never an error. _index carries the dataset name; _version carries the file mtime; the
         // rest (no relevance scoring, no per-row _ignored, etc.) come back as NULL columns. None may
         // be dropped and none may crash the query.
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         // _tier (DataTierFieldMapper.NAME) is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP;
         // omit it so the query is valid in non-snapshot builds. _score, _tsid, _size, _ignored,
@@ -725,13 +505,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         createIndex("logs_index");
         ensureGreen("logs_index");
 
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("logs_dataset", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("logs_dataset", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         // logs_* expands to logs_index (empty) + logs_dataset (3 rows) = 3 total
         try (var response = run(syncEsqlQueryRequest("FROM logs_* | STATS c = COUNT(*)"), TIMEOUT)) {
@@ -748,18 +523,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // TestValidator marks any key starting with "secret_" as a secret, which causes DatasetRewriter
         // to wrap the value in a SecureString when building the config map for UnresolvedExternalRelation.
         final String sentinel = "SENTINEL_DO_NOT_LEAK_aBcD1234";
-        assertAcked(
-            client().execute(
-                PutDataSourceAction.INSTANCE,
-                putDataSourceRequest("local_ds", Map.of("secret_access_key", sentinel, "region", "us-east-1"))
-            )
-        );
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of("secret_access_key", sentinel, "region", "us-east-1"));
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         try (var response = run(syncEsqlQueryRequest("EXPLAIN (FROM employees | LIMIT 1)"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
@@ -774,13 +539,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     public void testFromUnknownNameFallsThroughToIndexResolution() throws Exception {
         // Register a dataset so the rewriter is active, but the FROM target is neither index nor dataset.
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM no_such_thing | LIMIT 1"), TIMEOUT));
         // The rewriter leaves the relation unchanged when the name isn't a known dataset; the analyzer
@@ -807,13 +567,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         Path salaryFixture = createTempFile("salary-fixture-", ".csv");
         Files.writeString(salaryFixture, "dept:integer,salary:integer\n1,100\n3,400\n");
 
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("stats_ds", "local_ds", salaryFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("stats_ds", "local_ds", salaryFixture.toUri().toString(), Map.of("format", "csv"));
 
         try (
             var response = run(
@@ -855,13 +610,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         prepareIndex("maxmin_idx").setSource(Map.of("emp_no", 20, "first_name", "Eve")).get();
         client().admin().indices().prepareRefresh("maxmin_idx").get();
 
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         try (
             var response = run(
@@ -895,13 +645,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         prepareIndex("sort_idx").setSource(Map.of("emp_no", 5, "first_name", "Eve")).get();
         client().admin().indices().prepareRefresh("sort_idx").get();
 
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         try (var response = run(syncEsqlQueryRequest("FROM sort_idx, employees | SORT emp_no | LIMIT 3"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
@@ -926,13 +671,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         prepareIndex("metadata_idx").setSource(Map.of("emp_no", 100, "first_name", "Zoe")).get();
         client().admin().indices().prepareRefresh("metadata_idx").get();
 
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         // 3 dataset rows (emp_no 1,2,3) + 1 index row (emp_no 100); SORT makes the per-row _index assertion deterministic.
         // No explicit KEEP _index: METADATA surfaces unconditionally on the FROM path, so a regression that broadened the
@@ -968,27 +708,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             cause = cause.getCause();
         }
         assertThat("error chain should contain message fragment [" + fragment + "]", cause, org.hamcrest.Matchers.notNullValue());
-    }
-
-    private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
-    }
-
-    private static PutDatasetAction.Request putDatasetRequest(
-        String name,
-        String dataSource,
-        String resource,
-        Map<String, Object> settings
-    ) {
-        return new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resource, null, new HashMap<>(settings));
-    }
-
-    private static DeleteDataSourceAction.Request deleteDataSourceRequest(String name) {
-        return new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
-    }
-
-    private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
-        return new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
     }
 
     private static PutViewAction.Request putViewRequest(String name, String query) {

@@ -413,8 +413,7 @@ public class SearchCommitPrefetcher {
      * Computes a single representative data timestamp per blob for the files referenced by the given compound commit. Files
      * internal to the notification's compound commit use that commit's own timestamp; files referenced from other blobs use the timestamp
      * known to the search directory metadata. When a blob holds files from multiple commits, the most recent known timestamp is used as an
-     * approximation. A blob whose files all resolve to an unknown timestamp falls back to the notification commit's own timestamp, so that
-     * a region is never left unknown while the commit itself carries a timestamp.
+     * approximation.
      */
     static Map<BlobFile, Long> computeTimestampPerBlob(
         StatelessCompoundCommit compoundCommit,

@@ -139,11 +139,9 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                 }
 
                 // 2) TSDB optimization: SIMD bitmask scanning over numeric codec blocks. The iterator
-                // overrides intoBitSet / docIDRunEnd (both honor the caller's upTo bound), which
-                // DenseConjunctionBulkScorer uses to bulk-collect dense ranges window-by-window.
-                // Sub-segment slicing (DataPartitioning.DOC) stays linear because those bulk paths
-                // respect the slice; advance() is only called once per window to position the
-                // iterator, so any over-scan it does on partial-overlap blocks amortizes away.
+                // wraps a TwoPhaseIterator (recovered by fromIterator via TwoPhaseIterator.unwrap) whose
+                // intoBitSet is bounded by upTo, so ESQL DataPartitioning.DOC slices scan only their own
+                // [min, max) window instead of over-scanning past it as a plain DocIdSetIterator did.
                 if (singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
                     var rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue);
                     if (rangeIterator != null) {

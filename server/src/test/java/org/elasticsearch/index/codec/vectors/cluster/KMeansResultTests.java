@@ -8,13 +8,45 @@
  */
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.elasticsearch.index.codec.vectors.diskbbq.SoarAssignments;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
-import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
+import static org.elasticsearch.index.codec.vectors.cluster.Soar.NO_SOAR_ASSIGNMENT;
 
 public class KMeansResultTests extends ESTestCase {
+
+    public void testMergeOffsetsAssignments() {
+        int dims = randomIntBetween(1, 4);
+        int centroidCount1 = randomIntBetween(1, 4);
+        int centroidCount2 = randomIntBetween(1, 4);
+        int assignmentsSize1 = randomIntBetween(1, 8);
+        int assignmentsSize2 = randomIntBetween(1, 8);
+
+        float[][] centroids1 = randomCentroids(centroidCount1, dims);
+        float[][] centroids2 = randomCentroids(centroidCount2, dims);
+        int[] assignments1 = randomAssignments(assignmentsSize1, centroidCount1);
+        int[] assignments2 = randomAssignments(assignmentsSize2, centroidCount2);
+
+        int[] expectedAssignments = new int[assignmentsSize1 + assignmentsSize2];
+        System.arraycopy(assignments1, 0, expectedAssignments, 0, assignmentsSize1);
+        for (int i = 0; i < assignmentsSize2; i++) {
+            expectedAssignments[assignmentsSize1 + i] = assignments2[i] + centroidCount1;
+        }
+
+        float[][] expectedCentroids = new float[centroidCount1 + centroidCount2][];
+        System.arraycopy(centroids1, 0, expectedCentroids, 0, centroidCount1);
+        System.arraycopy(centroids2, 0, expectedCentroids, centroidCount1, centroidCount2);
+
+        KMeansResult<float[]> merged = KMeansResult.merge(
+            List.of(new KMeansResult<>(centroids1, assignments1), new KMeansResult<>(centroids2, assignments2)),
+            CentroidOps.FLOAT
+        );
+
+        assertCentroidsEqual(expectedCentroids, merged.centroids());
+        assertArrayEquals(expectedAssignments, merged.assignments());
+    }
 
     public void testMergeOffsetsAssignmentsAndSoarAssignments() {
         int dims = randomIntBetween(1, 4);
@@ -47,10 +79,10 @@ public class KMeansResultTests extends ESTestCase {
         System.arraycopy(centroids1, 0, expectedCentroids, 0, centroidCount1);
         System.arraycopy(centroids2, 0, expectedCentroids, centroidCount1, centroidCount2);
 
-        KMeansResult<float[]> merged = KMeansResult.merge(
+        KMeansWithOverspill<float[]> merged = KMeansWithOverspill.merge(
             List.of(
-                new KMeansResult<>(centroids1, assignments1, soarAssignments1),
-                new KMeansResult<>(centroids2, assignments2, soarAssignments2)
+                new KMeansWithOverspill<>(new KMeansResult<>(centroids1, assignments1), new SoarAssignments(soarAssignments1)),
+                new KMeansWithOverspill<>(new KMeansResult<>(centroids2, assignments2), new SoarAssignments(soarAssignments2))
             ),
             CentroidOps.FLOAT
         );
@@ -89,10 +121,10 @@ public class KMeansResultTests extends ESTestCase {
         System.arraycopy(centroids1, 0, expectedCentroids, 0, centroidCount1);
         System.arraycopy(centroids2, 0, expectedCentroids, centroidCount1, centroidCount2);
 
-        KMeansResult<float[]> merged = KMeansResult.merge(
+        KMeansWithOverspill<float[]> merged = KMeansWithOverspill.merge(
             List.of(
-                new KMeansResult<>(centroids1, assignments1, soarAssignments1),
-                new KMeansResult<>(centroids2, assignments2, new int[0])
+                new KMeansWithOverspill<>(new KMeansResult<>(centroids1, assignments1), new SoarAssignments(soarAssignments1)),
+                new KMeansWithOverspill<>(new KMeansResult<>(centroids2, assignments2), new SoarAssignments(new int[0]))
             ),
             CentroidOps.FLOAT
         );

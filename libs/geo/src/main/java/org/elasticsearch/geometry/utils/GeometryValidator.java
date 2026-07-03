@@ -23,4 +23,10 @@ public interface GeometryValidator {
      */
     void validate(Geometry geometry);
 
+    /**
+     * Validates a single coordinate and throws IllegalArgumentException if it is not valid.
+     * Default implementation is a no-op.
+     */
+    default void validateCoordinate(double x, double y, double z) {}
+
 }

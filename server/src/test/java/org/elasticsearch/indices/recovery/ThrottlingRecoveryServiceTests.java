@@ -42,8 +42,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.RETRY;
 import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.RETRY_BACKOFF;
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
@@ -739,52 +737,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         countingListener.assertCount(1, 1, 0);
     }
 
-    public void testRetryTaskPutBackInQueue() {
-        final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            newClusterService(1),
-            new CompositeRecoverySchedulingListener()
-        );
-
-        AtomicInteger doneCounter = new AtomicInteger();
-        AtomicInteger failedCounter = new AtomicInteger();
-        AtomicInteger retryCounter = new AtomicInteger();
-        RecoveryState recoveryState = newRecoveryState();
-        service.enqueue(new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                doneCounter.incrementAndGet();
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
-                failedCounter.incrementAndGet();
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                fail("should not be aborted");
-            }
-        }, recoveryState, stats, l -> {
-            if (retryCounter.getAndIncrement() == 0) {
-                l.onRecoveryFailure(new RecoveryFailedException(recoveryState, "", new Throwable("cause")), RETRY);
-            } else {
-                l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            }
-        });
-
-        taskQueue.runAllRunnableTasks();
-
-        assertThat("Expected to retry on failure but did not", retryCounter.get(), equalTo(2));
-        assertThat("Expected to have succeeded exactly once", doneCounter.get(), equalTo(1));
-        assertThat("Expected to have failed exactly once", failedCounter.get(), equalTo(1));
-    }
-
     /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times,
     /// alternating bursty submits and completion periods, and randomly changing the max concurrent limit.
     /// Verify that all tasks finish and that concurrent execution never exceeds the limit applied.
@@ -852,13 +804,17 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                             if (randomBoolean()) {
                                 schedulingListener.onRecoveryAborted();
                             } else {
+                                RecoveryListener.FailureStrategy failureStrategy = randomFrom(RecoveryListener.FailureStrategy.values());
+                                if (failureStrategy.retry()) {
+                                    totalTaskCount.incrementAndGet();
+                                }
                                 schedulingListener.onRecoveryFailure(
                                     new RecoveryFailedException(
                                         recoveryState,
                                         null,
                                         new RuntimeException("test recovery task injected failure")
                                     ),
-                                    FAIL_SILENT
+                                    failureStrategy
                                 );
                             }
                         }
@@ -970,7 +926,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                         tasksEnqueued.incrementAndGet();
                         throttlingRecoveryService.enqueue(trackingListener, recoveryState, stats, schedulingListener -> {
                             peakRunning.accumulateAndGet(running.incrementAndGet(), Integer::max);
-                            runStressInboundRecoveryTask(recoveryState, schedulingListener, running);
+                            runStressInboundRecoveryTask(recoveryState, schedulingListener, running, () -> {
+                                refCounted.incRef();
+                                tasksEnqueued.incrementAndGet();
+                            });
                         });
                         Thread.yield();
                     }
@@ -991,7 +950,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     private static void runStressInboundRecoveryTask(
         RecoveryState recoveryState,
         RecoveryListener schedulingListener,
-        AtomicInteger running
+        AtomicInteger running,
+        Runnable onRetry
     ) {
         threadPool.generic().execute(() -> {
             Thread.yield();
@@ -1002,9 +962,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 if (randomBoolean()) {
                     schedulingListener.onRecoveryAborted();
                 } else {
+                    RecoveryListener.FailureStrategy failureStrategy = randomFrom(RecoveryListener.FailureStrategy.values());
+                    if (failureStrategy.retry()) {
+                        onRetry.run();
+                    }
                     schedulingListener.onRecoveryFailure(
                         new RecoveryFailedException(recoveryState, null, new RuntimeException("test recovery task injected failure")),
-                        randomBoolean() ? FAIL_SEND : FAIL_SILENT
+                        failureStrategy
                     );
                 }
             }

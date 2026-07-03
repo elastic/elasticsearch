@@ -44,10 +44,17 @@ public interface RecoveryListener {
     /// Called when recovery has been internally aborted, usually due to shard closure or shard relocation
     void onRecoveryAborted();
 
+    /// The failure strategy to use when a recovery fails with an exception
+    /// Dictate if recovery should retry and/or if failure should be sent to master
     enum FailureStrategy {
+        // Retry recovery on data node independently of master, without sending failure to master
         RETRY(false, true),
+        // Identical to RETRY but retry with an incremental backoff strategy
+        // todo: Not yet implemented, currently treated the same a RETRY
         RETRY_BACKOFF(false, true),
+        // Fail the shard without sending the failure to master
         FAIL_SILENT(false, false),
+        // Fail the shard and send the failure to master
         FAIL_SEND(true, false);
 
         private final boolean sendShardFailure;

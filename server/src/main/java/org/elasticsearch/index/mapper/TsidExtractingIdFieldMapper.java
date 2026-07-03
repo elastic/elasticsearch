@@ -224,7 +224,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         assert id.length > Long.BYTES + Integer.BYTES;
         int len = Math.toIntExact(id.length - Long.BYTES - Integer.BYTES);
         int offset = id.offset;
-        if (Byte.toUnsignedInt(id.bytes[offset]) >= Uid.BASE64_ESCAPE) {
+        final int firstByte = Byte.toUnsignedInt(id.bytes[offset]);
+        assert firstByte <= Uid.BASE64_ESCAPE : "invalid first byte [" + id + "]";
+        if (firstByte >= Uid.BASE64_ESCAPE) {
+            assert len > 2 && Byte.toUnsignedInt(id.bytes[offset + 1]) >= Uid.BASE64_ESCAPE
+                : "invalid second byte with escaped [" + id + "]";
             offset++;
             --len;
         }

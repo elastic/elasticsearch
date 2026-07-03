@@ -362,6 +362,18 @@ public class IRDecorations {
         }
     }
 
+    /**
+     * describes the per-context heuristic allocation limit in bytes for a method, or {@code -1} when tracking is disabled.
+     * Mirrors {@link IRDMaxLoopCounter}: attached to every protected function so allocation-tracking bytecode can read the
+     * limit without reaching back into the compiler settings.
+     */
+    public static class IRDMaxAllocationBytes extends IRDecoration<Long> {
+
+        public IRDMaxAllocationBytes(Long value) {
+            super(value);
+        }
+    }
+
     /** opts a function into the cancellation-aware loop guard rather than the legacy {@link IRDMaxLoopCounter} */
     public static class IRCInstanceCancellationCheck implements IRCondition {
 

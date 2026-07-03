@@ -7,10 +7,11 @@
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^25.8.0",
+    "@types/sax": "^1.2.7",
     "vitest": "^4.1.7"
   },
   "dependencies": {
     "yaml": "^2.3.2",
-    "fast-xml-parser": "^5.8.0"
+    "sax": "^1.6.0"
   }
 }

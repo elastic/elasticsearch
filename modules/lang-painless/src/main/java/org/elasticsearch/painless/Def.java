@@ -247,8 +247,11 @@ public final class Def {
             Object[] injections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
             if (injections.length > 0) {
-                // method handle contains the "this" pointer so start injections at 1
-                handle = MethodHandles.insertArguments(handle, 1, injections);
+                // The method handle's leading parameter is the receiver, so injections start at position 1. For
+                // @script_aware augmentations the handle is (scriptThis, receiver, injections..., userArgs) so they
+                // start at position 2 instead — skipping past both the script slot and the receiver.
+                int injectStart = painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class) ? 2 : 1;
+                handle = MethodHandles.insertArguments(handle, injectStart, injections);
             }
 
             // The call-site descriptor has (receiver, scriptThis, ...userArgs) — receiver-first
@@ -309,15 +312,18 @@ public final class Def {
 
         MethodHandle handle = method.methodHandle();
         Object[] injections = PainlessLookupUtility.buildInjections(method, constants);
+        boolean methodTakesScriptThis = method.annotations().containsKey(ScriptAwareAnnotation.class);
 
         if (injections.length > 0) {
-            // method handle contains the "this" pointer so start injections at 1
-            handle = MethodHandles.insertArguments(handle, 1, injections);
+            // The method handle's leading parameter is the receiver, so injections start at position 1. For
+            // @script_aware augmentations the handle is (scriptThis, receiver, injections..., userArgs) so they
+            // start at position 2 instead — skipping past both the script slot and the receiver.
+            int injectStart = methodTakesScriptThis ? 2 : 1;
+            handle = MethodHandles.insertArguments(handle, injectStart, injections);
         }
 
         // Same script-first → receiver-first swap as the simple case above when the resolved
         // method carries @script_aware; drop the extra slot when it doesn't.
-        boolean methodTakesScriptThis = method.annotations().containsKey(ScriptAwareAnnotation.class);
         if (scriptThisPushed) {
             if (methodTakesScriptThis) {
                 handle = swapFirstTwoArguments(handle);

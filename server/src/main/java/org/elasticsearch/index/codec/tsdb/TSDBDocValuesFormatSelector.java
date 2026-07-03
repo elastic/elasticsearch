@@ -63,7 +63,8 @@ public final class TSDBDocValuesFormatSelector {
     }
 
     static boolean useES95(final IndexSettings indexSettings) {
-        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG)
+        return indexSettings.getMode() == IndexMode.TIME_SERIES
+            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG)
             && indexSettings.isTimeSeriesEs95CodecEnabled();
     }
 }

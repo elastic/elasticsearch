@@ -123,8 +123,8 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
@@ -5826,7 +5826,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexingThread.start();
 
         final var recoveryFinishedLatch = new CountDownLatch(1);
-        final var recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
+        final var recoveryListener = new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
@@ -5839,6 +5839,11 @@ public class IndexShardTests extends IndexShardTestCase {
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                 assert false : "Unexpected failure";
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                assert false : "Unexpected abort";
             }
         };
         recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener) {

@@ -24,6 +24,7 @@ import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatSelector;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
+import org.elasticsearch.index.codec.tsdb.pipeline.MappedFieldType;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -67,6 +69,7 @@ public class PerFieldFormatSupplier {
         includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
         includeMetaField.add(SeqNoFieldMapper.NAME);
         includeMetaField.add(IgnoredSourceFieldMapper.NAME);
+        includeMetaField.add(IdFieldMapper.NAME);
         // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
         // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
@@ -87,6 +90,7 @@ public class PerFieldFormatSupplier {
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
 
+    @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
@@ -235,12 +239,15 @@ public class PerFieldFormatSupplier {
         if (mapper instanceof NumberFieldMapper numberFieldMapper) {
             final PipelineDescriptor.DataType dataType = toPipelineDataType(numberFieldMapper.type());
             final MetricRole metricRole = toMetricRole(numberFieldMapper.fieldType().getMetricType());
-            return new FieldContext(blockSize, fieldName, dataType, metricRole);
+            return new FieldContext(blockSize, fieldName, dataType, metricRole, null, false);
         }
         if (mapper instanceof DateFieldMapper) {
-            return new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, null);
+            return new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, null, null, false);
         }
-        return new FieldContext(blockSize, fieldName, null, null);
+        if (mapper instanceof IpFieldMapper ipFieldMapper) {
+            return new FieldContext(blockSize, fieldName, null, null, MappedFieldType.IP, ipFieldMapper.fieldType().isDimension());
+        }
+        return new FieldContext(blockSize, fieldName, null, null, null, false);
     }
 
     private static PipelineDescriptor.DataType toPipelineDataType(final NumberFieldMapper.NumberType type) {

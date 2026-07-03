@@ -7,22 +7,28 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TopNProvider;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Defines the task settings for the cohere rerank service.
@@ -40,30 +46,41 @@ public class CohereRerankTaskSettings implements TaskSettings, TopNProvider {
 
     static final CohereRerankTaskSettings EMPTY_SETTINGS = new CohereRerankTaskSettings(null, null, null);
 
-    public static CohereRerankTaskSettings fromMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
+    private static final ConstructingObjectParser<CohereRerankTaskSettings, Void> REQUEST_PARSER = createParser(false);
+    private static final ConstructingObjectParser<CohereRerankTaskSettings, Void> PERSISTENT_PARSER = createParser(true);
 
+    static ConstructingObjectParser<CohereRerankTaskSettings, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<CohereRerankTaskSettings, Void> parser = new ConstructingObjectParser<>(
+            ModelConfigurations.TASK_SETTINGS,
+            ignoreUnknownFields,
+            args -> new CohereRerankTaskSettings((Integer) args[0], (Boolean) args[1], (Integer) args[2])
+        );
+        parser.declareField(
+            optionalConstructorArg(),
+            (p, ctx) -> ObjectParserUtils.parsePositiveInteger(p, TOP_N_DOCS_ONLY),
+            new ParseField(TOP_N_DOCS_ONLY),
+            ObjectParser.ValueType.INT
+        );
+        parser.declareBoolean(optionalConstructorArg(), new ParseField(RETURN_DOCUMENTS));
+        parser.declareField(
+            optionalConstructorArg(),
+            (p, ctx) -> ObjectParserUtils.parsePositiveInteger(p, MAX_CHUNKS_PER_DOC),
+            new ParseField(MAX_CHUNKS_PER_DOC),
+            ObjectParser.ValueType.INT
+        );
+        return parser;
+    }
+
+    public static CohereRerankTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
-
-        Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        Integer topNDocumentsOnly = extractOptionalPositiveInteger(
-            map,
-            TOP_N_DOCS_ONLY,
-            ModelConfigurations.TASK_SETTINGS,
-            validationException
-        );
-        Integer maxChunksPerDoc = extractOptionalPositiveInteger(
-            map,
-            MAX_CHUNKS_PER_DOC,
-            ModelConfigurations.TASK_SETTINGS,
-            validationException
-        );
-
-        validationException.throwIfValidationErrorsExist();
-
-        return of(topNDocumentsOnly, returnDocuments, maxChunksPerDoc);
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            return parser.apply(xParser, null);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.TASK_SETTINGS);
+        }
     }
 
     /**
@@ -185,7 +202,7 @@ public class CohereRerankTaskSettings implements TaskSettings, TopNProvider {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        CohereRerankTaskSettings updatedSettings = CohereRerankTaskSettings.fromMap(newSettings);
+        CohereRerankTaskSettings updatedSettings = CohereRerankTaskSettings.fromMap(newSettings, ConfigurationParseContext.REQUEST);
         return CohereRerankTaskSettings.of(this, updatedSettings);
     }
 }

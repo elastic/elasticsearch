@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
 
 import static fixture.gcs.MockGcsBlobStore.failAndThrow;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -217,7 +218,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     final MockGcsBlobStore.BlobVersion newBlobVersion = mockGcsBlobStore.updateBlob(
                         multipartUpload.name(),
                         ifGenerationMatch,
-                        multipartUpload.content()
+                        multipartUpload.content(),
+                        emptyToNull(multipartUpload.storageClass())
                     );
                     writeBlobVersionAsJson(exchange, newBlobVersion);
                 } catch (IllegalArgumentException e) {
@@ -230,7 +232,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
                 final MockGcsBlobStore.ResumableUpload resumableUpload = mockGcsBlobStore.createResumableUpload(
                     blobName,
-                    ifGenerationMatch
+                    ifGenerationMatch,
+                    parseStorageClass(requestBody)
                 );
 
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
@@ -298,7 +301,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     ? Long.parseLong(maxBytesStr)
                     : DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL;
 
-                var rewriteResponse = mockGcsBlobStore.rewrite(srcObject, dstObject, rewriteToken, maxBytesRewrittenPerCall);
+                final String dstStorageClass = parseStorageClass(requestBody);
+                var rewriteResponse = mockGcsBlobStore.rewrite(
+                    srcObject,
+                    dstObject,
+                    dstStorageClass,
+                    rewriteToken,
+                    maxBytesRewrittenPerCall
+                );
                 try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
                     builder.startObject();
                     builder.field("kind", "storage#rewriteResponse");
@@ -557,6 +567,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         builder.field("size", String.valueOf(blobVersion.contents().length()));
         builder.field("generation", String.valueOf(blobVersion.generation()));
         builder.field("updated", ISO_MILLIS_UTC.format(blobVersion.lastModified()));
+        if (blobVersion.storageClass() != null) {
+            builder.field("storageClass", blobVersion.storageClass());
+        }
         builder.endObject();
     }
 
@@ -585,7 +598,47 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
      * without going through the HTTP API.
      */
     public void putBlob(String path, BytesReference contents) {
-        mockGcsBlobStore.updateBlob(path, null, contents);
+        mockGcsBlobStore.updateBlob(path, null, contents, null);
+    }
+
+    /**
+     * Returns the storage class recorded for the blob at the given object name, or {@code null} if none was set.
+     */
+    @Nullable
+    public String getBlobStorageClass(String path) {
+        return mockGcsBlobStore.getBlob(path, null, null).storageClass();
+    }
+
+    private static final Pattern STORAGE_CLASS_PATTERN = Pattern.compile("\"storageClass\"\\s*:\\s*\"([^\"]*)\"");
+
+    /**
+     * Extracts the {@code storageClass} field from a request body containing GCS object metadata JSON. The body may be gzip-compressed
+     * (the GCS client compresses request bodies for some operations such as object rewrites), so this transparently decompresses it.
+     */
+    @Nullable
+    private static String parseStorageClass(@Nullable BytesReference body) throws IOException {
+        if (body == null || body.length() == 0) {
+            return null;
+        }
+        final String content;
+        if (isGzip(body)) {
+            try (var in = new GZIPInputStream(body.streamInput())) {
+                content = new String(in.readAllBytes(), UTF_8);
+            }
+        } else {
+            content = body.utf8ToString();
+        }
+        final var matcher = STORAGE_CLASS_PATTERN.matcher(content);
+        return matcher.find() ? emptyToNull(matcher.group(1)) : null;
+    }
+
+    private static boolean isGzip(BytesReference body) {
+        return body.length() >= 2 && (body.get(0) & 0xff) == 0x1f && (body.get(1) & 0xff) == 0x8b;
+    }
+
+    @Nullable
+    private static String emptyToNull(@Nullable String value) {
+        return Strings.hasText(value) ? value : null;
     }
 
     private static String httpServerUrl(final HttpExchange exchange) {

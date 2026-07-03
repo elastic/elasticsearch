@@ -20,12 +20,15 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.nativeaccess.CloseableMappedByteBuffer;
+import org.elasticsearch.nativeaccess.MadviseAdvice;
 import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
@@ -338,7 +341,20 @@ public class SharedBytes extends AbstractRefCounted {
         return ios[sharedBytesPos];
     }
 
+    public static final int MADV_NORMAL = MadviseAdvice.NORMAL;
+    public static final int MADV_RANDOM = MadviseAdvice.RANDOM;
+
     public final class IO {
+
+        private static final VarHandle VH_CURRENT_ADVICE;
+
+        static {
+            try {
+                VH_CURRENT_ADVICE = MethodHandles.lookup().findVarHandle(IO.class, "currentAdvice", int.class);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new ExceptionInInitializerError(e);
+            }
+        }
 
         private final long pageStart;
 
@@ -346,6 +362,10 @@ public class SharedBytes extends AbstractRefCounted {
 
         // Cached reference to the region's ByteBuffer
         private final ByteBuffer mmapBuffer;
+
+        // Racy but safe: opaque access avoids a memory fence on the hot read path.
+        // A stale read may cause a redundant (but idempotent) madvise syscall.
+        private int currentAdvice = MADV_NORMAL;
 
         private IO(final int sharedBytesPos, CloseableMappedByteBuffer mappedByteBuffer) {
             long physicalOffset = (long) sharedBytesPos * regionSize;
@@ -361,6 +381,24 @@ public class SharedBytes extends AbstractRefCounted {
                 return true;
             }
             return false;
+        }
+
+        /**
+         * Advises the OS about the expected access pattern for this region.
+         * Skips the syscall if the advice matches what was previously set.
+         *
+         * @param advice the posix_madvise access pattern advice constant
+         */
+        public void madvise(int advice) {
+            if (mmap && (int) VH_CURRENT_ADVICE.getOpaque(this) != advice) {
+                mappedByteBuffer.madvise(0, regionSize, advice);
+                VH_CURRENT_ADVICE.setOpaque(this, advice);
+            }
+        }
+
+        // visible for testing
+        int currentAdvice() {
+            return (int) VH_CURRENT_ADVICE.getOpaque(this);
         }
 
         @SuppressForbidden(reason = "Use positional reads on purpose")

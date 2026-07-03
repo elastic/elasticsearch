@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152499
+summary: Bump `OpenTelemetry` to 1.62.0 in GCS modules
+type: upgrade

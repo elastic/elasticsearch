@@ -112,6 +112,21 @@ public class PrometheusLabelsRestIT extends AbstractPrometheusRestIT {
         assertThat(data, containsInAnyOrder("__name__", "label_only_in_a", "label_only_in_b"));
     }
 
+    public void testLabelsWithDefaultIndexScopeAndMixedMetricsStreams() throws Exception {
+        writeMetric(MIXED_METRICS_PROMETHEUS_METRIC, Map.of("job", "prometheus"));
+        writeNonPrometheusMetricsDataStream();
+
+        String apiKey = createPrometheusReadApiKey("prometheus-read-view-index-metadata-key", "metrics-*");
+
+        List<String> defaultScopeLabels = queryLabelsData("/_prometheus/api/v1/labels", apiKey);
+        List<String> prometheusScopeLabels = queryLabelsData("/_prometheus/metrics-*.prometheus-*/api/v1/labels", apiKey);
+
+        assertThat(defaultScopeLabels, hasItem("__name__"));
+        assertThat(defaultScopeLabels, hasItem("job"));
+        assertThat(prometheusScopeLabels, hasItem("__name__"));
+        assertThat(prometheusScopeLabels, hasItem("job"));
+    }
+
     /** Builds a labels request with optional {@code match[]} parameters. */
     private Request labelsRequest(String... matchers) {
         return prometheusReadRequest(
@@ -128,6 +143,13 @@ public class PrometheusLabelsRestIT extends AbstractPrometheusRestIT {
     @SuppressWarnings("unchecked")
     private List<String> queryLabelsData(String... matchers) throws Exception {
         Map<String, Object> body = entityAsMap(queryLabels(matchers));
+        return (List<String>) body.get("data");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> queryLabelsData(String path, String apiKey) throws Exception {
+        Request request = prometheusGetRequest(path, apiKey);
+        Map<String, Object> body = entityAsMap(client().performRequest(request));
         return (List<String>) body.get("data");
     }
 

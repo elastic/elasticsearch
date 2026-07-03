@@ -7,16 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
+import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.common.secrets.SecretsApplier;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiSecretsFactory;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
@@ -29,9 +31,33 @@ import java.util.Objects;
 public abstract class OpenAiModel extends RateLimitGroupingModel {
 
     private final OpenAiRateLimitServiceSettings rateLimitServiceSettings;
-    private final SecureString apiKey;
     private final SecretsApplier secretsApplier;
     private final URI uri;
+
+    public OpenAiModel(
+        ModelConfigurations configurations,
+        ModelSecrets secrets,
+        OpenAiRateLimitServiceSettings rateLimitServiceSettings,
+        @Nullable SecretSettings secretSettings,
+        OpenAiServiceSettings serviceSettings,
+        ThreadPool threadPool,
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings,
+        URI uri
+    ) {
+        super(configurations, secrets);
+
+        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+        this.secretsApplier = OpenAiSecretsFactory.createSecretsApplier(
+            configurations.getInferenceEntityId(),
+            threadPool,
+            tokenCache,
+            secretSettings,
+            serviceSettings,
+            oauth2ClusterSettings
+        );
+        this.uri = Objects.requireNonNull(uri);
+    }
 
     public OpenAiModel(
         ModelConfigurations configurations,
@@ -43,8 +69,7 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
         super(configurations, secrets);
 
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
-        apiKey = ServiceUtils.apiKey(apiKeySecrets);
-        secretsApplier = OpenAiSecretsFactory.createSecretsApplier(apiKeySecrets);
+        this.secretsApplier = OpenAiSecretsFactory.createSecretsApplier(apiKeySecrets);
         this.uri = Objects.requireNonNull(uri);
     }
 
@@ -52,7 +77,6 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
         super(model, taskSettings);
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
-        apiKey = model.apiKey();
         secretsApplier = model.secretsApplier;
         uri = model.uri;
     }
@@ -61,13 +85,8 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
         super(model, serviceSettings);
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
-        apiKey = model.apiKey();
         secretsApplier = model.secretsApplier;
         uri = model.uri;
-    }
-
-    public SecureString apiKey() {
-        return apiKey;
     }
 
     public SecretsApplier secretsApplier() {
@@ -81,7 +100,7 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
     public abstract ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings);
 
     public int rateLimitGroupingHash() {
-        return Objects.hash(rateLimitServiceSettings.modelId(), apiKey, uri);
+        return Objects.hash(rateLimitServiceSettings.modelId(), getSecrets().getSecretSettings(), uri);
     }
 
     public RateLimitSettings rateLimitSettings() {

@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 151058
+summary: Add `data_storage_class` and `metadata_storage_class` settings for GCP repository
+type: enhancement

@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 149838
-pr: 150238
-summary: Catch `StackOverflowError` in deeply nested RLIKE patterns
-type: bug

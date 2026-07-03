@@ -225,16 +225,19 @@ class java.util.PrimitiveIterator {
 }
 
 class java.util.PrimitiveIterator$OfDouble {
+  void org.elasticsearch.painless.api.Augmentation forEachRemaining(DoubleConsumer) @script_aware
   Double next()
   double nextDouble()
 }
 
 class java.util.PrimitiveIterator$OfInt {
+  void org.elasticsearch.painless.api.Augmentation forEachRemaining(IntConsumer) @script_aware
   Integer next()
   int nextInt()
 }
 
 class java.util.PrimitiveIterator$OfLong {
+  void org.elasticsearch.painless.api.Augmentation forEachRemaining(LongConsumer) @script_aware
   Long next()
   long nextLong()
 }
@@ -265,14 +268,17 @@ class java.util.Spliterator$OfPrimitive {
 }
 
 class java.util.Spliterator$OfDouble {
+  void org.elasticsearch.painless.api.Augmentation forEachRemaining(DoubleConsumer) @script_aware
   Spliterator.OfDouble trySplit()
 }
 
 class java.util.Spliterator$OfInt {
+  void org.elasticsearch.painless.api.Augmentation forEachRemaining(IntConsumer) @script_aware
   Spliterator.OfInt trySplit()
 }
 
 class java.util.Spliterator$OfLong {
+  void org.elasticsearch.painless.api.Augmentation forEachRemaining(LongConsumer) @script_aware
   Spliterator.OfLong trySplit()
 }
 

@@ -17,6 +17,8 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
@@ -97,6 +99,32 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;
     public static final int MAX_DIMENSIONS = 4096;
 
+    public enum CentroidIndexFormat {
+        /**
+         * A flat list of centroids, possibly with a second layer of children
+         */
+        FLAT(0);
+
+        private final int id;
+
+        CentroidIndexFormat(int id) {
+            this.id = id;
+        }
+
+        public int id() {
+            return id;
+        }
+
+        public static CentroidIndexFormat fromId(int id) {
+            for (CentroidIndexFormat format : values()) {
+                if (format.id == id) {
+                    return format;
+                }
+            }
+            throw new IllegalArgumentException("Unknown CentroidIndexFormat id: " + id);
+        }
+    }
+
     public enum QuantEncoding {
         ONE_BIT_4BIT_QUERY(0, (byte) 1, (byte) 4) {
             @Override
@@ -134,7 +162,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         FOUR_BIT_SYMMETRIC(2, (byte) 4, (byte) 4) {
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
@@ -162,12 +190,12 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         SEVEN_BIT_SYMMETRIC(3, (byte) 7, (byte) 7) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
@@ -196,12 +224,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 ESVectorUtil.packAsBinary(quantized, destination);
             }
         };
-
-        private static void packAsBytes(int[] quantized, byte[] destination) {
-            for (int i = 0; i < quantized.length; i++) {
-                destination[i] = (byte) quantized[i];
-            }
-        }
 
         private static void packNibbles(int[] quantized, byte[] destination) {
             assert quantized.length == destination.length * 2;
@@ -336,6 +358,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         }
     }
 
+    private final CentroidIndexFormat centroidIndexFormat = CentroidIndexFormat.FLAT;
     private final QuantEncoding quantEncoding;
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
@@ -366,7 +389,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             defaultFlatThreshold(vectorPerCluster),
-            sliceField
+            sliceField,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
@@ -393,7 +418,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             preconditioningBlockDimension,
             defaultFlatThreshold(vectorPerCluster),
-            sliceField
+            sliceField,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
@@ -422,8 +449,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             flatVectorThreshold,
             sliceField,
-            null,
-            null
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
@@ -515,6 +542,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             rawVectorFormat.getName(),
             useDirectIO,
             rawVectorFormat.fieldsWriter(state),
+            centroidIndexFormat,
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,

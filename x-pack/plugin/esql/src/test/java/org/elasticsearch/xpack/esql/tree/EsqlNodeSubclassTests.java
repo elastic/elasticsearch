@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -708,6 +709,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
              * It's like an unresolved expression. Building it from makeNode will make invalid trees.
              */
             subclasses.remove(UnresolvedPromqlFunction.class);
+            // HistogramQuantile requires a quantile parameter and delegates output() to its child; see HistogramQuantileTests.
+            subclasses.remove(HistogramQuantile.class);
             // It *is* safe to build an UnresoledRelation here because it is a leaf node.
             nodeClass = randomFrom(subclasses);
         }

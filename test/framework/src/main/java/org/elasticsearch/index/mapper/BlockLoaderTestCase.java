@@ -150,7 +150,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
      * target field while keeping generated documents single-valued, so the enforced mapping is exercised without rejecting documents.
      */
     private static Collection<DataSourceHandler> withSingleValueDocValues(String fieldType, Collection<DataSourceHandler> customHandlers) {
-        boolean singleValueRun = FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        boolean singleValueRun = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
             && SINGLE_VALUE_ENFORCING_TYPES.contains(fieldType)
             && ESTestCase.randomBoolean();
         if (singleValueRun == false) {
@@ -182,7 +182,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
             return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
                 var mapping = new HashMap<>(defaults.mappingGenerator().get());
-                mapping.put("doc_values", forceSingleValueDocValues(mapping.get("doc_values")));
+                mapping.put("doc_values", Map.of("multi_value", false));
                 return mapping;
             });
         }
@@ -206,15 +206,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             return new DataSourceResponse.ObjectArrayGenerator(Optional::empty);
         }
 
-        private static Map<String, Object> forceSingleValueDocValues(Object existing) {
-            var docValues = new HashMap<String, Object>();
-            if (existing instanceof Map<?, ?> existingMap && existingMap.get("cardinality") != null) {
-                // Preserve a randomly chosen cardinality (low/high) when the default produced one.
-                docValues.put("cardinality", existingMap.get("cardinality"));
-            }
-            docValues.put("multi_value", false);
-            return docValues;
-        }
     }
 
     @Override
@@ -481,6 +472,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                         // synthetic_source_keep and store are forbidden on strict-columnar indices
                         mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
                         mapping.remove("store");
+                        // doc_values cannot be disabled on strict-columnar indices (a disabled field would not be
+                        // reconstructable from doc values), so let it fall back to the (enabled) default.
+                        mapping.remove(FieldMapper.DocValuesParameter.PARAMETER_NAME);
                         return mapping;
                     });
                 }

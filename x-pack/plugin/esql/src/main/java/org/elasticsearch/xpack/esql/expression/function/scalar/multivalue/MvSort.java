@@ -88,6 +88,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         @Param(
             name = "order",
             type = { "keyword" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT, allowedValues = { "asc", "desc" }),
             description = "Sort order. The valid options are ASC and DESC, the default is ASC.",
             optional = true
         ) Expression order

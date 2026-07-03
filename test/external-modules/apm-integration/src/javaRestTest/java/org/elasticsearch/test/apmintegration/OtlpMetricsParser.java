@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,14 +36,13 @@ public final class OtlpMetricsParser extends OtlpParser {
     private OtlpMetricsParser() {}
 
     /**
-     * Parse an OTLP metrics request into a list of received telemetry events.
+     * Parse an already-decoded OTLP metrics request (gRPC path) into received telemetry events.
      *
-     * @param input OTLP protobuf ExportMetricsServiceRequest stream
+     * @param request decoded OTLP ExportMetricsServiceRequest
      * @return list of ReceivedTelemetry (one per metric data point)
-     * @throws IOException if the stream is not valid OTLP protobuf
+     * @throws IOException if building the intermediate APM-shaped JSON fails
      */
-    public static List<ReceivedTelemetry> parse(InputStream input) throws IOException {
-        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.parseFrom(input);
+    public static List<ReceivedTelemetry> parse(ExportMetricsServiceRequest request) throws IOException {
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceMetrics resourceMetrics : request.getResourceMetricsList()) {
             result.add(new ReceivedTelemetry.ReceivedResource(extractRawAttributes(resourceMetrics.getResource().getAttributesList())));

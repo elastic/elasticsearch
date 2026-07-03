@@ -501,7 +501,7 @@ public class CsvIT extends ESTestCase {
 
     private static void loadViews() {
         // TODO We should instead load views once and never unload them
-        if ("views".equals(currentGroupName) || "approximation".equals(currentGroupName)) {
+        if ("views".equals(currentGroupName) || "approximation".equals(currentGroupName) || "unmapped-load".equals(currentGroupName)) {
             CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> {
                 if (view.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled)) {
                     views.maybeLoad(name, view);

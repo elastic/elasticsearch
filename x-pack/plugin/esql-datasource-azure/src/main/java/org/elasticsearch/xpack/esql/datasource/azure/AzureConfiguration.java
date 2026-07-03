@@ -40,9 +40,9 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
     private static final DataSourceConfigDefinition KEY = secret("key");
     private static final DataSourceConfigDefinition SAS_TOKEN = secret("sas_token");
     private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
-    private static final DataSourceConfigDefinition TENANT_ID = plaintext("tenant_id").asKeylessAuth();
-    private static final DataSourceConfigDefinition CLIENT_ID = plaintext("client_id").asKeylessAuth();
-    private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asKeylessAuth();
+    private static final DataSourceConfigDefinition TENANT_ID = plaintext("tenant_id").asFederatedAuth();
+    private static final DataSourceConfigDefinition CLIENT_ID = plaintext("client_id").asFederatedAuth();
+    private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asFederatedAuth();
 
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         CONNECTION_STRING,
@@ -62,12 +62,12 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
 
     @Override
     protected void validateCredentials(ValidationException errors) {
-        if (hasKeylessAuth()) {
+        if (hasFederatedAuth()) {
             if (tenantId() == null) {
-                errors.addValidationError("tenant_id is required when keyless authentication settings are configured");
+                errors.addValidationError("tenant_id is required when federated authentication settings are configured");
             }
             if (clientId() == null) {
-                errors.addValidationError("client_id is required when keyless authentication settings are configured");
+                errors.addValidationError("client_id is required when federated authentication settings are configured");
             }
         }
     }
@@ -135,7 +135,7 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
     }
 
     /**
-     * Azure AD tenant ID configured on {@code com.azure.identity.ClientAssertionCredential} for keyless
+     * Azure AD tenant ID configured on {@code com.azure.identity.ClientAssertionCredential} for federated
      * workload-identity federation.
      */
     public String tenantId() {
@@ -170,7 +170,7 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
             + "set auth=anonymous for public containers; "
             + "set auth=managed_identity to use the node's managed identity "
             + "(requires the esql.datasource.managed_identity.enabled cluster setting); "
-            + "or configure keyless authentication with tenant_id, client_id, and jwt_audience";
+            + "or configure federated authentication with tenant_id and client_id";
     }
 
     private boolean hasExplicitCredentials() {

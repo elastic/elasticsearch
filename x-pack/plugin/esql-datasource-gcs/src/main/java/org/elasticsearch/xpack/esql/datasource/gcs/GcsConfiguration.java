@@ -43,10 +43,10 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
     private static final DataSourceConfigDefinition PROJECT_ID = plaintext("project_id");
     private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
     private static final DataSourceConfigDefinition TOKEN_URI = plaintext("token_uri");
-    private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asKeylessAuth();
-    private static final DataSourceConfigDefinition STS_AUDIENCE = plaintext("sts_audience").asKeylessAuth();
+    private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asFederatedAuth();
+    private static final DataSourceConfigDefinition STS_AUDIENCE = plaintext("sts_audience").asFederatedAuth();
     private static final DataSourceConfigDefinition SERVICE_ACCOUNT_IMPERSONATION_URL = plaintext("service_account_impersonation_url")
-        .asKeylessAuth();
+        .asFederatedAuth();
 
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         CREDENTIALS,
@@ -68,9 +68,9 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
     protected void validateCredentials(ValidationException errors) {
         // service_account_impersonation_url is optional: direct workload-identity federation maps the
         // federated identity straight to a principal without impersonating a service account.
-        if (hasKeylessAuth()) {
+        if (hasFederatedAuth()) {
             if (stsAudience() == null) {
-                errors.addValidationError("sts_audience is required when keyless authentication settings are configured");
+                errors.addValidationError("sts_audience is required when federated authentication settings are configured");
             }
         }
     }
@@ -193,6 +193,6 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
             + "set auth=anonymous for public buckets; "
             + "set auth=managed_identity to use the node's metadata-server credentials "
             + "(requires the esql.datasource.managed_identity.enabled cluster setting); "
-            + "or configure keyless authentication with jwt_audience and sts_audience";
+            + "or configure federated authentication with sts_audience";
     }
 }

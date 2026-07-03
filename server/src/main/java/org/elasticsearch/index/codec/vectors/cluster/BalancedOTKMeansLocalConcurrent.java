@@ -11,12 +11,13 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Concurrent implementation of mini-batch optimal transport k-means.
@@ -27,11 +28,20 @@ class BalancedOTKMeansLocalConcurrent<V> extends BalancedOTKMeansLocal<V> {
 
     final TaskExecutor executor;
     final int numWorkers;
+    private final Soar<V> soar;
 
-    BalancedOTKMeansLocalConcurrent(CentroidOps<V> ops, TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
+    BalancedOTKMeansLocalConcurrent(
+        CentroidOps<V> ops,
+        TaskExecutor executor,
+        int numWorkers,
+        int sampleSize,
+        int maxIterations,
+        float soarLambda
+    ) {
         super(ops, sampleSize, maxIterations);
         this.executor = executor;
         this.numWorkers = numWorkers;
+        this.soar = soarLambda < 0 ? Soar.none() : Soar.ofConcurrent(executor, numWorkers, ops, soarLambda);
     }
 
     @Override
@@ -42,7 +52,7 @@ class BalancedOTKMeansLocalConcurrent<V> extends BalancedOTKMeansLocal<V> {
     @Override
     protected void assign(
         ClusteringVectorValues<V> vectors,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
@@ -73,13 +83,12 @@ class BalancedOTKMeansLocalConcurrent<V> extends BalancedOTKMeansLocal<V> {
     }
 
     @Override
-    protected int[] assignSpilled(
+    protected OverspillAssignments assignSpilled(
         ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kmeansIntermediate,
-        NeighborHood[] neighborhoods,
-        float soarLambda
+        KMeansResult<V> kMeansResult,
+        NeighborHood[] neighborhoods
     ) throws IOException {
-        return assignSpilledConcurrent(executor, numWorkers, vectors, ops, kmeansIntermediate, neighborhoods, soarLambda);
+        return soar.assignSpilled(vectors, kMeansResult, neighborhoods);
     }
 
     @Override

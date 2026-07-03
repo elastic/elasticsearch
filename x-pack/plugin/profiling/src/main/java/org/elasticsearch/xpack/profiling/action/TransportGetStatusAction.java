@@ -170,6 +170,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             boolean resourceManagementEnabled = getValue(state, ProfilingPlugin.PROFILING_TEMPLATES_ENABLED);
             boolean resourcesCreated = isResourcesCreated(state);
             boolean anyPre891Data = isAnyPre891Data(state);
+            boolean legacyKvIndicesPresent = ProfilingIndexManager.hasLegacyKvIndices(state);
             // only issue a search if there is any chance that we have data
             if (resourcesCreated) {
                 SearchRequest countRequest = new SearchRequest(EventsIndex.FULL_INDEX.getName());
@@ -182,21 +183,44 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
                 nodeClient.search(countRequest, ActionListener.wrap(searchResponse -> {
                     boolean hasData = searchResponse.getHits().getTotalHits().value() > 0;
                     listener.onResponse(
-                        new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, hasData)
+                        new GetStatusAction.Response(
+                            pluginEnabled,
+                            resourceManagementEnabled,
+                            resourcesCreated,
+                            anyPre891Data,
+                            hasData,
+                            legacyKvIndicesPresent
+                        )
                     );
                 }, (e) -> {
                     // no data yet
                     if (e instanceof SearchPhaseExecutionException) {
                         log.trace("Has data check has failed.", e);
                         listener.onResponse(
-                            new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, false)
+                            new GetStatusAction.Response(
+                                pluginEnabled,
+                                resourceManagementEnabled,
+                                resourcesCreated,
+                                anyPre891Data,
+                                false,
+                                legacyKvIndicesPresent
+                            )
                         );
                     } else {
                         listener.onFailure(e);
                     }
                 }));
             } else {
-                listener.onResponse(new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, false, anyPre891Data, false));
+                listener.onResponse(
+                    new GetStatusAction.Response(
+                        pluginEnabled,
+                        resourceManagementEnabled,
+                        false,
+                        anyPre891Data,
+                        false,
+                        legacyKvIndicesPresent
+                    )
+                );
             }
         }
 

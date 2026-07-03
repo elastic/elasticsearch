@@ -218,6 +218,28 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         }
     }
 
+    /**
+     * The index name prefixes for the three profiling patterns that have been migrated from K/V indices to data streams.
+     * If any index with these prefixes exists in the cluster, the user needs to delete them to allow the data stream
+     * templates to take effect.
+     */
+    private static final List<String> DS_MIGRATED_KV_PREFIXES = List.of(
+        ".profiling-executables-v",
+        ".profiling-stacktraces-v",
+        ".profiling-stackframes-v"
+    );
+
+    /**
+     * Returns {@code true} if the cluster contains legacy K/V indices for any of the profiling patterns that have been
+     * migrated to data streams. While ES prevents an alias and a data stream with the same name from coexisting (the
+     * ingest path will fail if the alias blocks DS creation), this check surfaces the blocked state proactively in the
+     * status API so users know they must delete the K/V indices to complete the migration.
+     */
+    public static boolean hasLegacyKvIndices(ClusterState state) {
+        Map<String, IndexMetadata> indices = state.metadata().getProject().indices();
+        return DS_MIGRATED_KV_PREFIXES.stream().anyMatch(prefix -> indices.keySet().stream().anyMatch(name -> name.startsWith(prefix)));
+    }
+
     public static boolean isAllResourcesCreated(ClusterState state, IndexStateResolver indexStateResolver) {
         for (ProfilingIndex profilingIndex : PROFILING_INDICES) {
             if (indexStateResolver.getIndexState(state, profilingIndex).getStatus() != IndexStatus.UP_TO_DATE) {

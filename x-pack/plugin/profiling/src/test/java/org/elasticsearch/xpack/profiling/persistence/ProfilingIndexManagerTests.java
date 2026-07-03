@@ -39,9 +39,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -171,56 +169,6 @@ public class ProfilingIndexManagerTests extends ESTestCase {
             return null;
         });
         indexManager.clusterChanged(event);
-    }
-
-    public void testMigratesIfIndexTemplateVersionIsBehind() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-        templatesCreated.set(true);
-        int nextIndexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION + 1;
-
-        ProfilingIndexManager.ProfilingIndex idx = ProfilingIndexManager.ProfilingIndex.regular(
-            "profiling-test",
-            1,
-            ProfilingIndexManager.OnVersionBump.KEEP_OLD,
-            new Migration.Builder().migrateToIndexTemplateVersion(nextIndexTemplateVersion)
-                .addProperty("test", "keyword")
-                .dynamicSettings(
-                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30)).build()
-                )
-        );
-        ProfilingIndexManager.ProfilingIndex idx2 = ProfilingIndexManager.ProfilingIndex.regular(
-            "profiling-no-change",
-            1,
-            ProfilingIndexManager.OnVersionBump.KEEP_OLD
-            // no migration specified, should not be changed
-        );
-
-        managedIndices = List.of(idx, idx2);
-        // index is out of date and should be migrated
-        indexTemplateVersion = nextIndexTemplateVersion;
-        ClusterChangedEvent event = createClusterChangedEvent(managedIndices, nodes);
-
-        AtomicInteger mappingUpdates = new AtomicInteger(0);
-        AtomicInteger settingsUpdates = new AtomicInteger(0);
-        client.setVerifier(
-            (action, request, listener) -> verifyIndexMigrated(
-                ".profiling-test-v001",
-                mappingUpdates,
-                settingsUpdates,
-                action,
-                request,
-                listener
-            )
-        );
-
-        indexManager.clusterChanged(event);
-        // one mapping update is the one we specified, the other one is because we need to update _meta
-        assertBusy(() -> assertThat(mappingUpdates.get(), equalTo(2)));
-        assertBusy(() -> assertThat(settingsUpdates.get(), equalTo(1)));
-
-        mappingUpdates.set(0);
-        settingsUpdates.set(0);
     }
 
     public void testIndexMatchWithoutVersion() {

@@ -37,6 +37,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         private final boolean resourcesCreated;
         private final boolean pre891Data;
         private final boolean hasData;
+        private final boolean legacyKvIndicesPresent;
         private boolean timedOut;
 
         public Response(StreamInput in) throws IOException {
@@ -46,6 +47,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             pre891Data = in.readBoolean();
             timedOut = in.readBoolean();
             hasData = in.readBoolean();
+            legacyKvIndicesPresent = in.readBoolean();
         }
 
         public Response(
@@ -53,13 +55,15 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             boolean resourceManagementEnabled,
             boolean resourcesCreated,
             boolean pre891Data,
-            boolean hasData
+            boolean hasData,
+            boolean legacyKvIndicesPresent
         ) {
             this.profilingEnabled = profilingEnabled;
             this.resourceManagementEnabled = resourceManagementEnabled;
             this.resourcesCreated = resourcesCreated;
             this.pre891Data = pre891Data;
             this.hasData = hasData;
+            this.legacyKvIndicesPresent = legacyKvIndicesPresent;
         }
 
         public void setTimedOut(boolean timedOut) {
@@ -74,6 +78,10 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             return hasData;
         }
 
+        public boolean isLegacyKvIndicesPresent() {
+            return legacyKvIndicesPresent;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -83,6 +91,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
                 .field("created", resourcesCreated)
                 .field("pre_8_9_1_data", pre891Data)
                 .field("has_data", hasData)
+                .field("legacy_kv_indices", legacyKvIndicesPresent)
                 .endObject();
             builder.endObject();
             return builder;
@@ -96,6 +105,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             out.writeBoolean(pre891Data);
             out.writeBoolean(timedOut);
             out.writeBoolean(hasData);
+            out.writeBoolean(legacyKvIndicesPresent);
         }
 
         @Override
@@ -108,12 +118,21 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
                 && resourcesCreated == response.resourcesCreated
                 && pre891Data == response.pre891Data
                 && hasData == response.hasData
+                && legacyKvIndicesPresent == response.legacyKvIndicesPresent
                 && timedOut == response.timedOut;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(profilingEnabled, resourceManagementEnabled, resourcesCreated, pre891Data, hasData, timedOut);
+            return Objects.hash(
+                profilingEnabled,
+                resourceManagementEnabled,
+                resourcesCreated,
+                pre891Data,
+                hasData,
+                legacyKvIndicesPresent,
+                timedOut
+            );
         }
 
         @Override

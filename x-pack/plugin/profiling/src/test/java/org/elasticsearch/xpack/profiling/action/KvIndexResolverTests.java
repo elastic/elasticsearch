@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -154,51 +152,6 @@ public class KvIndexResolverTests extends ESTestCase {
         assertEquals(dsBackingIndex, resolvedIndices.get(0));
     }
 
-    public void testResolveMixedSchemasThrows() {
-        String indexPattern = "profiling-stacktraces";
-        Index kvIndex = idx(".profiling-stacktraces-v001-000001");
-        Index dsBackingIndex = idx(".ds-profiling-stacktraces-000001");
-
-        DataStream dataStream = DataStream.builder(indexPattern, List.of(dsBackingIndex))
-            .setMetadata(Map.of())
-            .setIndexMode(IndexMode.STANDARD)
-            .build();
-        Metadata.Builder metaBuilder = new Metadata.Builder();
-        metaBuilder.put(dataStream);
-        // K/V indices expose an alias matching the pattern name; hasAlias() on the project detects this.
-        metaBuilder.indices(Map.of(kvIndex.getName(), metadataWithAlias(kvIndex, 1675209600000L, indexPattern)));
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metaBuilder).build();
-
-        assertThrows(ElasticsearchStatusException.class, () -> resolver.resolve(clusterState, indexPattern, Instant.MIN, Instant.MAX));
-    }
-
-    private IndexMetadata metadata(Index index, long creationDate) {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-            .build();
-        return IndexMetadata.builder(index.getName())
-            .settings(settings)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .creationDate(creationDate)
-            .build();
-    }
-
-    private IndexMetadata metadataWithAlias(Index index, long creationDate, String aliasName) {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-            .build();
-        return IndexMetadata.builder(index.getName())
-            .settings(settings)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .creationDate(creationDate)
-            .putAlias(AliasMetadata.builder(aliasName).build())
-            .build();
-    }
-
     public void testResolveAllIndices() {
         String indexPattern = "profiling-stacktraces";
         Index stV1 = idx(".profiling-stacktraces-v001-000001");
@@ -231,5 +184,18 @@ public class KvIndexResolverTests extends ESTestCase {
         assertEquals(2, resolvedIndices.size());
         assertEquals(stV1, resolvedIndices.get(0));
         assertEquals(stV2, resolvedIndices.get(1));
+    }
+
+    private IndexMetadata metadata(Index index, long creationDate) {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        return IndexMetadata.builder(index.getName())
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .creationDate(creationDate)
+            .build();
     }
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.MockLog;
 
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -89,62 +88,40 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     }
 
     /// Regression test. There was previously a race between {@link RecoveriesCollection#cancelRecoveriesForShard} and {@link
-    /// RecoveriesCollection#markRecoveryAsDone} that this test reproduce.
-    public void testRaceMarkRecoveryAsDoneWithCancelRecoveriesForShard() throws Exception {
-        Function<ShardId, String> firstSupplier = (id) -> id + " marking recovery from";
-        Function<ShardId, String> secondSupplier = (id) -> id + " cancelled recovery from";
-        ContenderFactory firstContenderFactory = (collection, shardId, recoveryId) -> () -> collection.markRecoveryAsDone(recoveryId);
-        ContenderFactory secondContenderFactory = (collection, shardId, recoveryId) -> () -> collection.cancelRecoveriesForShard(
-            shardId,
-            "test"
-        );
-
-        raceAndAssertExactlyOneLogMessage(firstSupplier, secondSupplier, firstContenderFactory, secondContenderFactory);
-    }
-
-    /// Regression test. There was previously a race between {@link RecoveriesCollection#cancelRecoveriesForShard} and {@link
-    /// RecoveriesCollection#failRecovery} that this test reproduce.
+    /// RecoveriesCollection#failRecovery} / {@link RecoveriesCollection#markRecoveryAsDone} / {@link RecoveriesCollection#cancelRecovery}
+    /// that this test reproduce.
     public void testRaceFailRecoveryWithCancelRecoveriesForShard() throws Exception {
-        Function<ShardId, String> firstSupplier = (id) -> id + " failing recovery from";
-        Function<ShardId, String> secondSupplier = (id) -> id + " cancelled recovery from";
-        ContenderFactory firstContenderFactory = (collection, shardId, recoveryId) -> () -> collection.failRecovery(
-            recoveryId,
-            new RecoveryFailedException(fakeRecoveryState(), "failed", new RuntimeException("cause")),
-            false
-        );
-        ContenderFactory secondContenderFactory = (collection, shardId, recoveryId) -> () -> collection.cancelRecoveriesForShard(
-            shardId,
-            "test"
+        ContenderTuple cancelRecoveriesForShard = new ContenderTuple(
+            (collection, shardId, recoveryId) -> () -> collection.cancelRecoveriesForShard(shardId, "cancel multiple"),
+            "cancel multiple"
         );
 
-        raceAndAssertExactlyOneLogMessage(firstSupplier, secondSupplier, firstContenderFactory, secondContenderFactory);
-    }
+        ContenderTuple raceContender = switch (randomInt(2)) {
+            case 0 -> new ContenderTuple(
+                (collection, shardId, recoveryId) -> () -> collection.markRecoveryAsDone(recoveryId),
+                " marking recovery from"
+            );
+            case 1 -> new ContenderTuple(
+                (collection, shardId, recoveryId) -> () -> collection.cancelRecovery(recoveryId, "single cancel"),
+                "single cancel"
+            );
+            case 2 -> new ContenderTuple(
+                (collection, shardId, recoveryId) -> () -> collection.failRecovery(
+                    recoveryId,
+                    new RecoveryFailedException(fakeRecoveryState(), "failed", new RuntimeException("cause")),
+                    false
+                ),
+                " failing recovery from"
+            );
+            default -> throw new IllegalStateException("Unexpected value: " + randomInt(2));
+        };
 
-    /// Regression test. There was previously a race between {@link RecoveriesCollection#cancelRecoveriesForShard} and {@link
-    /// RecoveriesCollection#cancelRecovery} that this test reproduce.
-    public void testRaceCancelRecoveryWithCancelRecoveriesForShard() throws Exception {
-        Function<ShardId, String> firstSupplier = (id) -> "first reason";
-        Function<ShardId, String> secondSupplier = (id) -> "second reason";
-        ContenderFactory firstContenderFactory = (collection, shardId, recoveryId) -> () -> collection.cancelRecovery(
-            recoveryId,
-            "first reason"
-        );
-        ContenderFactory secondContenderFactory = (collection, shardId, recoveryId) -> () -> collection.cancelRecoveriesForShard(
-            shardId,
-            "second reason"
-        );
-
-        raceAndAssertExactlyOneLogMessage(firstSupplier, secondSupplier, firstContenderFactory, secondContenderFactory);
+        raceAndAssertExactlyOneLogMessage(raceContender, cancelRecoveriesForShard);
     }
 
     /// Race the two contenders against each other and assert that the log contains exactly one message
     /// that contains any of the two expected messages.
-    private void raceAndAssertExactlyOneLogMessage(
-        Function<ShardId, String> firstExpectedMessage,
-        Function<ShardId, String> secondExpectedMessage,
-        ContenderFactory firstContender,
-        ContenderFactory secondContender
-    ) throws Exception {
+    private void raceAndAssertExactlyOneLogMessage(ContenderTuple firstContender, ContenderTuple secondContender) throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             final RecoveriesCollection collection = new RecoveriesCollection(logger);
             IndexShard shard = shards.addReplica();
@@ -155,15 +132,11 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             Loggers.setLevel(logger, Level.TRACE);
             try (MockLog mocklog = MockLog.capture(getClass())) {
                 mocklog.addExpectation(
-                    new ExactlyOneOfExpectation(
-                        getClass().getName(),
-                        firstExpectedMessage.apply(shardId),
-                        secondExpectedMessage.apply(shardId)
-                    )
+                    new ExactlyOneOfExpectation(getClass().getName(), firstContender.expectedLogMessage, secondContender.expectedLogMessage)
                 );
                 startInParallel(
-                    firstContender.build(collection, shardId, recoveryId),
-                    secondContender.build(collection, shardId, recoveryId)
+                    firstContender.factory.build(collection, shardId, recoveryId),
+                    secondContender.factory.build(collection, shardId, recoveryId)
                 );
                 mocklog.assertAllExpectationsMatched();
             } finally {
@@ -188,6 +161,8 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     private interface ContenderFactory {
         Runnable build(RecoveriesCollection collection, ShardId shardId, long recoveryId);
     }
+
+    private record ContenderTuple(ContenderFactory factory, String expectedLogMessage) {}
 
     /// Count the number of messages that contain first or second and assert that we counted exactly one.
     private static final class ExactlyOneOfExpectation implements MockLog.LoggingExpectation {

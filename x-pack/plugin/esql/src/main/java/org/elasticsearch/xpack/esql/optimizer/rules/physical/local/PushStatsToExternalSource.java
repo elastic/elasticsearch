@@ -21,9 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -136,8 +134,8 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         // IS NULL / IS NOT NULL on a partition column as MATCH/MISS for every split. Bail out so the
         // normal scan path evaluates the partition predicate against the VirtualColumnIterator's
         // constant block. Symmetric with PushFiltersToSource keeping partition predicates in FilterExec.
-        Set<String> partitionColumnNames = partitionColumnNames(externalExec);
-        if (filterForClassification != null && referencesAnyColumn(filterForClassification, partitionColumnNames)) {
+        Set<String> pathDerivedColumns = ExternalSourceAggregatePushdown.partitionColumnNames(externalExec.fileList());
+        if (filterForClassification != null && referencesAnyColumn(filterForClassification, pathDerivedColumns)) {
             return aggregateExec;
         }
 
@@ -185,7 +183,12 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         List<DataType> dataTypes = new ArrayList<>(aggregates.size());
 
         for (Expression aggExpr : resolvedAggExprs) {
-            Object value = ExternalSourceAggregatePushdown.resolveFromStats(aggExpr, stats, implicitNullsForAbsentColumn);
+            Object value = ExternalSourceAggregatePushdown.resolveFromStats(
+                aggExpr,
+                stats,
+                implicitNullsForAbsentColumn,
+                pathDerivedColumns
+            );
             if (value == null) {
                 return aggregateExec;
             }
@@ -207,18 +210,6 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         }
 
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
-    }
-
-    private static Set<String> partitionColumnNames(ExternalSourceExec externalExec) {
-        FileList fileList = externalExec.fileList();
-        if (fileList == null) {
-            return Set.of();
-        }
-        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
-        if (partitionMetadata == null || partitionMetadata.isEmpty()) {
-            return Set.of();
-        }
-        return partitionMetadata.partitionColumns().keySet();
     }
 
     private static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {

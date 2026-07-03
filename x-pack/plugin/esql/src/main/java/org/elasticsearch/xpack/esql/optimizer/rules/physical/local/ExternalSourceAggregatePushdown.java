@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Shared helpers for the aggregate pushdown rule ({@link PushStatsToExternalSource}) and the
@@ -159,17 +160,36 @@ public final class ExternalSourceAggregatePushdown {
     public static boolean canServeAllFromStats(
         List<? extends NamedExpression> aggregates,
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
-        boolean implicitNullsForAbsentColumn
+        boolean implicitNullsForAbsentColumn,
+        Set<String> pathDerivedColumns
     ) {
         for (NamedExpression agg : aggregates) {
             if (agg instanceof Alias == false) {
                 return false;
             }
-            if (resolveFromStats(((Alias) agg).child(), stats, implicitNullsForAbsentColumn) == null) {
+            if (resolveFromStats(((Alias) agg).child(), stats, implicitNullsForAbsentColumn, pathDerivedColumns) == null) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * The columns whose values are derived from the file's directory PATH (Hive-style partition keys), not its
+     * payload. They are absent from every file's column stats, so the implicit-nulls contract reads them as
+     * all-null — any {@code COUNT} over one would serve 0. Both the fold and the split-discovery gate feed this
+     * set to {@link #resolveFromStats} so a partition-column aggregate safe-misses on footer formats. Empty when
+     * the source is not partitioned (no {@code hive_partitioning}).
+     */
+    public static Set<String> partitionColumnNames(org.elasticsearch.xpack.esql.datasources.spi.FileList fileList) {
+        if (fileList == null) {
+            return Set.of();
+        }
+        org.elasticsearch.xpack.esql.datasources.PartitionMetadata partitionMetadata = fileList.partitionMetadata();
+        if (partitionMetadata == null || partitionMetadata.isEmpty()) {
+            return Set.of();
+        }
+        return partitionMetadata.partitionColumns().keySet();
     }
 
     /**
@@ -183,14 +203,15 @@ public final class ExternalSourceAggregatePushdown {
     static Object resolveFromStats(
         Expression aggFunction,
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
-        boolean implicitNullsForAbsentColumn
+        boolean implicitNullsForAbsentColumn,
+        Set<String> pathDerivedColumns
     ) {
         if (aggFunction instanceof Count count) {
-            return resolveCount(count, stats, implicitNullsForAbsentColumn);
+            return resolveCount(count, stats, implicitNullsForAbsentColumn, pathDerivedColumns);
         } else if (aggFunction instanceof Min min) {
-            return resolveMin(min, stats, implicitNullsForAbsentColumn);
+            return resolveMin(min, stats, implicitNullsForAbsentColumn, pathDerivedColumns);
         } else if (aggFunction instanceof Max max) {
-            return resolveMax(max, stats, implicitNullsForAbsentColumn);
+            return resolveMax(max, stats, implicitNullsForAbsentColumn, pathDerivedColumns);
         }
         return null;
     }
@@ -206,7 +227,8 @@ public final class ExternalSourceAggregatePushdown {
     private static Object resolveCount(
         Count count,
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
-        boolean implicitNullsForAbsentColumn
+        boolean implicitNullsForAbsentColumn,
+        Set<String> pathDerivedColumns
     ) {
         if (count.hasFilter()) {
             return null;
@@ -219,6 +241,12 @@ public final class ExternalSourceAggregatePushdown {
         // implicit-nulls contract an absent column reads as all-null, which would serve COUNT(col) = 0.
         // Refuse here even if a format-level gate happens to let one through (defense in depth).
         if (target instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
+            // Partition columns live in the directory path, not the file payload, so they are absent from every
+            // file's column stats -> columnNullCount returns rowCount (implicit-nulls contract) -> COUNT(p) would
+            // serve rowCount - rowCount = 0. Safe-miss so the scan's VirtualColumnIterator answers correctly.
+            if (pathDerivedColumns.contains(ref.name())) {
+                return null;
+            }
             // For text formats under partial harvest an unobserved column means "not harvested," not
             // "all-null": serving rowCount - rowCount = 0 would be wrong. Safe-miss so the engine re-scans.
             if (columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
@@ -239,12 +267,19 @@ public final class ExternalSourceAggregatePushdown {
     private static Object resolveMin(
         Min min,
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
-        boolean implicitNullsForAbsentColumn
+        boolean implicitNullsForAbsentColumn,
+        Set<String> pathDerivedColumns
     ) {
         if (min.hasFilter()) {
             return null;
         }
         if (min.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
+            // MIN/MAX of a partition column already safe-miss (columnMin returns null for an absent column), but
+            // guard explicitly so a future stats producer that starts emitting a partition-named column can't
+            // serve a path-derived value from payload stats.
+            if (pathDerivedColumns.contains(ref.name())) {
+                return null;
+            }
             // A partially-harvested column would serve a subset extremum (one file's range while a
             // sibling's is invisible). Safe-miss; MergedSplitStats requires every child to have observed
             // the column for hasColumn to be true.
@@ -259,12 +294,16 @@ public final class ExternalSourceAggregatePushdown {
     private static Object resolveMax(
         Max max,
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
-        boolean implicitNullsForAbsentColumn
+        boolean implicitNullsForAbsentColumn,
+        Set<String> pathDerivedColumns
     ) {
         if (max.hasFilter()) {
             return null;
         }
         if (max.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
+            if (pathDerivedColumns.contains(ref.name())) {
+                return null;
+            }
             if (columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
                 return null;
             }

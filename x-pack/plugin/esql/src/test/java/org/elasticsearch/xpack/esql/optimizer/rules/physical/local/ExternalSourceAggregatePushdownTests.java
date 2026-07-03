@@ -57,6 +57,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.alias;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -411,7 +412,8 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
             ExternalSourceAggregatePushdown.canServeAllFromStats(
                 List.of(alias("m", new Min(Source.EMPTY, SCORE))),
                 SplitStats.of(metadata),
-                support.appliesImplicitNullsForAbsentColumn()
+                support.appliesImplicitNullsForAbsentColumn(),
+                Set.of()
             )
         );
 
@@ -432,18 +434,53 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         boolean implicitNulls = new TextAggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
 
         // Unfiltered COUNT(*) IS servable.
-        assertTrue(ExternalSourceAggregatePushdown.canServeAllFromStats(List.of(countStarAlias()), stats, implicitNulls));
+        assertTrue(ExternalSourceAggregatePushdown.canServeAllFromStats(List.of(countStarAlias()), stats, implicitNulls, Set.of()));
         // The SAME COUNT with a per-aggregate filter must decline.
         var filteredCount = new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")).withFilter(greaterThanOf(AGE, of(18L)));
         assertFalse(
             "COUNT(*) WHERE p must decline stat-serving -> safe-miss",
-            ExternalSourceAggregatePushdown.canServeAllFromStats(List.of(alias("c", filteredCount)), stats, implicitNulls)
+            ExternalSourceAggregatePushdown.canServeAllFromStats(List.of(alias("c", filteredCount)), stats, implicitNulls, Set.of())
         );
         // Same for a filtered MIN.
         var filteredMin = new Min(Source.EMPTY, AGE).withFilter(greaterThanOf(AGE, of(18L)));
         assertFalse(
             "MIN(age) WHERE p must decline stat-serving -> safe-miss",
-            ExternalSourceAggregatePushdown.canServeAllFromStats(List.of(alias("m", filteredMin)), stats, implicitNulls)
+            ExternalSourceAggregatePushdown.canServeAllFromStats(List.of(alias("m", filteredMin)), stats, implicitNulls, Set.of())
+        );
+    }
+
+    public void testCountOfPartitionColumnSafeMisses() {
+        // ITEM 3 (H4, elastic/elasticsearch#150920): a Hive partition column lives in the directory path, absent
+        // from every file's column stats, so columnNullCount returns rowCount -> COUNT(p) would serve
+        // rowCount - rowCount = 0. When p is flagged path-derived the resolution safe-misses (the scan's
+        // VirtualColumnIterator answers correctly). COUNT(*) still serves on the same partitioned source.
+        Map<String, Object> metadata = statsMetadata(100L, null, null); // rowCount 100, no column stats for p
+        SplitStats stats = SplitStats.of(metadata);
+        // Footer format (parquet/ORC): an absent column reads as all-null (implicitNulls == true) — this is the
+        // path where COUNT(p) lies. Text (implicitNulls == false) already safe-misses an unharvested column.
+        boolean implicitNulls = true;
+        ReferenceAttribute p = referenceAttribute("p", DataType.KEYWORD);
+        Count countP = new Count(Source.EMPTY, p);
+
+        // The bug without the guard: COUNT(p) serves rowCount - rowCount = 0.
+        assertEquals(0L, ((Number) ExternalSourceAggregatePushdown.resolveFromStats(countP, stats, implicitNulls, Set.of())).longValue());
+        // The fix: p flagged path-derived -> safe-miss.
+        assertNull(
+            "COUNT(partition_col) must safe-miss on a footer format",
+            ExternalSourceAggregatePushdown.resolveFromStats(countP, stats, implicitNulls, Set.of("p"))
+        );
+        // COUNT(*) still serves on the partitioned source.
+        Count countStar = new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*"));
+        assertEquals(
+            100L,
+            ((Number) ExternalSourceAggregatePushdown.resolveFromStats(countStar, stats, implicitNulls, Set.of("p"))).longValue()
+        );
+        // MIN(p) is guarded belt-and-suspenders (already safe via a null columnMin).
+        assertNull(ExternalSourceAggregatePushdown.resolveFromStats(new Min(Source.EMPTY, p), stats, implicitNulls, Set.of("p")));
+        // The gate twin declines COUNT(p) too (symmetry -> no #985 zero-split crash).
+        assertFalse(
+            "gate must decline COUNT(partition_col), matching the fold",
+            ExternalSourceAggregatePushdown.canServeAllFromStats(List.of(alias("c", countP)), stats, implicitNulls, Set.of("p"))
         );
     }
 

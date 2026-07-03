@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -281,6 +282,36 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         public String countFieldName() {
             return name() + COUNT_FIELD_SUFFIX;
         }
+
+        /**
+         * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) value from a multi-value
+         * ({@code count > 1}) {@code SeparateCount} blob. Values are stored sorted, so the minimum is simply the first
+         * entry and the maximum is the last; callers must handle the {@code count <= 1} raw-passthrough case themselves.
+         */
+        public static BytesRef decodeExtreme(BytesRef raw, boolean maxMode) {
+            ByteArrayStreamInput stream = new ByteArrayStreamInput();
+            stream.reset(raw.bytes, raw.offset, raw.length);
+            BytesRef selectedValue = new BytesRef();
+            selectedValue.bytes = raw.bytes;
+            try {
+                if (maxMode == false) {
+                    // First value = minimum.
+                    selectedValue.length = stream.readVInt();
+                    selectedValue.offset = stream.getPosition();
+                } else {
+                    // Last value = maximum: iterate through all entries.
+                    int endPos = raw.offset + raw.length;
+                    while (stream.getPosition() < endPos) {
+                        selectedValue.length = stream.readVInt();
+                        selectedValue.offset = stream.getPosition();
+                        stream.setPosition(selectedValue.offset + selectedValue.length);
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to decode SeparateCount extreme value", e);
+            }
+            return selectedValue;
+        }
     }
 
     /**
@@ -481,6 +512,43 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to get binary value", e);
             }
+        }
+
+        /**
+         * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) non-null value from a multi-slot
+         * ({@code slotCount > 1}) {@code ArrayOrderInlineNull} blob. Values are stored in document order (not sorted) with
+         * inline nulls, so unlike {@link SeparateCount#decodeExtreme}, this must scan every slot and compare values;
+         * callers must handle the {@code slotCount <= 1} raw-passthrough case themselves. Returns {@code null} only if
+         * every slot is null, which should not occur for a real sort key (an all-null document writes no binary blob).
+         */
+        public static BytesRef decodeExtreme(BytesRef raw, int slotCount, boolean maxMode) {
+            ByteArrayStreamInput stream = new ByteArrayStreamInput();
+            stream.reset(raw.bytes, raw.offset, raw.length);
+            BytesRef extreme = null;
+            try {
+                for (int i = 0; i < slotCount; i++) {
+                    int encodedLength = stream.readVInt();
+                    if (encodedLength == 0) {
+                        // Null slot: no bytes follow.
+                        continue;
+                    }
+                    int length = encodedLength - 1;
+                    int offset = stream.getPosition();
+                    stream.setPosition(offset + length);
+                    if (extreme == null) {
+                        extreme = new BytesRef(raw.bytes, offset, length);
+                    } else {
+                        BytesRef candidate = new BytesRef(raw.bytes, offset, length);
+                        boolean candidateWins = maxMode ? candidate.compareTo(extreme) > 0 : candidate.compareTo(extreme) < 0;
+                        if (candidateWins) {
+                            extreme = candidate;
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to decode ArrayOrderInlineNull extreme value", e);
+            }
+            return extreme;
         }
     }
 }

@@ -39,6 +39,11 @@ public class Clusters {
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
+        // The local-disk allowlist setting is new in 9.5.0; older BWC nodes reject unknown settings and fail to start,
+        // so only set it on nodes that know it. file:// EXTERNAL reads run on the local (coordinating) cluster anyway.
+        if (remoteClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
+            cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
+        }
         for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
             cluster.setting(entry.getKey(), entry.getValue());
         }
@@ -104,6 +109,10 @@ public class Clusters {
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
+        }
+        // The local-disk allowlist setting is new in 9.5.0; older BWC nodes reject unknown settings and fail to start.
+        if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
+            cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
         }
         if (localClusterSupportsInferenceTestService()) {
             cluster.plugin("inference-service-test");

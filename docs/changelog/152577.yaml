@@ -1,0 +1,5 @@
+pr: 152577
+summary: Add operational telemetry for ES|QL external data sources
+area: ES|QL
+type: enhancement
+issues: []

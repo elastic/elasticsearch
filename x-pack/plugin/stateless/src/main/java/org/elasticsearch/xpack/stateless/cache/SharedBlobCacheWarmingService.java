@@ -1200,9 +1200,8 @@ public class SharedBlobCacheWarmingService {
             final int regionSize = cacheService.getRegionSize();
             final int startRegion = cacheService.getRegion(start);
             final int endRegion = cacheService.getEndingRegion(end);
-            assert warmingRun.type() != Type.SEARCH
-                || cacheService.isCacheBoostPreferenceEnabled() == false
-                || directory.knowsFile(fileName) : "search directory does not yet know file [" + fileName + "] during warming";
+            // There is a race here with searchDirectory which could have been updated midway through warming. This could result in
+            // no timestamp for a previously known file.
             final long timestampMillis = directory.getTimestampMillis(fileName);
 
             if (startRegion == endRegion) {

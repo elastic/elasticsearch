@@ -1751,7 +1751,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
         final var capturingPolicy = new TimestampCapturingEvictionPolicy();
         try (FakeStatelessNode fakeNode = createCacheCapturingFakeNode(primaryTerm, regionSizeInBytes, capturingPolicy)) {
-            // Build a VBCC larger than a single region (offline warming skips region 0) and upload it to the blob store.
+            // Build a VBCC larger than a single region and upload it to the blob store.
             var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
             var vbcc = new VirtualBatchedCompoundCommit(
                 fakeNode.shardId,
@@ -1814,7 +1814,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         final boolean boostEnabled = randomBoolean();
         final long primaryTerm = randomLongBetween(1, 42);
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
-        final long knownTimestamp = randomLongBetween(1, 1_000_000_000_000L);
+        final long knownTimestamp = randomLongBetween(1, Long.MAX_VALUE);
         final Map<CapturedRegion, Long> capturedTimestamps = new ConcurrentHashMap<>();
         try (
             FakeStatelessNode fakeNode = createMaybeFetchRangeCapturingFakeNode(

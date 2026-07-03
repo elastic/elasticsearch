@@ -67,8 +67,7 @@ public class TransportDeleteRegionPolicyAction extends HandledTransportAction<De
                         inferencePreferencesCache.invalidate(
                             ActionListener.runAfter(
                                 ActionListener.wrap(
-                                    ignored -> {
-                                    },
+                                    ignored -> {},
                                     e -> logger.warn("Failed to invalidate inference preferences cache after deleting region policy", e)
                                 ),
                                 () -> listener.onResponse(AcknowledgedResponse.TRUE)

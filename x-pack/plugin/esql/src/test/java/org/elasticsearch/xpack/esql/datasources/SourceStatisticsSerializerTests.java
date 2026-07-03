@@ -69,6 +69,39 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals(65, result.get("_stats.columns.age.max"));
     }
 
+    /**
+     * esql-planning#1056: a list column is published with a size marker but no null count. Across a
+     * multi-file UNION merge it is "present but null-count-less" in every file and must be poisoned —
+     * the merged map keeps the size key (so {@code findColumn} hits) but drops the null_count key, so
+     * {@code COUNT} declines and scans instead of being answered as 0. A flat column keeps its count.
+     */
+    public void testMergeStatisticsListColumnNullCountStaysUnknown() {
+        Map<String, Object> s1 = new HashMap<>();
+        s1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        s1.put(SourceStatisticsSerializer.columnSizeBytesKey("tags"), 4000L); // list column: size only, no null_count
+        s1.put(SourceStatisticsSerializer.columnNullCountKey("id"), 3L);      // flat control: real null_count
+        s1.put(SourceStatisticsSerializer.columnSizeBytesKey("id"), 800L);
+
+        Map<String, Object> s2 = new HashMap<>();
+        s2.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 200L);
+        s2.put(SourceStatisticsSerializer.columnSizeBytesKey("tags"), 9000L);
+        s2.put(SourceStatisticsSerializer.columnNullCountKey("id"), 7L);
+        s2.put(SourceStatisticsSerializer.columnSizeBytesKey("id"), 1600L);
+
+        Map<String, Object> result = SourceStatisticsSerializer.mergeStatistics(List.of(s1, s2));
+        assertNotNull(result);
+        assertEquals(300L, result.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        // The list column is registered (size present) but its null count is unknown (key dropped),
+        // so COUNT(tags) declines the pushdown and scans — never answered as 0.
+        assertEquals(13000L, result.get(SourceStatisticsSerializer.columnSizeBytesKey("tags")));
+        assertFalse(
+            "list column null_count must stay unknown (poisoned), not fabricated",
+            result.containsKey(SourceStatisticsSerializer.columnNullCountKey("tags"))
+        );
+        // The flat column keeps its summed null count — footer fast path preserved.
+        assertEquals(10L, result.get(SourceStatisticsSerializer.columnNullCountKey("id")));
+    }
+
     public void testMergeStatisticsMissingSplitReturnsNull() {
         Map<String, Object> s1 = Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         Map<String, Object> s2 = Map.of(SourceStatisticsSerializer.STATS_SIZE_BYTES, 5000L);

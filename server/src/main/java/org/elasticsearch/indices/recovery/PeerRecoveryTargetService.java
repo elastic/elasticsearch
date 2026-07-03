@@ -70,7 +70,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_NOTIFY;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
 
 /**
@@ -287,7 +287,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             onGoingRecoveries.failRecovery(
                 recoveryId,
                 new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e),
-                FAIL_NOTIFY
+                FAIL_SEND
             );
         }), recoveryRef::close));
 
@@ -339,7 +339,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                                 // the target shard
                                 (cause instanceof ShardNotFoundException
                                     || cause instanceof IndexNotFoundException
-                                    || cause instanceof AlreadyClosedException) ? FAIL_SILENT : FAIL_NOTIFY;
+                                    || cause instanceof AlreadyClosedException) ? FAIL_SILENT : FAIL_SEND;
 
                             // TODO retries? See RecoveryResponseHandler#handleException
                             onGoingRecoveries.failRecovery(
@@ -721,7 +721,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     onGoingRecoveries.failRecovery(
                         recoveryId,
                         new RecoveryFailedException(recoveryRef.target().state(), "unexpected error", e),
-                        FAIL_NOTIFY // be safe
+                        FAIL_SEND // be safe
                     );
                 } else {
                     logger.debug(() -> "unexpected error during recovery, but recovery id [" + recoveryId + "] is finished", e);
@@ -869,7 +869,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 return;
             }
 
-            onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, e), FAIL_NOTIFY);
+            onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, e), FAIL_SEND);
         }
 
         @Override

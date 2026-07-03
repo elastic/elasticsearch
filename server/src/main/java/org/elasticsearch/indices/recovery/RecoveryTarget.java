@@ -52,7 +52,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.isReadOnlyVerified;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_NOTIFY;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -300,10 +300,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("recovery failed after being marked as done", e);
-                    listener.onRecoveryFailure(
-                        new RecoveryFailedException(state(), "Recovery failed on post recovery step", e),
-                        FAIL_NOTIFY
-                    );
+                    listener.onRecoveryFailure(new RecoveryFailedException(state(), "Recovery failed on post recovery step", e), FAIL_SEND);
                 }
             }, this::decRef));
         }
@@ -513,11 +510,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     ex.addSuppressed(e);
                 }
                 RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
-                fail(rfe, FAIL_NOTIFY);
+                fail(rfe, FAIL_SEND);
                 throw rfe;
             } catch (Exception ex) {
                 RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
-                fail(rfe, FAIL_NOTIFY);
+                fail(rfe, FAIL_SEND);
                 throw rfe;
             } finally {
                 store.decRef();

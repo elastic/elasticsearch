@@ -30,7 +30,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_NOTIFY;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
 /// released when the recovery's [RecoveryListener] completes.
@@ -75,7 +75,7 @@ public final class ThrottlingRecoveryService implements Closeable {
     }
 
     /// Enqueues a PendingRecovery again, used to retry on failure
-    void enqueue(PendingRecovery pendingRecovery) {
+    private void retry(PendingRecovery pendingRecovery) {
         enqueue(pendingRecovery.listener, pendingRecovery.recoveryState, pendingRecovery.stats, pendingRecovery.task);
     }
 
@@ -216,7 +216,7 @@ public final class ThrottlingRecoveryService implements Closeable {
 
         @Override
         public void onFailure(Exception e) {
-            listener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_NOTIFY);
+            listener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND);
         }
 
         @Override
@@ -255,7 +255,7 @@ public final class ThrottlingRecoveryService implements Closeable {
             } finally {
                 releaseSlot(pending);
                 if (fs.retry()) {
-                    enqueue(pending);
+                    retry(pending);
                 }
             }
         }

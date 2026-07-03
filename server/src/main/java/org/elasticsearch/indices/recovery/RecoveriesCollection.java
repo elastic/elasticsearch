@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_NOTIFY;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -108,7 +108,7 @@ public class RecoveriesCollection {
             failRecovery(
                 newRecoveryTarget.recoveryId(),
                 new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e),
-                FAIL_NOTIFY
+                FAIL_SEND
             );
             return null;
         }

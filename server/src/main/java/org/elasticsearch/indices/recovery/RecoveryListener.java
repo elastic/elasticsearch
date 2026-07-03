@@ -48,7 +48,7 @@ public interface RecoveryListener {
         RETRY(false, true),
         RETRY_BACKOFF(false, true),
         FAIL_SILENT(false, false),
-        FAIL_NOTIFY(true, false);
+        FAIL_SEND(true, false);
 
         private final boolean sendShardFailure;
         private final boolean retry;

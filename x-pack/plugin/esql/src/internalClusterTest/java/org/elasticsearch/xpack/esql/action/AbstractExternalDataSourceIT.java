@@ -208,10 +208,7 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         registeredDatasets.add(name);
     }
 
-    /**
-     * Convenience: lazily ensure a shared {@code test} data source ({@value #SHARED_TEST_DATA_SOURCE})
-     * exists, then register {@code name} against it. Returns the dataset name for chaining.
-     */
+    /** Convenience: registers {@code name} against the shared {@code test} data source, creating it on first use. */
     protected String registerDataset(String name, String resourceUri, Map<String, Object> settings) {
         if (registeredDataSources.contains(SHARED_TEST_DATA_SOURCE) == false) {
             registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());

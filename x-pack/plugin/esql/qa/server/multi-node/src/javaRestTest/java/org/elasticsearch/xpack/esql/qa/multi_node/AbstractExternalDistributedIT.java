@@ -23,7 +23,6 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
@@ -69,7 +68,6 @@ public abstract class AbstractExternalDistributedIT extends ESRestTestCase {
         return clusterInstance.getHttpAddresses();
     }
 
-    /** Drops every data source/dataset this suite registered and resets the registry caches for the next suite. */
     @AfterClass
     public static void cleanupDatasets() throws IOException {
         try {
@@ -93,14 +91,9 @@ public abstract class AbstractExternalDistributedIT extends ESRestTestCase {
             "s3",
             Map.of("endpoint", s3Fixture.getAddress(), "access_key", ACCESS_KEY, "secret_key", SECRET_KEY)
         );
-        String dataset = datasetNameFor(s3Path);
+        String dataset = DatasetRegistry.sanitizeDatasetName("ds_", s3Path);
         DatasetRegistry.ensureDataset(client(), dataset, S3_DATA_SOURCE, "s3://" + BUCKET + "/" + s3Path, null);
         return "FROM " + dataset;
-    }
-
-    /** Derives a valid (lowercase, index-name-safe) dataset name from an S3 path/glob, unique per distinct path. */
-    private static String datasetNameFor(String s3Path) {
-        return "ds_" + s3Path.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_");
     }
 
     /**

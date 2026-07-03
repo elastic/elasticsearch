@@ -1,8 +1,3 @@
- * Remote views are not supported. A query will fail if its pattern (ie `FROM remote:name`) matches any remote views.
- * The same applies to flat expressions (ie `FROM name`), if the name is resolved to a view on any of the linked projects, the query will fail.
- * Unlike in CCS, if a local view name does not match a remote view name, but does match a remote index name,
-   the query will succeed and produce results from both the local view and the remote index.
- * If a local view definition contains index patterns that match local and remote indexes,
-   data from both local and remote indexes will be returned.
-   That is to say both the view name and the index patterns inside the view definition
-   conform to the same index resolution rules as any other index pattern in a normal {{esql}} query.
+ * Views may be defined only in the origin project. If a source expression in the top-level query or a nested view resolves to a view in a linked project, the query fails.
+ * An unqualified index expression can resolve to both a view in the origin project and indices in linked projects. Results from both sources are returned.
+ * Index expressions in an origin-project view definition follow the standard CPS index-resolution rules and can resolve to indices in the origin and linked projects.

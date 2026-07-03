@@ -64,6 +64,7 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
                 task.getPackageName().set(extension.getPackageName());
                 task.getVariantPrefixes().set(project.provider(extension::getVariantPrefixes));
                 task.getVariantBaseClasses().set(project.provider(extension::getVariantBaseClasses));
+                task.getVariantSpecFilePatterns().set(project.provider(extension::getVariantSpecFilePatterns));
                 task.getOutputDirectory().set(project.getLayout().getBuildDirectory().dir("generated-csv-spec-test-sources/java"));
                 task.setDescription("Generates per-csv-spec-file IT classes for each declared variant.");
                 task.setGroup("verification");

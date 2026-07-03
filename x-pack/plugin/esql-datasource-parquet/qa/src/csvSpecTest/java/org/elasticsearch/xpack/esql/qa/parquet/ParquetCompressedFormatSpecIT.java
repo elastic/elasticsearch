@@ -12,14 +12,9 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
-import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
-import org.junit.ClassRule;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parameterized integration tests for Parquet files with internal compression.
@@ -31,12 +26,9 @@ import java.util.Set;
  * ({@code standalone-snappy/}, {@code standalone-gzip/}, etc.).
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class ParquetCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
+public class ParquetCompressedFormatSpecIT extends AbstractParquetExternalSpecTestCase {
 
     private static final List<String> CODECS = List.of("snappy", "gzip", "zstd", "lz4raw");
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
 
     private final String codecName;
 
@@ -50,7 +42,7 @@ public class ParquetCompressedFormatSpecIT extends AbstractExternalSourceSpecTes
         String codecName,
         StorageBackend storageBackend
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "parquet");
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend);
         this.codecName = codecName;
     }
 
@@ -59,28 +51,9 @@ public class ParquetCompressedFormatSpecIT extends AbstractExternalSourceSpecTes
         return "standalone-" + codecName;
     }
 
-    @Override
-    protected String readerName() {
-        return FormatNameResolver.READER_JAVA;
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
-    @Override
-    protected boolean enableRoundingDoubleValuesOnAsserting() {
-        return true;
-    }
-
     // Migrated specs run via FROM <dataset> on S3 and via the rebuilt EXTERNAL query on the other backends.
     // The reader: "java" this IT injects is redundant with the .parquet extension default (the codec lives
     // inside the .parquet file, so the extension is unchanged), so FROM-on-S3 still uses the Java reader.
-    @Override
-    protected Set<StorageBackend> datasetModeBackends() {
-        return Set.of(StorageBackend.S3);
-    }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {

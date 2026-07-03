@@ -26,20 +26,21 @@ import java.nio.file.Path;
  * Each generated subclass covers one csv-spec file and runs every test case with query
  * approximation, verifying that approximate results match the exact expected values when
  * a large sample size is used.
- * The cluster is shared across all generated subclasses via {@code shared(true)} in
- * {@link Clusters#testCluster}, so it starts once for the whole JVM and data is
- * ingested exactly once.
+ * <p>
+ * Shares {@link AbstractEsqlSpecIT#cluster} rather than creating its own cluster so that
+ * {@link org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase#INGEST} fires exactly once
+ * for the whole JVM and data loaded by {@link AbstractEsqlSpecIT} is also available here.
  */
-// Each generated class covers one csv-spec file and should complete in a few minutes at most
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public abstract class AbstractEsqlSpecApproximationIT extends GenerativeApproximationRestTest {
 
-    private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
-
+    /**
+     * Reuses the cluster from {@link AbstractEsqlSpecIT} so both abstract bases share a single
+     * cluster in the csvSpecTests JVM.  The {@link ClassRule} annotation is required so JUnit
+     * starts the cluster when an Approximation class happens to be the first one loaded.
+     */
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(CSV_DATA_PATH, spec -> {
-        spec.plugin("inference-service-test").settings(nodeSpec -> LOGGING_CLUSTER_SETTINGS);
-    }, true);
+    public static ElasticsearchCluster cluster = AbstractEsqlSpecIT.cluster;
 
     protected AbstractEsqlSpecApproximationIT(
         String fileName,
@@ -59,7 +60,7 @@ public abstract class AbstractEsqlSpecApproximationIT extends GenerativeApproxim
 
     @Override
     protected Path getCsvDataPath() {
-        return CSV_DATA_PATH;
+        return AbstractEsqlSpecIT.CSV_DATA_PATH;
     }
 
     @Override

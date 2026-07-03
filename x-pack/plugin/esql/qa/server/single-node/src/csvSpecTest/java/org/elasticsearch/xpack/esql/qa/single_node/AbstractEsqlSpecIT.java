@@ -37,7 +37,7 @@ import java.nio.file.Path;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public abstract class AbstractEsqlSpecIT extends EsqlSpecTestCase {
 
-    private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
+    static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(CSV_DATA_PATH, spec -> {

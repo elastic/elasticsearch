@@ -25,7 +25,9 @@ import org.gradle.api.tasks.TaskAction;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
@@ -63,6 +65,16 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
     @Input
     public abstract ListProperty<String> getVariantBaseClasses();
 
+    /**
+     * Per-variant filename glob patterns, parallel to {@link #getVariantPrefixes()}.
+     * Each entry is a comma-separated list of glob patterns for one variant; an empty
+     * string means "generate for all spec files".  Patterns are matched against the
+     * spec file name only (not the full path) using {@link java.nio.file.PathMatcher}
+     * glob syntax.
+     */
+    @Input
+    public abstract ListProperty<String> getVariantSpecFilePatterns();
+
     @OutputDirectory
     public abstract DirectoryProperty getOutputDirectory();
 
@@ -83,8 +95,9 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
 
         List<String> prefixes = getVariantPrefixes().get();
         List<String> baseClasses = getVariantBaseClasses().get();
-        if (prefixes.size() != baseClasses.size()) {
-            throw new IllegalStateException("variantPrefixes and variantBaseClasses must have the same length");
+        List<String> allEncodedPatterns = getVariantSpecFilePatterns().get();
+        if (prefixes.size() != baseClasses.size() || prefixes.size() != allEncodedPatterns.size()) {
+            throw new IllegalStateException("variantPrefixes, variantBaseClasses, and variantSpecFilePatterns must have the same length");
         }
 
         File specDir = getSpecFilesDir().getAsFile().get();
@@ -98,6 +111,11 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
             String baseName = specFileName.substring(0, specFileName.length() - ".csv-spec".length());
             String pascalName = toPascalCase(baseName);
             for (int i = 0; i < prefixes.size(); i++) {
+                String encoded = allEncodedPatterns.get(i);
+                List<String> patterns = encoded.isEmpty() ? List.of() : Arrays.asList(encoded.split(","));
+                if (patterns.isEmpty() == false && matchesAnyPattern(specFile, patterns) == false) {
+                    continue;
+                }
                 String className = prefixes.get(i) + pascalName + "IT";
                 File javaFile = new File(packageDir, className + ".java");
                 Files.writeString(
@@ -108,6 +126,15 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
                 getLogger().info("Generated {}", javaFile.getName());
             }
         }
+    }
+
+    private static boolean matchesAnyPattern(File file, List<String> patterns) {
+        for (String pattern : patterns) {
+            if (FileSystems.getDefault().getPathMatcher("glob:" + pattern).matches(Paths.get(file.getName()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String toPascalCase(String name) {

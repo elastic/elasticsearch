@@ -8,7 +8,7 @@ setup:
       cluster.put_settings:
         body:
           persistent:
-            data_streams.time_series.create_past_indices_enabled: true
+            data_stream.past_tsdb_index_creation_enabled: true
 
   - do:
       allowed_warnings:
@@ -43,7 +43,7 @@ teardown:
       cluster.put_settings:
         body:
           persistent:
-            data_streams.time_series.create_past_indices_enabled: null
+            data_stream.past_tsdb_index_creation_enabled: null
 
   - do:
       indices.delete_data_stream:

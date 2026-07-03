@@ -96,7 +96,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     public static final String LAZY_ROLLOVER_ORIGIN = "lazy_rollover";
 
     public static final Setting<Boolean> PAST_TSDB_INDEX_CREATION_ENABLED_SETTING = Setting.boolSetting(
-        "data_streams.time_series.create_past_indices_enabled",
+        "data_stream.past_tsdb_index_creation_enabled",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

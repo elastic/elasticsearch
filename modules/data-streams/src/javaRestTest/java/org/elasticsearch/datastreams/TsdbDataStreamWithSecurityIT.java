@@ -43,7 +43,7 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.transport.ssl.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
-        .setting("data_streams.time_series.create_past_indices_enabled", "true")
+        .setting("data_stream.past_tsdb_index_creation_enabled", "true")
         .user("test_admin", PASSWORD, "superuser", false)
         .user("tsdb_writer", PASSWORD, "tsdb_writer", false)
         .user("tsdb_limited_writer", PASSWORD, "tsdb_limited_writer", false)
@@ -179,10 +179,7 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
             assertThat(((Map<String, String>) responseItems.get(2).get("error")).get("type"), equalTo("timestamp_error"));
 
             // Disable past index creation
-            updateClusterSettings(
-                adminClient(),
-                Settings.builder().put("data_streams.time_series.create_past_indices_enabled", false).build()
-            );
+            updateClusterSettings(adminClient(), Settings.builder().put("data_stream.past_tsdb_index_creation_enabled", false).build());
 
             // 3 and 32 days should be rejected; 6 and 30 days has already been created so it can be accepted.
             // Half-hour is current, so it should be accepted.

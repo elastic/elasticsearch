@@ -78,6 +78,27 @@ public class GcsStorageProviderTests extends ESTestCase {
         assertNotNull(new GcsStorageProvider(config));
     }
 
+    public void testKeylessAuthBuildsWithDefaultJwtAudience() {
+        WorkloadIdentityRegistry.setIssuerClient((request, listener) -> fail("token request is not expected during client construction"));
+        GcsConfiguration config = GcsConfiguration.fromFields(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+            null
+        );
+        assertNotNull(new GcsStorageProvider(config));
+    }
+
+    public void testKeylessAuthBuildsWithOverriddenJwtAudience() {
+        WorkloadIdentityRegistry.setIssuerClient((request, listener) -> fail("token request is not expected during client construction"));
+        GcsConfiguration config = keylessConfiguration();
+        assertNotNull(new GcsStorageProvider(config));
+    }
+
     private static GcsConfiguration keylessConfiguration() {
         return GcsConfiguration.fromFields(
             null,

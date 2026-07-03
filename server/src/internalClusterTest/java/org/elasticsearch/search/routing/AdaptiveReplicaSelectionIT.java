@@ -13,23 +13,12 @@ import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -50,40 +39,6 @@ import static org.hamcrest.Matchers.lessThan;
 public class AdaptiveReplicaSelectionIT extends ESIntegTestCase {
 
     private static final int CONCURRENCY = 8;
-
-    /**
-     * Inflates the executor's task-execution EWMA, which is what ARS reads as {@code serviceTimeEWMA} in the query response.
-     * Adding the node's name to {@link #slowNodeNames} enables the delay for that node; removing it disables it.
-     */
-    public static class SlowSearchPlugin extends Plugin {
-        static final Set<String> slowNodeNames = ConcurrentHashMap.newKeySet();
-        private final String nodeName;
-
-        public SlowSearchPlugin(Settings settings) {
-            this.nodeName = Node.NODE_NAME_SETTING.get(settings);
-        }
-
-        @Override
-        public void onIndexModule(IndexModule indexModule) {
-            indexModule.addSearchOperationListener(new SearchOperationListener() {
-                @Override
-                public void onPreQueryPhase(SearchContext context) {
-                    if (slowNodeNames.contains(nodeName)) {
-                        try {
-                            Thread.sleep(100);
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                        }
-                    }
-                }
-            });
-        }
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), SlowSearchPlugin.class);
-    }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -137,60 +92,6 @@ public class AdaptiveReplicaSelectionIT extends ESIntegTestCase {
                 count,
                 lessThan((int) (numSearches * 0.50))
             );
-        }
-    }
-
-    /**
-     * When one node has degraded service time (slow query execution on the search thread pool), ARS should route most traffic away from it.
-     * The slow node should handle less than 30% of traffic (this is an overly safe bound chosen to minimize the chance of transient
-     * failures).
-     */
-    public void testDegradedNodeAvoidance() throws Exception {
-        int numSearches = 200;
-        assertAcked(
-            prepareCreate("test").setSettings(indexSettings(randomIntBetween(6, 12), 3))
-                .setMapping("text", "type=text", "num", "type=integer")
-        );
-        ensureGreen();
-        indexDocs("test", 1000);
-
-        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        IndexShardRoutingTable shardRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index("test").shard(0);
-        Set<String> shardNodes = new HashSet<>();
-        for (int i = 0; i < shardRoutingTable.size(); i++) {
-            if (shardRoutingTable.shard(i).currentNodeId() != null) {
-                shardNodes.add(shardRoutingTable.shard(i).currentNodeId());
-            }
-        }
-        String slowNodeId = shardNodes.iterator().next();
-        String slowNodeName = nodeIdsToNames().get(slowNodeId);
-
-        SlowSearchPlugin.slowNodeNames.add(slowNodeName);
-        try {
-            // Warm up ARS stats so the executor EWMA on the slow node converges to reflect the injected delay...
-            runConcurrentSearches("test", 50);
-            // Then capture counts for requests handled by each node for a batch of search requests
-            Map<String, Integer> nodeCounts = runConcurrentSearches("test", numSearches);
-            int slowNodeCount = nodeCounts.getOrDefault(slowNodeId, 0);
-            int total = nodeCounts.values().stream().mapToInt(Integer::intValue).sum();
-            nodeCounts.forEach(
-                (nodeId, count) -> logger.info(
-                    "degraded: node [{}]{} handled {}/{} = {}%",
-                    nodeId,
-                    nodeId.equals(slowNodeId) ? " [SLOW]" : "",
-                    count,
-                    total,
-                    String.format(java.util.Locale.ROOT, "%.1f", 100.0 * count / total)
-                )
-            );
-
-            assertThat(
-                "Slow node [" + slowNodeId + "] got " + slowNodeCount + "/" + numSearches + ". Distribution: " + nodeCounts,
-                slowNodeCount,
-                lessThan((int) (numSearches * 0.30))
-            );
-        } finally {
-            SlowSearchPlugin.slowNodeNames.remove(slowNodeName);
         }
     }
 

@@ -182,7 +182,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 return null;
             }
             // Delegate directly to the default handler to keep all other generated parameters, then only rewrite doc_values.
-            var defaults = new DefaultMappingParametersHandler().handle(request);
+            // This handler only ever runs when indexMode.isStrictColumnar() (see withSingleValueDocValues), so the delegate
+            // must also know it's columnar-mode aware, or it could emit store/synthetic_source_keep/copy_to that are invalid there.
+            var defaults = new DefaultMappingParametersHandler(IndexMode.COLUMNAR).handle(request);
             if (defaults == null) {
                 return null;
             }
@@ -453,44 +455,12 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
             }
         });
-        if (indexMode.isStrictColumnar()) {
-            String columnarUnwrapMarker = "_columnar_inner_";
-            coreHandlers.add(new DataSourceHandler() {
-                @Override
-                public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
-                    if (request.fieldName().startsWith(columnarUnwrapMarker)) {
-                        return null;
-                    }
-                    var dataSource = request.dataSource();
-                    return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
-                        var mapping = new HashMap<>(
-                            dataSource.get(
-                                new DataSourceRequest.LeafMappingParametersGenerator(
-                                    dataSource,
-                                    // Delegate to the downstream handler under a new name to avoid self-recursion.
-                                    columnarUnwrapMarker + request.fieldName(),
-                                    request.fieldType(),
-                                    request.eligibleCopyToFields(),
-                                    request.dynamicMapping()
-                                )
-                            ).mappingGenerator().get()
-                        );
-                        // synthetic_source_keep and store are forbidden on strict-columnar indices
-                        mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
-                        mapping.remove("store");
-                        // doc_values cannot be disabled on strict-columnar indices (a disabled field would not be
-                        // reconstructable from doc values), so let it fall back to the (enabled) default.
-                        mapping.remove(FieldMapper.DocValuesParameter.PARAMETER_NAME);
-                        return mapping;
-                    });
-                }
-            });
-        }
         return DataGeneratorSpecification.builder()
             .withFullyDynamicMapping(false)
             // Disable dynamic mapping and disabled objects
             .withDataSourceHandlers(coreHandlers)
             .withDataSourceHandlers(customHandlers)
+            .withIndexMode(indexMode)
             .build();
     }
 

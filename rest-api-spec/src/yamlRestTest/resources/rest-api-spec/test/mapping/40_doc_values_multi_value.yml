@@ -37,7 +37,7 @@
         index: test_per_document
         body:
           settings:
-            index.mode: columnar
+            index.mode: logsdb_columnar
           mappings:
             properties:
               kw:
@@ -88,7 +88,7 @@
         index: test_roundtrip
         body:
           settings:
-            index.mode: columnar
+            index.mode: logsdb_columnar
           mappings:
             properties:
               kw:
@@ -118,7 +118,7 @@
         index: test_multifield_sub
         body:
           settings:
-            index.mode: columnar
+            index.mode: logsdb_columnar
           mappings:
             properties:
               parent:
@@ -164,7 +164,7 @@
         index: test_multifield_parent
         body:
           settings:
-            index.mode: columnar
+            index.mode: logsdb_columnar
           mappings:
             properties:
               parent:

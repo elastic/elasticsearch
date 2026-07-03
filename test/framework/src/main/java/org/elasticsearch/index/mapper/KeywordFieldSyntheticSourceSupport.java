@@ -57,13 +57,16 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             if (allowIgnoredSource && ESTestCase.randomBoolean()) {
                 return FieldMapper.DocValuesParameter.Values.DISABLED;
             } else {
-                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
+                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true, true);
             }
         }
 
+        // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true);
+            // multiValue is fixed to true: multi_value=false is rejected outside strict-columnar index modes, which this
+            // generator has no visibility into (it is shared by both the columnar and non-columnar synthetic-source paths).
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true, true);
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true);
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };

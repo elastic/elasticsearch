@@ -15,7 +15,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -65,11 +65,10 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
-        @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-        BlobFileTimestampResolver timestampResolver,
+        @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        warmingService.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, timestampResolver, preWarmForIdLookup, listener);
+        warmingService.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, listener);
     }
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
-import org.elasticsearch.xpack.stateless.cache.TimestampResolver.FileTimestampResolver;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -492,6 +491,15 @@ public class SearchCommitPrefetcher {
 
     public interface CacheBlobReaderSupplier {
         CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile);
+    }
+
+    /**
+     * Resolves a representative data timestamp (epoch millis) for a Lucene file, keyed by file name, or
+     * {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} when unknown.
+     */
+    @FunctionalInterface
+    public interface FileTimestampResolver {
+        long getTimestampMillis(String fileName);
     }
 
     public static class PrefetchExecutor implements Executor {

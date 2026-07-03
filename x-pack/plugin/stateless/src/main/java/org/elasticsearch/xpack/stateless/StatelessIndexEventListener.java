@@ -40,8 +40,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -353,7 +353,6 @@ class StatelessIndexEventListener implements IndexEventListener {
                         indexShard,
                         recoveryCommit,
                         warmingDirectory,
-                        null,
                         hasRecentIdLookup,
                         ActionListener.noop()
                     );
@@ -470,8 +469,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                 SubscribableListener.<SearchRecoveryWarmingInputs>newForked(l2 -> {
                     if (useInternalFilesReplicatedContentForSearchShards) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, Long> offsetsToWarm = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, Long> timestampsPerBlob = ConcurrentCollections.newConcurrentMap();
+                        Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
                         // TODO: pass timestamps to cache regions read in this call
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
@@ -489,19 +487,17 @@ class StatelessIndexEventListener implements IndexEventListener {
                                     )
                                 );
                                 var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
-                                offsetsToWarm.compute(bccBlobFile, (blobFile, maxOffsetToWarm) -> {
-                                    var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
-                                    return maxOffsetToWarm == null ? offset : Math.max(maxOffsetToWarm, offset);
-                                });
-                                // Aggregate a single representative timestamp per BCC blob (most recent among the referenced CCs).
+                                var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
+                                // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
+                                // representative timestamp among the referenced CCs sharing that blob.
                                 long ccTimestamp = BlobFileRanges.midpointMillisOrUnknown(
                                     referencedCompoundCommit.statelessCompoundCommitReference()
                                         .compoundCommit()
                                         .getTimestampFieldValueRange()
                                 );
-                                timestampsPerBlob.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
+                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
                             },
-                            l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, offsetsToWarm, timestampsPerBlob))
+                            l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm))
                         );
                     } else {
                         l2.onResponse(null);
@@ -531,10 +527,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                         indexShard,
                         compoundCommit,
                         searchDirectory,
-                        warmingInputs != null ? warmingInputs.offsetsToWarm() : null,
-                        warmingInputs != null
-                            ? BlobFileTimestampResolver.fromMap(warmingInputs.timestampsPerBlob())
-                            : BlobFileTimestampResolver.ALL_UNKNOWN,
+                        warmingInputs != null ? warmingInputs.targetsToWarm() : null,
                         resumeRecovery
                     );
                 }));
@@ -542,15 +535,10 @@ class StatelessIndexEventListener implements IndexEventListener {
         );
     }
 
-    private record SearchRecoveryWarmingInputs(
-        Map<String, BlobFileRanges> blobFileRanges,
-        Map<BlobFile, Long> offsetsToWarm,
-        Map<BlobFile, Long> timestampsPerBlob
-    ) {
+    private record SearchRecoveryWarmingInputs(Map<String, BlobFileRanges> blobFileRanges, Map<BlobFile, WarmTarget> targetsToWarm) {
         public SearchRecoveryWarmingInputs {
             Objects.requireNonNull(blobFileRanges);
-            Objects.requireNonNull(offsetsToWarm);
-            Objects.requireNonNull(timestampsPerBlob);
+            Objects.requireNonNull(targetsToWarm);
         }
     }
 

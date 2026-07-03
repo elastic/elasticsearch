@@ -77,7 +77,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
-import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -1602,8 +1602,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
-            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-            BlobFileTimestampResolver timestampResolver,
+            @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             ActionListener<Void> resumeRecoveryListener
         ) {
             if (awaitWarmingForSearchRecovery) {
@@ -1615,8 +1614,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     indexShard,
                     commit,
                     directory,
-                    endOffsetsToWarm,
-                    timestampResolver,
+                    endTargetsToWarm,
                     false,
                     searchRecoveryWarmingListener(
                         TimeValue.timeValueMinutes(1),
@@ -1631,8 +1629,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     indexShard,
                     commit,
                     directory,
-                    endOffsetsToWarm,
-                    timestampResolver,
+                    endTargetsToWarm,
                     resumeRecoveryListener
                 );
             }
@@ -1644,7 +1641,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
-            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
@@ -1655,21 +1651,12 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     indexShard,
                     commit,
                     directory,
-                    endOffsetsToWarm,
                     preWarmForIdLookup,
                     ActionListener.runBefore(listener, latch::countDown)
                 );
                 safeAwait(latch);
             } else {
-                super.warmCacheForShardRecoveryOrUnhollowing(
-                    type,
-                    indexShard,
-                    commit,
-                    directory,
-                    endOffsetsToWarm,
-                    preWarmForIdLookup,
-                    listener
-                );
+                super.warmCacheForShardRecoveryOrUnhollowing(type, indexShard, commit, directory, preWarmForIdLookup, listener);
             }
         }
 
@@ -1722,8 +1709,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
-            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-            BlobFileTimestampResolver timestampResolver,
+            @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
@@ -1736,7 +1722,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             for (Consumer<Type> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
                 beforeWarmingStartsListener.accept(type);
             }
-            super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, timestampResolver, preWarmForIdLookup, wrappedListener);
+            super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, wrappedListener);
             var callback = warmCacheReturnedCallback;
             if (callback != null) {
                 callback.run();

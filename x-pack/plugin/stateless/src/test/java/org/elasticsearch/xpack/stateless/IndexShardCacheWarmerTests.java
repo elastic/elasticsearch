@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -76,7 +77,14 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
         assertThat(store.decRef(), is(true));
 
         taskQueue.runAllTasks();
-        verify(sharedBlobCacheWarmingService, never()).warmCacheForShardRecoveryOrUnhollowing(any(), any(), any(), any(), any(), any());
+        verify(sharedBlobCacheWarmingService, never()).warmCacheForShardRecoveryOrUnhollowing(
+            any(),
+            any(),
+            any(),
+            any(),
+            anyBoolean(),
+            any()
+        );
     }
 
     public void testLogErrorIfPrewarmingFailed() throws Exception {

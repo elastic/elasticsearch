@@ -18,7 +18,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
-import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -97,12 +97,11 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
-            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-            BlobFileTimestampResolver timestampResolver,
+            @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
-            if (type == Type.SEARCH && endOffsetsToWarm != null && listener != ActionListener.<Void>noop()) {
+            if (type == Type.SEARCH && endTargetsToWarm != null && listener != ActionListener.<Void>noop()) {
                 TimeValue nonRelocation = clusterSettings.get(
                     SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING
                 );
@@ -114,7 +113,7 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
                     }
                 }
             }
-            super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, timestampResolver, preWarmForIdLookup, listener);
+            super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, listener);
         }
     }
 }

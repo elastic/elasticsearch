@@ -51,7 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
-import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.IndexingShardCacheBlobReader;
@@ -474,7 +474,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 lastCommit,
                 fakeNode.searchDirectory,
                 null,
-                null,
                 false,
                 refillCacheCompletionListener
             );
@@ -735,8 +734,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 fakeNode.warmingService.warmBlobOffsets(
                     indexShard,
                     fakeNode.searchDirectory,
-                    Map.of(new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration()), endOffset),
-                    BlobFileTimestampResolver.ALL_UNKNOWN,
+                    Map.of(
+                        new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration()),
+                        WarmTarget.withUnknownTimestamp(endOffset)
+                    ),
                     warmListener
                 );
                 safeGet(warmListener);
@@ -923,8 +924,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFile, vbcc.getTotalSizeInBytes()),
-                BlobFileTimestampResolver.ALL_UNKNOWN,
+                Map.of(blobFile, WarmTarget.withUnknownTimestamp(vbcc.getTotalSizeInBytes())),
                 warmListener
             );
             safeGet(warmListener);
@@ -1056,8 +1056,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFileA, blobSize, blobFileB, blobSize),
-                BlobFileTimestampResolver.ALL_UNKNOWN,
+                Map.of(blobFileA, WarmTarget.withUnknownTimestamp(blobSize), blobFileB, WarmTarget.withUnknownTimestamp(blobSize)),
                 warmFuture
             );
             safeGet(warmFuture);
@@ -1158,7 +1157,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
 
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            node.warmingService.warmCache(SEARCH, indexShard, commit, node.searchDirectory, null, null, false, future);
+            node.warmingService.warmCache(SEARCH, indexShard, commit, node.searchDirectory, null, false, future);
 
             // All tasks are enqueued (captured) but none has run yet.
             assertThat("expect at least one warming task to be enqueued", capturedTasks.isEmpty(), is(false));
@@ -1336,7 +1335,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 frozenBcc.lastCompoundCommit(),
                 fakeNode.searchDirectory,
                 null,
-                null,
                 false,
                 refillCacheCompletionListener
             );
@@ -1405,7 +1403,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
                 Map.of(), // don't do any warming besides the regular shard recovery kind
-                null,
                 false,
                 future
             );
@@ -1458,7 +1455,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     indexShard,
                     commit,
                     node.indexingDirectory.getBlobStoreCacheDirectory(),
-                    null,
                     null,
                     false,
                     future
@@ -1523,7 +1519,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
                 Map.of(), // don't do any warming besides the regular shard recovery kind
-                null,
                 false,
                 future
             );
@@ -1590,7 +1585,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
-                null,
                 null,
                 preWarmRequested,
                 future
@@ -1750,7 +1744,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     /**
-     * Check that offline (recovery) warming stamps the live cache region with the per-blob timestamp supplied in {@code timestampsPerBlob}.
+     * Check that offline (recovery) warming stamps the live cache region with the per-blob timestamp supplied in the {@link WarmTarget}.
      */
     public void testOfflineWarmingStampsRegions() throws Exception {
         final long primaryTerm = randomLongBetween(1, 42);
@@ -1799,8 +1793,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFile, vbcc.getTotalSizeInBytes()),
-                BlobFileTimestampResolver.fromMap(Map.of(blobFile, knownTimestamp)),
+                Map.of(blobFile, new WarmTarget(vbcc.getTotalSizeInBytes(), knownTimestamp)),
                 warmListener
             );
             safeGet(warmListener);
@@ -1859,16 +1852,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
             // Offline warming is disabled in the node settings, so SEARCH warmCache runs only the ShardWarmer recovery prewarming, which
             // warms region 0 of every segment via maybeFetchRange (the call we capture).
-            fakeNode.warmingService.warmCache(
-                SEARCH,
-                indexShard,
-                lastCommit,
-                fakeNode.searchDirectory,
-                null,
-                BlobFileTimestampResolver.ALL_UNKNOWN,
-                false,
-                warmListener
-            );
+            fakeNode.warmingService.warmCache(SEARCH, indexShard, lastCommit, fakeNode.searchDirectory, null, false, warmListener);
             safeGet(warmListener);
 
             assertFalse("ShardWarmer recovery prewarming should have warmed at least one region", capturedTimestamps.isEmpty());

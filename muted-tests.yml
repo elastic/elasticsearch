@@ -226,9 +226,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/147482
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testTermVectorsApiRealtimeGet
-  issue: https://github.com/elastic/elasticsearch/issues/148175
 - class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
   method: testEstimatedHeapHighWatermarkMonitorTriggersReroute
   issue: https://github.com/elastic/elasticsearch/issues/148246
@@ -319,9 +316,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:stats.weightedAvgWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/150051
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testMultiTermVectorsApiRealtimeGet
-  issue: https://github.com/elastic/elasticsearch/issues/150101
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testGroupOnManyLongs
   issue: https://github.com/elastic/elasticsearch/issues/150104

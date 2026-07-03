@@ -30,13 +30,13 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -90,9 +90,6 @@ import java.util.List;
 final class PageColumnReader implements Releasable {
 
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
-    private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
-    private static final long NANOS_PER_MILLI = 1_000_000L;
-    private static final int JULIAN_EPOCH_OFFSET = 2_440_588;
 
     private final PageReader pageReader;
     private final ColumnDescriptor descriptor;
@@ -158,14 +155,17 @@ final class PageColumnReader implements Releasable {
                         // TIME_MILLIS: physical INT32, widen to long (raw ms value, no unit conversion)
                         yield readInt32AsLongBatch(maxRows, blockFactory, true);
                     }
-                    yield readLongBatch(maxRows, blockFactory, ParquetColumnDecoding.timeNanoMultiplier(time));
+                    yield readLongBatch(maxRows, blockFactory, ParquetColumnDecoding.timeNanoMultiplier(time), false);
                 }
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
                     var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     // A plain INT32 with no logical-type annotation is historically "signed"
                     yield readInt32AsLongBatch(maxRows, blockFactory, logicalType == null || logicalType.isSigned());
                 }
-                yield readLongBatch(maxRows, blockFactory, 1L);
+                // A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores sign-flip-encoded
+                // (value ^ 2^63) so signed-long ordering matches unsigned ordering. The output edge always
+                // decodes UNSIGNED_LONG blocks, so the read path must emit the encoded form here.
+                yield readLongBatch(maxRows, blockFactory, 1L, info.esqlType() == DataType.UNSIGNED_LONG);
             }
             case DOUBLE -> readDoubleBatch(maxRows, blockFactory);
             case KEYWORD, TEXT -> readBytesBatch(maxRows, blockFactory);
@@ -321,7 +321,14 @@ final class PageColumnReader implements Releasable {
             if (chunks.size() == 1) {
                 return chunks.get(0);
             }
-            return combineBlocks(chunks, survivorCount, blockFactory);
+            // Exact-count guard: the sparse loop must have decoded exactly survivorCount rows across
+            // the chunks. This caught a real page-skip miscount and stays local to this path because
+            // the gather path in ParquetColumnExtractor has no such fixed 1:1 relationship.
+            assert sumPositions(chunks) == survivorCount : "chunk total " + sumPositions(chunks) + " != expected " + survivorCount;
+            // BlockChunks.concat resolves the element type from the first non-NULL chunk (so a
+            // null-leading run cannot poison a ConstantNullBlock builder) and closes the chunks on
+            // success; on a throw the catch below releases them.
+            return BlockChunks.concat(chunks, blockFactory);
         } catch (RuntimeException e) {
             for (Block chunk : chunks) {
                 Releasables.closeExpectNoException(chunk);
@@ -330,29 +337,12 @@ final class PageColumnReader implements Releasable {
         }
     }
 
-    /**
-     * Concatenates multiple blocks produced by the sparse-read loop into a single block
-     * by copying values from each chunk sequentially via a {@link Block.Builder}.
-     * Closes the source chunks after copying.
-     */
-    private static Block combineBlocks(List<Block> chunks, int totalPositions, BlockFactory blockFactory) {
-        int actualTotal = 0;
+    private static int sumPositions(List<Block> chunks) {
+        int total = 0;
         for (Block b : chunks) {
-            actualTotal += b.getPositionCount();
+            total += b.getPositionCount();
         }
-        assert actualTotal == totalPositions : "chunk total " + actualTotal + " != expected " + totalPositions;
-
-        Block first = chunks.get(0);
-        try (Block.Builder builder = first.elementType().newBlockBuilder(totalPositions, blockFactory)) {
-            for (Block chunk : chunks) {
-                builder.copyFrom(chunk, 0, chunk.getPositionCount());
-            }
-            Block result = builder.build();
-            for (Block chunk : chunks) {
-                Releasables.closeExpectNoException(chunk);
-            }
-            return result;
-        }
+        return total;
     }
 
     private void loadDictionaryIfNeeded() {
@@ -750,11 +740,24 @@ final class PageColumnReader implements Releasable {
 
     // --- Long ---
 
-    private Block readLongBatch(int maxRows, BlockFactory blockFactory, long multiplier) {
+    /**
+     * Reads a Parquet INT64 column into a {@code LONG}/{@code UNSIGNED_LONG} block.
+     *
+     * @param multiplier     factor applied to each value, used to normalize Parquet TIME_* units to nanoseconds
+     *                       ({@code 1L} when no conversion is needed).
+     * @param encodeUnsigned when {@code true} the column is an {@code unsigned_long}; the decoded values are sign-flip-encoded
+     *                       ({@code value ^ 2^63}) in place before constant detection and block creation, mirroring the indexing
+     *                       path so the always-decoding output edge produces the true unsigned value. Encoding before constant
+     *                       detection keeps a constant {@code unsigned_long} column correctly encoded. Mutually exclusive with a
+     *                       non-unit {@code multiplier} (a column is either a TIME type or {@code unsigned_long}).
+     */
+    private Block readLongBatch(int maxRows, BlockFactory blockFactory, long multiplier, boolean encodeUnsigned) {
         long[] values = UninitializedArrays.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = readNonNullLongs(values, 0, maxRows);
-            if (multiplier != 1) {
+            if (encodeUnsigned) {
+                ParquetColumnDecoding.encodeUnsignedLongInPlace(values, produced);
+            } else if (multiplier != 1) {
                 for (int i = 0; i < produced; i++) {
                     values[i] *= multiplier;
                 }
@@ -775,7 +778,9 @@ final class PageColumnReader implements Releasable {
             produced += fromPage;
             remaining -= fromPage;
         }
-        if (multiplier != 1) {
+        if (encodeUnsigned) {
+            ParquetColumnDecoding.encodeUnsignedLongInPlace(values, produced);
+        } else if (multiplier != 1) {
             for (int i = 0; i < produced; i++) {
                 values[i] *= multiplier;
             }
@@ -1470,25 +1475,14 @@ final class PageColumnReader implements Releasable {
             int[] intValues = buffers.ints(count);
             readIntsDispatch(intValues, 0, count);
             for (int i = 0; i < count; i++) {
-                values[offset + i] = intValues[i] * MILLIS_PER_DAY;
+                values[offset + i] = ParquetColumnDecoding.dateDaysToMillis(intValues[i]);
             }
         } else {
             readLongsDispatch(values, offset, count);
             LogicalTypeAnnotation logicalType = info.logicalType();
-            if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-                switch (ts.getUnit()) {
-                    case MILLIS -> {
-                    }
-                    case MICROS -> {
-                        for (int i = 0; i < count; i++) {
-                            values[offset + i] = values[offset + i] / 1_000;
-                        }
-                    }
-                    case NANOS -> {
-                        for (int i = 0; i < count; i++) {
-                            values[offset + i] = values[offset + i] / 1_000_000;
-                        }
-                    }
+            if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+                for (int i = 0; i < count; i++) {
+                    values[offset + i] = ParquetColumnDecoding.convertTimestampToMillis(values[offset + i], logicalType);
                 }
             }
         }
@@ -1558,11 +1552,7 @@ final class PageColumnReader implements Releasable {
             plainDecoder.readFixedBinaries(binaries, 0, count, 12);
         }
         for (int i = 0; i < count; i++) {
-            ByteBuffer buf = ByteBuffer.wrap(binaries[i].bytes, binaries[i].offset, binaries[i].length).order(ByteOrder.LITTLE_ENDIAN);
-            long nanosOfDay = buf.getLong();
-            int julianDay = buf.getInt();
-            long epochDay = julianDay - JULIAN_EPOCH_OFFSET;
-            values[offset + i] = epochDay * MILLIS_PER_DAY + nanosOfDay / NANOS_PER_MILLI;
+            values[offset + i] = ParquetColumnDecoding.int96ToEpochMillis(binaries[i].bytes, binaries[i].offset, binaries[i].length);
         }
     }
 

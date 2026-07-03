@@ -40,7 +40,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
@@ -199,35 +198,41 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
     }
 
     private String getNodeId(Predicate<Version> versionPredicate) throws IOException {
-        return findNodeId((version, buildHash) -> versionPredicate.test(Version.fromString(version)));
+        return findNodeId((id, version, buildHash) -> versionPredicate.test(Version.fromString(version)));
     }
 
     private String tryGetUpgradedNodeId() throws IOException {
-        var nodeId = findNodeId((version, buildHash) -> isOldClusterVersion(version, buildHash) == false);
+        var nodeId = findNodeId((id, version, buildHash) -> isOldClusterVersion(version, buildHash) == false);
         if (nodeId == null) {
             // This means we "upgraded" to the same version, or have not yet upgraded any nodes, take any node ID
-            nodeId = findNodeId((version, buildHash) -> true);
+            nodeId = findNodeId((id, version, buildHash) -> true);
             logger.info("All nodes on same version, taking {} as \"upgraded\" node", nodeId);
         }
         return nodeId;
     }
 
-    private String getOldNodeId() throws IOException {
-        return findNodeId(AbstractRollingUpgradeTestCase::isOldClusterVersion);
+    private String getOldNodeId(NodePredicate nodePredicate) throws IOException {
+        return findNodeId(
+            (id, version, buildHash) -> isOldClusterVersion(version, buildHash) && nodePredicate.test(id, version, buildHash)
+        );
     }
 
-    private String findNodeId(BiPredicate<String, String> predicate) throws IOException {
+    private String findNodeId(NodePredicate predicate) throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         for (String id : nodesAsMap.keySet()) {
             String version = objectPath.evaluate("nodes." + id + ".version");
             String buildHash = objectPath.evaluate("nodes." + id + ".build_hash");
-            if (predicate.test(version, buildHash)) {
+            if (predicate.test(id, version, buildHash)) {
                 return id;
             }
         }
         return null;
+    }
+
+    private interface NodePredicate {
+        boolean test(String id, String version, String buildHash);
     }
 
     public void testRelocationWithConcurrentIndexing() throws Exception {
@@ -249,8 +254,9 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
             updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
         } else if (isMixedCluster()) {
             final String newNode = tryGetUpgradedNodeId();
-            final String oldNode = getOldNodeId();
             assertNotNull(newNode);
+            // We need to ensure we don't select the same node for old & new, which could occur in an "upgrade" to the same version
+            final String oldNode = getOldNodeId((id, version, buildHash) -> newNode.equals(id) == false);
             assertNotNull(oldNode);
 
             // remove the replica and guarantee the primary is placed on the old node

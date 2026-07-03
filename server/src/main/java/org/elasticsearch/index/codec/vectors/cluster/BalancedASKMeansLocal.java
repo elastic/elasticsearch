@@ -276,11 +276,18 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
      * @param centroids the initialized centroids to be shifted using k-means
      * @param sampleSize the subset of vectors to use when shifting centroids
      * @param maxIterations the max iterations to shift centroids
+     * @param soarLambda the lambda value for SOAR (or -1 to disable SOAR)
      */
-    public static <V> void cluster(ClusteringVectorValues<V> vectors, CentroidOps<V> ops, V[] centroids, int sampleSize, int maxIterations)
-        throws IOException {
+    public static <V> void cluster(
+        ClusteringVectorValues<V> vectors,
+        CentroidOps<V> ops,
+        V[] centroids,
+        int sampleSize,
+        int maxIterations,
+        float soarLambda
+    ) throws IOException {
         KMeansResult<V> kMeansResult = new KMeansResult<>(centroids, new int[vectors.size()]);
-        BalancedASKMeansLocal<V> kMeans = new BalancedASKMeansLocalSerial<>(ops, sampleSize, maxIterations);
+        BalancedASKMeansLocal<V> kMeans = new BalancedASKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda);
         kMeans.cluster(vectors, kMeansResult);
     }
 }

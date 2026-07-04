@@ -30,11 +30,11 @@ import static org.hamcrest.Matchers.containsString;
 public class StorageProviderRegistryTests extends ESTestCase {
 
     /**
-     * After the concurrency-semaphore removal, the registry wraps each provider only with the retry layer — no
-     * concurrency-limiting decorator. The {@code ConcurrencyLimited*} classes are gone, so the only structural
-     * guard we can assert is that the outermost wrapper is still {@link RetryableStorageProvider} and nothing else.
+     * Non-file providers are wrapped {@code Retryable → ConcurrencyLimited → raw}: the retry/backoff layer is
+     * outermost and the per-scheme permit semaphore sits directly above the raw provider. The outermost wrapper the
+     * caller sees must therefore be {@link RetryableStorageProvider}.
      */
-    public void testWrapsWithRetryableOnly() {
+    public void testWrapsWithRetryable() {
         try (StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY)) {
             registry.registerFactory("stub", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
             StorageProvider wrapped = registry.provider(StoragePath.of("stub://bucket/file.csv"));

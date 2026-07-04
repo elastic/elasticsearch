@@ -168,11 +168,20 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
     }
 
     private static ExternalSourceExec externalSourceExecWithConfig(Map<String, Object> config) {
+        return externalSourceExecWithConfig(config, null);
+    }
+
+    /**
+     * Build an {@link ExternalSourceExec} whose attributes only use data types serializable on {@code supportedOn}.
+     * Passing the target (older) transport version keeps release builds from generating types gated behind a later
+     * version (e.g. FLATTENED), which would otherwise fail {@code DataType#writeTo} before the config assertions run.
+     */
+    private static ExternalSourceExec externalSourceExecWithConfig(Map<String, Object> config, TransportVersion supportedOn) {
         return new ExternalSourceExec(
             randomSource(),
             "teststore:///data.csv",
             "csv",
-            randomFieldAttributes(1, 3, false),
+            randomFieldAttributes(1, 3, false, supportedOn),
             config,
             Map.of(),
             null,
@@ -217,7 +226,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
         config.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, datasource);
 
         TransportVersion beforeCarrier = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("data_source_encrypted_data"));
-        ExternalSourceExec roundTripped = copyInstance(externalSourceExecWithConfig(config), beforeCarrier);
+        ExternalSourceExec roundTripped = copyInstance(externalSourceExecWithConfig(config, beforeCarrier), beforeCarrier);
 
         assertThat(roundTripped.config().containsKey(ExternalSourceResolver.DATASOURCE_CONFIG_KEY), equalTo(false));
         assertThat(roundTripped.config().get("format"), equalTo("csv"));

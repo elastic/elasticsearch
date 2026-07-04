@@ -99,12 +99,21 @@ import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.
  *   <li>Backpressure via buffer - Uses {@link AsyncExternalSourceBuffer} with waitForSpace()</li>
  * </ul>
  * <p>
- * The {@code executor} runs background file reads and async drain continuations off the
- * {@code esql_worker} drivers that {@link AsyncExternalSourceBuffer#pollPage()}. It is sourced from
- * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext#fileReadExecutor}
- * (typically the {@code generic} pool), falling back to {@code context.executor()} when unset. The
- * drain is non-blocking: it runs synchronously while the buffer has space and yields when full,
- * resuming via the executor when space is freed.
+ * Two executors, deliberately on different pools so the parser workers and the consumer that drains their pages
+ * never contend for the same threads:
+ * <ul>
+ *   <li>{@code executor} — the read/parse pool. Runs the blocking file opens ({@code length()},
+ *       {@code computeSegments}) and the segment parser workers. Sourced from
+ *       {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext#fileReadExecutor} — the dedicated
+ *       {@code esql_external_io} pool — falling back to {@code context.executor()} when unset.</li>
+ *   <li>{@code producerExecutor} — the consumer pool. Runs the (non-blocking) producer/drain loop that consumes the
+ *       parser workers' pages into the buffer. Sourced from {@code context.executor()} — {@code esql_worker}, the
+ *       same compute pool whose drivers {@link AsyncExternalSourceBuffer#pollPage()} — falling back to
+ *       {@code executor} when unset (single-pool test callers).</li>
+ * </ul>
+ * A full read/parse pool of blocked parser workers therefore can never starve the drain that must consume their
+ * pages (the multi-file parallel-parse stall). The drain is non-blocking: it runs synchronously while the buffer has
+ * space and yields when full, resuming via {@code producerExecutor} when space is freed.
  *
  * @see AsyncExternalSourceBuffer
  * @see AsyncExternalSourceOperator
@@ -138,6 +147,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int maxBufferSize;
     private final int rowLimit;
     private final Executor executor;
+    /**
+     * Executor for the page <em>consumer</em> — the producer loop ({@link #runProducerLoop}) and the
+     * {@link ExternalSourceDrainUtils#drainPagesAsync} drain — as opposed to {@link #executor}, which runs the
+     * blocking reads and parser workers. In production this is {@code esql_worker} (the compute pool that also runs
+     * the Driver polling this operator's buffer) while {@link #executor} is the dedicated {@code esql_external_io}
+     * pool. Keeping the consumer on a distinct pool from the parser workers is what prevents a full I/O pool of
+     * blocked parsers from starving the drain that must consume their pages (the multi-file parallel-parse stall).
+     * Defaults to {@link #executor} when the builder is given only one executor (tests / single-pool callers).
+     */
+    private final Executor producerExecutor;
     private final FileList fileList;
     // Per-file planner-resolved schemas; always non-null (empty for unresolved paths).
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
@@ -273,6 +292,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxBufferSize,
         int rowLimit,
         Executor executor,
+        Executor producerExecutor,
         FileList fileList,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         Set<String> partitionColumnNames,
@@ -320,6 +340,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.attributes = attributes;
         this.readerResolvedAttributes = stripRowPosition(attributes);
         this.executor = executor;
+        // Fall back to the read/parse executor when no distinct consumer executor is supplied (single-pool callers,
+        // e.g. tests). Production wires this to esql_worker via the builder so the drain is isolated from the parsers.
+        this.producerExecutor = producerExecutor != null ? producerExecutor : executor;
         this.batchSize = batchSize;
         this.maxBufferSize = maxBufferSize;
         this.rowLimit = rowLimit;
@@ -446,6 +469,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private final int maxBufferSize;
         private final Executor executor;
 
+        @Nullable
+        private Executor producerExecutor;
         private int rowLimit = FormatReader.NO_LIMIT;
         private FileList fileList;
         private Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
@@ -487,6 +512,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             this.batchSize = batchSize;
             this.maxBufferSize = maxBufferSize;
             this.executor = executor;
+        }
+
+        /**
+         * Executor for the page consumer (producer loop + drain), distinct from the read/parse executor passed to
+         * {@link #builder}. Production wires this to {@code esql_worker} while the read/parse executor is the
+         * {@code esql_external_io} pool, so a full I/O pool of blocked parser workers cannot starve the drain that
+         * consumes their pages. When unset (or {@code null}), the consumer shares the read/parse executor — the prior
+         * single-pool behavior, retained for tests and callers that pass one executor.
+         */
+        public Builder producerExecutor(@Nullable Executor producerExecutor) {
+            this.producerExecutor = producerExecutor;
+            return this;
         }
 
         public Builder rowLimit(int rowLimit) {
@@ -637,6 +674,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 maxBufferSize,
                 rowLimit,
                 executor,
+                producerExecutor,
                 fileList,
                 schemaMap,
                 partitionColumnNames,
@@ -1279,7 +1317,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         buffer.setSplitsTotal(sliceQueue.totalSlices());
         ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, rowLimit, formatReader);
         try {
-            executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+            producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
@@ -1304,7 +1342,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ProducerState state = new ProducerState(null, fileList, projectedColumns, buffer, driverContext, rowLimit, formatReader);
         state.schemaInfo = schemaMap;
         try {
-            executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+            producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
@@ -1384,21 +1422,60 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Single-step producer loop. Each invocation either drains some pages from the current iterator,
-     * opens a new iterator for the next unit, or registers a space callback and returns. The loop
-     * self-resubmits on the executor to avoid running producer I/O on the Driver thread.
+     * Single-step producer loop, split across two pools so the parser workers and the consumer that drains their
+     * pages never contend for the same threads. When no unit is open it opens the next one on the read/parse
+     * executor ({@code esql_external_io}) — that phase does the blocking {@code length()}/{@code computeSegments}
+     * probes and dispatches the segment parser workers, all of which belong on the I/O pool — then hands off to the
+     * (non-blocking) drain on the consumer executor ({@code esql_worker}). When a unit is already open it drains
+     * directly on the consumer executor. Keeping the blocking open off the consumer pool and the drain off the
+     * parser pool is what breaks the multi-file parallel-parse stall: a full I/O pool of blocked parser workers can
+     * no longer starve the drain that must consume their pages.
      */
     private void runProducerLoop(ProducerState state, ActionListener<Void> completionListener) {
+        if (state.pages == null) {
+            openUnitThenDrain(state, completionListener);
+        } else {
+            drainCurrentUnit(state, completionListener);
+        }
+    }
+
+    /**
+     * Open phase (runs on the read/parse executor). Advances to the next unit — blocking {@code length()} /
+     * {@code computeSegments} probes plus parser-worker dispatch — then resumes the drain on the consumer executor.
+     * A {@code false} return from {@link #advanceToNextUnit} means the producer is exhausted (terminal success).
+     */
+    private void openUnitThenDrain(ProducerState state, ActionListener<Void> completionListener) {
         try {
-            // Open an iterator for the next unit if we don't have one.
-            if (state.pages == null) {
+            executor.execute(ActionRunnable.wrap(completionListener, l -> {
                 if (advanceToNextUnit(state) == false) {
                     snapshotBytesRead(state);
                     snapshotFormatReaderStatus(state);
-                    completionListener.onResponse(null);
+                    l.onResponse(null);
                     return;
                 }
-            }
+                // Unit opened (iterator built, parser workers dispatched on this pool); drain it on the consumer
+                // pool so the parser workers cannot starve their own consumer.
+                try {
+                    producerExecutor.execute(() -> drainCurrentUnit(state, l));
+                } catch (Exception e) {
+                    clearCurrentIterator(state);
+                    l.onFailure(e);
+                }
+            }));
+        } catch (Exception e) {
+            clearCurrentIterator(state);
+            completionListener.onFailure(e);
+        }
+    }
+
+    /**
+     * Drain phase (runs on the consumer executor). Drains ready pages from the currently-open iterator; the drain
+     * is non-blocking and parks via {@link #parkUntilReady} when the buffer is full or the parser workers have not
+     * yet produced. On EOF it re-enters {@link #runProducerLoop}, which opens the next unit back on the read/parse
+     * executor.
+     */
+    private void drainCurrentUnit(ProducerState state, ActionListener<Void> completionListener) {
+        try {
             DrainResult result = drainHotPath(state, completionListener);
             switch (result) {
                 case DONE -> {
@@ -1411,18 +1488,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
                 case EOF -> {
                     // Finished consuming this unit: capture deltas, count the split as processed,
-                    // and resubmit to advance to the next unit.
+                    // and re-enter to advance to the next unit (openUnitThenDrain re-dispatches to the I/O pool).
                     snapshotBytesRead(state);
                     snapshotFormatReaderStatus(state);
                     state.buffer.incSplitsProcessed();
                     clearCurrentIterator(state);
                     state.currentObject = null;
                     state.currentObjectBytesSnapshot = 0L;
-                    // Re-submit to avoid unbounded recursion between units and to stay off the Driver thread.
-                    executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+                    runProducerLoop(state, completionListener);
                 }
                 case BLOCKED -> {
-                    // A listener has been registered on waitForSpace that will re-submit runProducerLoop.
+                    // A listener has been registered on waitForSpace that will re-submit the drain.
                     snapshotBytesRead(state);
                     snapshotFormatReaderStatus(state);
                 }
@@ -1550,10 +1626,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * <p>
      * Cleanup semantics by branch:
      * <ul>
-     * <li>Success branch (happy path): re-submits {@link #runProducerLoop} on {@code executor};
-     *     the current iterator stays open across the park. Only if {@code executor.execute()}
-     *     itself throws (e.g. shutting-down pool) is the iterator cleared and the failure
-     *     routed through {@code completionListener.onFailure}.</li>
+     * <li>Success branch (happy path): re-submits {@link #runProducerLoop} on {@code producerExecutor} (the
+     *     consumer pool) since a park only ever happens mid-drain (a unit is open), so the resumed loop drains
+     *     rather than opens; the current iterator stays open across the park. Only if
+     *     {@code producerExecutor.execute()} itself throws (e.g. shutting-down pool) is the iterator cleared and
+     *     the failure routed through {@code completionListener.onFailure}.</li>
      * <li>Failure branch: clears the current iterator and routes the signal's failure through
      *     {@code completionListener.onFailure}.</li>
      * </ul>
@@ -1570,7 +1647,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private DrainResult parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
         signal.addListener(ActionListener.wrap(v -> {
             try {
-                executor.execute(() -> runProducerLoop(state, completionListener));
+                producerExecutor.execute(() -> runProducerLoop(state, completionListener));
             } catch (Exception e) {
                 clearCurrentIterator(state);
                 completionListener.onFailure(e);
@@ -2084,7 +2161,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             drainPagesAsync(
                 finalPages,
                 buffer,
-                executor,
+                // Cold-path drain resumes on the consumer pool (esql_worker), not the read/parse pool, so the
+                // drain never competes with parser workers for I/O threads. See runProducerLoop's split.
+                producerExecutor,
                 // Close the iterator chain and record telemetry BEFORE notifying the buffer:
                 // closing publishes the finalize marker into the capture sink (via
                 // StatsCapturingIterator and the parallel coordinators' finalize hook), and
@@ -2132,7 +2211,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             drainPagesAsync(
                 wrapped,
                 buffer,
-                executor,
+                // Cold-path drain resumes on the consumer pool (esql_worker); see startSyncWrapperRead / runProducerLoop.
+                producerExecutor,
                 // See startSyncWrapperRead: close the iterator chain and record telemetry
                 // before notifying the buffer so the finalize marker and the telemetry
                 // counters reach the operator status snapshot before isFinished() flips.
@@ -2462,6 +2542,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     public Executor executor() {
         return executor;
+    }
+
+    /** Test accessor for the consumer/drain executor; equals {@link #executor()} when no distinct pool was wired. */
+    Executor producerExecutor() {
+        return producerExecutor;
     }
 
     public FileList fileList() {

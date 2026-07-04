@@ -632,9 +632,6 @@ tests:
 - class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
   method: testCancelAllReindexTasksByActionWithMixedRelocationState
   issue: https://github.com/elastic/elasticsearch/issues/152291
-- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
-  method: testThreadSafety
-  issue: https://github.com/elastic/elasticsearch/issues/152305
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSymDifferenceTests
   method: testFold {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152306
@@ -817,3 +814,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:unmapped-type-conflicts.noTypeConflictKeywordKeepTriggersLoadInlineStats}
   issue: https://github.com/elastic/elasticsearch/issues/152904
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=get/60_realtime_refresh/Realtime Refresh}
+  issue: https://github.com/elastic/elasticsearch/issues/152906
+- class: org.elasticsearch.packaging.test.PackageUpgradeTests
+  method: test21CheckUpgradedVersion
+  issue: https://github.com/elastic/elasticsearch/issues/152909
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationCycleWithNoHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/152913
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testWriteLargeBlob
+  issue: https://github.com/elastic/elasticsearch/issues/152914

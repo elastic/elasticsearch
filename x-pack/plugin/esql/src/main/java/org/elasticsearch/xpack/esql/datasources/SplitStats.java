@@ -408,16 +408,16 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      * map to ESQL {@code DOUBLE} at the schema level but retain distinct Java stat types.
      * Long+Double and Long+Float are intentionally incompatible (lossy above 2^53).
      * <p>
-     * Known limitation: DATETIME (epoch-millis) and DATE_NANOS (epoch-nanos) stats are both {@code Long}
-     * at the Java level, so the same-class fast path merges them numerically without unit awareness. This
-     * is only reachable across schema-inconsistent files that expose the <em>same</em> column with different
-     * temporal resolutions (e.g. a Parquet {@code timestamp[ms]} file and a {@code timestamp[us]} file, or a
-     * DATE_NANOS Arrow file), which {@link SchemaReconciliation} widens to DATE_NANOS while the per-split
-     * stats retain their original units. Reconciling stat units requires threading the reconciled column type
-     * into the merge, which {@link MergedSplitStats#mergeExtremum} does (elastic/elasticsearch#152859): it
-     * rescales each temporal value to a common unit (or poisons on unknown/overflow) BEFORE calling this
-     * value-only compare, so a mixed-unit cross-file merge is handled there. This method stays value-only and is
-     * correct for uniform-schema datasets (the overwhelmingly common case), where every split reports the same unit.
+     * DATETIME (epoch-millis) and DATE_NANOS (epoch-nanos) stats are both {@code Long} at the Java level, so
+     * this same-class fast path merges them numerically. That is correct because per-file/per-split stats are
+     * already reconciled to the query column's unit (millis rescaled to nanos, or poisoned on overflow) at the
+     * SOURCE boundary by {@link SourceStatisticsSerializer#normalizeStatsToReconciled} — applied in
+     * {@code ExternalSourceResolver.aggregateFileStatistics} for the whole-file fold and in
+     * {@code FileSplitProvider} for footer splits — BEFORE any value reaches this merge. When
+     * {@link SchemaReconciliation} widens a column that is {@code timestamp[ms]} in one file and
+     * {@code timestamp[ns]} in another to DATE_NANOS, the millis file's extrema are rescaled ONCE at that
+     * boundary. That boundary is the single owner of the unit axis: this method and {@link MergedSplitStats}
+     * stay a pure value-fold and must NOT re-reconcile units — a second rescale here would double-apply it.
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Nullable

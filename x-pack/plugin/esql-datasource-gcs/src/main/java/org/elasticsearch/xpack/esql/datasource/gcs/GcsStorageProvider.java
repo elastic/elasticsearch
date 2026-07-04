@@ -113,8 +113,8 @@ public class GcsStorageProvider implements StorageProvider {
         // google-cloud-storage client's default NetHttpTransport is backed by HttpURLConnection, whose
         // http.maxConnections (default 5) bounds only the idle keep-alive cache — NOT the number of concurrent
         // connections, which HttpURLConnection opens on demand. So GCS has no SDK-side pool cap. It does not need
-        // one: GCS reads are blocking, so they run on the dedicated esql_external_blocking_io thread pool (sized by
-        // esql.external.max_connections), which already bounds read concurrency. Sizing an SDK pool would mean
+        // one: GCS reads are blocking, so their concurrency is bounded by the per-scheme permit semaphore in
+        // StorageProviderRegistry (sized by esql.external.max_concurrent_requests). Sizing an SDK pool would mean
         // swapping in ApacheHttpTransport + a PoolingHttpClientConnectionManager — a production dependency that
         // neither this plugin nor repository-gcs carries (apache-httpclient is test-scope only there).
         if (config == null) {
@@ -188,13 +188,16 @@ public class GcsStorageProvider implements StorageProvider {
     private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException("GCS keyless authentication requires the workload-identity feature to be enabled on this node");
+            throw new IllegalStateException(
+                "GCS federated authentication requires the workload-identity feature to be enabled on this node"
+            );
         }
 
+        String jwtAudience = Strings.hasText(config.jwtAudience()) ? config.jwtAudience() : config.stsAudience();
         IdentityPoolCredentials.Builder credentialsBuilder = IdentityPoolCredentials.newBuilder()
             .setAudience(config.stsAudience())
             .setSubjectTokenType(ExternalAccountCredentials.SubjectTokenTypes.JWT)
-            .setSubjectTokenSupplier(new GcsWorkloadIdentitySubjectTokenSupplier(issuerClient, config.jwtAudience()));
+            .setSubjectTokenSupplier(new GcsWorkloadIdentitySubjectTokenSupplier(issuerClient, jwtAudience));
 
         // Optional: when absent, the federated identity maps directly to a principal without impersonation.
         if (config.serviceAccountImpersonationUrl() != null) {
@@ -280,7 +283,7 @@ public class GcsStorageProvider implements StorageProvider {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public bucket, set auth=anonymous. "
                 + "Otherwise, provide credentials via credentials or access_token, "
-                + "or configure keyless authentication with jwt_audience and sts_audience";
+                + "or configure federated authentication with sts_audience";
         }
         return "";
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 
@@ -56,6 +57,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     private final int channel;
     private final DriverContext driverContext;
     private int maxGroupId = -1;
+    private BytesRefBlock values;
 
     public DimensionValuesByteRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channel = channels.getFirst();
@@ -236,31 +238,31 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
-        return this::evaluate;
+        values = builder.build();
+        return this::writeSelectedValues;
     }
 
-    private void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
-        int positionCount = selectedInPage.getPositionCount();
-        boolean allSelected = positionCount > maxGroupId;
-        if (allSelected) {
-            for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
-                if (selectedInPage.getInt(i) != i) {
-                    allSelected = false;
-                    break;
-                }
-            }
-        }
-        if (allSelected) {
-            fillNullsUpTo(positionCount);
-            blocks[offset] = builder.build();
+    @Override
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return prepareEvaluateIntermediate(selected, ctx);
+    }
+
+    private void writeSelectedValues(Block[] blocks, int offset, IntVector selectedInPage) {
+        if (selectsEveryGroupInOrder(selectedInPage)) {
+            values.incRef();
+            blocks[offset] = values;
             return;
         }
-        BytesRef scratch = new BytesRef();
-        try (var block = builder.build(); var outputBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+        final int positionCount = selectedInPage.getPositionCount();
+        final BytesRef scratch = new BytesRef();
+        try (var outputBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int groupId = selectedInPage.getInt(p);
-                if (groupId <= maxGroupId) {
-                    outputBuilder.copyFrom(block, groupId, scratch);
+                if (groupId < values.getPositionCount()) {
+                    outputBuilder.copyFrom(values, groupId, scratch);
                 } else {
                     outputBuilder.appendNull();
                 }
@@ -269,17 +271,27 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
         }
     }
 
-    @Override
-    public void close() {
-        builder.close();
+    /**
+     * Whether the page selects every materialized group exactly once and in order, so the materialized values block can
+     * be reused as the output without copying. A chunked page selects only a slice and the output-filtered final page may
+     * reorder or drop groups, so both fall back to copying. Reference equality on the selected vector is not enough to
+     * decide this, because the final output-filtered path passes a vector that can be reordered.
+     */
+    private boolean selectsEveryGroupInOrder(IntVector selectedInPage) {
+        if (selectedInPage.getPositionCount() != values.getPositionCount()) {
+            return false;
+        }
+        for (int p = 0; p < selectedInPage.getPositionCount(); p++) {
+            if (selectedInPage.getInt(p) != p) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
-        IntVector selected,
-        GroupingAggregatorEvaluationContext ctx
-    ) {
-        return this::evaluate;
+    public void close() {
+        Releasables.close(builder, values);
     }
 
     @Override

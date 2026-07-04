@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  * <p>{@code auth} is an explicit mode switch with these canonical values:
  * <ul>
  *   <li>{@link #AUTH_AUTO auto} (the default when {@code auth} is omitted) — resolve the mode from
- *       the fields present: keyless settings → {@code federated_identity}, a stored secret →
+ *       the fields present: federated authentication settings → {@code federated_identity}, a stored secret →
  *       {@code static_credentials} (the {@code auth} value itself stays {@code auto} and is not rewritten).
  *       A credential-less {@code auto} config is unresolvable and is rejected at create time by
  *       {@link #validate} — not deferred to the storage provider. Never resolves to {@code anonymous} or
@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *   <li>{@link #AUTH_ANONYMOUS anonymous} — public / unauthenticated access (no credentials).</li>
  *   <li>{@link #AUTH_STATIC_CREDENTIALS static_credentials} — a stored long-lived secret.</li>
  *   <li>{@link #AUTH_FEDERATED_IDENTITY federated_identity} — issuer-minted OIDC federation
- *       (keyless settings such as a role ARN + audience).</li>
+ *       (federated settings such as a role ARN + audience).</li>
  *   <li>{@link #AUTH_MANAGED_IDENTITY managed_identity} — the node's ambient cloud identity
  *       (instance profile / IMDS / metadata server); gated by a cluster setting.</li>
  * </ul>
@@ -45,7 +45,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *
  * <p>Credential-conflict detection is automatic — any field marked
  * {@link DataSourceConfigDefinition#secret(String) secret} or
- * {@link DataSourceConfigDefinition#asKeylessAuth() keyless auth} that has a value set is treated as
+ * {@link DataSourceConfigDefinition#asFederatedAuth() federated auth} that has a value set is treated as
  * an authentication setting, and the two kinds cannot be combined.
  */
 public abstract class FileDataSourceConfiguration extends DataSourceConfiguration {
@@ -60,7 +60,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
     private static final String AUTH_ANONYMOUS = "anonymous";
     /** A stored long-lived secret (access key + secret, service-account JSON, account key, SAS, ...). */
     private static final String AUTH_STATIC_CREDENTIALS = "static_credentials";
-    /** Issuer-minted OIDC federation, configured via keyless settings. */
+    /** Issuer-minted OIDC federation, configured via federated settings. */
     private static final String AUTH_FEDERATED_IDENTITY = "federated_identity";
     /** The node's ambient cloud identity (instance profile / IMDS / metadata server). */
     private static final String AUTH_MANAGED_IDENTITY = "managed_identity";
@@ -128,16 +128,16 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
             );
         }
         boolean secrets = hasAnySecretValue();
-        boolean keyless = hasKeylessAuth();
+        boolean federatedAuth = hasFederatedAuth();
         if (isAnonymous()) {
             if (secrets) {
                 errors.addValidationError(
                     "auth=anonymous cannot be combined with explicit credentials; anonymous access uses no credentials"
                 );
             }
-            if (keyless) {
+            if (federatedAuth) {
                 errors.addValidationError(
-                    "auth=anonymous cannot be combined with keyless authentication settings; anonymous access uses no credentials"
+                    "auth=anonymous cannot be combined with federated authentication settings; anonymous access uses no credentials"
                 );
             }
         }
@@ -145,8 +145,8 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
             if (secrets) {
                 errors.addValidationError("auth=managed_identity cannot be combined with explicit credentials");
             }
-            if (keyless) {
-                errors.addValidationError("auth=managed_identity cannot be combined with keyless authentication settings");
+            if (federatedAuth) {
+                errors.addValidationError("auth=managed_identity cannot be combined with federated authentication settings");
             }
         }
         if (isStaticCredentials()) {
@@ -156,13 +156,13 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
             if (hasCredentials() == false) {
                 errors.addValidationError("auth=static_credentials requires complete explicit credentials");
             }
-            if (keyless) {
-                errors.addValidationError("auth=static_credentials cannot be combined with keyless authentication settings");
+            if (federatedAuth) {
+                errors.addValidationError("auth=static_credentials cannot be combined with federated authentication settings");
             }
         }
         if (isFederatedIdentity()) {
-            if (keyless == false) {
-                errors.addValidationError("auth=federated_identity requires keyless authentication settings");
+            if (federatedAuth == false) {
+                errors.addValidationError("auth=federated_identity requires federated authentication settings");
             }
             if (secrets) {
                 errors.addValidationError("auth=federated_identity cannot be combined with explicit credentials");
@@ -170,15 +170,15 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
         }
         // auto (or omitted) resolves the mode from the fields present; reject a config that resolves to nothing here
         // rather than deferring the failure to query time. Uses the same predicates resolveAuthMode() infers on
-        // (a complete credential or keyless settings), so a config that passes validation is always resolvable.
+        // (a complete credential or federated settings), so a config that passes validation is always resolvable.
         if (isAuto()) {
-            if (hasCredentials() == false && keyless == false) {
+            if (hasCredentials() == false && federatedAuth == false) {
                 errors.addValidationError(unresolvedAuthMessage());
             }
-            // The per-mode branches above already forbid secret+keyless for every explicit mode; auto is the only
+            // The per-mode branches above already forbid secret+federated for every explicit mode; auto is the only
             // path where the two can arrive together, so the conflict check is scoped here.
-            if (secrets && keyless) {
-                errors.addValidationError("explicit credentials cannot be combined with keyless authentication settings");
+            if (secrets && federatedAuth) {
+                errors.addValidationError("explicit credentials cannot be combined with federated authentication settings");
             }
         }
         validateCredentials(errors);
@@ -236,7 +236,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
      * Resolves the credential-selection mode. An explicit {@code auth} value maps straight to its mode — no field
      * inference. Only {@code auto}/omitted infers the mode from the fields present, which is the single inference
      * site in the datasource stack. Returns {@code null} only for an unresolvable {@code auto} config (no complete
-     * credential and no keyless settings); {@link #validate} rejects that at create time, so any validated config
+     * credential and no federated settings); {@link #validate} rejects that at create time, so any validated config
      * always resolves to a non-null mode.
      */
     public AuthMode resolveAuthModeOrNull() {
@@ -256,7 +256,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
         // auth value (already rejected by validate()) falls through to null rather than silently inferring a mode from
         // the fields present; defense-in-depth.
         if (isAuto()) {
-            if (hasKeylessAuth()) {
+            if (hasFederatedAuth()) {
                 return AuthMode.FEDERATED_IDENTITY;
             }
             if (hasCredentials()) {

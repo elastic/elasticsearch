@@ -126,6 +126,47 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         );
     }
 
+    public void testValidateDatasourceRejectsExplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(
+                Map.of(
+                    "auth",
+                    "federated_identity",
+                    "tenant_id",
+                    "tenant",
+                    "client_id",
+                    "client",
+                    "jwt_audience",
+                    "api://AzureADTokenExchange"
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+    }
+
+    public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(
+                Map.of("tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
+            )
+        );
+        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+    }
+
+    public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
+        var federatedValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withFederatedIdentityEnabled(() -> true);
+        var result = federatedValidator.validateDatasource(
+            Map.of("auth", "federated_identity", "tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
+        );
+        assertEquals("tenant", result.get("tenant_id").nonSecretValue());
+        assertFalse(result.get("tenant_id").secret());
+    }
+
     public void testValidateDatasourceWithSasToken() {
         // account + sas_token is the complete SAS form (sas_token alone is rejected as incomplete).
         assertTrue(validator.validateDatasource(Map.of("account", "acc", "sas_token", "?sv=2020")).get("sas_token").secret());

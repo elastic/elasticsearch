@@ -361,6 +361,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             return;
         }
 
+        // A multi-source FROM <dataset> has no single-EXTERNAL equivalent, so a suite that rebuilds specs
+        // into an EXTERNAL query cannot express it. Skip such specs here rather than failing in the rebuild.
+        assumeFalse(
+            "multi-source FROM <dataset> has no single-EXTERNAL equivalent; skipped on EXTERNAL-rebuild backends",
+            testCase.datasetSources.size() > 1
+        );
+
         // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
         useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
 

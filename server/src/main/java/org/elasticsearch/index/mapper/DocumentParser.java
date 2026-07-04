@@ -172,6 +172,11 @@ public final class DocumentParser {
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
+            // Required-field enforcement is per Lucene document, not per _source document. This is done in order to accommodate nested
+            // objects. A nested object yields one Lucene doc per array element, each enforced at its own close (see parseObjectOrNested)
+            // against a fresh per-doc tally. A non-nested mapping yields exactly one Lucene doc, so the root check here covers it; the
+            // empty-doc ({}) short-circuit above still reaches this call.
+            context.enforceRequiredFields();
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }
@@ -366,6 +371,8 @@ public final class DocumentParser {
         // restore the enable path flag
         if (context.parent().isNested()) {
             copyNestedFields(context, (NestedObjectMapper) context.parent());
+            // This nested instance is its own Lucene doc: enforce its required fields here, against its own per-doc tally and nested scope.
+            context.enforceRequiredFields();
         }
     }
 

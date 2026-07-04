@@ -566,7 +566,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         MessageType parquetSchema = footer.getFileMetaData().getSchema();
         validateFooterIntegrity(object.path().toString(), parquetSchema, footer.getBlocks());
         List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
-        SourceStatistics statistics = extractStatistics(footer.getBlocks(), schema);
+        SourceStatistics statistics = extractStatistics(footer.getBlocks(), schema, parquetSchema);
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
     }
 
@@ -912,8 +912,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
     }
 
+    /**
+     * Whether a repeated leaf is a <b>top-level</b> list — one addressable by the attribute name
+     * {@code path[0]} (a 3-level {@code LIST} group or a legacy 2-level {@code repeated} field). A list
+     * nested in a STRUCT is not: its attribute is the dotted {@code s.blist}, not {@code path[0] == "s"},
+     * so it is left to the struct-nested-list work (esql-planning#1055) rather than mis-keyed here.
+     */
+    private static boolean isTopLevelListLeaf(MessageType parquetSchema, String[] path) {
+        Type top = parquetSchema.getType(path[0]);
+        return top.isPrimitive() || top.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation;
+    }
+
     @SuppressWarnings("rawtypes")
-    private SourceStatistics extractStatistics(List<BlockMetaData> rowGroups, List<Attribute> attributes) {
+    private SourceStatistics extractStatistics(List<BlockMetaData> rowGroups, List<Attribute> attributes, MessageType parquetSchema) {
         if (rowGroups.isEmpty()) {
             return null;
         }
@@ -940,6 +951,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             totalRows += rowGroup.getRowCount();
             totalSize += rowGroup.getTotalByteSize();
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
+                String[] path = col.getPath().toArray();
+                ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
+                if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
+                    // Top-level list column: its leaf null_count/min/max are element-level and don't
+                    // answer row-level COUNT / IS NOT NULL. Publish only a size marker under the attribute
+                    // name (path[0]) so findColumn hits but the unknown null_count makes COUNT decline the
+                    // footer fast path and scan, rather than the absent-column contract answering 0.
+                    // esql-planning#1056.
+                    colSizes.merge(path[0], new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
+                        a[0] += b[0];
+                        return a;
+                    });
+                    continue;
+                }
                 String colName = col.getPath().toDotString();
                 colSizes.merge(colName, new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
                     a[0] += b[0];
@@ -1171,14 +1196,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (rowGroups.isEmpty()) {
                 return List.of();
             }
+            MessageType parquetSchema = reader.getFooter().getFileMetaData().getSchema();
             if (rowGroups.size() == 1) {
                 BlockMetaData block = rowGroups.getFirst();
-                Map<String, Object> stats = buildRowGroupStats(block);
+                Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
                 return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
             }
             List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
             for (BlockMetaData block : rowGroups) {
-                Map<String, Object> stats = buildRowGroupStats(block);
+                Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
                 // Use the compressed on-disk size for the SplitRange length: this value is fed to
                 // readRange() which builds a byte range end = startingPos + length for Parquet's
                 // withRange(rangeStart, rangeEnd) filter. That filter includes a row group when its
@@ -1195,11 +1221,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     @SuppressWarnings("rawtypes")
-    private static Map<String, Object> buildRowGroupStats(BlockMetaData rowGroup) {
+    private static Map<String, Object> buildRowGroupStats(BlockMetaData rowGroup, MessageType parquetSchema) {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowGroup.getRowCount());
         stats.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, rowGroup.getTotalByteSize());
         for (ColumnChunkMetaData col : rowGroup.getColumns()) {
+            String[] path = col.getPath().toArray();
+            ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
+            if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
+                // Top-level list column: size marker only under the attribute name (path[0]); the unknown
+                // null_count makes COUNT decline the footer fast path and scan. Mirrors extractStatistics.
+                // esql-planning#1056.
+                stats.merge(
+                    SourceStatisticsSerializer.columnSizeBytesKey(path[0]),
+                    col.getTotalUncompressedSize(),
+                    (a, b) -> ((Number) a).longValue() + ((Number) b).longValue()
+                );
+                continue;
+            }
             String colName = col.getPath().toDotString();
             stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), col.getTotalUncompressedSize());
             Statistics colStats = col.getStatistics();

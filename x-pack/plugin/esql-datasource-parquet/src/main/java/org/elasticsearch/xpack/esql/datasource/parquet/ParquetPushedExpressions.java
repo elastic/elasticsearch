@@ -406,6 +406,14 @@ final class ParquetPushedExpressions {
         if (value == null && op.isOrdered()) {
             return null;
         }
+        // IS NULL / IS NOT NULL (null-valued EQ/NOT_EQ) over a list column (resolves to a LIST group,
+        // not a primitive) must decline: pushing notEq(column("v"), null) names a leaf-absent column
+        // that parquet-mr drops entirely. The null-mask evaluator that answers instead is multivalue-safe.
+        // esql-planning#1056. Value predicates (comparisons/IN/LIKE) are deliberately NOT declined here —
+        // their decoded-block evaluator reads by position index and is not multivalue-safe.
+        if (value == null && resolveNestedPrimitive(schema, columnName) == null) {
+            return null;
+        }
         return switch (dataType) {
             case INTEGER -> orderedPredicate(FilterApi.intColumn(columnName), value != null ? ((Number) value).intValue() : null, op);
             case LONG -> buildLongPredicate(columnName, value, op, schema);

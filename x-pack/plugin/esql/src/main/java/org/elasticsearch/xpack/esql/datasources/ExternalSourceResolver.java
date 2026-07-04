@@ -972,9 +972,19 @@ public class ExternalSourceResolver {
                 List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
                 SourceMetadata firstMeta = allMetadata.get(firstFile);
                 // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
-                // no second cache or storage hit per file.
+                // no second cache or storage hit per file. Each file's stats are in its OWN unit/representation;
+                // normalize every file's min/max to the reconciled unified type (temporal rescale, or safe-miss
+                // marker for a non-normalizable representation) BEFORE folding, so the source-level warm
+                // COUNT/MIN/MAX is not a unit-blind numeric mix across DATETIME(millis)/DATE_NANOS(nanos) files.
+                Map<String, DataType> reconciledTypes = attributesToTypeMap(unifiedSchema);
+                Map<StoragePath, Map<String, DataType>> perFileTypes = new HashMap<>();
+                for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : result.perFileInfo().entrySet()) {
+                    perFileTypes.put(e.getKey(), attributesToTypeMap(e.getValue().fileSchema().attributes()));
+                }
                 Map<String, Object> aggregatedStats = aggregateFileStatistics(
-                    allMetadata.values(),
+                    allMetadata,
+                    perFileTypes,
+                    reconciledTypes,
                     foldsAbsentColumnAsImplicitNull(firstMeta.sourceType())
                 );
                 ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
@@ -1196,21 +1206,68 @@ public class ExternalSourceResolver {
      * Returns {@code null} if any file lacks statistics (prevents incorrect partial results).
      */
     @Nullable
-    static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
+    /**
+     * Reconciliation-path aggregate: normalizes each file's per-column min/max to the reconciled unified type
+     * ({@link SourceStatisticsSerializer#normalizeStatsToReconciled}) BEFORE the cross-file fold, so a column that
+     * mixes units/representations across files (DATETIME epoch-millis vs DATE_NANOS epoch-nanos; numeric vs the
+     * KEYWORD non-widenable fallback) is folded in ONE type and served result-identical to a full scan — or
+     * safe-misses when a value cannot be normalized. {@code perFileTypes} maps each file's path to its own column
+     * types; {@code reconciledTypes} is the unified schema's types. Without this, the source-level warm
+     * MIN/MAX/COUNT would compare raw file-local values unit-blind (a wrong answer).
+     */
+    static Map<String, Object> aggregateFileStatistics(
+        Map<StoragePath, SourceMetadata> allMetadata,
+        Map<StoragePath, Map<String, DataType>> perFileTypes,
+        Map<String, DataType> reconciledTypes,
+        boolean implicitNullsForAbsentColumn
+    ) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
-        for (SourceMetadata meta : allMetadata) {
-            // Cached entries embed stats in sourceMetadata(); uncached entries use typed statistics().
-            Map<String, Object> base = meta.sourceMetadata();
-            if (base != null && base.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
-                perFileFlatStats.add(base);
-            } else if (meta.statistics().isPresent()) {
-                perFileFlatStats.add(SourceStatisticsSerializer.embedStatistics(base, meta.statistics().get()));
-            } else {
+        for (Map.Entry<StoragePath, SourceMetadata> entry : allMetadata.entrySet()) {
+            Map<String, Object> flat = flatStatsOf(entry.getValue());
+            if (flat == null) {
                 // At least one file has no statistics — cannot produce accurate global stats.
                 return null;
             }
+            Map<String, DataType> fileTypes = perFileTypes.get(entry.getKey());
+            if (fileTypes != null) {
+                flat = SourceStatisticsSerializer.normalizeStatsToReconciled(flat, fileTypes, reconciledTypes);
+            }
+            perFileFlatStats.add(flat);
         }
         return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
+    }
+
+    /** FFW / uniform-schema path: every file shares the anchor's types, so no per-file normalization is needed. */
+    static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
+        List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
+        for (SourceMetadata meta : allMetadata) {
+            Map<String, Object> flat = flatStatsOf(meta);
+            if (flat == null) {
+                return null;
+            }
+            perFileFlatStats.add(flat);
+        }
+        return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
+    }
+
+    /** A file's flat stat map — cached in sourceMetadata(), or embedded from typed statistics() — or null if absent. */
+    private static Map<String, Object> flatStatsOf(SourceMetadata meta) {
+        Map<String, Object> base = meta.sourceMetadata();
+        if (base != null && base.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
+            return base;
+        }
+        if (meta.statistics().isPresent()) {
+            return SourceStatisticsSerializer.embedStatistics(base, meta.statistics().get());
+        }
+        return null;
+    }
+
+    private static Map<String, DataType> attributesToTypeMap(List<Attribute> attributes) {
+        Map<String, DataType> types = new HashMap<>(attributes.size());
+        for (Attribute a : attributes) {
+            types.put(a.name(), a.dataType());
+        }
+        return types;
     }
 
     /**

@@ -87,6 +87,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         this.end = end;
         this.progress = start;
         this.completed = false;
+        this.success = false;
         this.unconditionalProgressConsumer = unconditionalProgressConsumer;
         this.progressConsumer = progressConsumer;
         assert invariant();
@@ -253,6 +254,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     @Override
     protected void done(boolean success) {
         super.done(success);
+        assert this.success == false : "success cannot be set twice";
         this.success = success;
         final List<PositionAndListener> listenersToExecute;
         assert invariant();

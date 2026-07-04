@@ -1562,8 +1562,9 @@ public abstract class FieldMapper extends Mapper {
         }
 
         /**
-         * Variant of {@link #of(Values, Function, boolean)} that computes the default value lazily so it can depend on sibling multi-fields,
-         * which are only known after this parameter is constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
+         * Variant of {@link #of(Values, Function, boolean)} that computes the default value lazily
+         * so it can depend on sibling multi-fields, which are only known after this parameter is
+         * constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
          */
         public static DocValuesParameter of(
             Supplier<Values> defaultValueSupplier,

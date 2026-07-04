@@ -486,7 +486,7 @@ public class ComputeService {
         // (PushStatsToExternalSource) additionally safe-misses when a column's statistics are unservable
         // (unharvested text column, poisoned/divergent extremum). If the gate skipped discovery while the fold
         // then bailed, the query would run a zero-split scan whose un-pruned union_by_name ColumnMapping trips
-        // SchemaAdaptingIterator's width guard (elastic/esql-planning#985). Mirror the fold's exact resolution:
+        // SchemaAdaptingIterator's width guard (the union_by_name zero-split servability guard). Mirror the fold's exact resolution:
         // on the skip path the fold's effectiveSplitStats() reduces to SplitStats.of(sourceMetadata) (splits are
         // empty and STATS_PARTIAL was excluded above), so probing the same map here guarantees that whenever the
         // gate skips discovery the fold can actually serve every aggregate from stats.
@@ -496,7 +496,7 @@ public class ComputeService {
         }
         // Feed the same partition-column set the fold uses (read from serialized sourceMetadata, so it matches the
         // data-node fold): COUNT(partition_col) must safe-miss on both paths, or the gate skips discovery for a
-        // fold that then bails -> the zero-split #985 crash above.
+        // fold that then bails -> the zero-split crash above.
         Set<String> pathDerivedColumns = ExternalSourceAggregatePushdown.partitionColumnNames(meta);
         return ExternalSourceAggregatePushdown.canServeAllFromStats(
             agg.aggregates(),

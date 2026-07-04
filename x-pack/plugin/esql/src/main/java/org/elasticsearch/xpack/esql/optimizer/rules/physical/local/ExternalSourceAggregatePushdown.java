@@ -154,7 +154,7 @@ public final class ExternalSourceAggregatePushdown {
      * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport#canPushAggregates}: the two
      * previously diverged on per-column servability, so the gate would skip discovery (leaving a zero-split
      * scan) for an aggregate the fold then safe-missed, and the scan's un-pruned union_by_name mapping tripped
-     * {@code SchemaAdaptingIterator}'s width guard (elastic/esql-planning#985). Sharing {@code resolveFromStats}
+     * {@code SchemaAdaptingIterator}'s width guard (the union_by_name zero-split servability guard). Sharing {@code resolveFromStats}
      * with the fold guarantees "gate skips" implies "fold serves". The bail conditions here must stay identical
      * to {@link PushStatsToExternalSource}'s value loop.
      */

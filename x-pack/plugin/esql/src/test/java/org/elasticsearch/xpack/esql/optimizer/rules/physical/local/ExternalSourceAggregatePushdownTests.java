@@ -397,11 +397,11 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
     }
 
     /**
-     * #985 gate/fold ALIGNMENT. The skip-discovery gate ({@code ComputeService.canSkipSplitDiscovery}) and the
+     * gate/fold servability ALIGNMENT. The skip-discovery gate ({@code ComputeService.canSkipSplitDiscovery}) and the
      * fold rule previously diverged: the gate's type-only
      * {@code AggregatePushdownSupport.canPushAggregates} said {@code MIN(score)} was pushable while the fold
      * safe-missed on {@code score}'s unservable stats, leaving a zero-split scan that crashed under
-     * union_by_name (#985). The gate now consults the SAME servability decision the fold uses —
+     * union_by_name. The gate now consults the SAME servability decision the fold uses —
      * {@code ExternalSourceAggregatePushdown.canServeAllFromStats} (the boolean twin of the fold's resolution).
      * On the identical (aggregate, stats) the type check still says YES but the shared servability probe
      * DECLINES, so the gate and fold cannot disagree again. The end-to-end recurrence proof lives in
@@ -488,7 +488,7 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         );
         // MIN(p) is guarded belt-and-suspenders (already safe via a null columnMin).
         assertNull(ExternalSourceAggregatePushdown.resolveFromStats(new Min(Source.EMPTY, p), stats, implicitNulls, Set.of("p")));
-        // The gate twin declines COUNT(p) too (symmetry -> no #985 zero-split crash).
+        // The gate twin declines COUNT(p) too (symmetry -> no zero-split crash).
         assertFalse(
             "gate must decline COUNT(partition_col), matching the fold",
             ExternalSourceAggregatePushdown.canServeAllFromStats(List.of(alias("c", countP)), stats, implicitNulls, Set.of("p"))

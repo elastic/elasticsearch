@@ -201,7 +201,7 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * #985 recurrence guard (end-to-end, {@code FROM <dataset>}). A union_by_name multi-file CSV glob whose
+     * union_by_name zero-split recurrence guard (end-to-end, {@code FROM <dataset>}). A union_by_name multi-file CSV glob whose
      * shared column type-disagrees across files is reconciled to KEYWORD (a NON-identity per-file
      * {@code ColumnMapping} at unified width). A COLD {@code COUNT(*)} harvests complete per-file row counts
      * but leaves {@code col}'s stats unservable (never projected). A subsequent WARM {@code MIN(col)} then

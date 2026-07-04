@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 
 import java.io.IOException;
@@ -838,16 +837,16 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             return of(sourceMetadata);
         }
         List<org.elasticsearch.xpack.esql.datasources.spi.SplitStats> perSplitStats = new ArrayList<>(splits.size());
-        List<Map<String, DataType>> perSplitTypes = new ArrayList<>(splits.size());
         for (ExternalSplit split : splits) {
             org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
             if (stats == null) {
                 return null;
             }
             perSplitStats.add(stats);
-            perSplitTypes.add(MergedSplitStats.readSchemaTypes(split));
         }
-        return new MergedSplitStats(perSplitStats, perSplitTypes);
+        // Pure value-fold: per-split stats are already normalized to the reconciled type at split construction
+        // (FileSplitProvider), so the merge does not reconcile units. See MergedSplitStats.
+        return new MergedSplitStats(perSplitStats);
     }
 
     @Override

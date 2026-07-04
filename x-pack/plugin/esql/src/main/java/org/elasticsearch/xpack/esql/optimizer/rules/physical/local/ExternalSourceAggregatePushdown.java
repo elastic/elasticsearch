@@ -504,26 +504,21 @@ public final class ExternalSourceAggregatePushdown {
 
         List<ExternalSplit> flatSplits = CoalescedSplit.flatten(splits);
         List<org.elasticsearch.xpack.esql.datasources.spi.SplitStats> matchedStats = new ArrayList<>();
-        // Per-matched-split column types, parallel to matchedStats, so the merge can reconcile mixed units
-        // (e.g. DATETIME millis vs DATE_NANOS nanos) across files before folding MIN/MAX — exactly as the
-        // unfiltered path (SplitStats.resolveEffectiveStats) and CoalescedSplit.computeSplitStats do. Without
-        // them mergeExtremum folds unit-blind and would serve a wrong warm extremum on a mixed-temporal filter.
-        List<Map<String, DataType>> matchedTypes = new ArrayList<>();
         for (ExternalSplit split : flatSplits) {
             org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
             if (stats == null) {
                 return null;
             }
+            // The classifier compares the filter literal against the split's stats. Those stats are normalized
+            // to the reconciled query type at split construction (FileSplitProvider), so the compare is in one
+            // unit -- no reconciliation is needed or done here.
             SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(
                 filterCondition,
                 stats,
                 implicitNullsForAbsentColumn
             );
             switch (result) {
-                case MATCH -> {
-                    matchedStats.add(stats);
-                    matchedTypes.add(MergedSplitStats.readSchemaTypes(split));
-                }
+                case MATCH -> matchedStats.add(stats);
                 case MISS -> {
                 }
                 case AMBIGUOUS -> {
@@ -535,6 +530,7 @@ public final class ExternalSourceAggregatePushdown {
         if (matchedStats.isEmpty()) {
             return SplitStats.EMPTY;
         }
-        return new MergedSplitStats(matchedStats, matchedTypes);
+        // Pure value-fold: matched splits' stats are already normalized to the reconciled type upstream.
+        return new MergedSplitStats(matchedStats);
     }
 }

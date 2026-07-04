@@ -1388,6 +1388,35 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue("describe should mention parallel-parse for segmentable readers", description.contains("parallel-parse(4)"));
     }
 
+    /**
+     * A quoting-on reader hands out a non-strided splitter, so with parsing parallelism the factory must
+     * dispatch to the sequential (whole-file, quote-aware) branch. This pins the {@code describe()} label
+     * the end-to-end IT relies on but cannot itself observe (the profile shows the clean operator name,
+     * not the parse mode).
+     */
+    public void testDescribeShowsQuotedSequentialParseMode() {
+        SegmentableFormatReader formatReader = new NonStridedSegmentableFormatReader();
+        StorageProvider storageProvider = mock(StorageProvider.class);
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            StoragePath.of("file:///test.csv"),
+            List.of(
+                new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+            ),
+            100,
+            10,
+            Runnable::run
+        ).parsingParallelism(4).build();
+
+        String description = factory.describe();
+        assertTrue(
+            "describe should mention quoted-sequential-parse for non-strided readers: " + description,
+            description.contains("quoted-sequential-parse(4)")
+        );
+    }
+
     public void testDescribeShowsSyncWrapperForParallelism1() {
         TrackingSegmentableFormatReader formatReader = new TrackingSegmentableFormatReader();
         StorageProvider storageProvider = mock(StorageProvider.class);
@@ -3328,6 +3357,18 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * A segmentable reader whose splitter reports {@code supportsStridedProbing() == false}, mirroring a
+     * quoting-on CSV/TSV reader. Drives the factory onto the {@code SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL}
+     * dispatch branch.
+     */
+    private static class NonStridedSegmentableFormatReader extends TrackingSegmentableFormatReader {
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.nonStridedSplitter(maxRecordBytes);
+        }
     }
 
     private static class LargeStorageProvider implements StorageProvider {

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -17,8 +20,17 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 public class CsvRecordSplitterTests extends ESTestCase {
+
+    private BlockFactory blockFactory;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    }
 
     public void testTsvFindLastRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
         RecordSplitter splitter = splitter(CsvFormatOptions.TSV);
@@ -193,19 +205,38 @@ public class CsvRecordSplitterTests extends ESTestCase {
         assertEquals(buf.length - 1, splitter.findLastRecordBoundary(buf, buf.length));
     }
 
-    public void testCsvRecordSplitterDisablesStridedProbing() {
-        // The quote/bracket state machine can carry a record across a raw newline, so a mid-file probe is
-        // unsafe: the splitter reports it cannot be probed at arbitrary offsets and must be driven serially.
-        assertFalse(splitter(CsvFormatOptions.DEFAULT).supportsStridedProbing());
-        assertFalse(splitter(CsvFormatOptions.TSV).supportsStridedProbing());
-        assertFalse(splitter(bracketsDefault()).supportsStridedProbing());
+    public void testQuotedReaderDisablesStridedProbing() {
+        // Route through the production factory: with quoting on the reader hands out the quote-aware
+        // splitter, whose state machine can carry a record across a raw newline. A mid-file probe is then
+        // unsafe, so it reports it cannot be probed at arbitrary offsets and must be driven serially.
+        assertFalse(productionSplitter(CsvFormatOptions.DEFAULT).supportsStridedProbing());
+        assertFalse(productionSplitter(bracketsDefault()).supportsStridedProbing());
     }
 
-    public void testNewlineRecordSplitterKeepsStridedProbing() {
-        // With quoting off, every newline is an unambiguous boundary, so the plain splitter keeps the
-        // strided default that enables cross-node byte-range splitting.
-        RecordSplitter plain = new NewlineRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
-        assertTrue(plain.supportsStridedProbing());
+    public void testPlainReaderKeepsStridedProbing() {
+        // Route through the production factory: with quoting off (default .tsv is plain, and .csv with
+        // mode=plain) every newline is an unambiguous boundary, so the reader hands out the plain newline
+        // splitter that keeps the strided default enabling cross-node byte-range splitting.
+        assertTrue(productionSplitter(CsvFormatOptions.TSV).supportsStridedProbing());
+        assertTrue(plainModeCsvSplitter().supportsStridedProbing());
+    }
+
+    /**
+     * Mirrors production: the reader, not the caller, picks the splitter from the quoting knob
+     * (see {@link CsvFormatReader#recordSplitter(int)}). Tests of strided probing must go through here
+     * rather than constructing a {@link CsvRecordSplitter} directly, since a plain file never gets one.
+     */
+    private RecordSplitter productionSplitter(CsvFormatOptions options) {
+        return new CsvFormatReader(blockFactory).withOptions(options).recordSplitter();
+    }
+
+    /**
+     * Plain-mode CSV via the real config path ({@code WITH {"mode":"plain"}}) rather than hand-building
+     * every option field, so the test tracks whatever plain mode actually installs in production.
+     */
+    private RecordSplitter plainModeCsvSplitter() {
+        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
+        return reader.recordSplitter();
     }
 
     private static RecordSplitter splitter(CsvFormatOptions options) {

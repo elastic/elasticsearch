@@ -8,18 +8,17 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -52,31 +51,16 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * reader's {@code minimumSegmentSize()} of 1 MB to be split); it stays large so this pins the whole-file
  * gate rather than trivially avoiding splits by being small.
  */
-public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractEsqlIntegTestCase {
+public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalDataSourceIT {
 
     private static final int ROWS = 18000;
     private static final int LINES_PER_ROW = 3;
     private static final int LINE_WIDTH = 60;
     private static final long TRUE_ROW_COUNT = ROWS;
 
-    /**
-     * Re-enables extension loading that {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses.
-     */
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class);
     }
 
     @Override
@@ -161,9 +145,14 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractEsqlIntegTes
      * makes {@code AsyncExternalSourceOperatorFactory#openWithParallelism} pass its {@code <=1} short-circuit
      * and, for a quoted (non-strided) reader, route the single whole-file stream into
      * {@code StreamingParallelParsingCoordinator}, which segments it quote-aware and parses the chunks
-     * concurrently. That routing is deterministic from the reader/split, so a correct count under
-     * concurrent parsing is the regression signal: were segmentation not quote-aware, the concurrently
-     * parsed chunks would miscount the multi-line rows.
+     * concurrently. A correct count under concurrent parsing is the regression signal: were segmentation
+     * not quote-aware, the concurrently parsed chunks would miscount the multi-line rows.
+     * <p>
+     * The parse-mode label ({@code quoted-sequential-parse(N)}) is not observable here: the profile reports
+     * the clean operator name {@code ExternalDataSourceOperator}, and the mode lives only in the factory's
+     * {@code describe()}. So this test pins the observable half, that the quoted file is read as a single
+     * whole-file split ({@code splitsTotal == 1}, i.e. never macro-split), while the deterministic routing
+     * onto the sequential branch is pinned separately by {@code AsyncExternalSourceOperatorFactoryTests}.
      */
     public void testStreamingBranchCountsCorrectlyWithParsingParallelism() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -186,13 +175,19 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractEsqlIntegTes
                 assertThat(values.size(), equalTo(1));
                 assertThat(((Number) values.get(0).get(0)).longValue(), equalTo(TRUE_ROW_COUNT));
 
-                long asyncOps = response.profile()
+                List<AsyncExternalSourceOperator.Status> externalStatuses = response.profile()
                     .drivers()
                     .stream()
                     .flatMap(driver -> driver.operators().stream())
                     .filter(op -> op.operator().startsWith("ExternalDataSourceOperator"))
-                    .count();
-                assertThat(asyncOps, greaterThanOrEqualTo(1L));
+                    .map(OperatorStatus::status)
+                    .filter(AsyncExternalSourceOperator.Status.class::isInstance)
+                    .map(AsyncExternalSourceOperator.Status.class::cast)
+                    .toList();
+                assertThat((long) externalStatuses.size(), greaterThanOrEqualTo(1L));
+                for (AsyncExternalSourceOperator.Status status : externalStatuses) {
+                    assertThat("quoted file must be read as a single whole-file split", status.splitsTotal(), equalTo(1));
+                }
             }
         } finally {
             Files.deleteIfExists(csvFile);

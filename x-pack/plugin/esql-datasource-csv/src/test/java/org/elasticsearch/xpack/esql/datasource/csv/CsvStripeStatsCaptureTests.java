@@ -655,6 +655,33 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         );
     }
 
+    public void testMaxRecordSizeDropOnDirectBlockPathSafeMissesStripeCapture() throws Exception {
+        // The DEFAULT plain non-bracket read (no _rowPosition projected) takes the direct-to-block path
+        // (advanceDirectRecord). An over-max_record_size drop there must set recordCapDropped and safe-miss the
+        // whole publish, exactly like the bracket, Jackson-bulk, and sampling catch sites. max_record_size is a
+        // query PRAGMA not in the cache fingerprint, so publishing N-1 as complete would serve a stale under-count
+        // to a later query under a larger cap. Regression guard: the direct-block catch omitted the flag (would
+        // publish 19 rows as complete without the fix).
+        int total = 20;
+        int badRow = total / 2;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < total; i++) {
+            String id = i == badRow ? "9".repeat(40) : Integer.toString(i);
+            sb.append(id).append(",x\n");
+        }
+        byte[] data = sb.toString().getBytes(StandardCharsets.UTF_8);
+        List<Attribute> schema = List.of(
+            intCol("id"),
+            new ReferenceAttribute(Source.EMPTY, null, "tags", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false);
+        List<Map<String, Object>> frags = captureDirectBlockPath(data, 0, true, true, 3, 8, schema, skipRow, 24);
+        assertTrue(
+            "an over-max_record_size drop on the direct-block path must safe-miss the whole publish, got: " + frags,
+            frags.isEmpty()
+        );
+    }
+
     public void testMaxRecordSizeDropDuringSamplingSafeMissesPublish() throws Exception {
         // reader-B1 second set-site: with NO provided schema, headerless inference SAMPLES the file through the
         // same CsvRecordIterator; a cap-dropped row inside the sample window vanishes and the whole-file publish
@@ -725,6 +752,47 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             var handle = ExternalStatsCapture.bind(sink);
             CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
                 Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false) // NO multi_value_syntax -> non-bracket record-reader path
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
+    /** Drives the direct-to-block path (no _rowPosition projected, plain non-bracket CSV) with a cap. */
+    private List<Map<String, Object>> captureDirectBlockPath(
+        byte[] bytes,
+        long baseOffset,
+        boolean firstSplit,
+        boolean fileFinal,
+        int batchSize,
+        long stripeSize,
+        List<Attribute> readSchema,
+        ErrorPolicy policy,
+        int maxRecordBytes
+    ) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("id")) // no _rowPosition -> direct-to-block path
+            .batchSize(batchSize)
+            .recordAligned(true)
+            .firstSplit(firstSplit)
+            .lastSplit(fileFinal)
+            .readSchema(readSchema)
+            .splitStartByte(baseOffset)
+            .stats(baseOffset, stripeSize, fileFinal)
+            .errorPolicy(policy)
+            .maxRecordBytes(maxRecordBytes)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false) // plain, non-bracket -> direct-block path
             ).read(o, ctx)
         ) {
             while (it.hasNext()) {

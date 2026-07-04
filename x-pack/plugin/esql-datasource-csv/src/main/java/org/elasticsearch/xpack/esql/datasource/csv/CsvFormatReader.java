@@ -3365,6 +3365,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             } catch (CsvRecordTooLargeException e) {
                 totalRowCount++;
                 onRowError(e.getMessage(), e, EMPTY_ROW, true);
+                // Cap-determined survivor loss on the direct path — the harvested stats now under-count, so the
+                // whole-file/stripe publish must safe-miss (matches the bracket, Jackson-bulk, and sampling
+                // catch sites; the publish gate at closeInternal checks recordCapDropped == false).
+                recordCapDropped = true;
                 return DIRECT_SKIP;
             }
             char[] recBuf = recordReader.recordBuffer();

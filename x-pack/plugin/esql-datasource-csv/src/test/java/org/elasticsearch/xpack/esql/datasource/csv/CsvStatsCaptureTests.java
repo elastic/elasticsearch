@@ -206,6 +206,54 @@ public class CsvStatsCaptureTests extends ESTestCase {
         assertEquals("the chunk's published row count must include the null-filled row", 3L, published);
     }
 
+    public void testReproFfwTypeDriftValueCount() throws Exception {
+        // File a: untyped header, 3 valid integer col values. Reconciled/anchor schema col:INTEGER pushed as readSchema.
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 1.0, false);
+        StorageObject fileA = obj("id,col,note\n1,123,alpha\n2,456,gamma\n3,789,delta\n");
+        List<org.elasticsearch.xpack.esql.core.expression.Attribute> readSchema = List.of(
+            attr("id", org.elasticsearch.xpack.esql.core.type.DataType.INTEGER),
+            attr("col", org.elasticsearch.xpack.esql.core.type.DataType.INTEGER),
+            attr("note", org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD)
+        );
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(10)
+            .projectedColumns(List.of("id", "col", "note"))
+            .readSchema(readSchema)
+            .errorPolicy(nullField)
+            .build();
+        Map<String, Object> c = capture(fileA, ctx);
+        assertNotNull(c);
+        SplitStats stats = SplitStats.of(c);
+        assertEquals("rows", 3L, stats.rowCount());
+        assertEquals("file a col value_count", 3L, stats.columnValueCount("col"));
+    }
+
+    public void testReproControlTypedHeaderNoReadSchema() throws Exception {
+        // Control: typed header, NO readSchema (the path the passing tests use). Does value_count harvest at all?
+        StorageObject o = obj("id:integer,col:integer,note:keyword\n1,123,alpha\n2,456,gamma\n3,789,delta\n");
+        Map<String, Object> c = capture(
+            o,
+            FormatReadContext.builder().batchSize(10).projectedColumns(List.of("id", "col", "note")).build()
+        );
+        assertNotNull(c);
+        SplitStats stats = SplitStats.of(c);
+        assertEquals("rows", 3L, stats.rowCount());
+        assertEquals("control col nullCount", 0L, stats.columnNullCount("col"));
+        assertEquals("control col min", 123, ((Number) stats.columnMin("col")).intValue());
+        assertEquals("control col value_count", 3L, stats.columnValueCount("col"));
+    }
+
+    private static org.elasticsearch.xpack.esql.core.expression.Attribute attr(
+        String name,
+        org.elasticsearch.xpack.esql.core.type.DataType type
+    ) {
+        return new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
+            org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+            name,
+            type
+        );
+    }
+
     /** Binds a capture sink, drains the reader to EOF, returns the single contribution for the path (or null). */
     private Map<String, Object> capture(StorageObject o, FormatReadContext ctx) throws Exception {
         List<Map<String, Object>> all = captureAll(o, ctx);

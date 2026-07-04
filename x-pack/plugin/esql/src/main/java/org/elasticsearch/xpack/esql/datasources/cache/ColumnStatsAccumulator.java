@@ -305,35 +305,42 @@ public final class ColumnStatsAccumulator {
         }
 
         // Single-value feed counterparts of the block walk in accept(...), for main's direct-to-block CSV/TSV
-        // path (elastic/elasticsearch#152300). Each guards on the column's cached typeOrdinal so a value whose
-        // kind does not match the tracked type (e.g. an untracked column) contributes nothing to min/max,
-        // exactly as the block path's T_UNTRACKED branch does.
+        // path (elastic/elasticsearch#152300). Each is called once per non-null staged cell, so it increments
+        // valueCount UNCONDITIONALLY (COUNT(col) is served from it — see accept(Block), which counts every
+        // non-null value before the T_UNTRACKED branch), then guards on the column's cached typeOrdinal so a
+        // value whose kind does not match the tracked type (e.g. an untracked column) contributes nothing to
+        // min/max, exactly as the block path's T_UNTRACKED branch does.
 
         void acceptBoolean(boolean val) {
+            valueCount++;
             if (typeOrdinal == T_BOOLEAN) {
                 updateBoolean(val);
             }
         }
 
         void acceptInt(int val) {
+            valueCount++;
             if (typeOrdinal == T_INT) {
                 updateInt(val);
             }
         }
 
         void acceptLong(long val) {
+            valueCount++;
             if (typeOrdinal == T_LONG) {
                 updateLong(val);
             }
         }
 
         void acceptDouble(double val) {
+            valueCount++;
             if (typeOrdinal == T_DOUBLE) {
                 updateDouble(val);
             }
         }
 
         void acceptBytesRef(BytesRef val) {
+            valueCount++;
             if (typeOrdinal == T_BYTESREF) {
                 updateBytesRef(val);
             }

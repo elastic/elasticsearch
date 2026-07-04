@@ -325,7 +325,7 @@ POST /_query
 }
 ```
 
-For more advanced settings, use a [query approximation settings](commands/set.md#esql-approximation) object.
+For more advanced settings, use a [query approximation settings](directives/set.md#esql-approximation) object.
 
 ## Pass parameters to a query [esql-rest-params]
 
@@ -594,6 +594,18 @@ The query will be stopped and the response will contain the results computed so 
 
 This API can be used to retrieve results even if the query has already completed, as long as it's within the `keep_alive` window.
 The `is_partial` field indicates result completeness. A value of `true` means the results are potentially incomplete.
+
+<!--
+### Stopping or cancelling queries against external sources [esql-rest-async-external-stop-cancel]
+
+When a query reads from an external source (for example, a query that begins with the `EXTERNAL` command, or any query routed to a {{esql}} data source you registered), the three ways to end the read have distinct semantics:
+
+* **Async stop** (`POST /_query/async/{id}/stop`) signals the running query to wind down without discarding what it has already produced. Rows already accepted into the response pipeline at the moment stop arrives are returned with `is_partial: true`; rows that the source is still in the middle of delivering are dropped. If async stop races with the natural completion of a fast query, the response is returned as-is with `is_partial: false`.
+* **Async delete** (`DELETE /_query/async/{id}`) cancels the underlying task before deleting the saved entry. The running query fails with a task-cancelled error; no partial body is returned.
+* **Task cancel or client disconnect** (cancellation via the [task management API](esql-task-management.md), or simply closing the HTTP connection that submitted a synchronous query) hard-fails the query with a task-cancelled error and returns no rows.
+
+In other words, only async stop is a partial-result path for external queries — task cancel, client disconnect, and async delete all fall on the hard-fail side. This matches the behaviour for queries against {{es}} indices, with one nuance specific to external sources: a query that touches no {{es}} index has no per-cluster status to flip, so the `is_partial` flag is set directly on the response when async stop fires.
+-->
 
 Use the [{{esql}} async query delete API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-delete) to delete an async query before the `keep_alive` period ends. If the query is still running, {{es}} cancels it.
 

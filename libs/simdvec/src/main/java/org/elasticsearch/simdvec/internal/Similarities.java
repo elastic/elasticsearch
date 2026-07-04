@@ -242,7 +242,7 @@ public class Similarities {
         return t instanceof RuntimeException re ? re : new RuntimeException(t);
     }
 
-    static int dotProductI7u(MemorySegment a, MemorySegment b, int length) {
+    public static int dotProductI7u(MemorySegment a, MemorySegment b, int length) {
         try {
             return (int) DOT_PRODUCT_I7U.invokeExact(a, b, length);
         } catch (Throwable e) {
@@ -250,7 +250,7 @@ public class Similarities {
         }
     }
 
-    static void dotProductI7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+    public static void dotProductI7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
         try {
             DOT_PRODUCT_I7U_BULK.invokeExact(a, b, length, count, scores);
         } catch (Throwable e) {

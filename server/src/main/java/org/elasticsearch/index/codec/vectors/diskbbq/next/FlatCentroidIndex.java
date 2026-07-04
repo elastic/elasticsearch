@@ -34,7 +34,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata.NO_ORDINAL;
 
-class FlatCentroidIndex implements CentroidIndex {
+class FlatCentroidIndex {
 
     private final FieldInfo fieldInfo;
     private final ESNextDiskBBQVectorsReader.NextFieldEntry fieldEntry;
@@ -161,7 +161,6 @@ class FlatCentroidIndex implements CentroidIndex {
         return acceptParents;
     }
 
-    @Override
     public CentroidIterator getIterator() throws IOException {
         final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension(), bulkSize);
         // build iterator

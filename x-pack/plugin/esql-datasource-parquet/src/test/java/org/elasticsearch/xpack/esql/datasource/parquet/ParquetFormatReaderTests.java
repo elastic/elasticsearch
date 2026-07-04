@@ -241,11 +241,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#1056 is scoped to top-level lists. A list nested in a STRUCT keys under the struct
-     * root {@code s} (not the attribute {@code s.blist}), so it is left to esql-planning#1055: we must
-     * publish no marker under {@code s} or {@code s.blist}, while the flat leaf {@code s.a} still publishes.
+     * esql-planning#1055: a list nested in a STRUCT is surfaced by the flattener at its logical dotted
+     * name {@code s.blist} (not the struct root {@code s}, and not the raw leaf {@code s.blist.list.element}).
+     * The stats must therefore publish under {@code s.blist} with an <em>unknown</em> null count — like a
+     * top-level list (#1056), a stats-based {@code rowCount - nullCount} count is wrong for a leaf with
+     * several values per row, so COUNT falls back to a scan. No phantom marker is published under the
+     * struct root {@code s}, and the flat struct leaf {@code s.a} keeps its concrete null count.
      */
-    public void testStructNestedListIsNotPublished() throws Exception {
+    public void testStructNestedListPublishedWithUnknownNullCount() throws Exception {
         Type blist = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("blist");
         Type structS = Types.optionalGroup().required(PrimitiveType.PrimitiveTypeName.INT64).named("a").addField(blist).named("s");
         MessageType schema = new MessageType("test_schema", structS);
@@ -269,11 +272,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue(metadata.statistics().isPresent());
         Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
 
-        // No phantom marker under the struct root, and the nested list is left to #1055.
+        // No phantom marker under the struct root: the leaf keys at its logical name, not path[0].
         assertFalse("must not publish a marker under the struct root", cols.containsKey("s"));
-        assertFalse("nested list stats are owned by #1055, not published here", cols.containsKey("s.blist"));
-        // The flat struct leaf still publishes normally.
+        // The nested list is published under its flattener name with an unknown null count (#1055).
+        assertTrue("nested list must be registered under its logical name", cols.containsKey("s.blist"));
+        assertEquals("nested list null count must be unknown", OptionalLong.empty(), cols.get("s.blist").nullCount());
+        // The flat struct leaf still publishes normally with a concrete null count.
         assertTrue(cols.containsKey("s.a"));
+        assertEquals(OptionalLong.of(0L), cols.get("s.a").nullCount());
     }
 
     /**

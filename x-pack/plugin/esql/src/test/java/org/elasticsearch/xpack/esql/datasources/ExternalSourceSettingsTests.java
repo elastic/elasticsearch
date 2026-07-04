@@ -33,9 +33,22 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     public void testMaxConcurrentRequestsDefaultTracksCpuFormula() {
         int processors = randomIntBetween(1, Math.max(1, Runtime.getRuntime().availableProcessors()));
         Settings settings = Settings.builder().put("node.processors", processors).build();
-        int expected = Math.min(processors * 3, 100);
+        // processors * 3 clamped to [16, 100]: the floor keeps small nodes from collapsing the I/O pool.
+        int expected = Math.min(Math.max(processors * 3, 16), 100);
         assertEquals(expected, ExternalSourceSettings.defaultBlobStoreConcurrency(settings));
         assertEquals(expected, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
+    }
+
+    public void testDefaultBlobStoreConcurrencyClampedToFloorAndCeiling() {
+        // Below the floor: a one- or two-processor node (processors * 3 = 3 or 6) still resolves to the 16 floor,
+        // so the concurrency bound — and the esql_external_io pool it sizes — never collapses too small to run the
+        // parallel-parse pipeline (the multi-file glob stall).
+        assertEquals(16, ExternalSourceSettings.defaultBlobStoreConcurrency(1));
+        assertEquals(16, ExternalSourceSettings.defaultBlobStoreConcurrency(5)); // 15 -> floored to 16
+        // On the floor boundary: processors * 3 == 18 sits above the floor and is returned as-is.
+        assertEquals(18, ExternalSourceSettings.defaultBlobStoreConcurrency(6));
+        // Above the ceiling: processors * 3 = 300 is capped at 100.
+        assertEquals(100, ExternalSourceSettings.defaultBlobStoreConcurrency(100));
     }
 
     public void testMaxConcurrentRequestsOverrideIsTheEffectiveKnob() {

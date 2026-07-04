@@ -34,6 +34,16 @@ public final class ExternalSourceSettings {
     static final int BLOB_STORE_CONCURRENCY_PER_PROCESSOR = 3;
 
     /**
+     * Floor for the CPU-derived blob-store access concurrency. Blob-store reads are latency-bound I/O whose threads
+     * spend most of their life parked on the network, so even a small node (a handful of allocated processors, or the
+     * single-processor shape of small test/CI nodes) must still drive enough in-flight requests to keep a store busy
+     * and, crucially, to run the parallel-parse pipeline without starving itself. {@code processors * 3} alone bottoms
+     * out at 3 on a one-processor node, which is too few to host the segment parsers plus their coordination; floor it
+     * at 16 so the concurrency bound — and the {@code esql_external_io} pool it sizes — never collapses that small.
+     */
+    static final int BLOB_STORE_CONCURRENCY_FLOOR = 16;
+
+    /**
      * Ceiling for the CPU-derived blob-store access concurrency. Mirrors the {@code snapshot_meta} thread pool's
      * {@code min(processors * 3, 50)} shape but lifts the cap to 100: external metadata discovery and data reads
      * fan out over many small blobs (footers, byte ranges), so they benefit from more in-flight requests than
@@ -43,13 +53,16 @@ public final class ExternalSourceSettings {
 
     /**
      * The default per-node concurrency for accessing an external blob store, derived from the node's allocated
-     * processors using the {@code snapshot_meta} thread pool's sizing shape ({@code processors * 3}) with a 100
-     * ceiling. This is the single source of truth for blob-store access concurrency so metadata discovery and
-     * data retrieval stay consistent: both are latency-bound I/O against object stores and should scale the same
-     * way with node size rather than each picking an ad-hoc constant.
+     * processors using the {@code snapshot_meta} thread pool's sizing shape ({@code processors * 3}), clamped to
+     * {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]}. This
+     * is the single source of truth for blob-store access concurrency so metadata discovery and data retrieval stay
+     * consistent: both are latency-bound I/O against object stores and should scale the same way with node size rather
+     * than each picking an ad-hoc constant. The floor keeps small nodes from self-throttling (and from sizing the
+     * {@code esql_external_io} pool too small to run the parse pipeline); the ceiling bounds a single store's load.
      */
     public static int defaultBlobStoreConcurrency(int allocatedProcessors) {
-        return Math.min(allocatedProcessors * BLOB_STORE_CONCURRENCY_PER_PROCESSOR, BLOB_STORE_CONCURRENCY_CEILING);
+        int scaled = allocatedProcessors * BLOB_STORE_CONCURRENCY_PER_PROCESSOR;
+        return Math.min(Math.max(scaled, BLOB_STORE_CONCURRENCY_FLOOR), BLOB_STORE_CONCURRENCY_CEILING);
     }
 
     /** Convenience overload resolving allocated processors from the given settings. */
@@ -70,11 +83,15 @@ public final class ExternalSourceSettings {
     }
 
     /**
-     * Thread count for the dedicated {@code esql_external_io} pool ({@code EsqlPlugin}). Tracks the single
-     * concurrency knob {@link #blobStoreConcurrency(Settings)} so the pool cannot outgrow the concurrency the reads
-     * are permitted, with one exception: {@code max_concurrent_requests=0} disables the <em>permit</em> limiter
-     * (unbounded in-flight reads), but the I/O pool still needs threads to run the reads and parse pipeline, so it
-     * falls back to the CPU-scaled {@link #defaultBlobStoreConcurrency(Settings)} default rather than a zero-thread
+     * Thread count for the dedicated {@code esql_external_io} pool ({@code EsqlPlugin}). Sized to exactly the single
+     * concurrency knob {@link #blobStoreConcurrency(Settings)} — no headroom — because every blocking task that lands
+     * on this pool is a permit-gated reader (remote schemes) or is bounded by the pool itself ({@code file://}, which
+     * is not permit-wrapped), so the pool never needs more than {@code N} threads. The parse pipeline's page consumer
+     * runs on {@code esql_worker}, not here (see {@code AsyncExternalSourceOperatorFactory}), so a full pool of readers
+     * can never starve its own drain; that separation is what makes {@code pool == permits} safe rather than
+     * deadlock-prone. One exception to tracking the knob: {@code max_concurrent_requests=0} disables the <em>permit</em>
+     * limiter (unbounded in-flight reads), but the I/O pool still needs threads to run the reads and parse pipeline, so
+     * it falls back to the CPU-scaled {@link #defaultBlobStoreConcurrency(Settings)} default rather than a zero-thread
      * pool. Always {@code >= 1}.
      */
     public static int externalIoThreads(Settings settings) {
@@ -90,10 +107,12 @@ public final class ExternalSourceSettings {
      * concurrency limiting entirely.
      * <p>
      * The default is CPU-bound rather than a fixed literal: {@link #defaultBlobStoreConcurrency(Settings)} — the
-     * {@code snapshot_meta} sizing shape ({@code allocatedProcessors * 3}) capped at
-     * {@value #BLOB_STORE_CONCURRENCY_CEILING}. That scales in-flight reads with node size so a wide fan-out over
-     * many small blobs is not self-throttled by a low fixed cap, while still bounding a single store's load.
-     * Operators can raise it (up to 500) for high-throughput clusters or lower it when a store throttles.
+     * {@code snapshot_meta} sizing shape ({@code allocatedProcessors * 3}) clamped to
+     * {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]}. That
+     * scales in-flight reads with node size so a wide fan-out over many small blobs is not self-throttled by a low
+     * fixed cap, while the floor keeps small nodes from collapsing to a handful of permits and the ceiling bounds a
+     * single store's load. Operators can raise it (up to 500) for high-throughput clusters or lower it when a store
+     * throttles.
      * <p>
      * Static ({@link Setting.Property#NodeScope}): the value sizes the per-scheme semaphores and SDK pools when they
      * are built and there is no settings-update consumer to resize a live {@link java.util.concurrent.Semaphore} or

@@ -430,7 +430,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // Per-query fairness: draw a dynamic slice of the per-scheme permit budget so one query cannot starve the
             // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
             // registry (see StorageProviderRegistry#wrapProvider), and in-flight reads are additionally bounded by
-            // the per-scheme permit semaphore. Blocking reads run on esql_worker (not a dedicated pool).
+            // the per-scheme permit semaphore. Blocking reads run on the dedicated esql_external_io pool.
             Closeable onClose = null;
             ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
             if (allocator != null) {
@@ -439,7 +439,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 onClose = budgeted;
             }
 
+            // Read/parse pool: the dedicated esql_external_io pool (blocking opens + parser workers), falling back to
+            // the compute pool when no distinct file-read pool is wired. The producer/drain loop runs on the compute
+            // pool (context.executor(), esql_worker) instead — see AsyncExternalSourceOperatorFactory — so a full
+            // read/parse pool of blocked parser workers cannot starve the drain that consumes their pages.
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
+            Executor producerExecutor = context.executor();
             // Deferred extraction fires when both signals are present: the reader is
             // ColumnExtractorAware AND the plan paired this source with an ExternalFieldExtractExec
             // (the context flag InsertExternalFieldExtraction sets). _rowPosition presence in the
@@ -457,6 +462,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.maxBufferSize(),
                 readExecutor
             )
+                .producerExecutor(producerExecutor)
                 .externalSourceMetrics(externalSourceMetrics)
                 .rowLimit(context.rowLimit())
                 .fileList(context.fileList())

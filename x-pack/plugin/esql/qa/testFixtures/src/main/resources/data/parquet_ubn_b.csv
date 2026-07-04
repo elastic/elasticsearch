@@ -1,3 +1,3 @@
-age:long,name:keyword,city:keyword
-50,charlie,paris
-60,dave,london
+age:long,name:keyword,city:keyword,ts:date_nanos
+50,charlie,paris,9000000
+60,dave,london,8000000

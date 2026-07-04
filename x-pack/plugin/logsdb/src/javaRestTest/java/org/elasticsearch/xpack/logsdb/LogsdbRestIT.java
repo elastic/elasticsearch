@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.SecureString;
@@ -161,7 +162,10 @@ public class LogsdbRestIT extends ESRestTestCase {
 
         String index = getDataStreamBackingIndexNames("logs-test-foo").getFirst();
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
-        assertEquals(columnarEnabled ? "logsdb_columnar" : "logsdb", settings.get("index.mode"));
+        // The provider only auto-selects logsdb_columnar in snapshot builds; mirror that here so this
+        // assertion holds in both snapshot and release-build test runs.
+        boolean expectColumnar = columnarEnabled && Build.current().isSnapshot();
+        assertEquals(expectColumnar ? "logsdb_columnar" : "logsdb", settings.get("index.mode"));
         assertNull(settings.get("index.mapping.source.mode"));
     }
 

@@ -119,7 +119,6 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME;
 
 /**
@@ -533,9 +532,9 @@ public class ComputeService {
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            // execute() is invoked downstream of EsqlSession's analyzed-plan callback, which may complete on
-            // esql_worker after ExternalSourceResolver dispatches resolution there.
-            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME
+            // execute() is invoked downstream of EsqlSession's analyzed-plan callback, which may complete on the
+            // external blob-store pool after ExternalSourceResolver dispatches resolution there.
+            EsqlPlugin.externalBlobStorePool()
         );
         // Check if the plan contains subqueries (UnionAll) vs fork branches before breaking it apart.
         // Batching is only applied to subqueries, not fork branches.
@@ -1232,8 +1231,8 @@ public class ComputeService {
 
         try {
             var workerThreadPool = transportService.getThreadPool();
-            var parallelWorkerExecutor = workerThreadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
-            int esqlWorkerPoolSize = workerThreadPool.info(ESQL_WORKER_THREAD_POOL_NAME).getMax();
+            var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
+            int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
@@ -1379,7 +1378,7 @@ public class ComputeService {
             driverRunner.executeDrivers(
                 task,
                 drivers,
-                transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+                transportService.getThreadPool().executor(EsqlPlugin.computePool()),
                 ActionListener.releaseAfter(driverListener, () -> {
                     if (hookExecInfo != null) {
                         for (BooleanSupplier hook : registeredStopHooks) {

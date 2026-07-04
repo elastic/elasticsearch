@@ -44,11 +44,13 @@ import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansWithOverspill;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidAssignments;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndex;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidInformation;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSlices;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
 import org.elasticsearch.index.codec.vectors.diskbbq.DiskBBQBulkWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidClusters;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
@@ -292,7 +294,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     ) throws IOException {
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
         final ESNextDiskBBQVectorsFormat.QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
-        KMeansResult<float[]> centroidClusters = centroidSupplier.secondLevelClusters();
+        FlatCentroidClusters centroidClusters = (FlatCentroidClusters) centroidSupplier.centroidIndex();
         int[] centroidVectorCount = new int[centroidSupplier.size()];
         for (int i = 0; i < assignments.length; i++) {
             centroidVectorCount[assignments[i]]++;
@@ -397,7 +399,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         final ESNextDiskBBQVectorsFormat.QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
         // first, quantize all the vectors into a temporary file
         var vectorSimilarityFunction = fieldInfo.getVectorSimilarityFunction();
-        KMeansResult<float[]> centroidClusters = centroidSupplier.secondLevelClusters();
+        FlatCentroidClusters centroidClusters = (FlatCentroidClusters) centroidSupplier.centroidIndex();
         PackedLongValues.Builder vectorCentroidOffsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         String quantizedVectorsTempName = null;
         try (
@@ -645,12 +647,12 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     public CentroidSupplier createCentroidSupplier(FieldInfo info, float[][] centroids, float[] globalCentroid) throws IOException {
         CentroidSupplier centroidSupplier = CentroidSupplier.fromArray(
             centroids,
-            KMeansResult.singleCluster(globalCentroid, centroids.length),
+            new FlatCentroidClusters(KMeansResult.singleCluster(globalCentroid, centroids.length)),
             info.getVectorDimension()
         );
         if (centroidSupplier.size() > centroidsPerParentCluster * centroidsPerParentCluster) {
             KMeansResult<float[]> centroidClusters = buildSecondLevelClusters(info, centroidSupplier.asKmeansFloatVectorValues(), false);
-            return CentroidSupplier.fromArray(centroids, centroidClusters, info.getVectorDimension());
+            return CentroidSupplier.fromArray(centroids, new FlatCentroidClusters(centroidClusters), info.getVectorDimension());
         }
         return centroidSupplier;
     }
@@ -1057,8 +1059,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         }
 
         @Override
-        public KMeansResult<float[]> secondLevelClusters() {
-            return clusters;
+        public CentroidIndex centroidIndex() {
+            return new FlatCentroidClusters(clusters);
         }
 
         @Override

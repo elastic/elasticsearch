@@ -2688,6 +2688,18 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Correct decoding of a {@code LIST} leaf reached through a {@code STRUCT}
+         * (e.g. {@code answers.text} where {@code answers} is {@code struct<text: list<string>>}).
+         * Such leaves previously bound to no column descriptor and read as all-null on the Parquet
+         * (Java) reader; this capability gates the csv-spec tests that assert the multivalues now
+         * round-trip. Separate from {@link #EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION} so nodes that
+         * predate the fix (and other format readers) skip the tests instead of failing them.
+         *
+         * <p>Tracks: elastic/esql-planning#1055 (correctness gap for Parquet-Java list-under-struct).
+         */
+        EXTERNAL_SOURCE_LIST_UNDER_STRUCT(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Multi-file external UNION_BY_NAME widens cross-file type disagreements to KEYWORD
          * instead of throwing at planning time. The reconciler emits a warning header per
          * affected column, the per-file ColumnMapping carries a stringification cast, and the

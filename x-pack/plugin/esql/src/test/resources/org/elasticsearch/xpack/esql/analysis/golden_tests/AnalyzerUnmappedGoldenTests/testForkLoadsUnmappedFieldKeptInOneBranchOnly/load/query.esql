@@ -1,0 +1,5 @@
+SET unmapped_fields="load"; FROM partial_mapping_sample_data
+| FORK (KEEP message, unmapped_message)
+       (WHERE message == "42")
+| KEEP _fork, message, unmapped_message
+| SORT _fork, message

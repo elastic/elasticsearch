@@ -1,0 +1,3 @@
+p:integer,q:keyword,r:double
+1,alpha,1.5
+2,beta,2.5

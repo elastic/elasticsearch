@@ -828,11 +828,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (exhausted) {
             return false;
         }
-        if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
-            exhausted = true;
-            cancelPendingPrefetch();
-            return false;
-        }
         if (rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0) {
             exhausted = true;
             return false;
@@ -845,8 +840,22 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 rowsRemainingInGroup = 0;
             }
         }
+        // Serve rows already materialized for the current row group before consulting the
+        // early-termination side channel. dynamicThreshold.noFurtherCandidates() is a volatile flag
+        // that a concurrent TopN worker can flip at any moment (e.g. once a NULLS FIRST top-K
+        // saturates with nulls). Checking it first would let a flip land between a caller's hasNext()
+        // and its next() and turn an already-available batch into a NoSuchElementException — the race
+        // behind the intermittent "Unexpected failure reading external source" surfaced from next().
+        // Early termination still takes effect below, where it stops us from advancing to (and
+        // prefetching) any further row groups; the only extra work is draining the already-decoded,
+        // in-memory current group, which the TopN simply discards.
         if (rowsRemainingInGroup > 0) {
             return true;
+        }
+        if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
+            exhausted = true;
+            cancelPendingPrefetch();
+            return false;
         }
         try {
             return advanceRowGroup();

@@ -266,9 +266,11 @@ public final class TextFieldMapper extends FieldMapper {
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         boolean multiValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
             || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        boolean nullability = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
+            || FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
         // Strictly columnar indices read field values from doc values, so enable doc values by default for text fields in that mode.
         boolean enabled = indexSettings.getMode().isStrictColumnar();
-        return new DocValuesParameter.Values(enabled, DocValuesParameter.Values.Cardinality.HIGH, multiValue);
+        return new DocValuesParameter.Values(enabled, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability);
     }
 
     public static class Builder extends TextFamilyBuilder {
@@ -1862,6 +1864,12 @@ public final class TextFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    public boolean isNullable() {
+        // Text fields have no null_value parameter, so nullability is governed solely by the doc_values nullability setting.
+        return docValuesParameters.nullability();
     }
 
     @Override

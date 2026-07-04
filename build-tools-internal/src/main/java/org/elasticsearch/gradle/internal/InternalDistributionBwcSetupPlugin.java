@@ -226,7 +226,6 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     copy.from(absoluteGradleUserHomePath, copySpec -> {
                         copySpec.include("gradle.properties");
                         copySpec.include("init.d/*");
-                        copySpec.include("wrapper/*");
                     });
                 });
             });

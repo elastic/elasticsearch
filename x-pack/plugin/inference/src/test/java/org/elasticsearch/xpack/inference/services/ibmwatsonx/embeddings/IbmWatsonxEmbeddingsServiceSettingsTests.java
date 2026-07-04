@@ -7,17 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.AbstractIbmWatsonxServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
@@ -25,26 +27,15 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
-import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
-public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<IbmWatsonxEmbeddingsServiceSettings> {
-
-    private static final String TEST_MODEL_ID = "test-model";
-    private static final String INITIAL_TEST_MODEL_ID = "initial-model";
-
-    private static final String TEST_PROJECT_ID = "test-project";
-    private static final String INITIAL_TEST_PROJECT_ID = "initial-project";
-
-    private static final URI TEST_URI = URI.create("https://www.test.example");
-    private static final URI INITIAL_TEST_URI = URI.create("https://www.initial.example");
-
-    private static final String TEST_API_VERSION = "2024-06-01";
-    private static final String INITIAL_TEST_API_VERSION = "2024-05-02";
+public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractIbmWatsonxServiceSettingsTests<IbmWatsonxEmbeddingsServiceSettings> {
 
     private static final int TEST_MAX_INPUT_TOKENS = 512;
     private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 256;
@@ -55,78 +46,36 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
     private static final SimilarityMeasure TEST_SIMILARITY = SimilarityMeasure.COSINE;
     private static final SimilarityMeasure INITIAL_TEST_SIMILARITY = SimilarityMeasure.DOT_PRODUCT;
 
-    private static final int TEST_RATE_LIMIT = 500;
-    private static final int INITIAL_TEST_RATE_LIMIT = 250;
-    private static final int DEFAULT_RATE_LIMIT = 120;
-
-    private static IbmWatsonxEmbeddingsServiceSettings createRandom() {
-        return new IbmWatsonxEmbeddingsServiceSettings(
-            randomAlphaOfLength(8),
-            randomAlphaOfLength(8),
-            createUri("https://" + randomAlphaOfLength(10) + ".example"),
-            randomAlphaOfLength(8),
-            randomNonNegativeIntOrNull(),
-            randomNonNegativeIntOrNull(),
-            randomFrom(randomSimilarityMeasure(), null),
-            RateLimitSettingsTests.createRandom()
-        );
+    @Override
+    protected IbmWatsonxEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return IbmWatsonxEmbeddingsServiceSettings.fromMap(map, context);
     }
 
-    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var originalServiceSettings = new IbmWatsonxEmbeddingsServiceSettings(
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROJECT_ID,
-            INITIAL_TEST_URI,
-            INITIAL_TEST_API_VERSION,
-            INITIAL_TEST_MAX_INPUT_TOKENS,
-            INITIAL_TEST_DIMENSIONS,
-            INITIAL_TEST_SIMILARITY,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
-            buildServiceSettingsMap(
-                TEST_MODEL_ID,
-                TEST_PROJECT_ID,
-                TEST_URI.toString(),
-                TEST_API_VERSION,
-                TEST_MAX_INPUT_TOKENS,
-                TEST_DIMENSIONS,
-                TEST_SIMILARITY.toString(),
-                TEST_RATE_LIMIT
-            )
-        );
-
-        assertThat(
-            updatedServiceSettings,
-            is(
-                new IbmWatsonxEmbeddingsServiceSettings(
-                    INITIAL_TEST_MODEL_ID,
-                    INITIAL_TEST_PROJECT_ID,
-                    INITIAL_TEST_URI,
-                    INITIAL_TEST_API_VERSION,
-                    TEST_MAX_INPUT_TOKENS,
-                    INITIAL_TEST_DIMENSIONS,
-                    INITIAL_TEST_SIMILARITY,
-                    new RateLimitSettings(TEST_RATE_LIMIT)
-                )
-            )
-        );
+    @Override
+    protected Map<String, Object> buildCommonServiceSettingsMap(
+        @Nullable String modelId,
+        @Nullable String projectId,
+        @Nullable String url,
+        @Nullable String apiVersion,
+        @Nullable Integer rateLimit
+    ) {
+        return buildServiceSettingsMap(modelId, projectId, url, apiVersion, null, null, null, rateLimit);
     }
 
-    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
-        var originalServiceSettings = new IbmWatsonxEmbeddingsServiceSettings(
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROJECT_ID,
-            INITIAL_TEST_URI,
-            INITIAL_TEST_API_VERSION,
-            INITIAL_TEST_MAX_INPUT_TOKENS,
-            INITIAL_TEST_DIMENSIONS,
-            INITIAL_TEST_SIMILARITY,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+    @Override
+    protected IbmWatsonxEmbeddingsServiceSettings createServiceSettings(
+        URI uri,
+        String apiVersion,
+        String modelId,
+        String projectId,
+        RateLimitSettings rateLimitSettings
+    ) {
+        return new IbmWatsonxEmbeddingsServiceSettings(modelId, projectId, uri, apiVersion, null, null, null, rateLimitSettings);
+    }
 
-        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    @Override
+    protected List<String> additionalImmutableFields() {
+        return List.of(ServiceFields.DIMENSIONS, ServiceFields.SIMILARITY);
     }
 
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {
@@ -161,9 +110,134 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
         );
     }
 
-    public void testFromMap_OnlyMandatoryFields_CreatesSettingsCorrectly() {
+    public void testFromMap_ZeroDimensions_ThrowsException() {
+        assertFromMap_NonPositiveField_ThrowsException(
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_PROJECT_ID, TEST_URI.toString(), TEST_API_VERSION, null, 0, null, null),
+            ServiceFields.DIMENSIONS,
+            0
+        );
+    }
+
+    public void testFromMap_NegativeDimensions_ThrowsException() {
+        var negativeDimensions = randomNegativeInt();
+        assertFromMap_NonPositiveField_ThrowsException(
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_PROJECT_ID,
+                TEST_URI.toString(),
+                TEST_API_VERSION,
+                null,
+                negativeDimensions,
+                null,
+                null
+            ),
+            ServiceFields.DIMENSIONS,
+            negativeDimensions
+        );
+    }
+
+    public void testFromMap_ZeroMaxInputTokens_ThrowsException() {
+        assertFromMap_NonPositiveField_ThrowsException(
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_PROJECT_ID, TEST_URI.toString(), TEST_API_VERSION, 0, null, null, null),
+            ServiceFields.MAX_INPUT_TOKENS,
+            0
+        );
+    }
+
+    public void testFromMap_NegativeMaxInputTokens_ThrowsException() {
+        var negativeMaxInputTokens = randomNegativeInt();
+        assertFromMap_NonPositiveField_ThrowsException(
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_PROJECT_ID,
+                TEST_URI.toString(),
+                TEST_API_VERSION,
+                negativeMaxInputTokens,
+                null,
+                null,
+                null
+            ),
+            ServiceFields.MAX_INPUT_TOKENS,
+            negativeMaxInputTokens
+        );
+    }
+
+    public void testFromMap_NoDimensions_Success() {
         var serviceSettings = IbmWatsonxEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(TEST_MODEL_ID, TEST_PROJECT_ID, TEST_URI.toString(), TEST_API_VERSION, null, null, null, null),
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_PROJECT_ID,
+                TEST_URI.toString(),
+                TEST_API_VERSION,
+                TEST_MAX_INPUT_TOKENS,
+                null,
+                TEST_SIMILARITY.toString(),
+                TEST_RATE_LIMIT
+            ),
+            randomFrom(ConfigurationParseContext.values())
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new IbmWatsonxEmbeddingsServiceSettings(
+                    TEST_MODEL_ID,
+                    TEST_PROJECT_ID,
+                    TEST_URI,
+                    TEST_API_VERSION,
+                    TEST_MAX_INPUT_TOKENS,
+                    null,
+                    TEST_SIMILARITY,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testFromMap_NoSimilarity_Success() {
+        var serviceSettings = IbmWatsonxEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_PROJECT_ID,
+                TEST_URI.toString(),
+                TEST_API_VERSION,
+                TEST_MAX_INPUT_TOKENS,
+                TEST_DIMENSIONS,
+                null,
+                TEST_RATE_LIMIT
+            ),
+            randomFrom(ConfigurationParseContext.values())
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new IbmWatsonxEmbeddingsServiceSettings(
+                    TEST_MODEL_ID,
+                    TEST_PROJECT_ID,
+                    TEST_URI,
+                    TEST_API_VERSION,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_DIMENSIONS,
+                    null,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testFromMap_NoMaxInputTokens_Success() {
+        var serviceSettings = IbmWatsonxEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_PROJECT_ID,
+                TEST_URI.toString(),
+                TEST_API_VERSION,
+                null,
+                TEST_DIMENSIONS,
+                TEST_SIMILARITY.toString(),
+                TEST_RATE_LIMIT
+            ),
             randomFrom(ConfigurationParseContext.values())
         );
 
@@ -176,71 +250,129 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
                     TEST_URI,
                     TEST_API_VERSION,
                     null,
-                    null,
-                    null,
-                    new RateLimitSettings(DEFAULT_RATE_LIMIT)
+                    TEST_DIMENSIONS,
+                    TEST_SIMILARITY,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
     }
 
-    public void testFromMap_NoUrl_ThrowsValidationError() {
+    private void assertFromMap_NonPositiveField_ThrowsException(Map<String, Object> map, String fieldName, int value) {
         var thrownException = expectThrows(
-            ValidationException.class,
-            () -> IbmWatsonxEmbeddingsServiceSettings.fromMap(
-                buildServiceSettingsMap(TEST_MODEL_ID, TEST_PROJECT_ID, null, TEST_API_VERSION, null, null, null, null),
-                randomFrom(ConfigurationParseContext.values())
-            )
+            IllegalArgumentException.class,
+            () -> IbmWatsonxEmbeddingsServiceSettings.fromMap(map, randomFrom(ConfigurationParseContext.values()))
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.URL))
+            thrownException.getMessage(),
+            endsWith(Strings.format("[%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, fieldName))
+        );
+        assertThat(
+            thrownException.getCause().getMessage(),
+            is(
+                Strings.format(
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    value,
+                    fieldName
+                )
+            )
         );
     }
 
-    public void testFromMap_NoApiVersion_ThrowsValidationError() {
+    public void testFromMap_InvalidSimilarity_ThrowsException() {
+        var invalidSimilarity = "by_size";
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> IbmWatsonxEmbeddingsServiceSettings.fromMap(
-                buildServiceSettingsMap(TEST_MODEL_ID, TEST_PROJECT_ID, TEST_URI.toString(), null, null, null, null, null),
+                buildServiceSettingsMap(
+                    TEST_MODEL_ID,
+                    TEST_PROJECT_ID,
+                    TEST_URI.toString(),
+                    TEST_API_VERSION,
+                    null,
+                    null,
+                    invalidSimilarity,
+                    null
+                ),
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", IbmWatsonxServiceFields.API_VERSION))
+            thrownException.getMessage(),
+            endsWith(Strings.format("[%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.SIMILARITY))
+        );
+        assertThat(
+            thrownException.getCause().getMessage(),
+            is(Strings.format("Invalid value [%s]; expected one of [cosine, dot_product, l2_norm]", invalidSimilarity))
         );
     }
 
-    public void testFromMap_NoModelId_ThrowsValidationError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> IbmWatsonxEmbeddingsServiceSettings.fromMap(
-                buildServiceSettingsMap(null, TEST_PROJECT_ID, TEST_URI.toString(), TEST_API_VERSION, null, null, null, null),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
-        assertThat(thrownException.validationErrors().size(), is(1));
+    public void testUpdateServiceSettings_MutableFields_AreUpdated() {
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS);
+        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)));
+        var originalServiceSettings = createInitialSettings(INITIAL_TEST_MAX_INPUT_TOKENS, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
+
         assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.MODEL_ID))
+            originalServiceSettings.updateServiceSettings(settingsMap),
+            is(createInitialSettings(TEST_MAX_INPUT_TOKENS, new RateLimitSettings(TEST_RATE_LIMIT)))
         );
     }
 
-    public void testFromMap_NoProjectId_ThrowsValidationError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> IbmWatsonxEmbeddingsServiceSettings.fromMap(
-                buildServiceSettingsMap(TEST_MODEL_ID, null, TEST_URI.toString(), TEST_API_VERSION, null, null, null, null),
-                randomFrom(ConfigurationParseContext.values())
+    public void testUpdateServiceSettings_RateLimitOmitted_KeepsExistingRateLimit() {
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS);
+        var originalServiceSettings = createInitialSettings(INITIAL_TEST_MAX_INPUT_TOKENS, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
+
+        assertThat(
+            originalServiceSettings.updateServiceSettings(settingsMap),
+            is(createInitialSettings(TEST_MAX_INPUT_TOKENS, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_ExplicitNullMaxInputTokens_ClearsField() {
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(ServiceFields.MAX_INPUT_TOKENS, null);
+        var originalServiceSettings = createInitialSettings(INITIAL_TEST_MAX_INPUT_TOKENS, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
+
+        assertThat(
+            originalServiceSettings.updateServiceSettings(settingsMap),
+            is(createInitialSettings(null, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_ZeroMaxInputTokens_ThrowsException() {
+        assertUpdateServiceSettings_NonPositiveMaxInputTokens_ThrowsException(0);
+    }
+
+    public void testUpdateServiceSettings_NegativeMaxInputTokens_ThrowsException() {
+        assertUpdateServiceSettings_NonPositiveMaxInputTokens_ThrowsException(randomNegativeInt());
+    }
+
+    private void assertUpdateServiceSettings_NonPositiveMaxInputTokens_ThrowsException(int nonPositiveMaxInputTokens) {
+        var serviceSettings = createInitialSettings(INITIAL_TEST_MAX_INPUT_TOKENS, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
+
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(ServiceFields.MAX_INPUT_TOKENS, nonPositiveMaxInputTokens)))
+        );
+        assertThat(
+            e.getMessage(),
+            endsWith(
+                Strings.format("[%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.MAX_INPUT_TOKENS)
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", IbmWatsonxServiceFields.PROJECT_ID))
+            e.getCause().getMessage(),
+            is(
+                Strings.format(
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    nonPositiveMaxInputTokens,
+                    ServiceFields.MAX_INPUT_TOKENS
+                )
+            )
         );
     }
 
@@ -266,26 +398,26 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
                 Strings.format(
                     """
                         {
-                            "model_id": "%s",
-                            "project_id": "%s",
                             "url": "%s",
                             "api_version": "%s",
-                            "max_input_tokens": %d,
-                            "dimensions": %d,
-                            "similarity": "%s",
+                            "model_id": "%s",
+                            "project_id": "%s",
                             "rate_limit": {
                                 "requests_per_minute": %d
-                            }
+                            },
+                            "max_input_tokens": %d,
+                            "dimensions": %d,
+                            "similarity": "%s"
                         }
                         """,
-                    TEST_MODEL_ID,
-                    TEST_PROJECT_ID,
                     TEST_URI.toString(),
                     TEST_API_VERSION,
+                    TEST_MODEL_ID,
+                    TEST_PROJECT_ID,
+                    TEST_RATE_LIMIT,
                     TEST_MAX_INPUT_TOKENS,
                     TEST_DIMENSIONS,
-                    TEST_SIMILARITY.toString(),
-                    TEST_RATE_LIMIT
+                    TEST_SIMILARITY.toString()
                 )
             )
         );
@@ -305,7 +437,7 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
     protected IbmWatsonxEmbeddingsServiceSettings mutateInstance(IbmWatsonxEmbeddingsServiceSettings instance) throws IOException {
         var modelId = instance.modelId();
         var projectId = instance.projectId();
-        var url = instance.url();
+        var uri = instance.uri();
         var apiVersion = instance.apiVersion();
         var maxInputTokens = instance.maxInputTokens();
         var dimensions = instance.dimensions();
@@ -314,11 +446,11 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
         switch (randomInt(7)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 1 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(8));
-            case 2 -> url = randomValueOtherThan(url, () -> createUri(randomAlphaOfLength(8)));
+            case 2 -> uri = randomValueOtherThan(uri, () -> createUri("https://" + randomAlphaOfLength(10) + ".example"));
             case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomAlphaOfLength(8));
-            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, ESTestCase::randomNonNegativeIntOrNull);
-            case 5 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
-            case 6 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(1, 256), null));
+            case 5 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(1, 256), null));
+            case 6 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomFrom(SimilarityMeasure.values()), null));
             case 7 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -326,12 +458,54 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
         return new IbmWatsonxEmbeddingsServiceSettings(
             modelId,
             projectId,
-            url,
+            uri,
             apiVersion,
             maxInputTokens,
             dimensions,
             similarity,
             rateLimitSettings
+        );
+    }
+
+    @Override
+    protected IbmWatsonxEmbeddingsServiceSettings mutateInstanceForVersion(
+        IbmWatsonxEmbeddingsServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
+    }
+
+    @Override
+    protected IbmWatsonxEmbeddingsServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return IbmWatsonxEmbeddingsServiceSettings.createParser(true).apply(parser, ConfigurationParseContext.PERSISTENT).build();
+    }
+
+    private static IbmWatsonxEmbeddingsServiceSettings createInitialSettings(
+        @Nullable Integer maxInputTokens,
+        RateLimitSettings rateLimitSettings
+    ) {
+        return new IbmWatsonxEmbeddingsServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROJECT_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_API_VERSION,
+            maxInputTokens,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_SIMILARITY,
+            rateLimitSettings
+        );
+    }
+
+    private static IbmWatsonxEmbeddingsServiceSettings createRandom() {
+        return new IbmWatsonxEmbeddingsServiceSettings(
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            createUri("https://" + randomAlphaOfLength(10) + ".example"),
+            randomAlphaOfLength(8),
+            randomFrom(randomIntBetween(1, 256), null),
+            randomFrom(randomIntBetween(1, 256), null),
+            randomFrom(randomFrom(SimilarityMeasure.values()), null),
+            RateLimitSettingsTests.createRandom()
         );
     }
 
@@ -358,14 +532,14 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
         if (apiVersion != null) {
             map.put(IbmWatsonxServiceFields.API_VERSION, apiVersion);
         }
+        if (maxInputTokens != null) {
+            map.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
+        }
         if (dimensions != null) {
             map.put(ServiceFields.DIMENSIONS, dimensions);
         }
         if (similarity != null) {
             map.put(ServiceFields.SIMILARITY, similarity);
-        }
-        if (maxInputTokens != null) {
-            map.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
         }
         if (rateLimit != null) {
             map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));

@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.AbstractIbmWatsonxServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
@@ -29,71 +30,33 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.is;
 
-public class IbmWatsonxRerankServiceSettingsTests extends AbstractWireSerializingTestCase<IbmWatsonxRerankServiceSettings> {
+public class IbmWatsonxRerankServiceSettingsTests extends AbstractIbmWatsonxServiceSettingsTests<IbmWatsonxRerankServiceSettings> {
 
-    private static final URI TEST_URI = URI.create("https://test.rerank.example");
-    private static final URI INITIAL_TEST_URI = URI.create("https://initial.rerank.example");
-
-    private static final String TEST_MODEL_ID = "test-model";
-    private static final String INITIAL_TEST_MODEL_ID = "initial-model";
-
-    private static final String TEST_PROJECT_ID = "test-project";
-    private static final String INITIAL_TEST_PROJECT_ID = "initial-project";
-
-    private static final String TEST_API_VERSION = "2024-06-01";
-    private static final String INITIAL_TEST_API_VERSION = "2024-05-02";
-
-    private static final int TEST_RATE_LIMIT = 500;
-    private static final int INITIAL_TEST_RATE_LIMIT = 250;
-    private static final int DEFAULT_RATE_LIMIT = 120;
-
-    private static IbmWatsonxRerankServiceSettings createRandom() {
-        return new IbmWatsonxRerankServiceSettings(
-            createUri("https://" + randomAlphaOfLength(10) + ".example"),
-            randomAlphaOfLength(8),
-            randomAlphaOfLength(8),
-            randomAlphaOfLength(8),
-            RateLimitSettingsTests.createRandom()
-        );
+    @Override
+    protected IbmWatsonxRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return IbmWatsonxRerankServiceSettings.fromMap(map, context);
     }
 
-    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var originalServiceSettings = new IbmWatsonxRerankServiceSettings(
-            INITIAL_TEST_URI,
-            INITIAL_TEST_API_VERSION,
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROJECT_ID,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
-            buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT)
-        );
-
-        assertThat(
-            updatedServiceSettings,
-            is(
-                new IbmWatsonxRerankServiceSettings(
-                    INITIAL_TEST_URI,
-                    INITIAL_TEST_API_VERSION,
-                    INITIAL_TEST_MODEL_ID,
-                    INITIAL_TEST_PROJECT_ID,
-                    new RateLimitSettings(TEST_RATE_LIMIT)
-                )
-            )
-        );
+    @Override
+    protected Map<String, Object> buildCommonServiceSettingsMap(
+        @Nullable String modelId,
+        @Nullable String projectId,
+        @Nullable String url,
+        @Nullable String apiVersion,
+        @Nullable Integer rateLimit
+    ) {
+        return buildServiceSettingsMap(url, apiVersion, modelId, projectId, rateLimit);
     }
 
-    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
-        var originalServiceSettings = new IbmWatsonxRerankServiceSettings(
-            INITIAL_TEST_URI,
-            INITIAL_TEST_API_VERSION,
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROJECT_ID,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
-
-        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    @Override
+    protected IbmWatsonxRerankServiceSettings createServiceSettings(
+        URI uri,
+        String apiVersion,
+        String modelId,
+        String projectId,
+        RateLimitSettings rateLimitSettings
+    ) {
+        return new IbmWatsonxRerankServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
     }
 
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {
@@ -112,85 +75,6 @@ public class IbmWatsonxRerankServiceSettingsTests extends AbstractWireSerializin
                     new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
-        );
-    }
-
-    public void testFromMap_OnlyMandatoryFields_CreatesSettingsCorrectly() {
-        var serviceSettings = IbmWatsonxRerankServiceSettings.fromMap(
-            buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, null),
-            randomFrom(ConfigurationParseContext.values())
-        );
-        assertThat(
-            serviceSettings,
-            is(
-                new IbmWatsonxRerankServiceSettings(
-                    TEST_URI,
-                    TEST_API_VERSION,
-                    TEST_MODEL_ID,
-                    TEST_PROJECT_ID,
-                    new RateLimitSettings(DEFAULT_RATE_LIMIT)
-                )
-            )
-        );
-    }
-
-    public void testFromMap_NoUrl_ThrowsValidationError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> IbmWatsonxRerankServiceSettings.fromMap(
-                buildServiceSettingsMap(null, TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
-        assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.URL))
-        );
-    }
-
-    public void testFromMap_NoApiVersion_ThrowsValidationError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> IbmWatsonxRerankServiceSettings.fromMap(
-                buildServiceSettingsMap(TEST_URI.toString(), null, TEST_MODEL_ID, TEST_PROJECT_ID, TEST_RATE_LIMIT),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
-        assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", IbmWatsonxServiceFields.API_VERSION))
-        );
-    }
-
-    public void testFromMap_NoModelId_ThrowsValidationError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> IbmWatsonxRerankServiceSettings.fromMap(
-                buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, null, TEST_PROJECT_ID, TEST_RATE_LIMIT),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
-        assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.MODEL_ID))
-        );
-    }
-
-    public void testFromMap_NoProjectId_ThrowsValidationError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> IbmWatsonxRerankServiceSettings.fromMap(
-                buildServiceSettingsMap(TEST_URI.toString(), TEST_API_VERSION, TEST_MODEL_ID, null, TEST_RATE_LIMIT),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
-        assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", IbmWatsonxServiceFields.PROJECT_ID))
         );
     }
 
@@ -247,6 +131,26 @@ public class IbmWatsonxRerankServiceSettingsTests extends AbstractWireSerializin
         }
 
         return new IbmWatsonxRerankServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
+    }
+
+    @Override
+    protected IbmWatsonxRerankServiceSettings mutateInstanceForVersion(IbmWatsonxRerankServiceSettings instance, TransportVersion version) {
+        return instance;
+    }
+
+    @Override
+    protected IbmWatsonxRerankServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return IbmWatsonxRerankServiceSettings.createParser(true).apply(parser, ConfigurationParseContext.PERSISTENT).build();
+    }
+
+    private static IbmWatsonxRerankServiceSettings createRandom() {
+        return new IbmWatsonxRerankServiceSettings(
+            createUri("https://" + randomAlphaOfLength(10) + ".example"),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            RateLimitSettingsTests.createRandom()
+        );
     }
 
     private static Map<String, Object> buildServiceSettingsMap(

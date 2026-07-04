@@ -119,7 +119,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
     }
 
     public IbmWatsonxChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets, (IbmWatsonxChatCompletionServiceSettings) modelConfigurations.getServiceSettings());
+        super(modelConfigurations, modelSecrets);
     }
 
     // Should only be used for testing
@@ -128,12 +128,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
         ModelSecrets modelSecrets,
         BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator
     ) {
-        super(
-            modelConfigurations,
-            modelSecrets,
-            (IbmWatsonxChatCompletionServiceSettings) modelConfigurations.getServiceSettings(),
-            authHeaderDecorator
-        );
+        super(modelConfigurations, modelSecrets, authHeaderDecorator);
     }
 
     @Override

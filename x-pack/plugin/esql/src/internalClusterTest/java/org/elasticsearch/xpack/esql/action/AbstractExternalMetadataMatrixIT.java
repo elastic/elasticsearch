@@ -7,38 +7,20 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalRowIdentity;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
-import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.After;
 import org.junit.Before;
 
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
@@ -70,19 +52,15 @@ import static org.hamcrest.Matchers.nullValue;
  * lays down the same canonical 3-row fixture (in file order {@code emp_no} 1,2,3) so the assertions
  * hold uniformly across formats.
  *
- * <p>Single-node by design, matching {@link FromDatasetIT}: multi-node dataset publication trips an
- * unrelated {@code ProjectMetadata.Builder} assertion already on {@code main}.
+ * <p>Single-node by design, matching {@link FromDatasetIT}: this exercises the per-format reader/metadata surface,
+ * not cluster-state propagation across nodes (covered by
+ * {@code ProjectMetadataTests#testDatasetChangeViaDiffRebuildsIndicesLookup}).
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlIntegTestCase {
-
-    protected static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalDataSourceIT {
 
     /** The format name passed as the dataset's {@code format} setting (e.g. {@code "csv"}). */
     protected abstract String format();
-
-    /** Reader plugin(s) backing this format, registered as node plugins for SPI discovery. */
-    protected abstract Collection<Class<? extends Plugin>> formatPlugins();
 
     /**
      * Write the canonical 3-row fixture into {@code dir} and return the resource URI string.
@@ -94,56 +72,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
      */
     protected abstract String writeFixture(Path dir) throws Exception;
 
-    /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
-    public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
-        @Override
-        public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-            return Map.of("test", new TestValidator());
-        }
-    }
-
-    private static final class TestValidator implements DataSourceValidator {
-        @Override
-        public String type() {
-            return "test";
-        }
-
-        @Override
-        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
-            Map<String, DataSourceSetting> out = new HashMap<>();
-            for (Map.Entry<String, Object> e : datasourceSettings.entrySet()) {
-                out.put(e.getKey(), new DataSourceSetting(e.getValue(), e.getKey().startsWith("secret_")));
-            }
-            return out;
-        }
-
-        @Override
-        public Map<String, Object> validateDataset(
-            Map<String, DataSourceSetting> datasourceSettings,
-            String resource,
-            Map<String, Object> datasetSettings
-        ) {
-            return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
-        }
-    }
-
     private String fixtureUri;
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.addAll(formatPlugins());
-        plugins.add(TestDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
 
     /** Determinism over planner-regression diversity here — these tests pin specific plan shapes. */
     @Override
@@ -152,18 +81,10 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
     }
 
     @Before
-    public void requireFeatureFlag() {
-        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
-    }
-
-    @Before
     public void writeFixtureAndRegister() throws Exception {
         fixtureUri = writeFixture(createTempDir());
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("employees", "local_ds", fixtureUri, Map.of("format", format())))
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", fixtureUri, Map.of("format", format()));
     }
 
     /**
@@ -176,26 +97,6 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         int idx = names.indexOf(name);
         assertThat(name + " must surface without KEEP; got columns " + names, idx, greaterThanOrEqualTo(0));
         return idx;
-    }
-
-    @After
-    public void cleanupRegistry() throws Exception {
-        try {
-            client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("employees"))
-                .get(30, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (ResourceNotFoundException ignored) {
-            // already deleted
-        } catch (Exception e) {
-            logger.warn("dataset cleanup [employees] failed", e);
-        }
-        try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
-                .get(30, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (ResourceNotFoundException ignored) {
-            // already deleted
-        } catch (Exception e) {
-            logger.warn("data source cleanup [local_ds] failed", e);
-        }
     }
 
     public void testIdRendersOpaqueStableRowIdentity() throws Exception {
@@ -449,26 +350,5 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
     /** Keyword values may surface as String or BytesRef depending on block plumbing; normalize to String. */
     private static String objToString(Object value) {
         return value == null ? null : value.toString();
-    }
-
-    private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
-    }
-
-    private static PutDatasetAction.Request putDatasetRequest(
-        String name,
-        String dataSource,
-        String resource,
-        Map<String, Object> settings
-    ) {
-        return new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resource, null, new HashMap<>(settings));
-    }
-
-    private static DeleteDataSourceAction.Request deleteDataSourceRequest(String name) {
-        return new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
-    }
-
-    private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
-        return new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
     }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -550,5 +551,69 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         // column is all-null, which does not move the min/max.
         Map<String, Object> footer = SourceStatisticsSerializer.mergeStatistics(List.of(withValue, countOnly), true);
         assertEquals(1_000_000L, footer.get(SourceStatisticsSerializer.columnMinKey("value")));
+    }
+
+    public void testNormalizeStatsToReconciledRescalesTemporalMillisToNanos() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        stats.put(SourceStatisticsSerializer.columnMinKey("ts"), 2L); // epoch-millis in a DATETIME file
+        stats.put(SourceStatisticsSerializer.columnMaxKey("ts"), 5L);
+        Map<String, DataType> fileTypes = Map.of("ts", DataType.DATETIME);
+        Map<String, DataType> reconciled = Map.of("ts", DataType.DATE_NANOS);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertEquals("min rescaled millis->nanos", 2_000_000L, out.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertEquals("max rescaled millis->nanos", 5_000_000L, out.get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertEquals("row count untouched", 100L, out.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    public void testNormalizeStatsToReconciledSameTypeUnchanged() {
+        Map<String, Object> stats = Map.of(
+            SourceStatisticsSerializer.columnMinKey("ts"),
+            2L,
+            SourceStatisticsSerializer.columnMaxKey("ts"),
+            5L
+        );
+        Map<String, DataType> types = Map.of("ts", DataType.DATE_NANOS);
+        assertSame(
+            "unchanged when file type == reconciled type",
+            stats,
+            SourceStatisticsSerializer.normalizeStatsToReconciled(stats, types, types)
+        );
+    }
+
+    public void testNormalizeStatsToReconciledTemporalOverflowMarksUnservable() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("ts"), 1L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("ts"), Long.MAX_VALUE / 2); // *1e6 overflows
+        Map<String, DataType> fileTypes = Map.of("ts", DataType.DATETIME);
+        Map<String, DataType> reconciled = Map.of("ts", DataType.DATE_NANOS);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertEquals("min rescaled", 1_000_000L, out.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertFalse("overflowed max value dropped", out.containsKey(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertEquals(
+            "overflowed max marked unservable -> safe-miss",
+            Boolean.TRUE,
+            out.get(SourceStatisticsSerializer.columnMaxUnservableKey("ts"))
+        );
+    }
+
+    public void testNormalizeStatsToReconciledNumericToKeywordMarksUnservable() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("c"), 3L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("c"), 9L);
+        Map<String, DataType> fileTypes = Map.of("c", DataType.LONG);
+        Map<String, DataType> reconciled = Map.of("c", DataType.KEYWORD); // non-widenable fallback
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertFalse("numeric min dropped under KEYWORD reconcile", out.containsKey(SourceStatisticsSerializer.columnMinKey("c")));
+        assertEquals(
+            "min marked unservable",
+            Boolean.TRUE,
+            out.get(SourceStatisticsSerializer.columnMinUnservableKey("c"))
+        );
+        assertEquals(
+            "max marked unservable",
+            Boolean.TRUE,
+            out.get(SourceStatisticsSerializer.columnMaxUnservableKey("c"))
+        );
     }
 }

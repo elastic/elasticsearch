@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
@@ -212,6 +213,94 @@ public final class SourceStatisticsSerializer {
     /** Returns the flat key that marks a column's {@code max} statistic unservable. */
     public static String columnMaxUnservableKey(String columnName) {
         return STATS_COL_PREFIX + columnName + MAX_UNSERVABLE_SUFFIX;
+    }
+
+    /**
+     * Normalizes a per-file stat map's {@code min}/{@code max} to the RECONCILED column type, at the boundary
+     * where BOTH the file's own type and the multi-file reconciled type are known (multi-file discovery /
+     * split construction). Per-file stats are stored in the file's LOCAL unit/representation, but every warm
+     * consumer — the split-filter classifier, the filtered/whole-file merge, the source-level fold, and the
+     * MIN/MAX serve — reads the value AS the reconciled type ({@code af.dataType()}) with no further rescale.
+     * Normalizing here, once, is what makes those consumers correct instead of comparing file-local units
+     * unit-blind. Two cases need it (the numeric Long/Double flap within one representation is handled
+     * separately by the cache-path {@code coerceColumnStatsToResolvedTypes} and the poison fold):
+     * <ul>
+     *   <li><b>Temporal widening</b> — a {@code DATETIME} (epoch-millis) file column reconciled to
+     *   {@code DATE_NANOS} (epoch-nanos) has its min/max rescaled ×1e6 ({@link Math#multiplyExact}); on
+     *   overflow the value is dropped and the unservable marker written (safe-miss), never a wrong nanos value.</li>
+     *   <li><b>Representation change</b> — a numeric/temporal file column reconciled to {@code KEYWORD}/{@code TEXT}
+     *   ({@link org.elasticsearch.xpack.esql.datasources.SchemaReconciliation}'s non-widenable fallback) would be
+     *   served under lexicographic/stringified order, not numeric, so its numeric min/max is dropped and the
+     *   marker written (safe-miss).</li>
+     * </ul>
+     * Count stats (value_count/null_count/row_count) are unit- and representation-independent and pass through.
+     * The unservable marker (not a bare removal) is written so marker-wins normalization in {@code SplitStats.of}
+     * forces a safe-miss even if a later overlay would otherwise resurrect a stale value. Returns the input
+     * unchanged when no column needed normalization.
+     */
+    public static Map<String, Object> normalizeStatsToReconciled(
+        Map<String, Object> statsMap,
+        Map<String, DataType> fileTypes,
+        Map<String, DataType> reconciledTypes
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || fileTypes == null || reconciledTypes == null) {
+            return statsMap;
+        }
+        Map<String, Object> out = null; // copied lazily, only if a column actually needs a change
+        for (Map.Entry<String, DataType> entry : reconciledTypes.entrySet()) {
+            String col = entry.getKey();
+            DataType reconciled = entry.getValue();
+            DataType file = fileTypes.get(col);
+            if (file == null || file == reconciled) {
+                continue; // column absent from this file, or already the reconciled type
+            }
+            for (String[] pair : List.of(
+                new String[] { columnMinKey(col), columnMinUnservableKey(col) },
+                new String[] { columnMaxKey(col), columnMaxUnservableKey(col) }
+            )) {
+                Object value = statsMap.get(pair[0]);
+                if (value instanceof Number == false) {
+                    continue;
+                }
+                Object normalized = normalizeExtremumToReconciled((Number) value, file, reconciled);
+                if (normalized != null) {
+                    if (normalized.equals(value)) {
+                        continue; // no change
+                    }
+                    if (out == null) {
+                        out = new HashMap<>(statsMap);
+                    }
+                    out.put(pair[0], normalized);
+                } else {
+                    if (out == null) {
+                        out = new HashMap<>(statsMap);
+                    }
+                    out.remove(pair[0]);
+                    out.put(pair[1], Boolean.TRUE);
+                }
+            }
+        }
+        return out != null ? out : statsMap;
+    }
+
+    /** Rescales/validates one extremum from its file type to the reconciled type; {@code null} = not servable. */
+    private static Object normalizeExtremumToReconciled(Number value, DataType fileType, DataType reconciledType) {
+        if (fileType == DataType.DATETIME && reconciledType == DataType.DATE_NANOS) {
+            try {
+                return Math.multiplyExact(value.longValue(), 1_000_000L); // epoch-millis → epoch-nanos
+            } catch (ArithmeticException overflow) {
+                return null; // safe-miss
+            }
+        }
+        if (reconciledType == DataType.KEYWORD || reconciledType == DataType.TEXT) {
+            return null; // numeric/temporal served under lexicographic KEYWORD order would be wrong → safe-miss
+        }
+        if (fileType == DataType.DATE_NANOS && reconciledType == DataType.DATETIME) {
+            return null; // widening never narrows nanos→millis; if it somehow reaches here, safe-miss
+        }
+        // Same numeric/temporal family with only a Long/Double representation flap: left to the cache-path
+        // coerce + the poison fold. Pass the value through unchanged here.
+        return value;
     }
 
     /**

@@ -241,11 +241,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#1056 is scoped to top-level lists. A list nested in a STRUCT keys under the struct
-     * root {@code s} (not the attribute {@code s.blist}), so it is left to esql-planning#1055: we must
-     * publish no marker under {@code s} or {@code s.blist}, while the flat leaf {@code s.a} still publishes.
+     * esql-planning#1055: a list nested in a STRUCT is surfaced by the flattener at its logical dotted
+     * name {@code s.blist} (not the struct root {@code s}, and not the raw leaf {@code s.blist.list.element}).
+     * The stats must therefore publish under {@code s.blist} with an <em>unknown</em> null count — like a
+     * top-level list (#1056), a stats-based {@code rowCount - nullCount} count is wrong for a leaf with
+     * several values per row, so COUNT falls back to a scan. No phantom marker is published under the
+     * struct root {@code s}, and the flat struct leaf {@code s.a} keeps its concrete null count.
      */
-    public void testStructNestedListIsNotPublished() throws Exception {
+    public void testStructNestedListPublishedWithUnknownNullCount() throws Exception {
         Type blist = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("blist");
         Type structS = Types.optionalGroup().required(PrimitiveType.PrimitiveTypeName.INT64).named("a").addField(blist).named("s");
         MessageType schema = new MessageType("test_schema", structS);
@@ -269,11 +272,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue(metadata.statistics().isPresent());
         Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
 
-        // No phantom marker under the struct root, and the nested list is left to #1055.
+        // No phantom marker under the struct root: the leaf keys at its logical name, not path[0].
         assertFalse("must not publish a marker under the struct root", cols.containsKey("s"));
-        assertFalse("nested list stats are owned by #1055, not published here", cols.containsKey("s.blist"));
-        // The flat struct leaf still publishes normally.
+        // The nested list is published under its flattener name with an unknown null count (#1055).
+        assertTrue("nested list must be registered under its logical name", cols.containsKey("s.blist"));
+        assertEquals("nested list null count must be unknown", OptionalLong.empty(), cols.get("s.blist").nullCount());
+        // The flat struct leaf still publishes normally with a concrete null count.
         assertTrue(cols.containsKey("s.a"));
+        assertEquals(OptionalLong.of(0L), cols.get("s.a").nullCount());
     }
 
     /**
@@ -2479,6 +2485,252 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertFalse(block.isNull(2));
             assertEquals(1, block.getValueCount(2));
             assertEquals(micros3 * 1_000, block.getLong(block.getFirstValueIndex(2)));
+        }
+    }
+
+    // --- LIST-under-STRUCT tests (elastic/esql-planning#1055) ---
+    //
+    // A list leaf reached through a struct (struct<list<...>>, the shape of e.g. SQuAD's `answers`)
+    // used to bind to no column descriptor and silently read as all-null: the flattener names the
+    // leaf at its parent dotted path (answers.text) while the descriptor's raw path carries the
+    // synthetic LIST wrapper (answers.text.list.element). These tests assert the leaves now
+    // round-trip their multivalues on both the optimized and baseline read paths.
+
+    /** Builds a {@code struct<list<string> text, list<int> answer_start>} schema with a top-level id. */
+    private static MessageType squadAnswersSchema() {
+        return new MessageType(
+            "test_schema",
+            Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id"),
+            Types.optionalGroup()
+                .addField(
+                    Types.optionalList()
+                        .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
+                        .as(LogicalTypeAnnotation.stringType())
+                        .named("text")
+                )
+                .addField(Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("answer_start"))
+                .named("answers")
+        );
+    }
+
+    public void testReadStructOfListRoundTripsBothPaths() throws Exception {
+        MessageType schema = squadAnswersSchema();
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            // Row 0: single-element lists (the canonical SQuAD row shape)
+            Group g0 = factory.newGroup();
+            g0.add("id", 1L);
+            Group ans0 = g0.addGroup("answers");
+            ans0.addGroup("text").addGroup("list").append("element", "Saint Bernadette Soubirous");
+            ans0.addGroup("answer_start").addGroup("list").append("element", 515);
+
+            // Row 1: multi-element lists
+            Group g1 = factory.newGroup();
+            g1.add("id", 2L);
+            Group ans1 = g1.addGroup("answers");
+            Group text1 = ans1.addGroup("text");
+            text1.addGroup("list").append("element", "alpha");
+            text1.addGroup("list").append("element", "beta");
+            Group starts1 = ans1.addGroup("answer_start");
+            starts1.addGroup("list").append("element", 10);
+            starts1.addGroup("list").append("element", 20);
+
+            // Row 2: struct present but lists absent -> null leaves
+            Group g2 = factory.newGroup();
+            g2.add("id", 3L);
+            g2.addGroup("answers");
+
+            return List.of(g0, g1, g2);
+        });
+
+        // Default reader wraps memory storage in a ParquetStorageObjectAdapter and drives the
+        // optimized iterator; withBaselinePath() forces the row-at-a-time baseline iterator.
+        for (ParquetFormatReader reader : List.of(
+            new ParquetFormatReader(blockFactory),
+            new ParquetFormatReader(blockFactory).withBaselinePath()
+        )) {
+            StorageObject storageObject = createStorageObject(parquetData);
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("id", "answers.text", "answers.answer_start"), 10)) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                assertEquals(3, page.getPositionCount());
+
+                BytesRefBlock text = (BytesRefBlock) page.getBlock(1);
+                IntBlock starts = (IntBlock) page.getBlock(2);
+
+                // Row 0
+                assertEquals(1, text.getValueCount(0));
+                assertEquals(new BytesRef("Saint Bernadette Soubirous"), text.getBytesRef(text.getFirstValueIndex(0), new BytesRef()));
+                assertEquals(1, starts.getValueCount(0));
+                assertEquals(515, starts.getInt(starts.getFirstValueIndex(0)));
+
+                // Row 1 (multivalue)
+                assertEquals(2, text.getValueCount(1));
+                int t1 = text.getFirstValueIndex(1);
+                assertEquals(new BytesRef("alpha"), text.getBytesRef(t1, new BytesRef()));
+                assertEquals(new BytesRef("beta"), text.getBytesRef(t1 + 1, new BytesRef()));
+                assertEquals(2, starts.getValueCount(1));
+                int s1 = starts.getFirstValueIndex(1);
+                assertEquals(10, starts.getInt(s1));
+                assertEquals(20, starts.getInt(s1 + 1));
+
+                // Row 2 (absent lists -> null, not spurious data)
+                assertTrue(text.isNull(2));
+                assertTrue(starts.isNull(2));
+
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /** COUNT-style guard: the non-null count of the struct-nested leaf must equal the populated rows. */
+    public void testStructOfListCountMatchesNonNull() throws Exception {
+        MessageType schema = squadAnswersSchema();
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g0 = factory.newGroup();
+            g0.add("id", 1L);
+            g0.addGroup("answers").addGroup("text").addGroup("list").append("element", "x");
+
+            // Row 1: entirely absent struct -> null leaf
+            Group g1 = factory.newGroup();
+            g1.add("id", 2L);
+
+            return List.of(g0, g1);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("answers.text"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            BytesRefBlock text = (BytesRefBlock) page.getBlock(0);
+            int nonNull = 0;
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                if (text.isNull(i) == false) {
+                    nonNull++;
+                }
+            }
+            assertEquals("struct-nested list leaf must not read as all-null", 1, nonNull);
+            page.releaseBlocks();
+        }
+    }
+
+    public void testLogicalLeafNameStopsAtEnclosingList() {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id"),
+            // top-level list<int> (control)
+            Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("vals"),
+            // struct<primitive> (control)
+            Types.optionalGroup().optional(PrimitiveType.PrimitiveTypeName.INT32).named("age").named("person"),
+            // struct<list<string>> (the fixed case)
+            Types.optionalGroup()
+                .addField(
+                    Types.optionalList()
+                        .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
+                        .as(LogicalTypeAnnotation.stringType())
+                        .named("text")
+                )
+                .named("answers")
+        );
+        Set<String> logicalNames = new HashSet<>();
+        for (var desc : schema.getColumns()) {
+            logicalNames.add(ParquetFormatReader.logicalLeafName(schema, desc.getPath()));
+        }
+        assertTrue(logicalNames.contains("id"));
+        assertTrue(logicalNames.contains("vals"));
+        assertTrue(logicalNames.contains("person.age"));
+        assertTrue("struct-nested list must resolve to its parent dotted name", logicalNames.contains("answers.text"));
+        // The synthetic LIST wrapper must never leak into a logical leaf name.
+        for (String name : logicalNames) {
+            assertFalse(name, name.contains(".list.") || name.endsWith(".element"));
+        }
+    }
+
+    public void testResolveColumnInfoBindsStructNestedList() {
+        MessageType schema = squadAnswersSchema();
+        ColumnInfo info = ParquetFormatReader.resolveColumnInfo(schema, "answers.text");
+        assertNotNull("struct-nested list leaf must resolve to a ColumnInfo", info);
+        assertEquals(DataType.KEYWORD, info.esqlType());
+        assertTrue("list leaf must carry a repetition level", info.maxRepLevel() > 0);
+    }
+
+    public void testBuildColumnInfosBindsStructNestedList() {
+        MessageType schema = squadAnswersSchema();
+        List<Attribute> attributes = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "answers.text", DataType.KEYWORD, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "answers.answer_start", DataType.INTEGER, Nullability.TRUE, null, false)
+        );
+        ColumnInfo[] infos = ParquetFormatReader.buildColumnInfos(schema, attributes);
+        assertNotNull("answers.text must bind to a descriptor", infos[0]);
+        assertTrue(infos[0].maxRepLevel() > 0);
+        assertNotNull("answers.answer_start must bind to a descriptor", infos[1]);
+        assertTrue(infos[1].maxRepLevel() > 0);
+    }
+
+    /**
+     * Directly verifies the raw Parquet leaf statistics of a struct-nested list column to justify
+     * the two different aggregate-pushdown decisions:
+     * <ul>
+     *   <li><b>COUNT is a correctness issue.</b> The leaf's {@code numNulls} counts per-row null
+     *       lists, and {@code rowCount} counts rows — neither is the number of values. So the
+     *       stats formula {@code rowCount - numNulls} does not equal the true multivalue count, and
+     *       COUNT must fall back to the read path.</li>
+     *   <li><b>MIN/MAX are a missed optimization, not a correctness issue.</b> The leaf's min/max
+     *       are computed over every element in the column, which is exactly ES|QL
+     *       {@code MIN}/{@code MAX} over a multivalue field, so they can safely be pushed down.</li>
+     * </ul>
+     */
+    public void testListLeafStatisticsSemantics() throws Exception {
+        MessageType schema = squadAnswersSchema();
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            // answer_start elements across rows: [515], [10,20], (null list) -> 3 values total
+            Group g0 = factory.newGroup();
+            g0.add("id", 1L);
+            g0.addGroup("answers").addGroup("answer_start").addGroup("list").append("element", 515);
+
+            Group g1 = factory.newGroup();
+            g1.add("id", 2L);
+            Group starts1 = g1.addGroup("answers").addGroup("answer_start");
+            starts1.addGroup("list").append("element", 10);
+            starts1.addGroup("list").append("element", 20);
+
+            Group g2 = factory.newGroup();
+            g2.add("id", 3L);
+            g2.addGroup("answers");
+
+            return List.of(g0, g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        // Open with a config-free ParquetReadOptions (as the reader does) to avoid pulling in the
+        // Hadoop XML Configuration stack, which is not on the unit-test classpath.
+        org.apache.parquet.ParquetReadOptions options = org.apache.parquet.ParquetReadOptions.builder(new PlainParquetConfiguration())
+            .build();
+        try (
+            org.apache.parquet.hadoop.ParquetFileReader reader = org.apache.parquet.hadoop.ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(storageObject, blockFactory.arrowAllocator()),
+                options
+            )
+        ) {
+            org.apache.parquet.hadoop.metadata.BlockMetaData rowGroup = reader.getRowGroups().get(0);
+            org.apache.parquet.hadoop.metadata.ColumnChunkMetaData leaf = null;
+            for (org.apache.parquet.hadoop.metadata.ColumnChunkMetaData col : rowGroup.getColumns()) {
+                if (col.getPath().toDotString().startsWith("answers.answer_start")) {
+                    leaf = col;
+                }
+            }
+            assertNotNull("answer_start leaf chunk must exist", leaf);
+            org.apache.parquet.column.statistics.Statistics<?> stats = leaf.getStatistics();
+
+            // MIN/MAX span all elements (10..515) -> equal to ES|QL MIN/MAX over the multivalue.
+            assertEquals(10L, ((Number) stats.genericGetMin()).longValue());
+            assertEquals(515L, ((Number) stats.genericGetMax()).longValue());
+
+            // COUNT correctness: 3 values were written, but rowCount - numNulls does not equal 3,
+            // so a stats-based count would be wrong and must fall back to reading.
+            long trueValueCount = 3;
+            long statsBasedCount = rowGroup.getRowCount() - stats.getNumNulls();
+            assertNotEquals("rowCount - numNulls must not accidentally equal the multivalue count", trueValueCount, statsBasedCount);
         }
     }
 

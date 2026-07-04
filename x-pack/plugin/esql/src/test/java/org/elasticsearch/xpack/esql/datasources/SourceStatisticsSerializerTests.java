@@ -605,15 +605,7 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         Map<String, DataType> reconciled = Map.of("c", DataType.KEYWORD); // non-widenable fallback
         Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
         assertFalse("numeric min dropped under KEYWORD reconcile", out.containsKey(SourceStatisticsSerializer.columnMinKey("c")));
-        assertEquals(
-            "min marked unservable",
-            Boolean.TRUE,
-            out.get(SourceStatisticsSerializer.columnMinUnservableKey("c"))
-        );
-        assertEquals(
-            "max marked unservable",
-            Boolean.TRUE,
-            out.get(SourceStatisticsSerializer.columnMaxUnservableKey("c"))
-        );
+        assertEquals("min marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("c")));
+        assertEquals("max marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("c")));
     }
 }

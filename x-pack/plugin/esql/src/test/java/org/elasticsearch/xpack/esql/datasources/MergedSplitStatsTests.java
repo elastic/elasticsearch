@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class MergedSplitStatsTests extends ESTestCase {
 
@@ -189,6 +192,63 @@ public class MergedSplitStatsTests extends ESTestCase {
         assertEquals(-1, merged.columnSizeBytes("age"));
     }
 
+    // -- temporal-unit reconciliation (millis DATETIME vs nanos DATE_NANOS) --
+
+    public void testColumnMinMaxMixedTemporalUnitsRescaleToNanos() {
+        // File A: ts is DATETIME (epoch-millis), min=2 max=5 -> 2_000_000 / 5_000_000 ns.
+        // File B: ts is DATE_NANOS (epoch-nanos), min=1 max=9_999_999 ns.
+        SplitStats a = temporalColumn("ts", 2L, 5L);
+        SplitStats b = temporalColumn("ts", 1L, 9_999_999L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATETIME, DataType.DATE_NANOS));
+        assertEquals("min widened to epoch-nanos", 1L, ((Number) merged.columnMin("ts")).longValue());
+        assertEquals("max widened to epoch-nanos", 9_999_999L, ((Number) merged.columnMax("ts")).longValue());
+    }
+
+    public void testColumnMinMaxUniformDatetimeStaysMillis() {
+        // Both files DATETIME: no rescale, result stays epoch-millis (reconciled type is DATETIME).
+        SplitStats a = temporalColumn("ts", 2L, 5L);
+        SplitStats b = temporalColumn("ts", 1L, 9L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATETIME, DataType.DATETIME));
+        assertEquals(1L, ((Number) merged.columnMin("ts")).longValue());
+        assertEquals(9L, ((Number) merged.columnMax("ts")).longValue());
+    }
+
+    public void testColumnMinMaxUniformDateNanosUnchanged() {
+        SplitStats a = temporalColumn("ts", 2000L, 5000L);
+        SplitStats b = temporalColumn("ts", 1000L, 9000L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATE_NANOS, DataType.DATE_NANOS));
+        assertEquals(1000L, ((Number) merged.columnMin("ts")).longValue());
+        assertEquals(9000L, ((Number) merged.columnMax("ts")).longValue());
+    }
+
+    public void testColumnMinMaxTemporalWithUnknownTypeIsPoisoned() {
+        // Column is temporal in file A but file B carries no per-file type; we cannot safely rescale -> poison.
+        SplitStats a = temporalColumn("ts", 2L, 5L);
+        SplitStats b = temporalColumn("ts", 1L, 9L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATE_NANOS, null));
+        assertNull(merged.columnMin("ts"));
+        assertNull(merged.columnMax("ts"));
+    }
+
+    public void testColumnMinMaxMillisOverflowingNanosIsPoisoned() {
+        // File A DATETIME value has no nanosecond representation (millis * 1e6 overflows a long) -> poison.
+        SplitStats a = temporalColumn("ts", 10_000_000_000_000L, 20_000_000_000_000L);
+        SplitStats b = temporalColumn("ts", 1L, 9L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATETIME, DataType.DATE_NANOS));
+        assertNull(merged.columnMin("ts"));
+        assertNull(merged.columnMax("ts"));
+    }
+
+    public void testColumnMinMaxMixedUnitsWithoutTypesMergesUnitBlind() {
+        // No per-file types (old-node / self-infer path): behavior is unchanged value-only merge. Documents that
+        // the reconciliation only kicks in when per-file types are available.
+        SplitStats a = temporalColumn("ts", 2L, 5L);
+        SplitStats b = temporalColumn("ts", 1L, 9L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b));
+        assertEquals(1L, ((Number) merged.columnMin("ts")).longValue());
+        assertEquals(9L, ((Number) merged.columnMax("ts")).longValue());
+    }
+
     // -- children() --
 
     public void testChildrenReturnsAllChildren() {
@@ -250,5 +310,19 @@ public class MergedSplitStatsTests extends ESTestCase {
         SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
         b.addColumn(name, -1L, null, null, -1L);
         return b.build();
+    }
+
+    private static SplitStats temporalColumn(String name, long minEpoch, long maxEpoch) {
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        b.addColumn(name, 0L, minEpoch, maxEpoch, 400);
+        return b.build();
+    }
+
+    private static List<Map<String, DataType>> types(DataType... perChild) {
+        List<Map<String, DataType>> result = new ArrayList<>(perChild.length);
+        for (DataType type : perChild) {
+            result.add(type == null ? null : Map.of("ts", type));
+        }
+        return result;
     }
 }

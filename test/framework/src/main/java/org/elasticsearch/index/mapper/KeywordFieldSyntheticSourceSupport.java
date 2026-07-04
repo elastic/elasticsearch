@@ -52,16 +52,19 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource) {
+        // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
             case 0 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                ESTestCase.randomBoolean()
+                ESTestCase.randomBoolean(),
+                true
             );
             case 1 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                ESTestCase.randomBoolean()
+                ESTestCase.randomBoolean(),
+                true
             );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();

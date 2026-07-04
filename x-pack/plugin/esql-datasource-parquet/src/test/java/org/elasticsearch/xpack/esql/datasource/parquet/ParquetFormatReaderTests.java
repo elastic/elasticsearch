@@ -197,6 +197,86 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * esql-planning#1056: a top-level list column must be published under its attribute name (so
+     * {@code findColumn} hits) but with an <em>unknown</em> null count, which makes {@code COUNT} /
+     * {@code IS NOT NULL} decline the footer fast path and scan. Before the fix the list stats were
+     * keyed by the leaf path {@code ints.list.element}, never matching the attribute {@code ints}, so
+     * the column was published under no name at all. The flat control keeps its concrete null count.
+     */
+    public void testListColumnPublishedWithUnknownNullCount() throws Exception {
+        Type intList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("ints");
+        Type id = Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        MessageType schema = new MessageType("test_schema", id, intList);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 5; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group list = g.addGroup("ints");
+                // Row 2 is a genuinely-null (empty) list; the rest are non-null 2-element lists.
+                if (r != 2) {
+                    list.addGroup("list").append("element", r * 10);
+                    list.addGroup("list").append("element", r * 10 + 1);
+                }
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        assertTrue(metadata.statistics().isPresent());
+        assertTrue(metadata.statistics().get().columnStatistics().isPresent());
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+
+        // The list column is registered under its attribute name (not the leaf "ints.list.element")
+        // so findColumn hits, but with an unknown null count so COUNT/IS NOT NULL fall back to scan.
+        assertTrue("list column must be registered under its attribute name", cols.containsKey("ints"));
+        assertEquals("list column null count must be unknown", OptionalLong.empty(), cols.get("ints").nullCount());
+
+        // The flat control keeps a concrete null count — the footer fast path is preserved for it.
+        assertTrue(cols.containsKey("id"));
+        assertEquals(OptionalLong.of(0L), cols.get("id").nullCount());
+    }
+
+    /**
+     * esql-planning#1056 is scoped to top-level lists. A list nested in a STRUCT keys under the struct
+     * root {@code s} (not the attribute {@code s.blist}), so it is left to esql-planning#1055: we must
+     * publish no marker under {@code s} or {@code s.blist}, while the flat leaf {@code s.a} still publishes.
+     */
+    public void testStructNestedListIsNotPublished() throws Exception {
+        Type blist = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("blist");
+        Type structS = Types.optionalGroup().required(PrimitiveType.PrimitiveTypeName.INT64).named("a").addField(blist).named("s");
+        MessageType schema = new MessageType("test_schema", structS);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                Group s = g.addGroup("s");
+                s.add("a", (long) r);
+                Group list = s.addGroup("blist");
+                list.addGroup("list").append("element", r * 10);
+                list.addGroup("list").append("element", r * 10 + 1);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        assertTrue(metadata.statistics().isPresent());
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+
+        // No phantom marker under the struct root, and the nested list is left to #1055.
+        assertFalse("must not publish a marker under the struct root", cols.containsKey("s"));
+        assertFalse("nested list stats are owned by #1055, not published here", cols.containsKey("s.blist"));
+        // The flat struct leaf still publishes normally.
+        assertTrue(cols.containsKey("s.a"));
+    }
+
+    /**
      * Parity: {@link ParquetFormatReader#metadataAsync} must resolve the same schema as the
      * synchronous {@link ParquetFormatReader#metadata}. The async path prefetches the footer tail via
      * {@code readBytesAsync} (completed here on a separate probe pool), seeds the footer-byte cache and

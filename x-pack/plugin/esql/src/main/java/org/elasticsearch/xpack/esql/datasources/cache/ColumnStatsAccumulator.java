@@ -340,6 +340,7 @@ public final class ColumnStatsAccumulator {
         }
 
         void acceptBytesRef(BytesRef val) {
+            assert val != null : "acceptBytesRef requires a non-null value; nulls route through acceptNullAt";
             valueCount++;
             if (typeOrdinal == T_BYTESREF) {
                 updateBytesRef(val);

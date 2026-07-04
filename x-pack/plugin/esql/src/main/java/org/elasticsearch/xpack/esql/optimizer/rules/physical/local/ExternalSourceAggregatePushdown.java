@@ -115,9 +115,9 @@ public final class ExternalSourceAggregatePushdown {
         }
         ColumnStatTypeSupport support = ColumnStatTypeSupport.of(type);
         if (support == null || support.blockKind() == null) {
-            // A null support (or a support with no block kind — UNSIGNED_LONG) has NO buildBlock arm: serving it
-            // would hit buildBlock's throwing default, a crash on an otherwise-valid query (e.g. MIN(uint64) on
-            // parquet, whose pushdown gate has no type filter). Safe-miss instead so the aggregate re-scans and
+            // A null support (or a support with no block kind — e.g. VERSION) has NO buildBlock arm: serving it
+            // would hit buildBlock's throwing default, a crash on an otherwise-valid query (e.g. MIN(version),
+            // whose pushdown gate has no type filter). Safe-miss instead so the aggregate re-scans and
             // answers correctly. INVARIANT: this servable set MUST equal buildBlock's arm set (both dispatch on
             // ColumnStatTypeSupport.of, so they cannot drift).
             return null;
@@ -504,6 +504,11 @@ public final class ExternalSourceAggregatePushdown {
 
         List<ExternalSplit> flatSplits = CoalescedSplit.flatten(splits);
         List<org.elasticsearch.xpack.esql.datasources.spi.SplitStats> matchedStats = new ArrayList<>();
+        // Per-matched-split column types, parallel to matchedStats, so the merge can reconcile mixed units
+        // (e.g. DATETIME millis vs DATE_NANOS nanos) across files before folding MIN/MAX — exactly as the
+        // unfiltered path (SplitStats.resolveEffectiveStats) and CoalescedSplit.computeSplitStats do. Without
+        // them mergeExtremum folds unit-blind and would serve a wrong warm extremum on a mixed-temporal filter.
+        List<Map<String, DataType>> matchedTypes = new ArrayList<>();
         for (ExternalSplit split : flatSplits) {
             org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
             if (stats == null) {
@@ -515,7 +520,10 @@ public final class ExternalSourceAggregatePushdown {
                 implicitNullsForAbsentColumn
             );
             switch (result) {
-                case MATCH -> matchedStats.add(stats);
+                case MATCH -> {
+                    matchedStats.add(stats);
+                    matchedTypes.add(MergedSplitStats.readSchemaTypes(split));
+                }
                 case MISS -> {
                 }
                 case AMBIGUOUS -> {
@@ -527,6 +535,6 @@ public final class ExternalSourceAggregatePushdown {
         if (matchedStats.isEmpty()) {
             return SplitStats.EMPTY;
         }
-        return new MergedSplitStats(matchedStats);
+        return new MergedSplitStats(matchedStats, matchedTypes);
     }
 }

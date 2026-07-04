@@ -72,7 +72,7 @@ public final class MergedSplitStats implements org.elasticsearch.xpack.esql.data
      * UNION_BY_NAME the per-file schema names match the unified stat keys, so no mapping translation is needed.
      */
     @Nullable
-    static Map<String, DataType> readSchemaTypes(ExternalSplit split) {
+    public static Map<String, DataType> readSchemaTypes(ExternalSplit split) {
         List<Attribute> schema = split instanceof FileSplit fileSplit ? fileSplit.readSchema() : null;
         if (schema == null || schema.isEmpty()) {
             return null;

@@ -39,7 +39,6 @@ public class Sinh extends AbstractTrigonometricFunction implements NonFiniteSupp
         .description("Calculates the hyperbolic sine of all elements in the input vector.")
         .example("sinh(some_metric)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(PromqlFunctionDefinition.OVERFLOW_NOTE)
         .name("sinh");
 
     /**

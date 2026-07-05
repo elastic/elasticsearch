@@ -40,9 +40,6 @@ public class Acosh extends AbstractTrigonometricFunction implements NonFiniteSup
         .description("Calculates the inverse hyperbolic cosine of all elements in the input vector.")
         .example("acosh(some_metric)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(
-            "For inputs below 1, {{es}} returns `null` and emits a warning, rather than the `NaN` that Prometheus returns."
-        )
         .name("acosh");
 
     /**

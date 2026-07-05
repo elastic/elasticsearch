@@ -2371,6 +2371,65 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
+     * Whether this mapper exposes the {@code doc_values.nullability} sub-parameter. Override and return {@code true} for mappers that
+     * participate in required-field enforcement (ie. expose {@code isNullable()}).
+     */
+    protected boolean supportsNullabilityParameter() {
+        return false;
+    }
+
+    public void testNullabilityFalseAcceptsValue() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
+        DocumentMapper mapper = createDocumentMapper(nullabilityFalseMapping());
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        assertNotNull(doc.rootDoc().getField("field"));
+    }
+
+    public void testNullabilityFalseAcceptsArrayWithValue() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
+        DocumentMapper mapper = createDocumentMapper(nullabilityFalseMapping());
+        // A single non-null element satisfies the requirement even when other elements are null.
+        ParsedDocument doc = mapper.parse(
+            source(b -> { b.startArray("field").value(getSampleValueForDocument()).nullValue().endArray(); })
+        );
+        assertNotNull(doc.rootDoc().getField("field"));
+    }
+
+    public void testNullabilityFalseRejectsNull() throws Exception {
+        assertNullabilityFalseRejects(b -> b.nullField("field"));
+    }
+
+    public void testNullabilityFalseRejectsNullArray() throws Exception {
+        assertNullabilityFalseRejects(b -> b.startArray("field").nullValue().endArray());
+    }
+
+    public void testNullabilityFalseRejectsMissingField() throws Exception {
+        assertNullabilityFalseRejects(b -> b.field("other", "value"));
+    }
+
+    public void testNullabilityFalseRejectsEmptyDocument() throws Exception {
+        // Exercises the empty-document short-circuit ({}) which bypasses field parsing but must still reach enforcement.
+        assertNullabilityFalseRejects(b -> {});
+    }
+
+    private void assertNullabilityFalseRejects(CheckedConsumer<XContentBuilder, IOException> document) throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
+        DocumentMapper mapper = createDocumentMapper(nullabilityFalseMapping());
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(document)));
+        assertThat(e.getMessage(), containsString("configured with [nullability=false] but no value was provided"));
+    }
+
+    private XContentBuilder nullabilityFalseMapping() throws IOException {
+        return fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("nullability", false).endObject();
+        });
+    }
+
+    /**
      * Indexes three documents — {@code [sample, <empty>, sample]} — force-merges to one segment, and loads the field's block via the
      * column-at-a-time reader with {@link MappedFieldType.FieldExtractPreference#DOC_VALUES}. Returns the three loaded values, or
      * {@code null} when the field type has no column-at-a-time reader (e.g. source-only loaders), so the caller can skip via

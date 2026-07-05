@@ -218,16 +218,6 @@ public class InferenceIndex {
                             "type": "keyword"
                           }
                         }
-                      },
-                      "fallback_region": {
-                        "properties": {
-                          "csp": {
-                            "type": "keyword"
-                          },
-                          "region": {
-                            "type": "keyword"
-                          }
-                        }
                       }
                     }
                   },

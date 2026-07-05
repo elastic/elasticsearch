@@ -64,6 +64,16 @@ public final class StoragePath {
         return "file://" + absPath;
     }
 
+    /**
+     * Builds a canonical {@code file://} {@link StoragePath} from a local filesystem {@link Path}. All
+     * local producers (directory listings, the query's location, per-object stats keys) must funnel
+     * through this so their normalized locations cannot diverge; divergence between two such producers
+     * is exactly what broke stats reconciliation on Windows.
+     */
+    public static StoragePath ofLocalPath(Path path) {
+        return of(fileUri(path));
+    }
+
     public static StoragePath of(String location) {
         if (location == null) {
             throw new IllegalArgumentException("location cannot be null");

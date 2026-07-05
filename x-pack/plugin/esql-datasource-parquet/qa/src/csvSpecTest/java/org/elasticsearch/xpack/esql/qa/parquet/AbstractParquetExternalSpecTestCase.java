@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
-import java.util.Set;
-
 /**
  * Shared cluster base for Parquet csv-spec tests.
  * <p>
@@ -57,10 +55,5 @@ abstract class AbstractParquetExternalSpecTestCase extends AbstractExternalSourc
     @Override
     protected String readerName() {
         return FormatNameResolver.READER_JAVA;
-    }
-
-    @Override
-    protected Set<StorageBackend> datasetModeBackends() {
-        return Set.of(StorageBackend.S3);
     }
 }

@@ -145,11 +145,11 @@ public class DimensionsExtractorTests extends ESTestCase {
     }
 
     /**
-     * {@code index.mode: tsdb} is a preferred alias for {@code time_series}; it must select the same
+     * {@code index.mode: tsdb} is a preferred alternative to {@code time_series}; it must select the same
      * {@link IndexRouting.ExtractFromSource.ForIndexDimensions} strategy and produce byte-identical tsids
      * and shard assignments.
      */
-    public void testTsdbAliasProducesSameTsidAsTimeSeries() throws IOException {
+    public void testTsdbProducesSameTsidAsTimeSeries() throws IOException {
         Map<String, Object> doc = new LinkedHashMap<>();
         doc.put("dim.host", "node-7");
         doc.put("dim.region", "us-west-2");
@@ -166,8 +166,8 @@ public class DimensionsExtractorTests extends ESTestCase {
         tsdbStrategy.preProcess(tsdbReq);
         int tsdbShardId = tsdbStrategy.indexShard(tsdbReq);
 
-        assertThat("tsid must be identical for time_series and tsdb aliases", tsdbReq.tsid(), equalTo(timeSeriesReq.tsid()));
-        assertThat("shard id must be identical for time_series and tsdb aliases", tsdbShardId, equalTo(timeSeriesShardId));
+        assertThat("tsid must be identical for time_series and tsdb", tsdbReq.tsid(), equalTo(timeSeriesReq.tsid()));
+        assertThat("shard id must be identical for time_series and tsdb", tsdbShardId, equalTo(timeSeriesShardId));
     }
 
     public void testResetClearsBuilderBetweenDocuments() throws IOException {

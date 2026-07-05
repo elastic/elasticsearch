@@ -84,8 +84,8 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
         }
     }
 
-    public void testWriteWindowDefinedByRetentionWithTsdbAlias() {
-        // IndexMode.TSDB is a preferred alias for IndexMode.TIME_SERIES, so a data stream configured
+    public void testWriteWindowDefinedByRetentionWithTsdb() {
+        // IndexMode.TSDB is a preferred alternative to IndexMode.TIME_SERIES, so a data stream configured
         // with index.mode: tsdb must be treated identically by the eligible write window logic.
         TimeValue retention = TimeValue.timeValueDays(30);
         DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(retention).build();

@@ -375,7 +375,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=time_series]"));
     }
 
-    public void testTimeSeriesModeWithTsdbAlias() {
+    public void testTimeSeriesModeWithTsdb() {
         IndexSettings indexSettings = indexSettings(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "tsdb")
@@ -390,7 +390,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(sort.getSort()[1].getField(), equalTo("@timestamp"));
     }
 
-    public void testTimeSeriesModeNoTimestampWithTsdbAlias() {
+    public void testTimeSeriesModeNoTimestampWithTsdb() {
         IndexSettings indexSettings = indexSettings(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "tsdb")

@@ -274,7 +274,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
     }
 
-    public void testRolloverUpgradeToTsdbAliasDataStream() {
+    public void testRolloverUpgradeToTsdbDataStreamMode() {
         DataStream ds = DataStreamTestHelper.randomInstance()
             .copy()
             .setReplicated(false)
@@ -343,7 +343,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
     }
 
-    public void testRolloverFromLogsdbToTsdbAlias() {
+    public void testRolloverFromLogsdbToTsdbMode() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
@@ -492,7 +492,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
     }
 
-    public void testRolloverFromColumnarToTsdbAlias() {
+    public void testRolloverFromColumnarToTsdb() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.COLUMNAR).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
@@ -546,7 +546,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
     }
 
-    public void testRolloverFromColumnarLogsdbToTsdbAlias() {
+    public void testRolloverFromColumnarLogsdbToTsdb() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB_COLUMNAR).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());

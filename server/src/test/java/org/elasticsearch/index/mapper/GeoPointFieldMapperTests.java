@@ -171,10 +171,10 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * The {@code tsdb} index mode is an alias for {@code time_series} (see {@link IndexMode#isTsdb()})
+     * The {@code tsdb} index mode is equivalent to {@code time_series} (see {@link IndexMode#isTsdb()})
      * so it must produce the same doc-values-only defaulting for metric fields.
      */
-    public void testTimeSeriesIndexDefaultTsdbAlias() throws Exception {
+    public void testTimeSeriesIndexDefaultTsdb() throws Exception {
         var positionMetricType = TimeSeriesParams.MetricType.POSITION;
         var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TSDB.getName())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");

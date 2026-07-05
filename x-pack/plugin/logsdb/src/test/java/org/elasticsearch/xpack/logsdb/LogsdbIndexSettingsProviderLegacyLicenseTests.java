@@ -148,8 +148,8 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         assertEquals(Settings.EMPTY, result);
     }
 
-    public void testGetAdditionalIndexSettingsTsdbAlias() throws IOException {
-        // Same scenario as testGetAdditionalIndexSettingsTsdb, but using the IndexMode.TSDB alias to make sure the
+    public void testGetAdditionalIndexSettingsTsdbMode() throws IOException {
+        // Same scenario as testGetAdditionalIndexSettingsTsdb, but using IndexMode.TSDB directly to make sure the
         // legacy license check in LogsdbIndexModeSettingsProvider#isLegacyLicensedUsageOfSyntheticSourceAllowed
         // treats it identically to IndexMode.TIME_SERIES.
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
@@ -216,8 +216,8 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         assertEquals(expected, result);
     }
 
-    public void testGetAdditionalIndexSettingsTsdbAfterCutoffDateAlias() throws Exception {
-        // Same scenario as testGetAdditionalIndexSettingsTsdbAfterCutoffDate, but using the IndexMode.TSDB alias to
+    public void testGetAdditionalIndexSettingsTsdbAfterCutoffDateMode() throws Exception {
+        // Same scenario as testGetAdditionalIndexSettingsTsdbAfterCutoffDate, but using IndexMode.TSDB directly to
         // make sure the legacy license check treats it identically to IndexMode.TIME_SERIES.
         long start = LocalDateTime.of(2025, 2, 5, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         License license = createGoldOrPlatinumLicense(start);

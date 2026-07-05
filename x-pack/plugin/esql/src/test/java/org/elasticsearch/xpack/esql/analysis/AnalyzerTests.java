@@ -2734,11 +2734,11 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(orderChild.name(), equalTo("@timestamp"));
     }
 
-    public void testImplicitTimestampSortForTsQueryWithTsdbAlias() {
+    public void testImplicitTimestampSortForTsQueryWithTsdb() {
         // Same as testImplicitTimestampSortForTsQuery, but the index uses IndexMode.TSDB instead of
         // IndexMode.TIME_SERIES: AddImplicitTimestampSort is gated on IndexMode#isTsdb(), so both
-        // aliases must be treated identically.
-        var plan = tsdbAlias().query("TS test");
+        // must be treated identically.
+        var plan = tsdbMode().query("TS test");
 
         var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
@@ -5052,10 +5052,10 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection(plan2, "s1", "s2", "min", "count", "avg", "cluster", "time_bucket");
     }
 
-    public void testImplicitCastingForAggregateMetricDoubleWithTsdbAlias() {
+    public void testImplicitCastingForAggregateMetricDoubleWithTsdb() {
         // Same as testImplicitCastingForAggregateMetricDouble's TS branch, but the indices use
         // IndexMode.TSDB instead of IndexMode.TIME_SERIES: ImplicitCastAggregateMetricDoubles is
-        // gated on IndexMode#isTsdb(), so both aliases must be treated identically.
+        // gated on IndexMode#isTsdb(), so both must be treated identically.
         assumeTrue(
             "aggregate metric double implicit casting must be available",
             EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()
@@ -5588,11 +5588,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     /**
-     * Same fixture as {@link #tsdb()}, but built with the {@link IndexMode#TSDB} alias instead of
+     * Same fixture as {@link #tsdb()}, but built with {@link IndexMode#TSDB} directly instead of
      * {@link IndexMode#TIME_SERIES}. Used to prove that {@code index.mode: tsdb} is treated identically
      * to {@code index.mode: time_series} by rules gated on {@link IndexMode#isTsdb()}.
      */
-    private static TestAnalyzer tsdbAlias() {
+    private static TestAnalyzer tsdbMode() {
         return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TSDB);
     }
 

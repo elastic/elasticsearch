@@ -104,11 +104,11 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
     }
 
     /**
-     * The {@code tsdb} index mode is an alias for {@code time_series} (see {@link IndexMode#isTsdb()})
+     * The {@code tsdb} index mode is equivalent to {@code time_series} (see {@link IndexMode#isTsdb()})
      * so {@link TimeSeriesRoutingHashFieldMapper} must be enabled identically.
      */
     @SuppressWarnings("unchecked")
-    public void testEnabledInTsdbAliasMode() throws Exception {
+    public void testEnabledInTsdbMode() throws Exception {
         Settings.Builder settingsBuilder = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TSDB.name())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing path is required")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")

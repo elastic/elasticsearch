@@ -55,11 +55,11 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     /**
-     * The {@code tsdb} alias delegates {@link IndexMode#validateWithOtherSettings} to
+     * {@link IndexMode#TSDB} delegates {@link IndexMode#validateWithOtherSettings} to
      * {@link IndexMode#TIME_SERIES}, so it must reject the same incompatible settings with the
      * same (canonical {@code time_series}) error message.
      */
-    public void testPartitionedWithTsdbAlias() {
+    public void testPartitionedWithTsdb() {
         Settings s = Settings.builder()
             .put(getSettingsWithMode("tsdb", randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z"))
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
@@ -100,7 +100,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
     }
 
-    public void testWithoutRoutingPathWithTsdbAlias() {
+    public void testWithoutRoutingPathWithTsdb() {
         Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "tsdb").build();
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -166,7 +166,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
-    public void testRequiredRoutingWithTsdbAlias() {
+    public void testRequiredRoutingWithTsdb() {
         Settings s = getSettingsWithMode("tsdb", randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z");
         var mapperService = new TestMapperServiceBuilder().settings(s).applyDefaultMapping(false).build();
         Exception e = expectThrows(
@@ -193,7 +193,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
-    public void testValidateAliasWithTsdbAlias() {
+    public void testValidateAliasWithTsdb() {
         Settings s = getSettingsWithMode("tsdb", randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z");
         assertSame(IndexMode.TSDB, IndexSettings.MODE.get(s));
         IndexSettings.MODE.get(s).validateAlias(null, null); // Doesn't throw exception
@@ -411,7 +411,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
 
     /**
      * Same as {@link #getSettings(String, String, String)} but with an explicit {@code index.mode}
-     * value, so that tests can assert the {@code tsdb} alias behaves identically to {@code time_series}.
+     * value, so that tests can assert the {@code tsdb} value behaves identically to {@code time_series}.
      */
     private Settings getSettingsWithMode(String mode, String routingPath, String startTime, String endTime) {
         return Settings.builder()

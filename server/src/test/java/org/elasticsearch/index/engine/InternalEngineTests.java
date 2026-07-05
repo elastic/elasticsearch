@@ -8305,8 +8305,8 @@ public class InternalEngineTests extends EngineTestCase {
         runIndexBatchTimeSeriesPhase2(IndexMode.TIME_SERIES);
     }
 
-    public void testIndexBatchTimeSeriesPhase2WithTsdbAlias() throws IOException {
-        // IndexMode.TSDB is a preferred alias for TIME_SERIES (delegates isTsdb() etc. to
+    public void testIndexBatchTimeSeriesPhase2WithTsdb() throws IOException {
+        // IndexMode.TSDB is a preferred alternative to TIME_SERIES (delegates isTsdb() etc. to
         // TIME_SERIES), so it must exercise the exact same batch phase 2 behavior.
         runIndexBatchTimeSeriesPhase2(IndexMode.TSDB);
     }

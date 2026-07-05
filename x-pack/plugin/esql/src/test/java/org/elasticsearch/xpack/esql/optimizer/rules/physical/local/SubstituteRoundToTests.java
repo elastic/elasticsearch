@@ -1055,14 +1055,14 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     /**
-     * {@link org.elasticsearch.index.IndexMode#TSDB} is a preferred alias for
+     * {@link org.elasticsearch.index.IndexMode#TSDB} is a preferred alternative to
      * {@link IndexMode#TIME_SERIES}: it behaves identically everywhere, including in the
      * {@link ReplaceRoundToWithQueryAndTags} rule. This mirrors
      * {@link #testRoundToWithTimeSeriesIndices} but resolves the source index (and the target
      * shards reported by {@link SearchStats}) with {@link IndexMode#TSDB} instead, verifying the
      * filter-by-filter rewrite still applies identically.
      */
-    public void testRoundToWithTimeSeriesIndicesUsingTsdbAlias() {
+    public void testRoundToWithTimeSeriesIndicesUsingTsdb() {
         Map<String, Object> minValue = Map.of(
             "@timestamp",
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T12:15:03.360Z")
@@ -1082,7 +1082,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                 return Map.of(new ShardId(new Index("id", "n/a"), 1), indexMetadata);
             }
         };
-        TestPlannerOptimizer tsdbPlannerOptimizer = tsdbAliasPlannerOptimizer();
+        TestPlannerOptimizer tsdbPlannerOptimizer = tsdbPlannerOptimizer();
         // enable filter-by-filter for rate aggregations
         {
             String q = """
@@ -1109,10 +1109,10 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
 
     /**
      * Directly exercises {@link ReplaceRoundToWithQueryAndTags#adjustedRoundingPointsThreshold}: since
-     * {@link IndexMode#TSDB} is a preferred alias for {@link IndexMode#TIME_SERIES}, both must double the
+     * {@link IndexMode#TSDB} is a preferred alternative to {@link IndexMode#TIME_SERIES}, both must double the
      * rounding points threshold identically.
      */
-    public void testAdjustedRoundingPointsThresholdForTsdbAlias() {
+    public void testAdjustedRoundingPointsThresholdForTsdb() {
         int threshold = between(1, 1000);
         int timeSeriesThreshold = ReplaceRoundToWithQueryAndTags.adjustedRoundingPointsThreshold(
             searchStats,
@@ -1126,12 +1126,12 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     // Builds an analyzer/planner pair mirroring AbstractLocalPhysicalPlanOptimizerTests#init's
-    // plannerOptimizerTimeSeries/timeSeriesAnalyzer, but resolving the "k8s" index with the TSDB alias
+    // plannerOptimizerTimeSeries/timeSeriesAnalyzer, but resolving the "k8s" index with IndexMode.TSDB
     // instead of TIME_SERIES, to verify IndexMode.TSDB is handled identically.
-    private TestPlannerOptimizer tsdbAliasPlannerOptimizer() {
+    private TestPlannerOptimizer tsdbPlannerOptimizer() {
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
         var tsdbIndex = IndexResolution.valid(EsIndexGenerator.esIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TSDB)));
-        Analyzer tsdbAliasAnalyzer = new Analyzer(
+        Analyzer tsdbAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 TEST_FUNCTION_REGISTRY,
@@ -1143,7 +1143,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         );
         return new TestPlannerOptimizer(
             config,
-            tsdbAliasAnalyzer,
+            tsdbAnalyzer,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
         );
     }

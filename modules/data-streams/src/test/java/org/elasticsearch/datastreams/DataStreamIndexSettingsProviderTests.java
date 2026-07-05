@@ -159,12 +159,12 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     /**
-     * The {@code tsdb} alias delegates {@link IndexMode#isTsdb()} to {@code true} just like
+     * {@link IndexMode#TSDB} resolves {@link IndexMode#isTsdb()} to {@code true} just like
      * {@link IndexMode#TIME_SERIES}, so creating a backing index with a template index mode of
      * {@link IndexMode#TSDB} must inject the same start/end time, sequence-number, synthetic id
      * and dimension settings as {@link IndexMode#TIME_SERIES} does.
      */
-    public void testGetAdditionalIndexSettingsWithTsdbAlias() throws Exception {
+    public void testGetAdditionalIndexSettingsWithTsdb() throws Exception {
         ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
 
@@ -605,10 +605,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     /**
      * The migration check at index-creation time relies on {@link IndexMode#isTsdb(IndexMode)}, so
      * a data stream currently in {@code standard} mode must also migrate into time series mode when
-     * the matching index template specifies the {@link IndexMode#TSDB} alias, not just
+     * the matching index template specifies {@link IndexMode#TSDB} directly, not just
      * {@link IndexMode#TIME_SERIES}.
      */
-    public void testGetAdditionalIndexSettingsMigrateToTsdbAlias() {
+    public void testGetAdditionalIndexSettingsMigrateToTsdbMode() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-app1";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
@@ -1070,11 +1070,11 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     /**
      * Same scenario as {@link #testAddNewDimension()}, but with an index in {@link IndexMode#TSDB}
-     * (the {@code tsdb} alias) rather than {@link IndexMode#TIME_SERIES}, so that the
+     * (the {@code tsdb} value) rather than {@link IndexMode#TIME_SERIES}, so that the
      * {@code assert IndexMode.isTsdb(...)} sanity check in
      * {@link DataStreamIndexSettingsProvider#onUpdateMappings} is exercised with the alias too.
      */
-    public void testAddNewDimensionWithTsdbAlias() throws Exception {
+    public void testAddNewDimensionWithTsdb() throws Exception {
         String newMapping = """
             {
                 "_doc": {
@@ -1321,11 +1321,11 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     /**
      * Same scenario as {@link #testClusterSettingsDefineSeqNoDisabledDefault()}, but with a
-     * template index mode of {@link IndexMode#TSDB} (the {@code tsdb} alias) rather than
+     * template index mode of {@link IndexMode#TSDB} (the {@code tsdb} value) rather than
      * {@link IndexMode#TIME_SERIES}, since the sequence-number-disabling gate is keyed off
      * {@link IndexMode#isTsdb()}.
      */
-    public void testClusterSettingsDefineSeqNoDisabledDefaultWithTsdbAlias() throws Exception {
+    public void testClusterSettingsDefineSeqNoDisabledDefaultWithTsdb() throws Exception {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
@@ -1451,11 +1451,11 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     /**
      * Same scenario as {@link #testClusterSettingsDefineSyntheticIdEnabledDefault()}, but with a
-     * template index mode of {@link IndexMode#TSDB} (the {@code tsdb} alias) rather than
+     * template index mode of {@link IndexMode#TSDB} (the {@code tsdb} value) rather than
      * {@link IndexMode#TIME_SERIES}, since the synthetic {@code _id} gate is keyed off
      * {@link IndexMode#isTsdb()}.
      */
-    public void testClusterSettingsDefineSyntheticIdEnabledDefaultWithTsdbAlias() throws Exception {
+    public void testClusterSettingsDefineSyntheticIdEnabledDefaultWithTsdb() throws Exception {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,

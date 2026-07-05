@@ -754,11 +754,11 @@ public class IndexRoutingTests extends ESTestCase {
 
     /**
      * Same scenario as {@link #testRoutingPathWithSingleBytePrefixTsid()} but with {@code index.mode: tsdb},
-     * the preferred alias for {@code time_series}. {@link IndexMode#TSDB} must select the same
+     * the preferred alternative to {@code time_series}. {@link IndexMode#TSDB} must select the same
      * {@link IndexRouting.ExtractFromSource.ForIndexDimensions} strategy, track the routing hash the same
      * way, and produce identical shard assignments as {@link IndexMode#TIME_SERIES}.
      */
-    public void testRoutingPathWithSingleBytePrefixTsidUsingTsdbAlias() throws IOException {
+    public void testRoutingPathWithSingleBytePrefixTsidUsingTsdb() throws IOException {
         TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
             IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
             8,

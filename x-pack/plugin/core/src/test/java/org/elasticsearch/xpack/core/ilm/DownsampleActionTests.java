@@ -312,7 +312,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
         }
     }
 
-    public void testDownsamplingPrerequisitesStepWithTsdbAlias() {
+    public void testDownsamplingPrerequisitesStepWithTsdb() {
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
         boolean withForceMerge = randomBoolean();
         DownsampleAction action = new DownsampleAction(fixedInterval, WAIT_TIMEOUT, withForceMerge, randomSamplingMethod());
@@ -323,7 +323,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
             randomAlphaOfLengthBetween(1, 10)
         );
         {
-            // indices using the tsdb alias of the time series index mode execute the action
+            // indices using the tsdb value of the time series index mode execute the action
             BranchingStep branchingStep = getFirstBranchingStep(action, phase, nextStepKey, withForceMerge);
             Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TSDB)

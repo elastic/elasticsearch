@@ -278,7 +278,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testOnExplicitTsdbIndex() throws IOException {
-        // Same scenario as testOnExplicitTimeSeriesIndex, but using the "tsdb" alias for index.mode.
+        // Same scenario as testOnExplicitTimeSeriesIndex, but using the "tsdb" value for index.mode.
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
             logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
@@ -695,7 +695,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testNewIndexHasSyntheticSourceUsageTsdb() throws IOException {
         // Same scenario as testNewIndexHasSyntheticSourceUsageTimeSeries, but exercised through the "tsdb" index.mode
-        // alias to make sure IndexMode.isTsdb(...) treats it identically to "time_series".
+        // value to make sure IndexMode.isTsdb(...) treats it identically to "time_series".
         String dataStreamName = DATA_STREAM_NAME;
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         String mapping = """
@@ -855,9 +855,9 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(newMapperServiceCounter.get(), equalTo(4));
     }
 
-    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceTsdbAlias() {
+    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceTsdb() {
         // Same scenario as the IndexMode.TIME_SERIES case in testGetAdditionalIndexSettingsDowngradeFromSyntheticSource,
-        // but using the IndexMode.TSDB alias to make sure the template mode injection in
+        // but using IndexMode.TSDB directly to make sure the template mode injection in
         // LogsdbIndexModeSettingsProvider#buildIndexMetadataForMapperService treats it identically.
         String dataStreamName = DATA_STREAM_NAME;
         ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(

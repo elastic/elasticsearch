@@ -476,11 +476,11 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
     }
 
     /**
-     * Builds a ProjectMetadata with a TSDB data stream whose backing indices use the {@link IndexMode#TSDB}
-     * alias rather than {@link IndexMode#TIME_SERIES}, to verify that {@code IndexMode.isTsdb} treats the
-     * alias identically to {@code TIME_SERIES} in {@link TransportPastTimeSeriesIndexCreationAction}.
+     * Builds a ProjectMetadata with a TSDB data stream whose backing indices use {@link IndexMode#TSDB}
+     * rather than {@link IndexMode#TIME_SERIES}, to verify that {@code IndexMode.isTsdb} treats the two
+     * identically in {@link TransportPastTimeSeriesIndexCreationAction}.
      */
-    private ProjectMetadata projectWithTsdbAliasDataStream(List<Tuple<Instant, Instant>> timeSlices) {
+    private ProjectMetadata projectWithTsdbDataStream(List<Tuple<Instant, Instant>> timeSlices) {
         List<IndexMetadata> backingIndices = new ArrayList<>();
         long generation = 1L;
         for (Tuple<Instant, Instant> slice : timeSlices) {
@@ -499,24 +499,24 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
         return builder.put(ds).build();
     }
 
-    /** Builds a ClusterState with a {@link IndexMode#TSDB}-alias data stream whose backing indices cover the given time ranges. */
-    private ClusterState stateWithExistingTsdbAlias(List<Tuple<Instant, Instant>> timeSlices, Instant now) {
+    /** Builds a ClusterState with an {@link IndexMode#TSDB} data stream whose backing indices cover the given time ranges. */
+    private ClusterState stateWithExistingTsdb(List<Tuple<Instant, Instant>> timeSlices, Instant now) {
         List<Tuple<Instant, Instant>> allSlices = new ArrayList<>(timeSlices);
         allSlices.add(Tuple.tuple(now, now.plus(randomIntBetween(1, 3), ChronoUnit.DAYS)));
-        return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectWithTsdbAliasDataStream(allSlices)).build();
+        return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectWithTsdbDataStream(allSlices)).build();
     }
 
     /**
-     * Equivalent of {@link #testSortAndRetrieve} that uses the {@link IndexMode#TSDB} alias instead of
+     * Equivalent of {@link #testSortAndRetrieve} that uses {@link IndexMode#TSDB} directly instead of
      * {@link IndexMode#TIME_SERIES} for the backing indices, to confirm {@code retrieveSortedTimeWindows}
-     * (gated by {@code IndexMode.isTsdb}) recognizes the alias mode the same way.
+     * (gated by {@code IndexMode.isTsdb}) recognizes it the same way.
      */
-    public void testSortAndRetrieveWithTsdbAlias() {
+    public void testSortAndRetrieveWithTsdb() {
         Instant start1 = Instant.parse("2024-01-15T00:00:00Z");
         Instant start2 = Instant.parse("2024-01-16T00:00:00Z");
         Instant start3 = Instant.parse("2024-01-17T00:00:00Z");
         Instant end = Instant.parse("2024-01-18T00:00:00Z");
-        ProjectMetadata project = projectWithTsdbAliasDataStream(
+        ProjectMetadata project = projectWithTsdbDataStream(
             List.of(Tuple.tuple(start3, end), Tuple.tuple(start1, start2), Tuple.tuple(start2, start3))
         );
         // Add a non-TSDB index to the mixed data stream to confirm it's still excluded from the windows.
@@ -538,13 +538,13 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
 
     /**
      * Equivalent of the happy-path portion of {@link #testCreateIndicesWhenNeeded} that uses the
-     * {@link IndexMode#TSDB} alias instead of {@link IndexMode#TIME_SERIES}, to confirm
+     * {@link IndexMode#TSDB} instead of {@link IndexMode#TIME_SERIES}, to confirm
      * {@code validateDataStream} and the time-range computation (both gated by {@code IndexMode.isTsdb})
-     * behave identically for the alias.
+     * behave identically for it.
      */
-    public void testCreateIndicesWhenNeededWithTsdbAlias() throws Exception {
+    public void testCreateIndicesWhenNeededWithTsdb() throws Exception {
         Instant now = Instant.now();
-        ClusterState clusterState = stateWithExistingTsdbAlias(List.of(), now);
+        ClusterState clusterState = stateWithExistingTsdb(List.of(), now);
         List<Integer> dayOffsets = List.of(5, 3, 2);
         // Add two timestamps that fall within one index
         {

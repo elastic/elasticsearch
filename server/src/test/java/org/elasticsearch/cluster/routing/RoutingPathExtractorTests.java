@@ -123,12 +123,12 @@ public class RoutingPathExtractorTests extends ESTestCase {
     }
 
     /**
-     * {@code index.mode: tsdb} is a preferred alias for {@code time_series}; it must flow through the same
+     * {@code index.mode: tsdb} is a preferred alternative to {@code time_series}; it must flow through the same
      * {@code trackTimeSeriesRoutingHash} logic in {@link IndexRouting.ExtractFromSource}, so the routing hash
      * that {@link IndexRouting.ExtractFromSource#postProcess} attaches to the request must be identical
      * regardless of which alias created the index.
      */
-    public void testTsdbAliasProducesSameRoutingHashAsTimeSeries() throws IOException {
+    public void testTsdbProducesSameRoutingHashAsTimeSeries() throws IOException {
         Map<String, Object> doc = new LinkedHashMap<>();
         doc.put("dim.host", "node-7");
         doc.put("dim.region", "us-west-2");
@@ -147,7 +147,7 @@ public class RoutingPathExtractorTests extends ESTestCase {
         tsdbStrategy.indexShard(tsdbReq);
         tsdbStrategy.postProcess(tsdbReq);
 
-        assertThat("routing hash must be identical for time_series and tsdb aliases", tsdbReq.routing(), equalTo(timeSeriesReq.routing()));
+        assertThat("routing hash must be identical for time_series and tsdb", tsdbReq.routing(), equalTo(timeSeriesReq.routing()));
     }
 
     public void testReuseAcrossDocumentsClearsBuilderState() throws IOException {

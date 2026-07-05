@@ -323,8 +323,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         );
     }
 
-    public void testGetTimeSeriesDataStreamUsingTsdbAlias() {
-        // Same scenario as testGetTimeSeriesDataStreamWithOutOfOrderIndices, but using the "tsdb" alias for
+    public void testGetTimeSeriesDataStreamUsingTsdb() {
+        // Same scenario as testGetTimeSeriesDataStreamWithOutOfOrderIndices, but using the "tsdb" value for
         // index.mode instead of "time_series". DataStreamTestHelper#getClusterStateWithDataStream hardcodes
         // IndexMode.TIME_SERIES, so the data stream and backing indices are built by hand here to exercise
         // IndexMode.isTsdb(...) with IndexMode.TSDB at both call sites in

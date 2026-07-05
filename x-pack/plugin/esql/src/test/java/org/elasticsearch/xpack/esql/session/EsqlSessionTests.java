@@ -87,9 +87,9 @@ public class EsqlSessionTests extends ESTestCase {
         );
     }
 
-    // IndexMode.TSDB is a preferred alias for IndexMode.TIME_SERIES (isTsdb() is true for both); this pins that
-    // shouldRetryConcreteTimeSeriesResolution treats the alias identically to the canonical constant.
-    public void testShouldRetryConcreteTsdbAliasResolution() {
+    // IndexMode.TSDB is a preferred alternative to IndexMode.TIME_SERIES (isTsdb() is true for both); this pins
+    // that shouldRetryConcreteTimeSeriesResolution treats it identically to the canonical constant.
+    public void testShouldRetryConcreteTsdbResolution() {
         assertTrue(
             EsqlSession.shouldRetryConcreteTimeSeriesResolution(
                 IndexMode.TSDB,
@@ -99,7 +99,7 @@ public class EsqlSessionTests extends ESTestCase {
         );
     }
 
-    public void testShouldNotRetryWildcardTsdbAliasResolution() {
+    public void testShouldNotRetryWildcardTsdbResolution() {
         assertFalse(
             EsqlSession.shouldRetryConcreteTimeSeriesResolution(
                 IndexMode.TSDB,
@@ -111,16 +111,16 @@ public class EsqlSessionTests extends ESTestCase {
 
     // createQueryFilter builds the _index_mode filter used to resolve the concrete backing indices of a TS/METRICS
     // source. The requested indexMode is a fixed sentinel (TS always declares IndexMode.TIME_SERIES) but the
-    // concrete backing indices may be configured with either [index.mode=time_series] or its alias
-    // [index.mode=tsdb], so the filter must match both terms regardless of which indexMode triggered it.
-    public void testCreateQueryFilterForTimeSeriesMatchesBothIndexModeAliases() {
+    // concrete backing indices may be configured with either [index.mode=time_series] or [index.mode=tsdb],
+    // so the filter must match both terms regardless of which indexMode triggered it.
+    public void testCreateQueryFilterForTimeSeriesMatchesBothIndexModeValues() {
         QueryBuilder filter = EsqlSession.createQueryFilter(IndexMode.TIME_SERIES, null);
         TermsQueryBuilder termsFilter = as(filter, TermsQueryBuilder.class);
         assertThat(termsFilter.fieldName(), equalTo(IndexModeFieldMapper.NAME));
         assertThat(termsFilter.values(), containsInAnyOrder(IndexMode.TIME_SERIES.getName(), IndexMode.TSDB.getName()));
     }
 
-    public void testCreateQueryFilterForTsdbAliasMatchesBothIndexModeAliases() {
+    public void testCreateQueryFilterForTsdbMatchesBothIndexModeValues() {
         QueryBuilder filter = EsqlSession.createQueryFilter(IndexMode.TSDB, null);
         TermsQueryBuilder termsFilter = as(filter, TermsQueryBuilder.class);
         assertThat(termsFilter.fieldName(), equalTo(IndexModeFieldMapper.NAME));

@@ -288,7 +288,7 @@ public class IndexSettingsTests extends ESTestCase {
      * canonical {@code time_series} name regardless of which alias was actually configured (mirroring
      * {@code tsdbMode()}'s behavior elsewhere in {@link IndexMode}).
      */
-    public void testSliceEnabledSettingRejectedForTsdbAlias() {
+    public void testSliceEnabledSettingRejectedForTsdb() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -1044,7 +1044,7 @@ public class IndexSettingsTests extends ESTestCase {
         assertTrue(indexMetadata.useTimeSeriesSyntheticId());
     }
 
-    public void testSyntheticIdCorrectSettingsWithTsdbAlias() {
+    public void testSyntheticIdCorrectSettingsWithTsdb() {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
@@ -1089,7 +1089,7 @@ public class IndexSettingsTests extends ESTestCase {
         assertTrue(indexMetadata.useTimeSeriesSyntheticId());
     }
 
-    public void testSyntheticIdDefaultValueTrueWithTsdbAlias() {
+    public void testSyntheticIdDefaultValueTrueWithTsdb() {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
             IndexVersion.current()
@@ -1128,7 +1128,7 @@ public class IndexSettingsTests extends ESTestCase {
         assertFalse(indexMetadata.useTimeSeriesSyntheticId());
     }
 
-    public void testSyntheticIdDefaultValueFalseWithTsdbAlias() {
+    public void testSyntheticIdDefaultValueFalseWithTsdb() {
         IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
         IndexMode mode = IndexMode.TSDB;
         String codec = CodecService.DEFAULT_CODEC;

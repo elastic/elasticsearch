@@ -151,12 +151,12 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
     }
 
     /**
-     * {@link org.elasticsearch.index.IndexMode#TSDB} is a preferred alias for
+     * {@link org.elasticsearch.index.IndexMode#TSDB} is a preferred alternative to
      * {@link org.elasticsearch.index.IndexMode#TIME_SERIES} and must gate {@link WaitUntilTimeSeriesEndTimePassesStep}
      * identically. {@link #testEvaluateCondition()} only exercises indices whose {@code index.mode} is the literal
      * {@code time_series}, so this repeats the time-series-specific assertions using {@code index.mode: tsdb} directly.
      */
-    public void testEvaluateConditionTsdbAlias() {
+    public void testEvaluateConditionTsdb() {
         Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         Instant startTimeLapsed = currentTime.minus(6, ChronoUnit.HOURS);
         Instant endTimeLapsed = currentTime.minus(2, ChronoUnit.HOURS);

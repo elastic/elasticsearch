@@ -61,10 +61,10 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     private static final Settings TSDB_SYNTHETIC_SETTINGS = tsdbSettings(null, "host");
 
     /**
-     * Same as {@link #TSDB_SYNTHETIC_SETTINGS} but using the {@link IndexMode#TSDB} alias instead of
+     * Same as {@link #TSDB_SYNTHETIC_SETTINGS} but using {@link IndexMode#TSDB} directly instead of
      * {@link IndexMode#TIME_SERIES}; {@link IndexMode#isTsdb()} treats both identically.
      */
-    private static final Settings TSDB_ALIAS_SYNTHETIC_SETTINGS = tsdbAliasSettings(null, "host");
+    private static final Settings TSDB_MODE_SYNTHETIC_SETTINGS = tsdbModeSettings(null, "host");
 
     /**
      * TSDB index with {@code index.mapping.source.mode: stored}. Stored source preserves the raw
@@ -171,7 +171,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         return builder.build();
     }
 
-    private static Settings tsdbAliasSettings(SourceFieldMapper.Mode sourceMode, String routingPath) {
+    private static Settings tsdbModeSettings(SourceFieldMapper.Mode sourceMode, String routingPath) {
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TSDB.getName())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
@@ -194,12 +194,12 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
-     * The {@code tsdb} index mode is an alias for {@code time_series} (see {@link IndexMode#isTsdb()})
+     * The {@code tsdb} index mode is equivalent to {@code time_series} (see {@link IndexMode#isTsdb()})
      * so {@link TimeSeriesMetadataFieldBlockLoader} must be selected and behave identically.
      */
-    public void testDimensionsOnlyTsdbAlias() throws IOException {
+    public void testDimensionsOnlyTsdb() throws IOException {
         BlockLoader loader = createBlockLoader(
-            TSDB_ALIAS_SYNTHETIC_SETTINGS,
+            TSDB_MODE_SYNTHETIC_SETTINGS,
             MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())
         );

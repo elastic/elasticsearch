@@ -3,12 +3,16 @@ highlight:
   body: |-
     ## Summary
 
-    Add `IndexMode.TSDB` as a new, first-class enum value that behaves
-    identically to `TIME_SERIES` (delegates every overridden method), so
-    `index.mode: tsdb` is now accepted anywhere `index.mode: time_series` is
-    — without renaming or changing anything about existing `time_series`
-    indices, which keep emitting/persisting exactly as before (`time_series`
-    remains the canonical output string; `tsdb` is a preferred alias).
+    Introduce `IndexMode.TSDB` as a new, first-class index mode for metrics.
+    It currently behaves identically to `TIME_SERIES`, so `index.mode: tsdb` 
+    is now accepted anywhere `index.mode: time_series` is — without renaming 
+    or changing anything about existing `time_series` indices. 
+    
+    The new mode will be automatically selected and applied to new and 
+    existing OTel and Prometheus data streams, with newer backing indices 
+    using the `TSDB` mode. The querying experience and downsampling support 
+    remains seamless, regardless of the mix of `TSDB` and `TIME_SERIES` 
+    indices in a data stream.
 
   notable: true
   title: Add `IndexMode.TSDB` as a preferred alias for TIME_SERIES

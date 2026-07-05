@@ -36,6 +36,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
 import java.util.Set;
@@ -336,6 +337,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         assertThrows((RecoveryCancelledException.class), indexShard0::ensureRecoveryNotCancelled);
     }
 
+    @TestLogging(reason = "test asserts DEBUG log", value = "org.elasticsearch.indices.recovery.TransportCancelRecoveriesAction:DEBUG")
     public void testReshardSplitCancellationIsNotSupported() throws Exception {
         final var indexName = randomIndexName();
         final var shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), 0);
@@ -358,10 +360,10 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         try (var mockLog = MockLog.capture(TransportCancelRecoveriesAction.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
-                    "warn for unsupported RESHARD_SPLIT cancellation",
+                    "debug log for unsupported RESHARD_SPLIT cancellation",
                     TransportCancelRecoveriesAction.class.getCanonicalName(),
-                    Level.WARN,
-                    "*encountered error when direct cancelling shard*"
+                    Level.DEBUG,
+                    "*cancellation flag cannot be set on*RESHARD_SPLIT recoveries do not currently support direct cancellation*"
                 )
             );
             final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();

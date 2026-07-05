@@ -10,8 +10,8 @@
 package org.elasticsearch.index.shard;
 
 /// Exception indicating that a direct recovery cancellation could not be applied because the shard had already
-/// advanced beyond a cancellable state.
-/// Currently thrown for peer recoveries when the cancellation arrives after primary handover has completed.
+/// advanced beyond a cancellable state (primary handover for relocation), or if the shard's recovery type does not
+/// support direct cancellation.
 public class ShardRecoveryNotCancellableException extends Exception {
 
     public ShardRecoveryNotCancellableException(ShardId shardId, String reason) {

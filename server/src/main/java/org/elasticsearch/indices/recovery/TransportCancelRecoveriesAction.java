@@ -161,7 +161,10 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
                 case EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, EMPTY_STORE -> indexShard.requestRecoveryCancellation(
                     new RecoveryCancelledException(shardId, null, clusterService.localNode())
                 );
-                case RESHARD_SPLIT -> throw new UnsupportedOperationException("direct cancellation during a reshard split is unsupported");
+                case RESHARD_SPLIT -> throw new ShardRecoveryNotCancellableException(
+                    shardId,
+                    "RESHARD_SPLIT recoveries do not currently support direct cancellation"
+                );
             }
         } catch (ShardRecoveryNotCancellableException e) {
             logger.debug("cancellation flag cannot be set on {} for recovery type {}: {}", shardId, recoveryType, e.getMessage());

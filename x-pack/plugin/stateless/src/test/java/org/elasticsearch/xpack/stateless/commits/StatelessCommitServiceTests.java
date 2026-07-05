@@ -3177,8 +3177,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testBccTimestampSpanMinutesEmptyWhenNoTimestamps() {
-        assertThat(bccTimestampSpanMinutes(Stream.of()), equalTo(OptionalDouble.empty()));
-        assertThat(bccTimestampSpanMinutes(Stream.of(null, null)), equalTo(OptionalDouble.empty()));
+        assertThat(bccTimestampSpanMinutes(Collections.emptyIterator()), equalTo(OptionalDouble.empty()));
+        assertThat(
+            bccTimestampSpanMinutes(Arrays.<TimestampFieldValueRange>asList(null, null).iterator()),
+            equalTo(OptionalDouble.empty())
+        );
     }
 
     public void testBccTimestampSpanMinutesAggregatesAcrossCommits() {
@@ -3189,7 +3192,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         {
             final long min = randomLongBetween(0, tenYearsMillis);
             final long max = min + randomLongBetween(0, oneYearMillis);
-            final OptionalDouble span = bccTimestampSpanMinutes(Stream.of(new TimestampFieldValueRange(min, max)));
+            final OptionalDouble span = bccTimestampSpanMinutes(List.of(new TimestampFieldValueRange(min, max)).iterator());
             assertThat(span.isPresent(), is(true));
             assertThat(span.getAsDouble(), closeTo((double) (max - min) / 60_000d, 1e-9));
         }
@@ -3197,7 +3200,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         // zero-width range -> 0.0
         {
             final long ts = randomLongBetween(0, tenYearsMillis);
-            final OptionalDouble span = bccTimestampSpanMinutes(Stream.of(new TimestampFieldValueRange(ts, ts)));
+            final OptionalDouble span = bccTimestampSpanMinutes(List.of(new TimestampFieldValueRange(ts, ts)).iterator());
             assertThat(span.isPresent(), is(true));
             assertThat(span.getAsDouble(), closeTo(0.0, 1e-9));
         }
@@ -3219,14 +3222,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ranges.add(null);
             Collections.shuffle(ranges, random());
 
-            final OptionalDouble span = bccTimestampSpanMinutes(ranges.stream());
+            final OptionalDouble span = bccTimestampSpanMinutes(ranges.iterator());
             assertThat(span.isPresent(), is(true));
             assertThat(span.getAsDouble(), closeTo((double) (expectedMax - expectedMin) / 60_000d, 1e-9));
         }
     }
 
     public void testBccTimestampSpanMinutesDoesNotThrowOnHugeSpan() {
-        final OptionalDouble span = bccTimestampSpanMinutes(Stream.of(new TimestampFieldValueRange(Long.MIN_VALUE + 1, Long.MAX_VALUE)));
+        final OptionalDouble span = bccTimestampSpanMinutes(
+            List.of(new TimestampFieldValueRange(Long.MIN_VALUE + 1, Long.MAX_VALUE)).iterator()
+        );
         assertThat(span.isPresent(), is(true));
         assertThat(span.getAsDouble(), closeTo(((double) Long.MAX_VALUE - (double) (Long.MIN_VALUE + 1)) / 60_000d, 1.0));
     }

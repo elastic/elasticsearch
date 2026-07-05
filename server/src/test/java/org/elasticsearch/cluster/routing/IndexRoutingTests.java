@@ -1286,14 +1286,7 @@ public class IndexRoutingTests extends ESTestCase {
         boolean useSyntheticId,
         IndexMode indexMode
     ) {
-        return getIndexRoutingWithSetting(
-            createdVersion,
-            shards,
-            path,
-            IndexMetadata.INDEX_DIMENSIONS.getKey(),
-            useSyntheticId,
-            indexMode
-        );
+        return getIndexRoutingWithSetting(createdVersion, shards, path, IndexMetadata.INDEX_DIMENSIONS.getKey(), useSyntheticId, indexMode);
     }
 
     /**

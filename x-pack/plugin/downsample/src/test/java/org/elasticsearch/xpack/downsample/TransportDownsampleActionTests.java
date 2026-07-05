@@ -555,12 +555,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
         return createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards, IndexMode.TIME_SERIES);
     }
 
-    private IndexMetadata.Builder createSourceIndexMetadata(
-        String sourceIndex,
-        int primaryShards,
-        int replicaShards,
-        IndexMode indexMode
-    ) {
+    private IndexMetadata.Builder createSourceIndexMetadata(String sourceIndex, int primaryShards, int replicaShards, IndexMode indexMode) {
         return IndexMetadata.builder(sourceIndex)
             .settings(
                 indexSettings(IndexVersion.current(), randomUUID(), primaryShards, replicaShards).put(

@@ -113,10 +113,9 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing path is required")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z");
-        DocumentMapper docMapper = createMapperService(
-            settingsBuilder.build(),
-            mapping(b -> { b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject(); })
-        ).documentMapper();
+        DocumentMapper docMapper = createMapperService(settingsBuilder.build(), mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+        })).documentMapper();
 
         int hash = randomInt();
         ParsedDocument doc = parseDocument(hash, docMapper, b -> b.field("a", "value"));

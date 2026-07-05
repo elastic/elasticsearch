@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,7 +49,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest implements ToXContentObject {
+    public static class Request extends UntypedActionRequest implements ToXContentObject {
 
         private static final String BLANK_ID = "";
 
@@ -86,13 +85,8 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             datafeedId = in.readString();
             datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
             jobConfig = in.readOptionalWriteable(Job.Builder::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                this.startTime = in.readOptionalLong();
-                this.endTime = in.readOptionalLong();
-            } else {
-                this.startTime = null;
-                this.endTime = null;
-            }
+            this.startTime = in.readOptionalLong();
+            this.endTime = in.readOptionalLong();
         }
 
         public Request(String datafeedId, String start, String end) {
@@ -164,10 +158,8 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             out.writeString(datafeedId);
             out.writeOptionalWriteable(datafeedConfig);
             out.writeOptionalWriteable(jobConfig);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                out.writeOptionalLong(startTime);
-                out.writeOptionalLong(endTime);
-            }
+            out.writeOptionalLong(startTime);
+            out.writeOptionalLong(endTime);
         }
 
         @Override

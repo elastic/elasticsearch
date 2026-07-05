@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.idp.action;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +19,9 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
+public class SamlInitiateSingleSignOnRequest extends UntypedActionRequest {
+
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES = TransportVersion.fromName("idp_custom_saml_attributes");
 
     private String spEntityId;
     private String assertionConsumerService;
@@ -31,8 +33,7 @@ public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
         spEntityId = in.readString();
         assertionConsumerService = in.readString();
         samlAuthenticationState = in.readOptionalWriteable(SamlAuthenticationState::new);
-        if (in.getTransportVersion().isPatchFrom(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ADDED_8_19)
-            || in.getTransportVersion().onOrAfter(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES)) {
+        if (in.getTransportVersion().supports(IDP_CUSTOM_SAML_ATTRIBUTES)) {
             attributes = in.readOptionalWriteable(SamlInitiateSingleSignOnAttributes::new);
         }
     }
@@ -100,8 +101,7 @@ public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
         out.writeString(spEntityId);
         out.writeString(assertionConsumerService);
         out.writeOptionalWriteable(samlAuthenticationState);
-        if (out.getTransportVersion().isPatchFrom(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ADDED_8_19)
-            || out.getTransportVersion().onOrAfter(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES)) {
+        if (out.getTransportVersion().supports(IDP_CUSTOM_SAML_ATTRIBUTES)) {
             out.writeOptionalWriteable(attributes);
         }
     }

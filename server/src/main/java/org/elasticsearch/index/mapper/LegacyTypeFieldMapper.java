@@ -48,7 +48,7 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
     private static final class LegacyTypeFieldType extends TermBasedFieldType {
 
         LegacyTypeFieldType() {
-            super(NAME, false, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, IndexType.docValuesOnly(), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

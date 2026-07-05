@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -49,10 +48,8 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     public NodeMappingStats(StreamInput in) throws IOException {
         totalCount = in.readVLong();
         totalEstimatedOverhead = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            totalSegments = in.readVLong();
-            totalSegmentFields = in.readVLong();
-        }
+        totalSegments = in.readVLong();
+        totalSegmentFields = in.readVLong();
     }
 
     public NodeMappingStats(long totalCount, long totalEstimatedOverhead, long totalSegments, long totalSegmentFields) {
@@ -90,10 +87,8 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(totalCount);
         out.writeVLong(totalEstimatedOverhead);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVLong(totalSegments);
-            out.writeVLong(totalSegmentFields);
-        }
+        out.writeVLong(totalSegments);
+        out.writeVLong(totalSegmentFields);
     }
 
     @Override

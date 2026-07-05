@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
@@ -41,7 +41,7 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         public Request() {}
 
@@ -81,7 +81,7 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
         private final ClusterFormationFailureHelper.ClusterFormationState clusterFormationState;
 
         public Response(StreamInput in) throws IOException {
-            clusterFormationState = new ClusterFormationFailureHelper.ClusterFormationState(in);
+            clusterFormationState = ClusterFormationFailureHelper.ClusterFormationState.readFrom(in);
         }
 
         public Response(ClusterFormationFailureHelper.ClusterFormationState clusterFormationState) {

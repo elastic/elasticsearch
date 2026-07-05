@@ -15,7 +15,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -27,10 +26,11 @@ import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
+import org.elasticsearch.xpack.core.ssl.extension.SslProfileExtension;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 
 import java.io.IOException;
@@ -55,6 +55,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -111,23 +112,74 @@ public class SSLService {
         Setting.Property.NodeScope
     );
 
+    public static Collection<? extends Setting<?>> getExtensionSettings(List<SslProfileExtension> extensions) {
+        Objects.requireNonNull(extensions, "SSL Extensions not configured yet");
+
+        return getSettingPrefixes(extensions).entrySet()
+            .stream()
+            .peek(e -> logger.info("SSL extension [{}] defines context [{}]", e.getValue().getClass(), e.getKey()))
+            .map(Map.Entry::getKey)
+            .map(prefix -> SSLConfigurationSettings.withPrefix(prefix + ".", false))
+            .map(SSLConfigurationSettings::getEnabledSettings)
+            .flatMap(Collection::stream)
+            .toList();
+    }
+
+    /**
+     *  Used for sharing internal configuration information between {@link SSLService} and {@link SSLConfigurationReloader}
+     */
+    public static class LoadedSslConfigurations {
+        /**
+         * This is a mapping from "context name" (in general use, the name of a setting key)
+         * to a configuration.
+         * This allows us to easily answer the question "What is the configuration for ssl in realm XYZ?"
+         * Multiple "context names" may map to the same configuration (either by object-identity or by object-equality).
+         * For example "xpack.http.ssl" may exist as a name in this map and have the global ssl configuration as a value
+         */
+        private final Map<String, SslConfiguration> configurations;
+        /**
+         * This is a mapping from "context name" (aka "profile name") to the extension class that defined it.
+         * A name will only exist in this map if it was defined by an extension. There may be (will be) entries in {@link #configurations}
+         * for which there is no corresponding entry in {@code extensions}.
+         */
+        private final Map<String, SslProfileExtension> extensions;
+
+        public LoadedSslConfigurations(Map<String, SslConfiguration> configurations, Map<String, SslProfileExtension> extensions) {
+            this.configurations = configurations;
+            this.extensions = extensions;
+            extensions.keySet().forEach(extKey -> {
+                assert configurations.containsKey(extKey) : "Extension context [" + extKey + "] does not have a configuration";
+            });
+        }
+
+        /**
+         * Package access for use in {@link SSLConfigurationReloader}
+         */
+        Iterable<SslConfiguration> configurations() {
+            return Collections.unmodifiableCollection(this.configurations.values());
+        }
+
+        // package access for test
+        SslConfiguration configuration(String name) {
+            return this.configurations.get(name);
+        }
+
+        // package access for test
+        Map<String, SslProfileExtension> extensions() {
+            return Collections.unmodifiableMap(extensions);
+        }
+    }
+
     private final Environment env;
     private final Settings settings;
     private final boolean diagnoseTrustExceptions;
 
-    /**
-     * This is a mapping from "context name" (in general use, the name of a setting key)
-     * to a configuration.
-     * This allows us to easily answer the question "What is the configuration for ssl in realm XYZ?"
-     * Multiple "context names" may map to the same configuration (either by object-identity or by object-equality).
-     * For example "xpack.http.ssl" may exist as a name in this map and have the global ssl configuration as a value
-     */
-    private final Map<String, SslConfiguration> sslConfigurations;
+    private final LoadedSslConfigurations loadedConfiguration;
 
     /**
      * A mapping from an SslConfiguration to a pre-built context.
      * <p>
-     * This is managed separately to the {@link #sslConfigurations} map, so that a single configuration (by object equality)
+     * This is managed separately to the {@link #loadedConfiguration} map, so that a single configuration (by object equality)
      * always maps to the same {@link SSLContextHolder}, even if it is being used within a different context-name.
      */
     private final Map<SslConfiguration, SSLContextHolder> sslContexts;
@@ -145,12 +197,12 @@ public class SSLService {
      * contexts created from these configurations will be cached.
      */
     @SuppressWarnings("this-escape")
-    public SSLService(Environment environment, Map<String, SslConfiguration> sslConfigurations) {
+    public SSLService(Environment environment, LoadedSslConfigurations loadedConfiguration) {
         this.env = environment;
         this.settings = env.settings();
         this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(environment.settings());
-        this.sslConfigurations = sslConfigurations;
-        this.sslContexts = loadSslConfigurations(this.sslConfigurations);
+        this.loadedConfiguration = loadedConfiguration;
+        this.sslContexts = loadSslConfigurations(this.loadedConfiguration);
     }
 
     @SuppressWarnings("this-escape")
@@ -159,19 +211,19 @@ public class SSLService {
         this.env = environment;
         this.settings = env.settings();
         this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
-        this.sslConfigurations = getSSLConfigurations(env, this.settings);
-        this.sslContexts = loadSslConfigurations(this.sslConfigurations);
+        this.loadedConfiguration = getSSLConfigurations(env, this.settings);
+        this.sslContexts = loadSslConfigurations(this.loadedConfiguration);
     }
 
     private SSLService(
         Environment environment,
-        Map<String, SslConfiguration> sslConfigurations,
+        LoadedSslConfigurations loadedConfiguration,
         Map<SslConfiguration, SSLContextHolder> sslContexts
     ) {
         this.env = environment;
         this.settings = env.settings();
         this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(environment.settings());
-        this.sslConfigurations = sslConfigurations;
+        this.loadedConfiguration = loadedConfiguration;
         this.sslContexts = sslContexts;
     }
 
@@ -181,10 +233,10 @@ public class SSLService {
      * have been created during initialization
      */
     public SSLService createDynamicSSLService() {
-        return new SSLService(env, sslConfigurations, sslContexts) {
+        return new SSLService(env, loadedConfiguration, sslContexts) {
 
             @Override
-            Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(Map<String, SslConfiguration> unused) {
+            Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(LoadedSslConfigurations unused) {
                 // we don't need to load anything...
                 return Collections.emptyMap();
             }
@@ -296,7 +348,7 @@ public class SSLService {
     }
 
     public Set<String> getTransportProfileContextNames() {
-        return this.sslConfigurations.keySet()
+        return this.loadedConfiguration.configurations.keySet()
             .stream()
             .filter(k -> k.startsWith("transport.profiles."))
             .collect(Collectors.toUnmodifiableSet());
@@ -404,7 +456,7 @@ public class SSLService {
             // but listing all of them would be confusing (e.g. some might be the default realms)
             // This needs to be a supplier (deferred evaluation) because we might load more configurations after this context is built.
             final Supplier<String> contextName = () -> {
-                final List<String> names = sslConfigurations.entrySet()
+                final List<String> names = loadedConfiguration.configurations.entrySet()
                     .stream()
                     .filter(e -> e.getValue().equals(configuration))
                     .limit(2) // we only need to distinguishing between 0/1/many
@@ -422,12 +474,19 @@ public class SSLService {
         return trustManager;
     }
 
-    public static Map<String, SslConfiguration> getSSLConfigurations(Environment env) {
-        return getSSLConfigurations(env, env.settings());
+    public static LoadedSslConfigurations getSSLConfigurations(Environment env, List<SslProfileExtension> extensions) {
+        return getSSLConfigurations(env, env.settings(), extensions);
     }
 
-    private static Map<String, SslConfiguration> getSSLConfigurations(Environment env, Settings settings) {
-        final Map<String, Settings> sslSettingsMap = getSSLSettingsMap(settings);
+    @Deprecated
+    private static LoadedSslConfigurations getSSLConfigurations(Environment env, Settings settings) {
+        return getSSLConfigurations(env, settings, List.of());
+    }
+
+    private static LoadedSslConfigurations getSSLConfigurations(Environment env, Settings settings, List<SslProfileExtension> extensions) {
+        final Map<String, SslProfileExtension> extensionContexts = getSettingPrefixes(extensions);
+
+        final Map<String, Settings> sslSettingsMap = getSSLSettingsMap(settings, extensionContexts.keySet());
         final Map<String, SslConfiguration> sslConfigurationMap = Maps.newMapWithExpectedSize(sslSettingsMap.size());
         sslSettingsMap.forEach((key, sslSettings) -> {
             if (key.endsWith(".")) {
@@ -440,7 +499,23 @@ public class SSLService {
                 throw new ElasticsearchSecurityException("failed to load SSL configuration [{}] - {}", e, key, e.getMessage());
             }
         });
-        return Collections.unmodifiableMap(sslConfigurationMap);
+        return new LoadedSslConfigurations(sslConfigurationMap, extensionContexts);
+    }
+
+    private static Map<String, SslProfileExtension> getSettingPrefixes(List<SslProfileExtension> extensions) {
+        return extensions.stream().flatMap(ext -> ext.getSettingPrefixes().stream().map(prefix -> {
+            if (prefix.endsWith(".ssl")) {
+                return new Tuple<>(prefix, ext);
+            } else {
+                final String message = Strings.format(
+                    "SSL Extension [%s] defines setting prefix [%s] that does not end with [.ssl]",
+                    ext,
+                    prefix
+                );
+                logger.warn(message);
+                throw new IllegalArgumentException(message);
+            }
+        })).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
     }
 
     private static Function<KeyStore, KeyStore> getKeyStoreFilter(String sslContext) {
@@ -474,7 +549,7 @@ public class SSLService {
         return null;
     }
 
-    static Map<String, Settings> getSSLSettingsMap(Settings settings) {
+    static Map<String, Settings> getSSLSettingsMap(Settings settings, Set<String> additionalContexts) {
         final Map<String, Settings> sslSettingsMap = new HashMap<>();
         sslSettingsMap.put(XPackSettings.HTTP_SSL_PREFIX, getHttpTransportSSLSettings(settings));
         sslSettingsMap.put("xpack.http.ssl", settings.getByPrefix("xpack.http.ssl."));
@@ -494,17 +569,24 @@ public class SSLService {
             XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX,
             settings.getByPrefix(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX)
         );
+        additionalContexts.forEach(prefix -> sslSettingsMap.put(prefix, settings.getByPrefix(prefix + ".")));
         return Collections.unmodifiableMap(sslSettingsMap);
     }
 
     /**
      * Parses the settings to load all SslConfiguration objects that will be used.
      */
-    Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(Map<String, SslConfiguration> sslConfigurationMap) {
-        final Map<SslConfiguration, SSLContextHolder> sslContextHolders = Maps.newMapWithExpectedSize(sslConfigurationMap.size());
-        sslConfigurationMap.forEach((key, sslConfiguration) -> {
+    Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(LoadedSslConfigurations loadedConfiguration) {
+        final Map<SslConfiguration, SSLContextHolder> sslContextHolders = Maps.newMapWithExpectedSize(
+            loadedConfiguration.configurations.size()
+        );
+        loadedConfiguration.configurations.forEach((key, sslConfiguration) -> {
             try {
-                sslContextHolders.computeIfAbsent(sslConfiguration, this::createSslContext);
+                var context = sslContextHolders.computeIfAbsent(sslConfiguration, this::createSslContext);
+                var extension = loadedConfiguration.extensions.get(key);
+                if (extension != null) {
+                    extension.applyProfile(key, context);
+                }
             } catch (SslConfigException e) {
                 throw new ElasticsearchSecurityException("failed to load SSL configuration [{}] - {}", e, key, e.getMessage());
             } catch (Exception e) {
@@ -627,42 +709,42 @@ public class SSLService {
 
         @Override
         public Socket createSocket() throws IOException {
-            SSLSocket sslSocket = createWithPermissions(delegate::createSocket);
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket();
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(Socket socket, String host, int port, boolean autoClose) throws IOException {
-            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(socket, host, port, autoClose));
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(socket, host, port, autoClose);
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(String host, int port) throws IOException {
-            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(host, port));
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(host, port);
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
-            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(host, port, localHost, localPort));
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(host, port, localHost, localPort);
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(InetAddress host, int port) throws IOException {
-            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(host, port));
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(host, port);
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException {
-            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(address, port, localAddress, localPort));
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(address, port, localAddress, localPort);
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
@@ -678,10 +760,6 @@ public class SSLService {
             parameters.setUseCipherSuitesOrder(true);
             socket.setSSLParameters(parameters);
         }
-
-        private static SSLSocket createWithPermissions(CheckedSupplier<Socket, IOException> supplier) throws IOException {
-            return (SSLSocket) SocketAccess.doPrivileged(supplier);
-        }
     }
 
     final class SSLContextHolder implements SslProfile {
@@ -689,7 +767,7 @@ public class SSLService {
         private final SslKeyConfig keyConfig;
         private final SslTrustConfig trustConfig;
         private final SslConfiguration sslConfiguration;
-        private final List<Runnable> reloadListeners;
+        private final List<Consumer<? super SSLContextHolder>> reloadListeners;
 
         SSLContextHolder(SSLContext context, SslConfiguration sslConfiguration) {
             this.context = context;
@@ -716,7 +794,7 @@ public class SSLService {
                 sslConfiguration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
                 supportedCiphers(socketFactory.getSupportedCipherSuites(), sslConfiguration.getCipherSuites(), false)
             );
-            this.addReloadListener(securitySSLSocketFactory::reload);
+            this.addReloadListener(profile -> securitySSLSocketFactory.reload());
             return securitySSLSocketFactory;
         }
 
@@ -767,11 +845,16 @@ public class SSLService {
             return sslEngine;
         }
 
+        @Override
+        public void addReloadListener(Consumer<SslProfile> listener) {
+            this.reloadListeners.add(listener);
+        }
+
         synchronized void reload() {
             invalidateSessions(context.getClientSessionContext());
             invalidateSessions(context.getServerSessionContext());
             reloadSslContext();
-            this.reloadListeners.forEach(Runnable::run);
+            this.reloadListeners.forEach(l -> l.accept(this));
         }
 
         private void reloadSslContext() {
@@ -791,10 +874,6 @@ public class SSLService {
             } catch (GeneralSecurityException e) {
                 throw new ElasticsearchException("failed to initialize the SSLContext", e);
             }
-        }
-
-        public void addReloadListener(Runnable listener) {
-            this.reloadListeners.add(listener);
         }
     }
 
@@ -898,12 +977,12 @@ public class SSLService {
         if (contextName.endsWith(".")) {
             contextName = contextName.substring(0, contextName.length() - 1);
         }
-        final SslConfiguration configuration = sslConfigurations.get(contextName);
+        final SslConfiguration configuration = loadedConfiguration.configurations.get(contextName);
         if (configuration == null) {
             logger.warn(
                 "Cannot find SSL configuration for context {}. Known contexts are: {}",
                 contextName,
-                Strings.collectionToCommaDelimitedString(sslConfigurations.keySet())
+                Strings.collectionToCommaDelimitedString(loadedConfiguration.configurations.keySet())
             );
         } else {
             logger.debug("SSL configuration [{}] is [{}]", contextName, configuration);

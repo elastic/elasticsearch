@@ -9,10 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -23,41 +19,6 @@ import java.util.Arrays;
 import java.util.List;
 
 public class IndicesAliasesResponseTests extends AbstractWireSerializingTestCase<IndicesAliasesResponse> {
-    public void testMixedModeSerialization() throws IOException {
-
-        // AcknowledgedResponse to IndicesAliasesResponse
-        // in version before TransportVersions.ALIAS_ACTION_RESULTS
-        {
-            var ack = AcknowledgedResponse.of(randomBoolean());
-            try (BytesStreamOutput output = new BytesStreamOutput()) {
-                ack.writeTo(output);
-                try (StreamInput in = output.bytes().streamInput()) {
-                    in.setTransportVersion(TransportVersions.V_8_12_0);
-
-                    var indicesAliasesResponse = new IndicesAliasesResponse(in);
-
-                    assertEquals(ack.isAcknowledged(), indicesAliasesResponse.isAcknowledged());
-                    assertTrue(indicesAliasesResponse.getActionResults().isEmpty());
-                    assertFalse(indicesAliasesResponse.hasErrors());
-                }
-            }
-        }
-
-        // IndicesAliasesResponse to AcknowledgedResponse
-        // out version before TransportVersions.ALIAS_ACTION_RESULTS
-        {
-            var indicesAliasesResponse = randomIndicesAliasesResponse();
-            try (BytesStreamOutput output = new BytesStreamOutput()) {
-                output.setTransportVersion(TransportVersions.V_8_12_0);
-
-                indicesAliasesResponse.writeTo(output);
-                try (StreamInput in = output.bytes().streamInput()) {
-                    var ack = AcknowledgedResponse.readFrom(in);
-                    assertEquals(ack.isAcknowledged(), indicesAliasesResponse.isAcknowledged());
-                }
-            }
-        }
-    }
 
     @Override
     protected Writeable.Reader<IndicesAliasesResponse> instanceReader() {

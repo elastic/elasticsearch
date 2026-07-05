@@ -14,8 +14,37 @@ import java.util.List;
 
 public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
     /**
-     * Returns the expression corresponding to a setting value.
+     * Returns the value of a setting, or the setting default value if the setting is not set.
      * If the setting name appears multiple times, this will return last occurrence.
+     * <p>
+     *     Use it like:
+     * </p>
+     * <pre><code>
+     *     var value = statement.setting(QuerySettings.MY_SETTING);
+     * </code></pre>
+     *
+     * @param settingDef the setting to retrieve
+     */
+    public <T> T setting(QuerySettingDef<T> settingDef) {
+        return settingOrDefault(settingDef, settingDef.defaultValue());
+    }
+
+    /** Returns the SET value of a setting, or {@code defaultValue} if it was not set in the query. */
+    private <T> T settingOrDefault(QuerySettingDef<T> settingDef, T defaultValue) {
+        Expression expression = setting(settingDef.name());
+        if (expression == null) {
+            return defaultValue;
+        }
+        return settingDef.readFromExpression(expression);
+    }
+
+    /**
+     * Returns the raw SET expression for a setting name, or {@code null} if not set.
+     * If the setting name appears multiple times, this returns the last occurrence.
+     * <p>
+     *     This is the low-level accessor used by {@link QuerySettings#resolve} to fold SET values; for a typed,
+     *     defaulted read prefer {@link #setting(QuerySettingDef)}.
+     * </p>
      *
      * @param name the setting name
      */
@@ -23,13 +52,13 @@ public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
         if (settings == null) {
             return null;
         }
-        Expression result = null;
+        Expression expression = null;
         for (QuerySetting setting : settings) {
             if (setting.name().equals(name)) {
-                result = setting.value();
+                expression = setting.value();
             }
         }
-        return result;
+        return expression;
     }
 
     @Override

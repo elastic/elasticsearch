@@ -99,6 +99,23 @@ import java.util.concurrent.Executor;
  *         .addListener(finalListener);
  * }
  * }</pre>
+ * <p>
+ * You must take care when using a chain of {@link SubscribableListener}s where one or more of the response objects have nontrivial
+ * lifecycles (e.g. they implement {@link org.elasticsearch.core.Releasable} or {@link org.elasticsearch.core.RefCounted}). For example:
+ * <ul>
+ *     <li>{@link SubscribableListener} silently discards all but one response, whether exceptional or otherwise. The caller must take steps
+ *     to release any discarded responses that need releasing.</li>
+ *     <li>When a {@link SubscribableListener} is completed it keeps hold of the response in case another listener subscribes to this
+ *     response in future (e.g. via {@link #addListener} or {@link #andThen}) but it does not formally take ownership of the response (e.g.
+ *     by calling {@link org.elasticsearch.core.RefCounted#incRef}). In particular, in the usual pattern ...
+ *     <pre>{@code
+ *         SubscribableListener.newForked(l1 -> step1(l1)).andThen((l2, r1) -> step2(r1, l2))...
+ *     }</pre>
+ *     ... if {@code r1} is ref-counted then usually {@code step1} will call {@link org.elasticsearch.core.RefCounted#decRef} immediately
+ *     after {@code l1.onResponse(r1)} returns since it no longer needs to keep the response alive itself. This is a problem because it may
+ *     happen before the {@link #andThen} adds the second step to the chain, so that by the time {@code step2} runs the response {@code r1}
+ *     may already be fully-released. The caller must take steps to keep responses alive until they are no longer needed.</li>
+ * </ul>
  */
 public class SubscribableListener<T> implements ActionListener<T> {
 
@@ -116,7 +133,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * Create a {@link SubscribableListener} which has already succeeded with the given result.
      */
     public static <T> SubscribableListener<T> newSucceeded(T result) {
-        return new SubscribableListener<>(new SuccessResult<>(result));
+        return result == null ? nullSuccess() : new SubscribableListener<>(SuccessResult.of(result));
     }
 
     /**
@@ -195,10 +212,14 @@ public class SubscribableListener<T> implements ActionListener<T> {
      *                      then it will be completed using the given executor. If the subscribing listener is completed immediately then
      *                      this completion happens on the subscribing thread.
      *                      <p>
-     *                      This behaviour may seem complex at first sight, but it is like this to allow callers to ensure that
-     *                      {@code listener} is completed using a particular executor much more cheaply than simply always forking the
-     *                      completion task to the desired executor. To ensure that {@code listener} is completed using a particular
-     *                      executor, do both of the following:
+     *                      This behaviour may seem complex at first sight, but it is like this to allow callers to control the executor on
+     *                      which {@code listener} is completed much more cheaply than simply always forking the completion task to a
+     *                      particular executor. It is common for asynchronous methods to be <i>mostly</i> synchronous, completing their
+     *                      listener before returning most of the time and only incurring the latency costs of forking work elsewhere when
+     *                      unavoidable. If such a method returns without having completed its listener then it has already forked work to
+     *                      another thread at least once, so it is less important to avoid further forking.
+     *                      <p>
+     *                      To ensure that {@code listener} is completed using a particular executor, do both of the following:
      *                      <ul>
      *                      <li>Pass the desired executor in as {@code executor}, and</li>
      *                      <li>Invoke {@link #addListener} using that executor.</li>
@@ -259,7 +280,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
 
     @Override
     public final void onResponse(T result) {
-        setResult(new SuccessResult<T>(result));
+        setResult(SuccessResult.of(result));
     }
 
     @Override
@@ -401,6 +422,15 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     private record SuccessResult<T>(T result) {
+
+        @SuppressWarnings("rawtypes")
+        private static final SuccessResult NULL_SUCCESS_RESULT = new SuccessResult<>(null);
+
+        @SuppressWarnings("unchecked")
+        static <T> SuccessResult<T> of(T result) {
+            return result == null ? NULL_SUCCESS_RESULT : new SuccessResult<>(result);
+        }
+
         public void complete(ActionListener<T> listener) {
             try {
                 listener.onResponse(result);
@@ -505,9 +535,13 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
      * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
      * listener is incomplete then {@code nextStep} is invoked using {@code executor}, in a thread context captured when {@link #andThen}
-     * was called. This behaviour may seem complex at first sight but it is like this to allow callers to ensure that {@code nextStep} runs
-     * using a particular executor much more cheaply than simply always forking its execution. To ensure that {@code nextStep} is invoked
-     * using a particular executor, do both of the following:
+     * was called. This behaviour may seem complex at first sight but it is like this to allow callers to control the executor on which
+     * {@code nextStep} runs much more cheaply than simply always forking its execution to a particular executor. It is common for
+     * asynchronous methods to be <i>mostly</i> synchronous, completing their listener before returning most of the time and only incurring
+     * the latency costs of forking work elsewhere when unavoidable. If such a method returns without having completed its listener then it
+     * has already forked work to another thread at least once, so it is less important to avoid further forking.
+     * <p>
+     * To ensure that {@code nextStep} is invoked using a particular executor, do both of the following:
      * <ul>
      * <li>Pass the desired executor in as {@code executor}, and</li>
      * <li>Invoke {@link #andThen} using that executor.</li>
@@ -615,7 +649,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     @SuppressWarnings("rawtypes")
-    private static final SubscribableListener NULL_SUCCESS = newSucceeded(null);
+    private static final SubscribableListener NULL_SUCCESS = new SubscribableListener<>(SuccessResult.of(null));
 
     /**
      * Same as {@link #newSucceeded(Object)} but always returns the same instance with result value {@code null}.

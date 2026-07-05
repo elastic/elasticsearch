@@ -115,7 +115,7 @@ public class ClientYamlTestExecutionContext {
         List<Map<String, Object>> bodies,
         Map<String, String> headers
     ) throws IOException {
-        return callApi(apiName, params, bodies, headers, NodeSelector.ANY);
+        return callApi(apiName, null, params, bodies, headers, NodeSelector.ANY);
     }
 
     /**
@@ -124,6 +124,21 @@ public class ClientYamlTestExecutionContext {
      */
     public ClientYamlTestResponse callApi(
         String apiName,
+        Map<String, String> params,
+        List<Map<String, Object>> bodies,
+        Map<String, String> headers,
+        NodeSelector nodeSelector
+    ) throws IOException {
+        return callApi(apiName, null, params, bodies, headers, nodeSelector);
+    }
+
+    /**
+     * Calls an elasticsearch api with the parameters and request body provided as arguments.
+     * Saves the obtained response in the execution context.
+     */
+    public ClientYamlTestResponse callApi(
+        String apiName,
+        String method,
         Map<String, String> params,
         List<Map<String, Object>> bodies,
         Map<String, String> headers,
@@ -156,7 +171,7 @@ public class ClientYamlTestExecutionContext {
 
         HttpEntity entity = createEntity(bodies, requestHeaders);
         try {
-            response = callApiInternal(apiName, requestParams, entity, requestHeaders, nodeSelector);
+            response = callApiInternal(apiName, method, requestParams, entity, requestHeaders, nodeSelector);
             return response;
         } catch (ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();
@@ -231,12 +246,13 @@ public class ClientYamlTestExecutionContext {
     // pkg-private for testing
     ClientYamlTestResponse callApiInternal(
         String apiName,
+        String method,
         Map<String, String> params,
         HttpEntity entity,
         Map<String, String> headers,
         NodeSelector nodeSelector
     ) throws IOException {
-        return clientYamlTestClient(apiName).callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
+        return clientYamlTestClient(apiName).callApi(apiName, method, params, entity, headers, nodeSelector, pathPredicate);
     }
 
     protected ClientYamlTestClient clientYamlTestClient(String apiName) {
@@ -321,7 +337,7 @@ public class ClientYamlTestExecutionContext {
 
     private Optional<Boolean> checkCapability(NodeSelector nodeSelector, Map<String, String> params) {
         try {
-            ClientYamlTestResponse resp = callApi("capabilities", params, emptyList(), emptyMap(), nodeSelector);
+            ClientYamlTestResponse resp = callApi("capabilities", null, params, emptyList(), emptyMap(), nodeSelector);
             // anything other than 200 should result in an exception, handled below
             assert resp.getStatusCode() == 200 : "Unknown response code " + resp.getStatusCode();
             return Optional.ofNullable(resp.evaluate("supported"));

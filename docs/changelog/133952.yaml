@@ -1,6 +1,0 @@
-pr: 133952
-summary: Fix warning when creating an OTel data stream
-area: TSDB
-type: bug
-issues:
- - 132918

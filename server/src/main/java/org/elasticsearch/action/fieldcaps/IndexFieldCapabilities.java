@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,10 +20,12 @@ import java.util.Map;
 
 /**
  * Describes the capabilities of a field in a single index.
+ *
  * @param name           The name of the field.
  * @param type           The type associated with the field.
  * @param isSearchable   Whether this field is indexed for search.
  * @param isAggregatable Whether this field can be aggregated on.
+ * @param isInference    Whether this field is an inference field.
  * @param meta           Metadata about the field.
  */
 
@@ -34,6 +35,7 @@ public record IndexFieldCapabilities(
     boolean isMetadatafield,
     boolean isSearchable,
     boolean isAggregatable,
+    boolean isInference,
     boolean isDimension,
     TimeSeriesParams.MetricType metricType,
     Map<String, String> meta
@@ -47,24 +49,20 @@ public record IndexFieldCapabilities(
         boolean isMetadatafield = in.readBoolean();
         boolean isSearchable = in.readBoolean();
         boolean isAggregatable = in.readBoolean();
-        boolean isDimension;
-        TimeSeriesParams.MetricType metricType;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            isDimension = in.readBoolean();
-            metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
-        } else {
-            isDimension = false;
-            metricType = null;
-        }
+        boolean isDimension = in.readBoolean();
+        TimeSeriesParams.MetricType metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
+        Map<String, String> meta = in.readImmutableMap(StreamInput::readString);
+        boolean isInference = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD) && in.readBoolean();
         return new IndexFieldCapabilities(
             name,
             type,
             isMetadatafield,
             isSearchable,
             isAggregatable,
+            isInference,
             isDimension,
             metricType,
-            in.readImmutableMap(StreamInput::readString)
+            meta
         );
     }
 
@@ -75,11 +73,12 @@ public record IndexFieldCapabilities(
         out.writeBoolean(isMetadatafield);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(isDimension);
-            out.writeOptionalEnum(metricType);
-        }
+        out.writeBoolean(isDimension);
+        out.writeOptionalEnum(metricType);
         out.writeMap(meta, StreamOutput::writeString);
+        if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)) {
+            out.writeBoolean(isInference);
+        }
     }
 
 }

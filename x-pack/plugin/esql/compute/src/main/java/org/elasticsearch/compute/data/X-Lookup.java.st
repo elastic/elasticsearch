@@ -21,7 +21,7 @@ import org.elasticsearch.core.Releasables;
  * Generic {@link Block#lookup} implementation {@link $Type$Block}s.
  * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
-final class $Type$Lookup implements ReleasableIterator<$Type$Block> {
+public final class $Type$Lookup implements ReleasableIterator<$Type$Block> {
 $if(BytesRef)$
     private final BytesRef firstScratch = new BytesRef();
     private final BytesRef valueScratch = new BytesRef();
@@ -34,7 +34,7 @@ $endif$
     private $type$ first;
     private int valuesInPosition;
 
-    $Type$Lookup($Type$Block values, IntBlock positions, ByteSizeValue targetBlockSize) {
+    public $Type$Lookup($Type$Block values, IntBlock positions, ByteSizeValue targetBlockSize) {
         values.incRef();
         positions.incRef();
         this.values = values;

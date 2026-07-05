@@ -30,9 +30,9 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -221,7 +221,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             super.searchNearestVectors(field, target, collector, acceptDocs);
             if (collector.visitedCount() > 0) {
                 notifier.onKnnVectorsUsed(field);
@@ -229,7 +229,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             super.searchNearestVectors(field, target, collector, acceptDocs);
             if (collector.visitedCount() > 0) {
                 notifier.onKnnVectorsUsed(field);

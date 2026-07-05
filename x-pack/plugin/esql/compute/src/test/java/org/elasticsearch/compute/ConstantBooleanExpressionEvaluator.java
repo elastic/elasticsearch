@@ -11,15 +11,15 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 /**
- * An {@link EvalOperator.ExpressionEvaluator} that evaluates to a constant boolean value.
+ * An {@link ExpressionEvaluator} that evaluates to a constant boolean value.
  */
-public record ConstantBooleanExpressionEvaluator(BlockFactory factory, boolean value) implements EvalOperator.ExpressionEvaluator {
-    public static EvalOperator.ExpressionEvaluator.Factory factory(boolean value) {
+public record ConstantBooleanExpressionEvaluator(BlockFactory factory, boolean value) implements ExpressionEvaluator {
+    public static ExpressionEvaluator.Factory factory(boolean value) {
         return ctx -> new ConstantBooleanExpressionEvaluator(ctx.blockFactory(), value);
     }
 

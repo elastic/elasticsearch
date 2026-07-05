@@ -28,6 +28,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -58,6 +59,7 @@ import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -65,6 +67,8 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesAction extends AbstractCatAction {
+
+    private static final String CAPABILITY_AVAILABLE_PROCESSORS_AVAILABILITY = "available_processors_availability";
 
     @Override
     public List<Route> routes() {
@@ -168,6 +172,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("load_1m", "alias:l;text-align:right;desc:1m load avg");
         table.addCell("load_5m", "alias:l;text-align:right;desc:5m load avg");
         table.addCell("load_15m", "alias:l;text-align:right;desc:15m load avg");
+        table.addCell("available_processors", "default:false;alias:ap;text-align:right;desc:available processors");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
         table.addCell(
             "node.role",
@@ -335,6 +340,11 @@ public class RestNodesAction extends AbstractCatAction {
         return table;
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Sets.union(super.supportedCapabilities(), Set.of(CAPABILITY_AVAILABLE_PROCESSORS_AVAILABILITY));
+    }
+
     Table buildTable(
         boolean fullId,
         RestRequest req,
@@ -409,22 +419,24 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(processStats == null ? null : processStats.getMaxFileDescriptors());
 
             table.addCell(osStats == null ? null : Short.toString(osStats.getCpu().getPercent()));
-            boolean hasLoadAverage = osStats != null && osStats.getCpu().getLoadAverage() != null;
+            double[] loadAvg = osStats == null ? null : osStats.getCpu().getLoadAverage();
             table.addCell(
-                hasLoadAverage == false || osStats.getCpu().getLoadAverage()[0] == -1
+                loadAvg == null || loadAvg.length < 1 || loadAvg[0] == -1
                     ? null
-                    : RestTable.FormattedDouble.format2DecimalPlaces(osStats.getCpu().getLoadAverage()[0])
+                    : RestTable.FormattedDouble.format2DecimalPlaces(loadAvg[0])
             );
             table.addCell(
-                hasLoadAverage == false || osStats.getCpu().getLoadAverage()[1] == -1
+                loadAvg == null || loadAvg.length < 2 || loadAvg[1] == -1
                     ? null
-                    : RestTable.FormattedDouble.format2DecimalPlaces(osStats.getCpu().getLoadAverage()[1])
+                    : RestTable.FormattedDouble.format2DecimalPlaces(loadAvg[1])
             );
             table.addCell(
-                hasLoadAverage == false || osStats.getCpu().getLoadAverage()[2] == -1
+                loadAvg == null || loadAvg.length < 3 || loadAvg[2] == -1
                     ? null
-                    : RestTable.FormattedDouble.format2DecimalPlaces(osStats.getCpu().getLoadAverage()[2])
+                    : RestTable.FormattedDouble.format2DecimalPlaces(loadAvg[2])
             );
+            table.addCell(osStats == null ? null : osStats.getCpu().getAvailableProcessors());
+
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 
             table.addCell(node.getRoleAbbreviationString());

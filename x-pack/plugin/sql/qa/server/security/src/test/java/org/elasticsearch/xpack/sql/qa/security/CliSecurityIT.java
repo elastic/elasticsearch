@@ -7,15 +7,11 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.SecurityConfig;
 import org.elasticsearch.xpack.sql.qa.cli.ErrorsTestCase;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -38,23 +34,11 @@ public class CliSecurityIT extends SqlSecurityTestCase {
     public void testQueryWorksAsAdmin() {}
 
     static SecurityConfig adminSecurityConfig() {
-        String keystoreLocation;
-        String keystorePassword;
+        String keystoreLocation = null;
+        String keystorePassword = null;
         if (RestSqlIT.SSL_ENABLED) {
-            Path keyStore;
-            try {
-                keyStore = PathUtils.get(RestSqlIT.class.getResource("/test-node.jks").toURI());
-            } catch (URISyntaxException e) {
-                throw new RuntimeException("exception while reading the store", e);
-            }
-            if (Files.exists(keyStore) == false) {
-                throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
-            }
-            keystoreLocation = keyStore.toAbsolutePath().toString();
-            keystorePassword = "keypass";
-        } else {
-            keystoreLocation = null;
-            keystorePassword = null;
+            keystoreLocation = SqlSecurityTestCluster.getKeystorePath();
+            keystorePassword = SqlSecurityTestCluster.KEYSTORE_PASSWORD;
         }
         return new SecurityConfig(RestSqlIT.SSL_ENABLED, "test_admin", "x-pack-test-password", keystoreLocation, keystorePassword);
     }

@@ -325,7 +325,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             randomAlphaOfLengthBetween(4, 7),
             null,
             Map.of(),
-            ApiKeyTests.randomFutureExpirationTime()
+            ApiKeyTests.randomFutureExpirationTime(),
+            null
         );
         assertFalse(clusterPermission.check(UpdateCrossClusterApiKeyAction.NAME, request, AuthenticationTestHelper.builder().build()));
     }

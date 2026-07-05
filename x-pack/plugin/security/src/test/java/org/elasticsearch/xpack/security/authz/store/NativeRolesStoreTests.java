@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -51,6 +53,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -64,6 +67,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
@@ -93,6 +98,7 @@ import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelp
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomClusterPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -129,19 +135,21 @@ public class NativeRolesStoreTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    private NativeRolesStore createRoleStoreForTest() {
-        return createRoleStoreForTest(Settings.builder().build());
+    private NativeRolesStore createRoleStoreForTest(ProjectId projectId) {
+        return createRoleStoreForTest(projectId, Settings.builder().build());
     }
 
-    private NativeRolesStore createRoleStoreForTest(Settings settings) {
+    private NativeRolesStore createRoleStoreForTest(ProjectId projectId, Settings settings) {
         new ReservedRolesStore(Set.of("superuser"));
         final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(settings);
         final FeatureService featureService = mock(FeatureService.class);
-        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID));
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(projectId));
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
         // Create the index
-        securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
+        securityIndex.clusterChanged(
+            new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(projectId), getEmptyClusterState())
+        );
 
         return new NativeRolesStore(
             settings,
@@ -388,13 +396,14 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testPutOfRoleWithFlsDlsUnlicensed() throws IOException {
+        final ProjectId projectId = randomProjectIdOrDefault();
         final Client client = mock(Client.class);
         final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final FeatureService featureService = mock(FeatureService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID));
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(projectId));
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
         // Init for validation
         new ReservedRolesStore(Set.of("superuser"));
@@ -410,7 +419,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
         // setup the roles store so the security index exists
         securityIndex.clusterChanged(
-            new ClusterChangedEvent("fls_dls_license", getClusterStateWithSecurityIndex(), getEmptyClusterState())
+            new ClusterChangedEvent("fls_dls_license", getClusterStateWithSecurityIndex(projectId), getEmptyClusterState())
         );
 
         RoleDescriptor flsRole = new RoleDescriptor(
@@ -457,9 +466,56 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("field and document level security"));
     }
 
+    public void testPutRoleWithDatasourcePrivilegeRejectedInMixedCluster() throws IOException {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final Client client = mock(Client.class);
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(
+            TransportVersionUtils.getPreviousVersion(ESQL_DATASOURCE_PRIVILEGE)
+        );
+        final FeatureService featureService = mock(FeatureService.class);
+        final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(projectId));
+        final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
+        new ReservedRolesStore(Set.of("superuser"));
+        final NativeRolesStore rolesStore = new NativeRolesStore(
+            Settings.EMPTY,
+            client,
+            TestUtils.newTestLicenseState(),
+            securityIndex,
+            clusterService,
+            mock(ReservedRoleNameChecker.class),
+            mock(NamedXContentRegistry.class)
+        );
+        securityIndex.clusterChanged(new ClusterChangedEvent("test", getClusterStateWithSecurityIndex(projectId), getEmptyClusterState()));
+
+        final var datasourcePrivileges = new ConfigurableClusterPrivileges.DatasourcePrivileges(
+            List.of(
+                new ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup(
+                    new String[] { "my-ds" },
+                    new String[] { "read" }
+                )
+            )
+        );
+        final RoleDescriptor roleDescriptor = new RoleDescriptor(
+            "test-role",
+            null,
+            null,
+            null,
+            new ConfigurableClusterPrivilege[] { datasourcePrivileges },
+            null,
+            null,
+            null
+        );
+
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        putRole(rolesStore, roleDescriptor, future);
+        final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("datasource privilege"));
+    }
+
     public void testGetRoleWhenDisabled() throws Exception {
         final Settings settings = Settings.builder().put(NativeRolesStore.NATIVE_ROLES_ENABLED, "false").build();
-        NativeRolesStore store = createRoleStoreForTest(settings);
+        NativeRolesStore store = createRoleStoreForTest(randomProjectIdOrDefault(), settings);
 
         final PlainActionFuture<RoleRetrievalResult> future = new PlainActionFuture<>();
         store.getRoleDescriptors(Set.of(randomAlphaOfLengthBetween(4, 12)), future);
@@ -471,7 +527,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testReservedRole() {
-        final NativeRolesStore store = createRoleStoreForTest();
+        final NativeRolesStore store = createRoleStoreForTest(randomProjectIdOrDefault());
         final String roleName = randomFrom(new ArrayList<>(ReservedRolesStore.names()));
 
         RoleDescriptor roleDescriptor = new RoleDescriptor(
@@ -507,7 +563,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     private void testValidRole(String roleName) throws IOException {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
 
         RoleDescriptor roleDescriptor = new RoleDescriptor(
             roleName,
@@ -546,7 +602,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testCreationOfRoleWithMalformedQueryJsonFails() throws IOException {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
 
         String[] malformedQueryJson = new String[] {
             "{ \"match_all\": { \"unknown_field\": \"\" } }",
@@ -597,7 +653,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testCreationOfRoleWithUnsupportedQueryFails() throws IOException {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
 
         String hasChildQuery = "{ \"has_child\": { \"type\": \"child\", \"query\": { \"match_all\": {} } } }";
         String hasParentQuery = "{ \"has_parent\": { \"parent_type\": \"parent\", \"query\": { \"match_all\": {} } } }";
@@ -644,7 +700,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testManyValidRoles() throws IOException {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
         List<String> roleNames = List.of("test", "admin", "123");
 
         List<RoleDescriptor> roleDescriptors = roleNames.stream()
@@ -675,7 +731,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testBulkDeleteRoles() {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
 
         AtomicReference<BulkRolesResponse> response = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
@@ -689,7 +745,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testBulkDeleteReservedRole() {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
 
         AtomicReference<BulkRolesResponse> response = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
@@ -712,7 +768,7 @@ public class NativeRolesStoreTests extends ESTestCase {
      * call to the roles API
      */
     public void testAllTopFieldsHaveEmptyDefaultsForUpsert() throws IOException, IllegalAccessException {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
         RoleDescriptor allNullDescriptor = new RoleDescriptor(
             "all-null-descriptor",
             null,
@@ -770,7 +826,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         return clusterService;
     }
 
-    private ClusterState getClusterStateWithSecurityIndex() {
+    private ClusterState getClusterStateWithSecurityIndex(ProjectId projectId) {
         final boolean withAlias = randomBoolean();
         final String securityIndexName = SECURITY_MAIN_ALIAS + (withAlias ? "-" + randomAlphaOfLength(5) : "");
 
@@ -780,15 +836,16 @@ public class NativeRolesStoreTests extends ESTestCase {
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.sourceAsMap()).thenReturn(Map.of("_meta", Map.of(VERSION_META_KEY, 1)));
         when(mappingMetadata.getSha256()).thenReturn("test");
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder(securityIndexName).putMapping(mappingMetadata).settings(settingsBuilder))
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
+            .put(IndexMetadata.builder(securityIndexName).putMapping(mappingMetadata).settings(settingsBuilder).build(), true)
             .build();
 
         if (withAlias) {
-            metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);
+            projectMetadata = SecurityTestUtils.addAliasToMetadata(projectMetadata, securityIndexName);
         }
 
-        Index index = metadata.getProject().index(securityIndexName).getIndex();
+        Index index = projectMetadata.index(securityIndexName).getIndex();
+        Metadata metadata = Metadata.builder().put(projectMetadata).build();
 
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             new ShardId(index, 0),
@@ -813,7 +870,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(NativeRolesStoreTests.class.getName()))
             .metadata(metadata)
-            .routingTable(routingTable)
+            .putRoutingTable(projectMetadata.id(), routingTable)
             .putCompatibilityVersions(
                 "test",
                 new CompatibilityVersions(

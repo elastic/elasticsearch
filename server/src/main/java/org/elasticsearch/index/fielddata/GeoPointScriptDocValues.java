@@ -13,11 +13,12 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.script.GeoPointFieldScript;
 
-public final class GeoPointScriptDocValues extends AbstractSortedNumericDocValues {
+public final class GeoPointScriptDocValues extends SortedNumericLongValues {
     private final GeoPointFieldScript script;
     private int cursor;
 
     GeoPointScriptDocValues(GeoPointFieldScript script) {
+        super(null);
         this.script = script;
     }
 

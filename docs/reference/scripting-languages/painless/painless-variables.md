@@ -1,33 +1,51 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-variables.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
 # Variables [painless-variables]
 
-A variable loads and stores a value for evaluation during [operations](/reference/scripting-languages/painless/painless-operators.md).
+Variables are containers for storing data values in your Painless scripts. Variables hold different types of data like numbers, text, lists, and other values that you can access and manipulate throughout your script.
+
+In Painless, every variable must be declared with a specific type before you can use it. This type determines what kind of data the variable can hold and what operations you can perform on it. For example, you might use an `int` variable to store a document’s score, a `String` variable to store a field value, or a `List` variable to collect multiple results. 
+
+## Variable Types in Painless
+
+Painless supports three main categories of variable types:
+
+* **Primitive types** for basic data such as `int`, `double`, `boolean`, and `char`. These store simple values directly and have default values (`0` for numbers, `false` for boolean).  
+* **Reference types** for complex objects such as `String`, `list`, `map`, and array types like `int[]`. These store references to objects and default to `null` when not initialized.  
+* **Dynamic type** with `def` that can represent any type of value, determined at runtime. This provides flexibility when the exact type isn’t known in advance.  
+   
+
+:::{tip}
+Painless variable types are similar to Java types. For a complete reference of available types and their specifications, refer to the [Java variables documentation](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/variables.html).
+:::
 
 ## Declaration [variable-declaration]
 
-Declare a variable before use with the format of [type](/reference/scripting-languages/painless/painless-types.md) followed by [identifier](/reference/scripting-languages/painless/painless-identifiers.md). Declare an [array type](/reference/scripting-languages/painless/painless-types.md#array-type) variable using an opening `[` token and a closing `]` token for each dimension directly after the identifier. Specify a comma-separated list of identifiers following the type to declare multiple variables in a single statement. Use an [assignment operator](#variable-assignment) combined with a declaration to immediately assign a value to a variable. A variable not immediately assigned a value will have a default value assigned implicitly based on the type.
+Before using a variable, you must declare it with the format [type](/reference/scripting-languages/painless/painless-types.md) followed by an [identifier](/reference/scripting-languages/painless/painless-identifiers.md). If the variable is an [array-type](/reference/scripting-languages/painless/painless-types.md#array-type), use an opening `[` token and a closing `]` token for each dimension directly after the identifier. Specify a comma-separated list of identifiers following the type to declare multiple variables in a single statement. Use an [assignment operator](#variable-assignment) combined with a declaration to immediately assign a value to a variable. A variable not immediately assigned a value will have a default value assigned implicitly based on the type.
 
-**Errors**
+### Errors
 
 * If a variable is used prior to or without declaration.
 
-**Grammar**
+### Grammar
 
-```text
+```
 declaration : type ID assignment? (',' ID assignment?)*;
 type: ID ('.' ID)* ('[' ']')*;
 assignment: '=' expression;
 ```
 
-**Examples**
+### Examples
 
-* Different variations of variable declaration.
+* Different variations of variable declaration
 
     ```painless
     int x;           <1>
@@ -38,10 +56,10 @@ assignment: '=' expression;
     float[] f;       <6>
     Map[][] m;       <7>
     ```
-
+    
     1. declare `int x`; store default `null` to `x`
     2. declare `List y`; store default `null` to `y`
-    3. declare `int x`; store default `int 0` to `x`; declare `int y`; store `int 5` to `y`; declare `int z`; store default `int 0` to `z`;
+    3. declare `int x`; store default `int 0` to `x`; declare `int y`; store `int 5` to `y`; declare `int z`; store default`int 0`     to `z`;
     4. declare `def d`; store default `null` to `d`
     5. declare `int i`; store `int 10` to `i`
     6. declare `float[] f`; store default `null` to `f`
@@ -55,17 +73,17 @@ Use the `assignment operator '='` to store a value in a variable for use in subs
 
 **Errors**
 
-* If the type of value is unable to match the type of variable.
+An error if the type of value is unable to match the type of variable.
 
 **Grammar**
 
-```text
+```
 assignment: ID '=' expression
 ```
 
 **Examples**
 
-* Variable assignment with an integer literal.
+* Variable assignment with an integer literal
 
     ```painless
     int i;  <1>
@@ -75,7 +93,7 @@ assignment: ID '=' expression
     1. declare `int i`; store default `int 0` to `i`
     2. store `int 10` to `i`
 
-* Declaration combined with immediate assignment.
+* Declaration combined with immediate assignment
 
     ```painless
     int i = 10;     <1>
@@ -85,7 +103,7 @@ assignment: ID '=' expression
     1. declare `int i`; store `int 10` to `i`
     2. declare `double j`; store `double 2.0` to `j`
 
-* Assignment of one variable to another using primitive type values.
+* Assignment of one variable to another using primitive type values
 
     ```painless
     int i = 10; <1>
@@ -95,7 +113,7 @@ assignment: ID '=' expression
     1. declare `int i`; store `int 10` to `i`
     2. declare `int j`; load from `i` → `int 10`; store `int 10` to `j`
 
-* Assignment with reference types using the [new instance operator](/reference/scripting-languages/painless/painless-operators-reference.md#new-instance-operator).
+* Assignment with reference types using the [new instance operator](/reference/scripting-languages/painless/painless-operators-reference.md#new-instance-operator)
 
     ```painless
     ArrayList l = new ArrayList(); <1>
@@ -105,7 +123,7 @@ assignment: ID '=' expression
     1. declare `ArrayList l`; allocate `ArrayList` instance → `ArrayList reference`; store `ArrayList reference` to `l`
     2. declare `Map m`; allocate `HashMap` instance → `HashMap reference`; implicit cast `HashMap reference` to `Map reference` → `Map reference`; store `Map reference` to `m`
 
-* Assignment of one variable to another using reference type values.
+* Assignment of one variable to another using reference type values
 
     ```painless
     List l = new ArrayList(); <1>

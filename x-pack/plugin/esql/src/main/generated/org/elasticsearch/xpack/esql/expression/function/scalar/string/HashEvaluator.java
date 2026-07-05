@@ -15,35 +15,34 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Hash}.
+ * {@link ExpressionEvaluator} implementation for {@link Hash}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class HashEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(HashEvaluator.class);
 
   private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
 
-  private final EvalOperator.ExpressionEvaluator algorithm;
+  private final ExpressionEvaluator algorithm;
 
-  private final EvalOperator.ExpressionEvaluator input;
+  private final ExpressionEvaluator input;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public HashEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      EvalOperator.ExpressionEvaluator algorithm, EvalOperator.ExpressionEvaluator input,
-      DriverContext driverContext) {
+      ExpressionEvaluator algorithm, ExpressionEvaluator input, DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
     this.algorithm = algorithm;
@@ -82,27 +81,27 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
       BytesRef algorithmScratch = new BytesRef();
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (algorithmBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (algorithmBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (algorithmBlock.getValueCount(p) != 1) {
-          if (algorithmBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (inputBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (inputBlock.getValueCount(p) != 1) {
-          if (inputBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (inputBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         BytesRef algorithm = algorithmBlock.getBytesRef(algorithmBlock.getFirstValueIndex(p), algorithmScratch);
         BytesRef input = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch);
@@ -148,28 +147,22 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
-    private final EvalOperator.ExpressionEvaluator.Factory algorithm;
+    private final ExpressionEvaluator.Factory algorithm;
 
-    private final EvalOperator.ExpressionEvaluator.Factory input;
+    private final ExpressionEvaluator.Factory input;
 
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        EvalOperator.ExpressionEvaluator.Factory algorithm,
-        EvalOperator.ExpressionEvaluator.Factory input) {
+        ExpressionEvaluator.Factory algorithm, ExpressionEvaluator.Factory input) {
       this.source = source;
       this.scratch = scratch;
       this.algorithm = algorithm;

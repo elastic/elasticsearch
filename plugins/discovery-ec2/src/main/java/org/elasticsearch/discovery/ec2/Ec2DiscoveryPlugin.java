@@ -9,7 +9,6 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -32,10 +31,6 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
 
     private static final Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
     public static final String EC2_SEED_HOSTS_PROVIDER_NAME = "ec2";
-
-    static {
-        SpecialPermission.check();
-    }
 
     private final Settings settings;
     // protected for testing

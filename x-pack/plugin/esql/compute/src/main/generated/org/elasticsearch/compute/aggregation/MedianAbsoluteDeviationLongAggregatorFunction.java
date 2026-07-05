@@ -14,10 +14,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -34,16 +37,11 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
 
   private final List<Integer> channels;
 
-  public MedianAbsoluteDeviationLongAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, QuantileStates.SingleState state) {
+  MedianAbsoluteDeviationLongAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MedianAbsoluteDeviationLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MedianAbsoluteDeviationLongAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationLongAggregator.initSingle(driverContext));
+    this.state = MedianAbsoluteDeviationLongAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -70,6 +68,18 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
     LongBlock vBlock = page.getBlock(channels.get(0));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -80,6 +90,18 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
     LongBlock vBlock = page.getBlock(channels.get(0));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -87,6 +109,30 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
   }
 
   private void addRawVector(LongVector vVector) {
+    if (vVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long vValue = specialized.getLong(valuesPosition);
+        MedianAbsoluteDeviationLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long vValue = specialized.getLong(valuesPosition);
+        MedianAbsoluteDeviationLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long vValue = specialized.getLong(valuesPosition);
+        MedianAbsoluteDeviationLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       long vValue = vVector.getLong(valuesPosition);
       MedianAbsoluteDeviationLongAggregator.combine(state, vValue);
@@ -94,6 +140,39 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
   }
 
   private void addRawVector(LongVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long vValue = specialized.getLong(valuesPosition);
+        MedianAbsoluteDeviationLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long vValue = specialized.getLong(valuesPosition);
+        MedianAbsoluteDeviationLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long vValue = specialized.getLong(valuesPosition);
+        MedianAbsoluteDeviationLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;
@@ -105,11 +184,12 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
 
   private void addRawBlock(LongBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         MedianAbsoluteDeviationLongAggregator.combine(state, vValue);
@@ -122,11 +202,12 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         MedianAbsoluteDeviationLongAggregator.combine(state, vValue);
@@ -140,12 +221,21 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block quartUncast = page.getBlock(channels.get(0));
     if (quartUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    MedianAbsoluteDeviationLongAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
+    BytesRef quartScratch = new BytesRef();
+    MedianAbsoluteDeviationLongAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
   }
 
   @Override

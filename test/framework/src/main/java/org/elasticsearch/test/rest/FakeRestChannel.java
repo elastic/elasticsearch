@@ -13,18 +13,15 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class FakeRestChannel extends AbstractRestChannel {
-    private final CountDownLatch latch;
     private final AtomicInteger responses = new AtomicInteger();
     private final AtomicInteger errors = new AtomicInteger();
     private RestResponse capturedRestResponse;
 
-    public FakeRestChannel(RestRequest request, boolean detailedErrorsEnabled, int responseCount) {
+    public FakeRestChannel(RestRequest request, boolean detailedErrorsEnabled) {
         super(request, detailedErrorsEnabled);
-        this.latch = new CountDownLatch(responseCount);
     }
 
     @Override
@@ -35,7 +32,6 @@ public final class FakeRestChannel extends AbstractRestChannel {
         } else {
             errors.incrementAndGet();
         }
-        latch.countDown();
     }
 
     public RestResponse capturedResponse() {

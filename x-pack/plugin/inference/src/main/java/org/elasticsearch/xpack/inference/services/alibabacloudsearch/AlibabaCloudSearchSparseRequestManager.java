@@ -71,8 +71,8 @@ public class AlibabaCloudSearchSparseRequestManager extends AlibabaCloudSearchRe
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
-        List<String> docsInput = input.getStringInputs();
+        EmbeddingsInput input = inferenceInputs.castTo(EmbeddingsInput.class);
+        List<String> docsInput = input.getTextInputs();
         InputType inputType = input.getInputType();
 
         AlibabaCloudSearchSparseRequest request = new AlibabaCloudSearchSparseRequest(account, docsInput, inputType, model);

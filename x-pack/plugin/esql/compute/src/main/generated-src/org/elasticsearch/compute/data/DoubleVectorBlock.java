@@ -39,6 +39,11 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getPositionCount() {
         return vector.getPositionCount();
     }
@@ -49,8 +54,13 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
-    public DoubleBlock filter(int... positions) {
-        return vector.filter(positions).asBlock();
+    public DoubleBlock slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
+    public DoubleBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return vector.filter(mayContainDuplicates, positions, offset, length).asBlock();
     }
 
     @Override

@@ -54,7 +54,7 @@ public abstract class RestActionListener<Response> implements ActionListener<Res
             channel.sendResponse(new RestResponse(channel, e));
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.error("failed to send failure response", inner);
+            logger.warn("failed to send failure response", inner);
         }
     }
 }

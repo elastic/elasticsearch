@@ -23,10 +23,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.metadata.ResettableValue;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -145,7 +148,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
             reservedStateHandlerName().get(),
             modifiedKeys(request),
-            request.toString()
+            request::toString
         );
     }
 
@@ -210,6 +213,22 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
                 if (indexTemplate.priority() != null && indexTemplate.priority() < 0) {
                     validationException = addValidationError("index template priority must be >= 0", validationException);
                 }
+                List<DataStreamLifecycle.DownsamplingRound> rounds = Optional.ofNullable(indexTemplate.template())
+                    .map(Template::lifecycle)
+                    .map(DataStreamLifecycle.Template::downsamplingRounds)
+                    .map(ResettableValue::get)
+                    .orElse(null);
+                if (rounds != null) {
+                    try {
+                        DataStreamLifecycle.DownsamplingRound.validateRounds(rounds);
+                    } catch (Exception e) {
+                        validationException = addValidationError(
+                            "template downsampling rounds are not valid: " + e.getMessage(),
+                            validationException
+                        );
+                    }
+                }
+
             }
             return validationException;
         }

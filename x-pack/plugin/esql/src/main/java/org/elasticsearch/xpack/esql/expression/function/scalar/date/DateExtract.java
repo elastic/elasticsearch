@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -22,10 +22,12 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -34,9 +36,9 @@ import java.time.temporal.ChronoField;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_TO_CHRONO_FIELD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLongNanos;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToChrono;
 
 public class DateExtract extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -44,11 +46,15 @@ public class DateExtract extends EsqlConfigurationFunction {
         "DateExtract",
         DateExtract::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateExtract.class)
+        .binaryConfig(DateExtract::new)
+        .name("date_extract");
 
     private ChronoField chronoField;
 
     @FunctionInfo(
         returnType = "long",
+        briefSummary = "Extracts parts of a date, like year, month, day, hour.",
         description = "Extracts parts of a date, like year, month, day, hour.",
         examples = {
             @Example(file = "date", tag = "dateExtract"),
@@ -135,18 +141,38 @@ public class DateExtract extends EsqlConfigurationFunction {
             }
 
             if (isNanos) {
-                return new DateExtractConstantNanosEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+                return new DateExtractConstantNanosEvaluator.Factory(
+                    source(),
+                    fieldEvaluator,
+                    chrono,
+                    QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+                );
             } else {
-                return new DateExtractConstantMillisEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+                return new DateExtractConstantMillisEvaluator.Factory(
+                    source(),
+                    fieldEvaluator,
+                    chrono,
+                    QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+                );
             }
         }
 
         var chronoEvaluator = toEvaluator.apply(children().get(0));
 
         if (isNanos) {
-            return new DateExtractNanosEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+            return new DateExtractNanosEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                chronoEvaluator,
+                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+            );
         } else {
-            return new DateExtractMillisEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+            return new DateExtractMillisEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                chronoEvaluator,
+                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+            );
         }
 
     }
@@ -158,7 +184,10 @@ public class DateExtract extends EsqlConfigurationFunction {
             Expression field = children().get(0);
             try {
                 if (field.foldable() && DataType.isString(field.dataType())) {
-                    chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold(ctx));
+                    var foldedValue = field.fold(ctx);
+                    if (foldedValue != null) {
+                        chronoField = stringToChrono(foldedValue);
+                    }
                 }
             } catch (Exception e) {
                 return null;

@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -28,17 +31,23 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.dataTypeEqu
  */
 public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> {
 
+    // Are we verifying the global plan (coordinator) or a local plan (data node)?
+    protected final boolean isLocal;
+
+    protected PostOptimizationPhasePlanVerifier(boolean isLocal) {
+        this.isLocal = isLocal;
+    }
+
     /** Verifies the optimized plan */
-    public Failures verify(P optimizedPlan, boolean skipRemoteEnrichVerification, List<Attribute> expectedOutputAttributes) {
+    public Failures verify(P optimizedPlan, List<Attribute> expectedOutputAttributes) {
         Failures failures = new Failures();
         Failures depFailures = new Failures();
-        if (skipVerification(optimizedPlan, skipRemoteEnrichVerification)) {
-            return failures;
-        }
 
         checkPlanConsistency(optimizedPlan, failures, depFailures);
 
         verifyOutputNotChanged(optimizedPlan, expectedOutputAttributes, failures);
+
+        ConfigurationAware.verifyNoMarkerConfiguration(optimizedPlan, failures);
 
         if (depFailures.hasFailures()) {
             throw new IllegalStateException(depFailures.toString());
@@ -46,8 +55,6 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
 
         return failures;
     }
-
-    abstract boolean skipVerification(P optimizedPlan, boolean skipRemoteEnrichVerification);
 
     abstract void checkPlanConsistency(P optimizedPlan, Failures failures, Failures depFailures);
 
@@ -67,23 +74,76 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 .stream()
                 .anyMatch(x -> x.name().equals(ProjectAwayColumns.ALL_FIELDS_PROJECTED));
             // LookupJoinExec represents the lookup index with EsSourceExec and this is turned into EsQueryExec by
-            // ReplaceSourceAttributes. Because InsertFieldExtractions doesn't apply to lookup indices, the
+            // ReplaceSourceAttributes. Because InsertFieldExtraction doesn't apply to lookup indices, the
             // right hand side will only have the EsQueryExec providing the _doc attribute and nothing else.
             // We perform an optimizer run on every fragment. LookupJoinExec also contains such a fragment,
             // and currently it only contains an EsQueryExec after optimization.
             boolean hasLookupJoinExec = optimizedPlan instanceof EsQueryExec esQueryExec && esQueryExec.indexMode() == LOOKUP;
-            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec;
+            // TranslateTimeSeriesAggregate may add a _timeseries attribute into the projection.
+            boolean hasTimeSeriesReplacingTsId = optimizedPlan.output().stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute)
+                && expectedOutputAttributes.stream().noneMatch(MetadataAttribute::isTimeSeriesAttribute);
+            // Query approximation can add columns to the output with the confidence intervals.
+            boolean hasQueryApproximationAddingColumns = optimizedPlan.output().size() > expectedOutputAttributes.size()
+                && dataTypeEquals(expectedOutputAttributes, optimizedPlan.output().subList(0, expectedOutputAttributes.size()))
+                && optimizedPlan.output()
+                    .subList(expectedOutputAttributes.size(), optimizedPlan.output().size())
+                    .stream()
+                    .allMatch(
+                        a -> a.name().startsWith(ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX)
+                            || a.name().startsWith(ApproximationPlan.CERTIFIED_COLUMN_PREFIX)
+                    );
+
+            boolean ignoreError = hasProjectAwayColumns
+                || hasLookupJoinExec
+                || hasTimeSeriesReplacingTsId
+                || hasQueryApproximationAddingColumns;
             if (ignoreError == false) {
-                failures.add(
-                    fail(
-                        optimizedPlan,
-                        "Output has changed from [{}] to [{}]. ",
-                        expectedOutputAttributes.toString(),
-                        optimizedPlan.output().toString()
-                    )
-                );
+                failures.add(fail(optimizedPlan, "{}", buildOutputDiffMessage(expectedOutputAttributes, optimizedPlan.output())));
             }
         }
+    }
+
+    private static String formatAttributesWithTypes(List<Attribute> attributes) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < attributes.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            Attribute a = attributes.get(i);
+            sb.append(a).append("[").append(a.dataType().typeName()).append("]");
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    private static String buildOutputDiffMessage(List<Attribute> expected, List<Attribute> actual) {
+        StringBuilder sb = new StringBuilder("Output has changed from ");
+        sb.append(formatAttributesWithTypes(expected));
+        sb.append(" to ");
+        sb.append(formatAttributesWithTypes(actual));
+        if (expected.size() == actual.size()) {
+            boolean first = true;
+            for (int i = 0; i < expected.size(); i++) {
+                if (expected.get(i).dataType() != actual.get(i).dataType()) {
+                    if (first) {
+                        sb.append("; data type changes: ");
+                        first = false;
+                    } else {
+                        sb.append(", ");
+                    }
+                    sb.append("position ")
+                        .append(i)
+                        .append(" (")
+                        .append(expected.get(i).name())
+                        .append("): ")
+                        .append(expected.get(i).dataType().typeName())
+                        .append(" -> ")
+                        .append(actual.get(i).dataType().typeName());
+                }
+            }
+        }
+        sb.append(". ");
+        return sb.toString();
     }
 
 }

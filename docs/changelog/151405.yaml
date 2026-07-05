@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 151405
+summary: "[Encryption] Graceful degradation when no password configured"
+type: enhancement

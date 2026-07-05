@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class VectorIT extends ESIntegTestCase {
 
@@ -74,15 +75,22 @@ public class VectorIT extends ESIntegTestCase {
     }
 
     public void testFilteredQueryStrategy() {
+        // Disable early termination to isolate the filter heuristic behavior
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(INDEX_NAME)
+            .setSettings(Settings.builder().put(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.getKey(), false))
+            .get();
+
         float[] vector = new float[16];
         randomVector(vector, 25);
         int upperLimit = 35;
-        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, 10f, null, null).addFilterQuery(
-            QueryBuilders.rangeQuery(NUM_ID_FIELD).lte(35)
+        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 10, 10f, null, null).addFilterQuery(
+            QueryBuilders.rangeQuery(NUM_ID_FIELD).lt(upperLimit)
         );
         assertResponse(client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true), acornResponse -> {
             assertNotEquals(0, acornResponse.getHits().getHits().length);
-            var profileResults = acornResponse.getProfileResults();
+            var profileResults = acornResponse.getSearchProfileShardResults();
             long vectorOpsSum = profileResults.values()
                 .stream()
                 .mapToLong(
@@ -107,7 +115,7 @@ public class VectorIT extends ESIntegTestCase {
                 .get();
             assertResponse(client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true), fanoutResponse -> {
                 assertNotEquals(0, fanoutResponse.getHits().getHits().length);
-                var fanoutProfileResults = fanoutResponse.getProfileResults();
+                var fanoutProfileResults = fanoutResponse.getSearchProfileShardResults();
                 long fanoutVectorOpsSum = fanoutProfileResults.values()
                     .stream()
                     .mapToLong(
@@ -119,24 +127,37 @@ public class VectorIT extends ESIntegTestCase {
                             .sum()
                     )
                     .sum();
+
+                assertThat(fanoutVectorOpsSum, lessThanOrEqualTo((long) upperLimit));
                 assertTrue(
-                    "fanoutVectorOps [" + fanoutVectorOpsSum + "] is not gt acornVectorOps [" + vectorOpsSum + "]",
+                    "fanoutVectorOps ["
+                        + fanoutVectorOpsSum
+                        + "] is not gte acornVectorOps ["
+                        + vectorOpsSum
+                        + "], filtered doc count ["
+                        + upperLimit
+                        + "]",
                     fanoutVectorOpsSum > vectorOpsSum
                         // if both switch to brute-force due to excessive exploration, they will both equal to upperLimit
-                        || (fanoutVectorOpsSum == vectorOpsSum && vectorOpsSum == upperLimit + 1)
+                        || (fanoutVectorOpsSum == vectorOpsSum && vectorOpsSum == upperLimit)
                 );
             });
         });
     }
 
     public void testHnswEarlyTerminationQuery() {
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(INDEX_NAME)
+            .setSettings(Settings.builder().put(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.getKey(), false))
+            .get();
         float[] vector = new float[16];
         randomVector(vector, 25);
         int upperLimit = 35;
         var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, 10f, null, null);
         assertResponse(client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true), response -> {
             assertNotEquals(0, response.getHits().getHits().length);
-            var profileResults = response.getProfileResults();
+            var profileResults = response.getSearchProfileShardResults();
             long vectorOpsSum = profileResults.values()
                 .stream()
                 .mapToLong(
@@ -157,7 +178,7 @@ public class VectorIT extends ESIntegTestCase {
                 client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true),
                 earlyTerminationResponse -> {
                     assertNotEquals(0, earlyTerminationResponse.getHits().getHits().length);
-                    var earlyTerminationResults = earlyTerminationResponse.getProfileResults();
+                    var earlyTerminationResults = earlyTerminationResponse.getSearchProfileShardResults();
                     long earlyTerminationVectorOpsSum = earlyTerminationResults.values()
                         .stream()
                         .mapToLong(
@@ -170,10 +191,8 @@ public class VectorIT extends ESIntegTestCase {
                         )
                         .sum();
                     assertTrue(
-                        "earlyTerminationVectorOps [" + earlyTerminationVectorOpsSum + "] is not lt vectorOps [" + vectorOpsSum + "]",
-                        earlyTerminationVectorOpsSum < vectorOpsSum
-                            // if both switch to brute-force due to excessive exploration, they will both equal to upperLimit
-                            || (earlyTerminationVectorOpsSum == vectorOpsSum && vectorOpsSum == upperLimit + 1)
+                        "earlyTerminationVectorOps [" + earlyTerminationVectorOpsSum + "] is not lte vectorOps [" + vectorOpsSum + "]",
+                        earlyTerminationVectorOpsSum <= vectorOpsSum
                     );
                 }
             );

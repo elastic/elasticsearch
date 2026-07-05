@@ -36,6 +36,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
 
 /**
@@ -453,6 +454,23 @@ public class SecuritySystemIndices {
                                 }
                                 builder.endObject();
                             }
+                            if (mappingVersion.onOrAfter(ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE)) {
+                                builder.startObject("data_source");
+                                {
+                                    builder.field("type", "nested");
+                                    builder.startObject("properties");
+                                    {
+                                        builder.startObject("names");
+                                        builder.field("type", "keyword");
+                                        builder.endObject();
+                                        builder.startObject("privileges");
+                                        builder.field("type", "keyword");
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
                         }
                         builder.endObject();
                     }
@@ -508,6 +526,12 @@ public class SecuritySystemIndices {
                     builder.startObject("api_key_invalidated");
                     builder.field("type", "boolean");
                     builder.endObject();
+
+                    if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_CERTIFICATE_IDENTITY_FIELD)) {
+                        builder.startObject("certificate_identity");
+                        builder.field("type", "keyword");
+                        builder.endObject();
+                    }
 
                     builder.startObject("role_descriptors");
                     builder.field("type", "object");
@@ -680,6 +704,7 @@ public class SecuritySystemIndices {
                         builder.endObject();
                     }
                     builder.endObject();
+
                 }
                 builder.endObject();
             }
@@ -1096,6 +1121,16 @@ public class SecuritySystemIndices {
          * Mapping for global manage role privilege
          */
         ADD_MANAGE_ROLES_PRIVILEGE(3),
+
+        /**
+         * Mapping for cross-cluster API keys to include the certificate_identity field.
+         */
+        ADD_CERTIFICATE_IDENTITY_FIELD(4),
+
+        /**
+         * Mapping for {@code global.data_source} configurable cluster privilege on roles.
+         */
+        ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE(5),
 
         ;
 

@@ -21,7 +21,11 @@ public class CompositeBlockTests extends ComputeTestCase {
 
     static List<ElementType> supportedSubElementTypes = Arrays.stream(ElementType.values())
         .filter(
-            e -> e != ElementType.COMPOSITE && e != ElementType.UNKNOWN && e != ElementType.DOC && e != ElementType.AGGREGATE_METRIC_DOUBLE
+            e -> e != ElementType.COMPOSITE
+                && e != ElementType.UNKNOWN
+                && e != ElementType.DOC
+                && e != ElementType.AGGREGATE_METRIC_DOUBLE
+                && e != ElementType.LONG_RANGE
         )
         .toList();
 
@@ -74,11 +78,11 @@ public class CompositeBlockTests extends ComputeTestCase {
             for (int i = 0; i < selected.length; i++) {
                 selected[i] = randomIntBetween(0, positionCount - 1);
             }
-            try (CompositeBlock filteredComposite = origComposite.filter(selected)) {
+            try (CompositeBlock filteredComposite = origComposite.filter(true, selected)) {
                 assertThat(filteredComposite.getBlockCount(), equalTo(numBlocks));
                 assertThat(filteredComposite.getPositionCount(), equalTo(selected.length));
                 for (int b = 0; b < numBlocks; b++) {
-                    try (Block filteredSub = origComposite.getBlock(b).filter(selected)) {
+                    try (Block filteredSub = origComposite.getBlock(b).filter(true, selected)) {
                         assertThat(filteredComposite.getBlock(b), equalTo(filteredSub));
                     }
                 }

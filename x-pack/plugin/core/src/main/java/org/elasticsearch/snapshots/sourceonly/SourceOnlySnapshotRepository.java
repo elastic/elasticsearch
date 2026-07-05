@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -41,6 +43,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
@@ -128,7 +131,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/
             // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
             MappingMetadata mmd = index.mapping();
-            if (mmd != null) {
+            final IndexMode indexMode = IndexSettings.MODE.get(index.getSettings());
+            if (mmd != null && (indexMode == null || indexMode.isStrictColumnar() == false)) {
                 // we don't need to obey any routing here stuff is read-only anyway and get is disabled
                 final String mapping = "{ \"_doc\" : { \"enabled\": false, \"_meta\": " + mmd.source().string() + " } }";
                 indexMetadataBuilder.putMapping(mapping);
@@ -143,8 +147,18 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void snapshotShard(SnapshotShardContext context) {
+    public void snapshotShard(SnapshotShardContext snapshotShardContext) {
+        assert snapshotShardContext instanceof LocalPrimarySnapshotShardContext : snapshotShardContext;
+        final var context = (LocalPrimarySnapshotShardContext) snapshotShardContext;
         final MapperService mapperService = context.mapperService();
+        if (mapperService.getIndexSettings().getMode().isStrictColumnar()) {
+            context.onFailure(
+                new IllegalStateException(
+                    "Can't snapshot _source only on a columnar index; source-only snapshots are not supported for columnar index modes"
+                )
+            );
+            return;
+        }
         if ((mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false)
             || (mapperService.documentMapper() == null && SourceFieldMapper.isStored(mapperService.getIndexSettings()) == false)) {
@@ -211,7 +225,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
             super.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     tempStore,
                     mapperService,
                     context.snapshotId(),

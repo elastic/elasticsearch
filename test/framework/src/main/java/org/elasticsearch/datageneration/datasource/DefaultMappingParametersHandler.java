@@ -13,6 +13,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -27,7 +28,33 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+
 public class DefaultMappingParametersHandler implements DataSourceHandler {
+    private final IndexMode indexMode;
+
+    public DefaultMappingParametersHandler() {
+        this(IndexMode.STANDARD);
+    }
+
+    public DefaultMappingParametersHandler(IndexMode indexMode) {
+        this.indexMode = indexMode;
+    }
+
+    /**
+     * {@code store} cannot be enabled in strict-columnar mode.
+     */
+    public static boolean storeParam(IndexMode indexMode) {
+        return indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean();
+    }
+
+    /**
+     * {@code doc_values} cannot be disabled in strict-columnar mode: every field must be reconstructable from its own doc values.
+     */
+    public static boolean docValuesParam(IndexMode indexMode) {
+        return indexMode.isStrictColumnar() || ESTestCase.randomBoolean();
+    }
+
     @Override
     public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
         var fieldType = FieldType.tryParse(request.fieldType());
@@ -50,6 +77,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case WILDCARD -> wildcardMapping();
             case MATCH_ONLY_TEXT -> matchOnlyTextMapping();
             case PASSTHROUGH -> throw new IllegalArgumentException("Unsupported field type: " + fieldType);
+            case FLATTENED -> flattenedFieldMapping();
         });
     }
 
@@ -83,18 +111,21 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = commonMappingParameters();
 
+            mapping.put("doc_values", extendedDocValuesParams());
+
             // Inject copy_to sometimes but reflect that it is not widely used in reality.
             // We only add copy_to to keywords because we get into trouble with numeric fields that are copied to dynamic fields.
             // If first copied value is numeric, dynamic field is created with numeric field type and then copy of text values fail.
             // Actual value being copied does not influence the core logic of copy_to anyway.
-            if (ESTestCase.randomDouble() <= 0.05) {
+            // copy_to is not allowed on fields in strict-columnar mode.
+            if (indexMode.isStrictColumnar() == false && ESTestCase.randomDouble() <= 0.05) {
                 var options = request.eligibleCopyToFields()
                     .stream()
                     .filter(f -> f.equals(request.fieldName()) == false)
                     .collect(Collectors.toSet());
 
                 if (options.isEmpty() == false) {
-                    mapping.put("copy_to", ESTestCase.randomFrom(options));
+                    mapping.put("copy_to", randomFrom(options));
                 }
             }
 
@@ -113,7 +144,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = commonMappingParameters();
 
-            mapping.put("scaling_factor", ESTestCase.randomFrom(10, 1000, 100000, 100.5));
+            mapping.put("scaling_factor", randomFrom(10, 1000, 100000, 100.5));
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomDouble());
@@ -136,7 +167,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             var mapping = commonMappingParameters();
 
             if (ESTestCase.randomDouble() <= 0.2) {
-                mapping.put("null_value", ESTestCase.randomFrom(true, false, "true", "false"));
+                mapping.put("null_value", randomFrom(true, false, "true", "false"));
             }
 
             if (ESTestCase.randomBoolean()) {
@@ -202,7 +233,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
-            mapping.put("store", ESTestCase.randomBoolean());
+            mapping.put("store", storeParam(indexMode));
             mapping.put("index", ESTestCase.randomBoolean());
 
             return mapping;
@@ -212,6 +243,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     private Supplier<Map<String, Object>> ipMapping() {
         return () -> {
             var mapping = commonMappingParameters();
+
+            mapping.put("doc_values", extendedDocValuesParams());
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", NetworkAddress.format(ESTestCase.randomIp(ESTestCase.randomBoolean())));
@@ -256,17 +289,66 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return HashMap::new;
     }
 
-    public static HashMap<String, Object> commonMappingParameters() {
+    public HashMap<String, Object> commonMappingParameters() {
         var map = new HashMap<String, Object>();
-        map.put("store", ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());
-        map.put("doc_values", ESTestCase.randomBoolean());
+        map.put("store", storeParam(indexMode));
+        map.put("doc_values", docValuesParam(indexMode));
 
-        if (ESTestCase.randomBoolean()) {
-            map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, ESTestCase.randomFrom("none", "arrays", "all"));
+        // synthetic_source_keep is not allowed on fields in strict-columnar mode.
+        if (indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean()) {
+            map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("none", "arrays", "all"));
         }
 
         return map;
+    }
+
+    private Supplier<Map<String, Object>> flattenedFieldMapping() {
+        return () -> {
+            var mapping = new HashMap<String, Object>();
+            mapping.put("index", ESTestCase.randomBoolean());
+            mapping.put("doc_values", docValuesParam(indexMode));
+
+            if (ESTestCase.randomDouble() <= 0.2) {
+                mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+            }
+
+            if (ESTestCase.randomDouble() < 0.2) {
+                mapping.put("eager_global_ordinals", ESTestCase.randomBoolean());
+            }
+
+            if (ESTestCase.randomDouble() <= 0.2) {
+                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 50));
+            }
+
+            if (ESTestCase.randomDouble() < 0.2) {
+                mapping.put("index_options", ESTestCase.randomFrom("docs", "freqs"));
+            }
+
+            if (ESTestCase.randomDouble() < 0.2) {
+                mapping.put("split_queries_on_whitespace", ESTestCase.randomBoolean());
+            }
+
+            if (ESTestCase.randomDouble() < 0.2) {
+                mapping.put("preserve_leaf_arrays", ESTestCase.randomFrom("lossy", "exact"));
+            }
+
+            return mapping;
+        };
+    }
+
+    protected Object extendedDocValuesParams() {
+        if (indexMode.isStrictColumnar() == false) {
+            // The object form (including multi_value) is only valid in strict-columnar mode.
+            return ESTestCase.randomBoolean();
+        }
+
+        // doc_values can't be disabled here; multi_value:false is exercised separately by SingleValueDocValuesDataSourceHandler.
+        return switch (ESTestCase.randomInt(1)) {
+            case 0 -> true;
+            case 1 -> Map.of("multi_value", true);
+            default -> throw new IllegalStateException();
+        };
     }
 
     @Override
@@ -278,9 +360,10 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 var parameters = new HashMap<String, Object>();
 
                 if (ESTestCase.randomBoolean()) {
-                    parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict"));
+                    parameters.put("dynamic", randomFrom("true", "false", "strict"));
                 }
-                if (ESTestCase.randomBoolean()) {
+                // synthetic_source_keep is not allowed on objects in strict-columnar mode
+                if (indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean()) {
                     parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");  // [arrays] doesn't apply to nested objects
                 }
 
@@ -295,11 +378,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             // TODO enable subobjects: auto
             // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using
             // copy_to.
-            var subobjects = ESTestCase.randomValueOtherThan(
-                ObjectMapper.Subobjects.AUTO,
-                () -> ESTestCase.randomFrom(ObjectMapper.Subobjects.values())
-            );
-
+            var subobjects = randomFrom(ObjectMapper.Subobjects.values());
             if (request.parentSubobjects() == ObjectMapper.Subobjects.DISABLED || subobjects == ObjectMapper.Subobjects.DISABLED) {
                 // "enabled: false" is not compatible with subobjects: false
                 // changing "dynamic" from parent context is not compatible with subobjects: false
@@ -311,18 +390,28 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 return parameters;
             }
 
+            if (indexMode.isStrictColumnar()) {
+                // subobjects and synthetic_source_keep are not allowed on objects in strict-columnar mode
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put("dynamic", randomFrom("true", "false", "strict"));
+                }
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put("enabled", request.isRoot() ? "true" : randomFrom("true", "false"));
+                }
+                return parameters;
+            }
+
             if (ESTestCase.randomBoolean()) {
                 parameters.put("subobjects", subobjects.toString());
             }
             if (ESTestCase.randomBoolean()) {
-                parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict", "runtime"));
+                parameters.put("dynamic", randomFrom("true", "false", "strict", "runtime"));
             }
             if (ESTestCase.randomBoolean()) {
-                parameters.put("enabled", ESTestCase.randomFrom("true", "false"));
+                parameters.put("enabled", randomFrom("true", "false"));
             }
-
             if (ESTestCase.randomBoolean()) {
-                var value = request.isRoot() ? ESTestCase.randomFrom("none", "arrays") : ESTestCase.randomFrom("none", "arrays", "all");
+                var value = request.isRoot() ? randomFrom("none", "arrays") : randomFrom("none", "arrays", "all");
                 parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, value);
             }
 

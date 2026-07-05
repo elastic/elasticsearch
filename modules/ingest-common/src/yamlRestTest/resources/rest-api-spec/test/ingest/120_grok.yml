@@ -40,6 +40,78 @@ teardown:
   - match: { _source.msg: "foo" }
 
 ---
+"Test Grok Pipeline with validate_only":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "grok" : {
+                  "field" : "field1",
+                  "patterns" : ["%{NUMBER:val:float} %{NUMBER:status:int} <%{WORD:msg}>"],
+                  "validate_only" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {field1: "123.42 400 <foo>"}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: "123.42 400 <foo>" }
+  - is_false: _source.val
+  - is_false: _source.status
+  - is_false: _source.msg
+
+---
+"Test Grok Pipeline with validate_only without subname":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "grok" : {
+                  "field" : "field1",
+                  "patterns" : ["%{NUMBER} %{NUMBER} <%{WORD}>"],
+                  "validate_only" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {field1: "123.42 400 <foo>"}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: "123.42 400 <foo>" }
+  - is_false: _source.val
+  - is_false: _source.status
+  - is_false: _source.msg
+
+---
 "Test Grok Pipeline With Custom Pattern":
   - do:
       ingest.put_pipeline:

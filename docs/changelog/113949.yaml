@@ -1,7 +1,0 @@
-pr: 113949
-summary: Support kNN filter on nested metadata
-area: Vector Search
-type: enhancement
-issues:
- - 128803
- - 106994

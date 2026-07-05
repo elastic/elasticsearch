@@ -8,11 +8,11 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -104,7 +104,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiDoubleValue 
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(NumericDoubleValues values, final LeafBucketCollector sub) {
+    protected LeafBucketCollector getLeafCollector(DoubleValues values, final LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override

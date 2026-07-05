@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -115,10 +114,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     protected DocWriteResponse(ShardId shardId, StreamInput in) throws IOException {
         super(in);
         this.shardId = shardId;
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String type = in.readString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
-        }
         id = in.readString();
         version = in.readZLong();
         seqNo = in.readZLong();
@@ -134,10 +129,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     protected DocWriteResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String type = in.readString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
-        }
         id = in.readString();
         version = in.readZLong();
         seqNo = in.readZLong();
@@ -196,6 +187,19 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      */
     public long getPrimaryTerm() {
         return primaryTerm;
+    }
+
+    /**
+     * Returns an equivalent response with the sequence number and primary term set to
+     * {@link SequenceNumbers#UNASSIGNED_SEQ_NO} and {@link SequenceNumbers#UNASSIGNED_PRIMARY_TERM}.
+     * Used to strip internal sequence numbers from user-facing responses when
+     * {@code index.disable_sequence_numbers} is enabled.
+     */
+    public abstract DocWriteResponse withoutSequenceNumber();
+
+    protected void copyMutableFieldsTo(DocWriteResponse target) {
+        target.setShardInfo(getShardInfo());
+        target.setForcedRefresh(forcedRefresh());
     }
 
     /**
@@ -266,9 +270,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     private void writeWithoutShardId(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeZLong(version);
         out.writeZLong(seqNo);
@@ -293,10 +294,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             builder.field(FORCED_REFRESH, true);
         }
         builder.field(_SHARDS, shardInfo);
-        if (getSeqNo() >= 0) {
-            builder.field(_SEQ_NO, getSeqNo());
-            builder.field(_PRIMARY_TERM, getPrimaryTerm());
-        }
+        builder.field(_SEQ_NO, getSeqNo());
+        builder.field(_PRIMARY_TERM, getPrimaryTerm());
         return builder;
     }
 

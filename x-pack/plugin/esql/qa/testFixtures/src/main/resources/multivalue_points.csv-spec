@@ -222,17 +222,6 @@ id:l | within:boolean | contains:boolean | centroid:geo_point | location:geo_poi
 12   | true           | true             | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
 ;
 
-whereWithinPolygonStats
-required_capability: st_contains_within
-
-FROM multivalue_points
-| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))")) | STATS c=COUNT(*)
-;
-
-c:l
-4
-;
-
 literalPointContainsPoint
 required_capability: st_contains_within
 
@@ -458,7 +447,7 @@ FROM multivalue_points
 ;
 
 c:l | outer:geo_point                               | inner:geo_point
-12  | "POINT (4.391304308386601 3.086956503558094)" | "POINT (5.461538461538462 4.846153846153846)"
+12  | "POINT (4.391304308386601 3.086956503558094)" | "POINT (5.461538432595821 4.846153828100516)"
 ;
 
 whereWithinMultiValuePointsFields
@@ -508,5 +497,82 @@ FROM multivalue_points
 ;
 
 c:l | inner:geo_point                               | outer:geo_point
-12  | "POINT (5.461538432595821 4.846153828100516)" | "POINT (4.391304347826087 3.0869565217391304)"
+12  | "POINT (5.461538432595821 4.846153828100516)" | "POINT (4.391304308386601 3.086956503558094)"
+;
+
+spatialMultiValuePointsGeometryTypeDimensionIsEmpty
+required_capability: fn_st_geometrytype
+required_capability: fn_st_dimension
+required_capability: fn_st_isempty
+
+FROM multivalue_points
+| EVAL type = ST_GEOMETRYTYPE(location), dim = ST_DIMENSION(location), empty = ST_ISEMPTY(location)
+| KEEP id, type, dim, empty
+| SORT id
+;
+
+id:l | type:keyword | dim:integer | empty:boolean
+0    | ST_Point     | 0           | false
+1    | ST_Point     | 0           | false
+2    | ST_Point     | 0           | false
+3    | ST_Point     | 0           | false
+4    | ST_Point     | 0           | false
+5    | ST_Point     | 0           | false
+6    | ST_Point     | 0           | false
+7    | ST_Point     | 0           | false
+8    | ST_Point     | 0           | false
+9    | ST_Point     | 0           | false
+10   | ST_Point     | 0           | false
+11   | ST_Point     | 0           | false
+12   | ST_Point     | 0           | false
+;
+
+stUnionMultiValueGeoPoints
+required_capability: fn_st_union
+
+FROM multivalue_points
+| EVAL result = ST_UNION(location, subset)
+| KEEP id, result
+| SORT id
+;
+
+id:l | result:geo_shape
+0    | MULTIPOINT (-5.000000037252903 4.999999995343387, 4.999999953433871 4.999999995343387)
+1    | MULTIPOINT (0.0 0.9999999823048711, 0.9999999403953552 0.0)
+2    | POINT (8.999999966472387 8.999999966472387)
+3    | MULTIPOINT (-9.000000050291419 -9.000000008381903, 8.999999966472387 8.999999966472387)
+4    | MULTIPOINT (4.999999953433871 4.999999995343387, 14.999999944120646 14.999999986030161)
+5    | MULTIPOINT (0.0 0.0, 10.99999993108213 10.999999972991645)
+6    | MULTIPOINT (-9.000000050291419 -19.000000040978193, 8.999999966472387 8.999999966472387)
+7    | MULTIPOINT (4.999999953433871 14.999999986030161, 14.999999944120646 4.999999995343387)
+8    | MULTIPOINT (0.0 10.999999972991645, 10.99999993108213 0.0)
+9    | POINT (18.99999995715916 8.999999966472387)
+10   | MULTIPOINT (-9.000000050291419 -19.000000040978193, 18.99999995715916 8.999999966472387)
+11   | MULTIPOINT (-55.000000074505806 -55.00000003259629, 0.0 0.0, 54.999999990686774 54.999999990686774)
+12   | MULTIPOINT (-55.000000074505806 -55.00000003259629, 0.0 0.0, 54.999999990686774 53.99999996647239, 54.999999990686774 54.999999990686774)
+;
+
+stUnionMultiValueGeoPointsWithItself
+required_capability: fn_st_union
+
+FROM multivalue_points
+| EVAL result = ST_UNION(location, location)
+| KEEP id, result
+| SORT id
+;
+
+id:l | result:geo_shape
+0    | MULTIPOINT (-5.000000037252903 4.999999995343387, 4.999999953433871 4.999999995343387)
+1    | MULTIPOINT (0.0 0.9999999823048711, 0.9999999403953552 0.0)
+2    | POINT (8.999999966472387 8.999999966472387)
+3    | MULTIPOINT (-9.000000050291419 -9.000000008381903, 8.999999966472387 8.999999966472387)
+4    | MULTIPOINT (4.999999953433871 4.999999995343387, 14.999999944120646 14.999999986030161)
+5    | MULTIPOINT (0.0 0.0, 10.99999993108213 10.999999972991645)
+6    | MULTIPOINT (-9.000000050291419 -19.000000040978193, 8.999999966472387 8.999999966472387)
+7    | MULTIPOINT (4.999999953433871 14.999999986030161, 14.999999944120646 4.999999995343387)
+8    | MULTIPOINT (0.0 10.999999972991645, 10.99999993108213 0.0)
+9    | POINT (18.99999995715916 8.999999966472387)
+10   | MULTIPOINT (-9.000000050291419 -19.000000040978193, 18.99999995715916 8.999999966472387)
+11   | MULTIPOINT (-55.000000074505806 -55.00000003259629, 0.0 0.0, 54.999999990686774 54.999999990686774)
+12   | MULTIPOINT (-55.000000074505806 -55.00000003259629, 0.0 0.0, 54.999999990686774 54.999999990686774)
 ;

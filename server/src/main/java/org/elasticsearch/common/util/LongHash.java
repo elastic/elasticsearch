@@ -19,7 +19,7 @@ import org.elasticsearch.core.Releasable;
  * This class is not thread-safe.
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
-public final class LongHash extends AbstractHash {
+public final class LongHash extends AbstractHash implements LongHashTable {
 
     private LongArray keys;
 
@@ -44,6 +44,7 @@ public final class LongHash extends AbstractHash {
     /**
      * Return the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
      */
+    @Override
     public long get(long id) {
         return keys.get(id);
     }
@@ -51,6 +52,7 @@ public final class LongHash extends AbstractHash {
     /**
      * Get the id associated with <code>key</code> or -1 if the key is not contained in the hash.
      */
+    @Override
     public long find(long key) {
         final long slot = slot(hash(key), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
@@ -97,6 +99,7 @@ public final class LongHash extends AbstractHash {
      * Try to add <code>key</code>. Return its newly allocated id if it wasn't in the hash table yet, or <code>-1-id</code>
      * if it was already present in the hash table.
      */
+    @Override
     public long add(long key) {
         if (size >= maxSize) {
             assert size == maxSize;

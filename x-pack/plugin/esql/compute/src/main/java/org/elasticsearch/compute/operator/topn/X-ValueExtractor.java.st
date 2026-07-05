@@ -37,9 +37,9 @@ $endif$
 
     ValueExtractorFor$Type$(TopNEncoder encoder, boolean inKey) {
 $if(BytesRef)$
-        this.encoder = encoder;
+        this.encoder = encoder.toUnsortable();
 $else$
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+        assert encoder.toUnsortable() == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
 $endif$
         this.inKey = inKey;
     }

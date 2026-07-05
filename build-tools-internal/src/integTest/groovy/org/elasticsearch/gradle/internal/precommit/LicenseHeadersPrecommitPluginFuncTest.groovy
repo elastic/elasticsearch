@@ -38,7 +38,13 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
         assertOutputContains(result.output, "> Check failed. License header problems were found. Full details: ./build/reports/licenseHeaders/rat.xml")
         assertOutputContains(result.output, "./src/main/java/org/acme/UnknownLicensed.java")
         assertOutputContains(result.output, "./src/main/java/org/acme/UnapprovedLicensed.java")
-        result.output.contains("./src/main/java/org/acme/DualLicensed.java") == false
+        assertOutputMissing(result.output, "./src/main/java/org/acme/DualLicensed.java")
+
+        and: "problems report contains license-headers group with per-file problems"
+        assertProblemsReportContains("license-headers")
+        assertProblemsReportContainsProblem("unapproved-license-header")
+        assertProblemsReportHasAtLeast(2)
+        assertProblemsReportSeverity("unapproved-license-header", "ERROR")
     }
 
     def "can filter source files"() {
@@ -88,7 +94,7 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
     }
 
     private File unapprovedSourceFile(String filePath = "src/main/java/org/acme/UnapprovedLicensed.java") {
-        File sourceFile = file(filePath);
+        File sourceFile = file(filePath)
         sourceFile << """
 /*
  * Copyright (C) 2007 Google Inc.
@@ -114,7 +120,7 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
     }
 
     private File unknownSourceFile(String filePath = "src/main/java/org/acme/UnknownLicensed.java") {
-        File sourceFile = file(filePath);
+        File sourceFile = file(filePath)
         sourceFile << """
 /*
  * Blubb my custom license shrug!

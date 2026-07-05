@@ -225,6 +225,14 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         return Stream.of(shards);
     }
 
+    public Stream<ShardRouting> allActivePrimaries() {
+        return Stream.of(shards).map(IndexShardRoutingTable::primaryShard).filter(ShardRouting::active);
+    }
+
+    public Stream<ShardRouting> allActiveReplicas() {
+        return Stream.of(shards).map(IndexShardRoutingTable::replicaShards).flatMap(List::stream).filter(ShardRouting::active);
+    }
+
     /**
      * Returns <code>true</code> if all shards are primary and active. Otherwise <code>false</code>.
      */

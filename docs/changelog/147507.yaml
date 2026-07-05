@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 147507
+summary: Improve `float` & `byte` comparisons for `RankVectors`
+type: enhancement

@@ -150,6 +150,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
         } finally {
             try {
+                ((ResultMatchingDataFrameRows) dataFrameRowsIterator).releaseRemainingHitsInCurrentBatch();
                 consumeDataExtractor();
             } catch (Exception e) {
                 LOGGER.error(() -> "[" + analyticsId + "] Failed to consume data extractor", e);
@@ -160,7 +161,8 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private void consumeDataExtractor() throws IOException {
         dataExtractor.cancel();
         while (dataExtractor.hasNext()) {
-            dataExtractor.next();
+            Optional<SearchHits> rows = dataExtractor.next();
+            rows.ifPresent(SearchHits::decRef);
         }
     }
 
@@ -168,6 +170,8 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
         private SearchHit[] currentDataFrameRows = SearchHits.EMPTY;
         private int currentDataFrameRowsIndex;
+        @Nullable
+        private SearchHits currentBatchSearchHits;
 
         @Override
         public boolean hasNext() {
@@ -188,18 +192,40 @@ class DataFrameRowsJoiner implements AutoCloseable {
             return row;
         }
 
+        /**
+         * Releases the current batch's {@link SearchHits} if still held (partially consumed batch on close).
+         */
+        void releaseRemainingHitsInCurrentBatch() {
+            if (currentBatchSearchHits != null) {
+                currentBatchSearchHits.decRef();
+                currentBatchSearchHits = null;
+            }
+            currentDataFrameRows = SearchHits.EMPTY;
+            currentDataFrameRowsIndex = 0;
+        }
+
         private static boolean hasNoMatch(DataFrameDataExtractor.Row row) {
             return row == null || row.shouldSkip() || row.isTraining() == false;
         }
 
         private void advanceToNextBatchIfNecessary() {
             if (currentDataFrameRowsIndex >= currentDataFrameRows.length) {
-                currentDataFrameRows = getNextDataRowsBatch().orElse(SearchHits.EMPTY);
+                if (currentBatchSearchHits != null) {
+                    currentBatchSearchHits.decRef();
+                    currentBatchSearchHits = null;
+                }
+                Optional<SearchHits> nextBatch = getNextDataRowsBatch();
+                if (nextBatch.isPresent()) {
+                    currentBatchSearchHits = nextBatch.get();
+                    currentDataFrameRows = currentBatchSearchHits.getHits();
+                } else {
+                    currentDataFrameRows = SearchHits.EMPTY;
+                }
                 currentDataFrameRowsIndex = 0;
             }
         }
 
-        private Optional<SearchHit[]> getNextDataRowsBatch() {
+        private Optional<SearchHits> getNextDataRowsBatch() {
             try {
                 return dataExtractor.next();
             } catch (IOException e) {

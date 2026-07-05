@@ -11,7 +11,6 @@ package org.elasticsearch.health.node;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
@@ -83,7 +82,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         return new RepositoriesHealthInfo(randomList(5, () -> randomAlphaOfLength(10)), randomList(5, () -> randomAlphaOfLength(10)));
     }
 
-    private static FileSettingsHealthInfo mutateFileSettingsHealthInfo(FileSettingsHealthInfo original) {
+    static FileSettingsHealthInfo mutateFileSettingsHealthInfo(FileSettingsHealthInfo original) {
         long changeCount = randomValueOtherThan(original.changeCount(), ESTestCase::randomNonNegativeLong);
         long failureStreak = randomLongBetween(0, changeCount);
         String mostRecentFailure;

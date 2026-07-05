@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -26,7 +27,10 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
@@ -36,7 +40,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalysisVerificationAware {
+import static org.elasticsearch.xpack.esql.planner.PlannerUtils.hasLimitedInput;
+
+public class FuseScoreEval extends UnaryPlan
+    implements
+        LicenseAware,
+        PostAnalysisVerificationAware,
+        ExecutesOn.Coordinator,
+        PipelineBreaker {
     private final Attribute discriminatorAttr;
     private final Attribute scoreAttr;
     private final Fuse.FuseType fuseType;
@@ -122,6 +133,8 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        validateInput(failures);
+        validateLimitBeforeFuse(failures);
         if (options == null) {
             return;
         }
@@ -129,6 +142,37 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
         switch (fuseType) {
             case LINEAR -> validateLinearOptions(failures);
             case RRF -> validateRrfOptions(failures);
+        }
+    }
+
+    private void validateInput(Failures failures) {
+        // FUSE rewrites passthrough columns as FIRST(col,NULL).
+        // FIRST does not support all field types, aggregate_metric_double, histogram and
+        // date_range are not yet supported.
+        // Score is aggregated with SUM, and the discriminator (_fork) with VALUES.
+        // We validate the input here to generate a FUSE-specific error, rather than
+        // a generic aggregation error.
+
+        for (Attribute attr : child().output()) {
+            if (attr.name().equals(scoreAttr.name()) || attr.name().equals(discriminatorAttr.name())) {
+                continue;
+            }
+            var firstAgg = new First(source(), attr, Literal.NULL);
+
+            if (firstAgg.resolved() == false) {
+                failures.add(
+                    new Failure(
+                        this,
+                        "cannot use [" + attr.name() + "] as an input of FUSE. Consider using [DROP " + attr.name() + "] before FUSE."
+                    )
+                );
+            }
+        }
+    }
+
+    private void validateLimitBeforeFuse(Failures failures) {
+        if (false == hasLimitedInput(this)) {
+            failures.add(new Failure(this, "FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE."));
         }
     }
 
@@ -158,7 +202,10 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
                 String stringValue = BytesRefs.toString(value.fold(FoldContext.small())).toUpperCase(Locale.ROOT);
                 if (Arrays.stream(LinearConfig.Normalizer.values()).noneMatch(s -> s.name().equals(stringValue))) {
                     failures.add(new Failure(this, "[" + value.sourceText() + "] is not a valid normalizer"));
-                }
+                } else if (LinearConfig.Normalizer.valueOf(stringValue) == LinearConfig.Normalizer.L2_NORM
+                    && EsqlCapabilities.Cap.FUSE_L2_NORM.isEnabled() == false) {
+                        failures.add(new Failure(this, "[" + value.sourceText() + "] is not a valid normalizer"));
+                    }
             } else if (key.equals(FuseConfig.WEIGHTS)) {
                 validateWeights(value, failures);
             } else {

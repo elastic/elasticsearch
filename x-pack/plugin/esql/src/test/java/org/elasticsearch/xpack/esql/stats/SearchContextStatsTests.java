@@ -13,10 +13,16 @@ import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -25,10 +31,13 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
@@ -48,8 +57,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         maxMillis = minMillis = dateTimeToLong("2025-01-01T00:00:01");
         maxNanos = minNanos = dateNanosToLong("2025-01-01T00:00:01");
 
-        MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
-        };
+        MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
         // create one or more index, so that there is one or more SearchExecutionContext in SearchStats
         for (int i = 0; i < indexCount; i++) {
             // Start with millis/nanos, numeric and keyword types in the index mapping, more data types can be covered later if needed.
@@ -158,6 +166,132 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                 assertEquals(minNanos, min);
                 assertEquals(maxNanos, max);
             }
+        }
+    }
+
+    public void testPointValuesMinMaxDoesNotReturnSentinelValues() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final List<SearchExecutionContext> contexts = new ArrayList<>();
+        final List<Closeable> toClose = new ArrayList<>();
+
+        try {
+            for (int i = 0; i < randomIntBetween(5, 10); i++) {
+                final MapperService mapperService = mapperHelper.createMapperService("""
+                    { "doc": { "properties": { "date": { "type": "date" }, "keyword": { "type": "keyword" }}}}""");
+                assertFalse(((DateFieldType) mapperService.fieldType("date")).hasDocValuesSkipper());
+                final Directory dir = newDirectory();
+                final IndexReader reader;
+                try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                    writer.addDocument(List.of(new StringField("keyword", "value" + i, Field.Store.NO)));
+                    reader = writer.getReader();
+                }
+                toClose.add(reader);
+                toClose.add(mapperService);
+                toClose.add(dir);
+                contexts.add(mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader)));
+            }
+
+            final SearchStats stats = SearchContextStats.from(contexts);
+            final FieldAttribute.FieldName dateFieldName = new FieldAttribute.FieldName("date");
+            assertNull(stats.min(dateFieldName));
+            assertNull(stats.max(dateFieldName));
+            final Rounding.Prepared prepared = new Rounding.Builder(TimeValue.timeValueMinutes(30)).timeZone(ZoneId.of("Europe/Rome"))
+                .build()
+                .prepare(0L, 0L);
+            assertNotNull(prepared);
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
+    public void testDocValuesSkipperMinMaxDoesNotReturnSentinelValues() throws IOException {
+        final List<SearchExecutionContext> contexts = new ArrayList<>();
+        final List<Closeable> toClose = new ArrayList<>();
+
+        try {
+            for (int i = 0; i < randomIntBetween(5, 10); i++) {
+                final MapperService mapperService = createMapperService(
+                    Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(),
+                    """
+                        { "doc": { "properties": {
+                            "@timestamp": { "type": "date" },
+                            "uid": { "type": "keyword", "time_series_dimension": true }
+                        }}}"""
+                );
+                assertTrue(((DateFieldType) mapperService.fieldType("@timestamp")).hasDocValuesSkipper());
+                final Directory dir = newDirectory();
+                final IndexReader reader;
+                try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                    writer.addDocument(List.of(new StringField("uid", "id" + i, Field.Store.NO)));
+                    reader = writer.getReader();
+                }
+                toClose.add(reader);
+                toClose.add(mapperService);
+                toClose.add(dir);
+                contexts.add(createSearchExecutionContext(mapperService, newSearcher(reader)));
+            }
+
+            final SearchStats stats = SearchContextStats.from(contexts);
+            final FieldAttribute.FieldName timestampFieldName = new FieldAttribute.FieldName("@timestamp");
+            assertNull(stats.min(timestampFieldName));
+            assertNull(stats.max(timestampFieldName));
+            final Rounding.Prepared prepared = new Rounding.Builder(TimeValue.timeValueMinutes(30)).timeZone(ZoneId.of("Europe/Rome"))
+                .build()
+                .prepare(0L, 0L);
+            assertNotNull(prepared);
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
+    /**
+     * Verifies that {@code isSingleValue} correctly detects multi-valued keyword fields even when
+     * the number of unique terms equals the number of documents — a case where the old heuristic
+     * ({@code terms.size() == terms.getDocCount()}) produced a false positive.
+     * <p>
+     * Given doc1=["A","B"] and doc2=["A"]:
+     * <ul>
+     *   <li>{@code terms.size()} = 2 (unique terms: A, B)</li>
+     *   <li>{@code terms.getDocCount()} = 2 (docs with the field)</li>
+     *   <li>{@code terms.getSumDocFreq()} = 3 (docFreq("A")=2 + docFreq("B")=1)</li>
+     * </ul>
+     * The old check ({@code size == docCount}) would return {@code true} (single-valued) — wrong.
+     * The new check ({@code sumDocFreq == docCount}) returns {@code false} (multi-valued) — correct.
+     * <p>
+     * When this false positive is visible in a scenario, {@code PushStatsToSource} pushes {@code COUNT(keyword_field)} to Lucene
+     * as a document count ({@code EsStatsQueryExec}), yielding 2 instead of 3.
+     */
+    public void testKeywordMultiValueDetection() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+
+        final Directory dir = newDirectory();
+        final IndexReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new StringField("kw", "A", Field.Store.NO), new StringField("kw", "B", Field.Store.NO)));
+            writer.addDocument(List.of(new StringField("kw", "A", Field.Store.NO)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = ((DirectoryReader) reader).leaves().get(0).reader();
+            Terms terms = leafReader.terms("kw");
+            assertNotNull(terms);
+
+            assertEquals(2, terms.size());
+            assertEquals(2, terms.getDocCount());
+            assertEquals(3, terms.getSumDocFreq());
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertFalse(
+                "keyword field with MVs must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
         }
     }
 

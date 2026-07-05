@@ -514,6 +514,12 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 threadsToJoin[i].join();
             }
             Arrays.stream(threadsToJoin).forEach(thread -> assertFalse(thread.isAlive()));
+            // Monitor the write executor on the data node to try and determine when the backlog of tasks
+            // has been fully drained (and
+            // {@link org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor.afterExecute()}
+            // has been called). This is probably not foolproof, so worth investigating if we see non-zero utilization numbers
+            // after the next poll. See https://github.com/elastic/elasticsearch/issues/134500
+            assertBusy(() -> assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0)));
 
             assertThat(
                 "Unexpectedly found a task queued for the write thread pool. Write thread pool dump: " + trackingWriteExecutor,

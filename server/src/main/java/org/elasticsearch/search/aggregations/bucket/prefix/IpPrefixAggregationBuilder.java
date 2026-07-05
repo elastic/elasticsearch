@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.prefix;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -68,7 +67,9 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     private static final int IPV4_MAX_PREFIX_LENGTH = 32;
     private static final int MIN_PREFIX_LENGTH = 0;
 
-    /** Read from a stream, for internal use only. */
+    /**
+     * Read from a stream, for internal use only.
+     */
     public IpPrefixAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         this.prefixLength = in.readVInt();
@@ -102,7 +103,9 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
         );
     }
 
-    /** Set the minDocCount on this builder, and return the builder so that calls can be chained. */
+    /**
+     * Set the minDocCount on this builder, and return the builder so that calls can be chained.
+     */
     public IpPrefixAggregationBuilder minDocCount(long minDocCount) {
         if (minDocCount < 1) {
             throwOnInvalidFieldValue(MIN_DOC_COUNT_FIELD.getPreferredName(), 1, Integer.MAX_VALUE, minDocCount);
@@ -115,7 +118,8 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
      * Set the prefixLength on this builder, and return the builder so that calls can be chained.
      *
      * @throws IllegalArgumentException if prefixLength is negative.
-     * */
+     *
+     */
     public IpPrefixAggregationBuilder prefixLength(int prefixLength) {
         if (prefixLength < MIN_PREFIX_LENGTH) {
             throwOnInvalidFieldValue(
@@ -129,25 +133,33 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
         return this;
     }
 
-    /** Set the isIpv6 on this builder, and return the builder so that calls can be chained. */
+    /**
+     * Set the isIpv6 on this builder, and return the builder so that calls can be chained.
+     */
     public IpPrefixAggregationBuilder isIpv6(boolean isIpv6) {
         this.isIpv6 = isIpv6;
         return this;
     }
 
-    /** Set the appendPrefixLength on this builder, and return the builder so that calls can be chained. */
+    /**
+     * Set the appendPrefixLength on this builder, and return the builder so that calls can be chained.
+     */
     public IpPrefixAggregationBuilder appendPrefixLength(boolean appendPrefixLength) {
         this.appendPrefixLength = appendPrefixLength;
         return this;
     }
 
-    /** Set the keyed on this builder, and return the builder so that calls can be chained. */
+    /**
+     * Set the keyed on this builder, and return the builder so that calls can be chained.
+     */
     public IpPrefixAggregationBuilder keyed(boolean keyed) {
         this.keyed = keyed;
         return this;
     }
 
-    /** Create a new builder with the given name. */
+    /**
+     * Create a new builder with the given name.
+     */
     public IpPrefixAggregationBuilder(String name) {
         super(name);
     }
@@ -237,13 +249,11 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
 
     /**
      * @param prefixLength the network prefix length which defines the size of the network.
-     * @param isIpv6 true for an IPv6 netmask, false for an IPv4 netmask.
-     *
+     * @param isIpv6       true for an IPv6 netmask, false for an IPv4 netmask.
      * @return a 16-bytes representation of the subnet with 1s identifying the network
-     *         part and 0s identifying the host part.
-     *
+     * part and 0s identifying the host part.
      * @throws IllegalArgumentException if prefixLength is not in range [0, 128] for an IPv6
-     *         network, or is not in range [0, 32] for an IPv4 network.
+     *                                  network, or is not in range [0, 32] for an IPv4 network.
      */
     public static BytesRef extractNetmask(int prefixLength, boolean isIpv6) {
         if (prefixLength < 0
@@ -312,6 +322,6 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_1_0;
+        return TransportVersion.minimumCompatible();
     }
 }

@@ -1,0 +1,127 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ kql_query ]
+      test_runner_features: capabilities
+      reason: KQL query is not available
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              text_field:
+                type: text
+              keyword_field:
+                type: keyword
+              const_keyword_field:
+                type: constant_keyword
+                value: foo buzz
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          { "index" : { "_id": "doc-1" } }
+          { "text_field": "foo bar", "keyword_field": "foo bar" }
+          { "index" : { "_id": "doc-42" } }
+          { "text_field": "foo baz", "keyword_field": "foo baz" }
+          { "index" : { "_id": "doc-43" } }
+          { "text_field": "foo buzz", "keyword_field": "foo buzz" }
+
+---
+"KQL wildcard query (no field specified)":
+  # KQL rewrites query strings with a leading '*' into a wildcard query
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "*ar" } }
+          }
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+---
+"KQL wildcard query (text field)":
+  # KQL rewrites query strings with a leading '*' into a wildcard query
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field:*oo" } }
+          }
+
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._id: "doc-1" }
+  - match: { hits.hits.1._id: "doc-42" }
+  - match: { hits.hits.2._id: "doc-43" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field:*a*" } }
+          }
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "doc-1" }
+  - match: { hits.hits.1._id: "doc-42" }
+
+---
+"KQL wildcard query (keyword field)":
+  # KQL rewrites query strings with a leading '*' into a wildcard query
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "keyword_field:*a*" } }
+          }
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "doc-1" }
+  - match: { hits.hits.1._id: "doc-42" }
+
+---
+"KQL wildcard query (constant_keyword field)":
+  - requires:
+      cluster_features: "constant_field_type.normalized_wildcard_query_support"
+      reason: Constant field type normalized wildcard query support
+
+  # KQL rewrites query strings with a leading '*' into a wildcard query
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "const_keyword_field:*buzz" } }
+          }
+
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._id: "doc-1" }
+  - match: { hits.hits.1._id: "doc-42" }
+  - match: { hits.hits.2._id: "doc-43" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "const_keyword_field:*Z" } }
+          }
+
+  - match: { hits.total: 0 }

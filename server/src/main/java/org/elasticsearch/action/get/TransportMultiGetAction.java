@@ -13,19 +13,26 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ReshardingActionHelper;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -44,6 +51,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     private final NodeClient client;
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ReshardingActionHelper reshardingActionHelper;
 
     @Inject
     public TransportMultiGetAction(
@@ -53,19 +61,45 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
         IndexNameExpressionResolver resolver,
-        IndicesService indicesService
+        IndicesService indicesService,
+        ReshardingActionHelper reshardingActionHelper
     ) {
         super(NAME, transportService, actionFilters, MultiGetRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.client = client;
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = resolver;
+        this.reshardingActionHelper = reshardingActionHelper;
         // register the internal TransportGetFromTranslogAction
         new TransportShardMultiGetFomTranslogAction(transportService, indicesService, actionFilters);
     }
 
     @Override
     protected void doExecute(Task task, final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
+        executeOnce(request, listener.delegateFailure((delegate, response) -> {
+            // if the request succeeds overall but some shard requests are stale, then retry when index metadata has caught up
+            final HashMap<ShardId, StaleRequestException> staleRequestExceptions = new HashMap<>();
+            for (int i = 0; i < response.getResponses().length; i++) {
+                final var failure = response.getResponses()[i].getFailure();
+                if (failure != null && failure.getFailure() instanceof StaleRequestException sre) {
+                    // we just need one per shard, not one per item
+                    staleRequestExceptions.put(sre.getShardId(), sre);
+                }
+            }
+            if (staleRequestExceptions.isEmpty() == false) {
+                // todo: this retries the entire request on any StaleRequestException. It might be worth saving the other items
+                // and only retrying the ones that failed with StaleRequestException, then merging the results.
+                reshardingActionHelper.waitForRoutingUpdate(
+                    staleRequestExceptions,
+                    listener.delegateFailureAndWrap((l, unused) -> executeOnce(request, l))
+                );
+            } else {
+                listener.onResponse(response);
+            }
+        }));
+    }
+
+    private void executeOnce(final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
         ClusterState clusterState = clusterService.state();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         clusterState.blocks().globalBlockedRaiseException(project.id(), ClusterBlockLevel.READ);
@@ -88,8 +122,20 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                     lastResolvedIndex = Tuple.tuple(item.index(), concreteSingleIndex);
                 }
                 item.routing(project.resolveIndexRouting(item.routing(), item.index()));
+                final IndexMetadata concreteMetadata = project.index(concreteSingleIndex);
+                final boolean sliceEnabled = concreteMetadata != null && IndexSettings.SLICE_ENABLED.get(concreteMetadata.getSettings());
+                SliceIndexing.validateSliceRoutingRequirement(
+                    sliceEnabled,
+                    item.isRoutingFromSlice(),
+                    item.routing(),
+                    "mget request",
+                    item.index()
+                );
                 shardId = OperationRouting.shardId(project, concreteSingleIndex, item.id(), item.routing());
             } catch (RoutingMissingException e) {
+                responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
+                continue;
+            } catch (SliceMissingException e) {
                 responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
                 continue;
             } catch (Exception e) {
@@ -99,7 +145,9 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
 
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
-                shardRequest = new MultiGetShardRequest(request, shardId.getIndexName(), shardId.getId());
+                IndexMetadata indexMetadata = project.index(shardId.getIndex());
+                SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId.getId());
+                shardRequest = new MultiGetShardRequest(request, shardId.getIndexName(), shardId.getId(), splitShardCountSummary);
                 shardRequests.put(shardId, shardRequest);
             }
             shardRequest.add(i, item);

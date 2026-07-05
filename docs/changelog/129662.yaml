@@ -1,6 +1,0 @@
-pr: 129662
-summary: "[Security] Add entity store and asset criticality index privileges to built\
-  \ in Editor, Viewer and Kibana System roles"
-area: Authorization
-type: enhancement
-issues: []

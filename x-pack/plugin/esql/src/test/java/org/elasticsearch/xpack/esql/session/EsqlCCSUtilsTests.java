@@ -11,6 +11,9 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
+import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -29,9 +32,9 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -45,8 +48,11 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfoCluster;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.initCrossClusterState;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,108 +65,104 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     private final String REMOTE1_ALIAS = "remote1";
     private final String REMOTE2_ALIAS = "remote2";
 
-    public void testCreateIndexExpressionFromAvailableClusters() {
-        var skipped = EsqlExecutionInfo.Cluster.Status.SKIPPED;
-        // no clusters marked as skipped
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true));
-            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true));
-            assertIndexPattern(
-                EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo),
-                containsInAnyOrder("logs*", "remote1:*", "remote2:mylogs1", "remote2:mylogs2", "remote2:logs*")
-            );
-        }
-
-        // one cluster marked as skipped, so not present in revised index expression
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true));
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true, skipped)
-            );
-            assertIndexPattern(
-                EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo),
-                containsInAnyOrder("logs*", "remote1:*", "remote1:foo")
-            );
-        }
-
-        // two clusters marked as skipped, so only local cluster present in revised index expression
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true, skipped));
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true, skipped)
-            );
-            assertThat(EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo), equalTo("logs*"));
-        }
-
-        // only remotes present and all marked as skipped, so in revised index expression should be empty string
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(
-                REMOTE1_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
-            );
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true, skipped)
-            );
-            assertThat(EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo), equalTo(""));
-        }
-    }
-
     public void testCreateQualifiedLookupIndexExpressionFromAvailableClusters() {
 
-        var skipped = EsqlExecutionInfo.Cluster.Status.SKIPPED;
         // no clusters marked as skipped
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "", true));
-            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "", true));
-            assertIndexPattern(
-                EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, "lookup"),
-                containsInAnyOrder("lookup", REMOTE1_ALIAS + ":lookup", REMOTE2_ALIAS + ":lookup")
-            );
-        }
+        assertIndexPattern(
+            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(
+                Set.of(LOCAL_CLUSTER_ALIAS, REMOTE1_ALIAS, REMOTE2_ALIAS),
+                "lookup"
+            ),
+            containsInAnyOrder("lookup", REMOTE1_ALIAS + ":lookup", REMOTE2_ALIAS + ":lookup")
+        );
         // one cluster marked as skipped
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "", true));
-            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "", true, skipped));
-            assertIndexPattern(
-                EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, "lookup"),
-                containsInAnyOrder("lookup", REMOTE1_ALIAS + ":lookup")
-            );
-        }
+        assertIndexPattern(
+            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(Set.of(LOCAL_CLUSTER_ALIAS, REMOTE1_ALIAS), "lookup"),
+            containsInAnyOrder("lookup", REMOTE1_ALIAS + ":lookup")
+        );
         // all remotes marked as skipped
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "", true, skipped));
-            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "", true, skipped));
-            assertIndexPattern(
-                EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, "lookup"),
-                containsInAnyOrder("lookup")
-            );
-        }
+        assertIndexPattern(
+            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(Set.of(LOCAL_CLUSTER_ALIAS), "lookup"),
+            containsInAnyOrder("lookup")
+        );
         // all remotes are skipped and no local
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "", true, skipped));
-            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "", true, skipped));
-            assertIndexPattern(
-                EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, "lookup"),
-                containsInAnyOrder()
-            );
-        }
+        assertIndexPattern(
+            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(Set.of(), "lookup"),
+            containsInAnyOrder()
+        );
+    }
+
+    public void testOnlyRunning() {
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+        executionInfo.swapCluster(
+            LOCAL_CLUSTER_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
+        );
+        executionInfo.swapCluster(
+            REMOTE1_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+        );
+        executionInfo.swapCluster(
+            REMOTE2_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(REMOTE2_ALIAS, "", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
+        );
+        assertThat(EsqlCCSUtils.onlyRunning(executionInfo, Set.of(LOCAL_CLUSTER_ALIAS)), equalTo(Set.of(LOCAL_CLUSTER_ALIAS)));
+        assertThat(EsqlCCSUtils.onlyRunning(executionInfo, Set.of(REMOTE1_ALIAS)), equalTo(Set.of(REMOTE1_ALIAS)));
+        assertThat(EsqlCCSUtils.onlyRunning(executionInfo, Set.of(REMOTE2_ALIAS)), equalTo(Set.of()));
+        assertThat(
+            EsqlCCSUtils.onlyRunning(executionInfo, Set.of(LOCAL_CLUSTER_ALIAS, REMOTE1_ALIAS, REMOTE2_ALIAS)),
+            equalTo(Set.of(LOCAL_CLUSTER_ALIAS, REMOTE1_ALIAS))
+        );
+    }
+
+    /**
+     * The local (coordinating) cluster is always available and is never skip_unavailable, but it is only tracked as a running
+     * cluster in the execution info when the query actually resolved a local index. A cross-cluster query whose lookup is scoped
+     * to the local cluster - e.g. a ROW- or local-only sourced {@code LOOKUP JOIN} sitting next to a remote branch such as
+     * {@code FROM cluster-a:logs-*, (ROW ... | LOOKUP JOIN lookup ON ...)} - therefore requests the local cluster even though it
+     * is absent from the execution info. {@link EsqlCCSUtils#onlyRunning} must retain it so the lookup index is resolved locally
+     * instead of against an empty cluster expression.
+     */
+    public void testOnlyRunningRetainsRequestedLocalClusterWhenNotTracked() {
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+        // Only a remote cluster is tracked; the local cluster is not registered at all (and thus is not a running cluster).
+        executionInfo.swapCluster(
+            REMOTE1_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+        );
+
+        // The untracked local cluster is retained when requested.
+        assertThat(EsqlCCSUtils.onlyRunning(executionInfo, Set.of(LOCAL_CLUSTER_ALIAS)), equalTo(Set.of(LOCAL_CLUSTER_ALIAS)));
+        // It is retained alongside a running remote in a mixed scope.
+        assertThat(
+            EsqlCCSUtils.onlyRunning(executionInfo, Set.of(LOCAL_CLUSTER_ALIAS, REMOTE1_ALIAS)),
+            equalTo(Set.of(LOCAL_CLUSTER_ALIAS, REMOTE1_ALIAS))
+        );
+        // It is not conjured up when it was not requested.
+        assertThat(EsqlCCSUtils.onlyRunning(executionInfo, Set.of(REMOTE1_ALIAS)), equalTo(Set.of(REMOTE1_ALIAS)));
+    }
+
+    /**
+     * The local cluster is retained even when it is tracked but not in a running state (e.g. marked skipped): a join on a local
+     * source executes on the coordinator regardless, so its lookup index must still be resolved locally. Running/skipped
+     * filtering continues to apply to remote clusters.
+     */
+    public void testOnlyRunningRetainsRequestedLocalClusterWhenSkipped() {
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+        executionInfo.swapCluster(
+            LOCAL_CLUSTER_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "", false, EsqlExecutionInfo.Cluster.Status.SKIPPED)
+        );
+        executionInfo.swapCluster(
+            REMOTE1_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
+        );
+
+        // Local is kept despite being skipped, while the skipped remote is dropped.
+        assertThat(
+            EsqlCCSUtils.onlyRunning(executionInfo, Set.of(LOCAL_CLUSTER_ALIAS, REMOTE1_ALIAS)),
+            equalTo(Set.of(LOCAL_CLUSTER_ALIAS))
+        );
     }
 
     private static void assertIndexPattern(String indexPattern, Matcher<Iterable<? extends String>> matcher) {
@@ -171,10 +173,24 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // skip_unavailable=true clusters are unavailable, both marked as SKIPPED
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true));
-            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true));
+            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            executionInfo.swapCluster(
+                LOCAL_CLUSTER_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
+            executionInfo.swapCluster(
+                REMOTE1_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
+            executionInfo.swapCluster(
+                REMOTE2_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(
+                    REMOTE2_ALIAS,
+                    "mylogs1,mylogs2,logs*",
+                    true,
+                    EsqlExecutionInfo.Cluster.Status.RUNNING
+                )
+            );
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             var unvailableClusters = Map.of(REMOTE1_ALIAS, List.of(failure), REMOTE2_ALIAS, List.of(failure));
@@ -198,12 +214,23 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // skip_unavailable=false cluster is unavailable, throws Exception
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true));
+            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            executionInfo.swapCluster(
+                LOCAL_CLUSTER_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
+            executionInfo.swapCluster(
+                REMOTE1_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
             executionInfo.swapCluster(
                 REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", false)
+                (k, v) -> createEsqlExecutionInfoCluster(
+                    REMOTE2_ALIAS,
+                    "mylogs1,mylogs2,logs*",
+                    false,
+                    EsqlExecutionInfo.Cluster.Status.RUNNING
+                )
             );
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
@@ -221,12 +248,23 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // all clusters available, no Clusters in ExecutionInfo should be modified
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true));
+            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            executionInfo.swapCluster(
+                LOCAL_CLUSTER_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
+            executionInfo.swapCluster(
+                REMOTE1_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
             executionInfo.swapCluster(
                 REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", false)
+                (k, v) -> createEsqlExecutionInfoCluster(
+                    REMOTE2_ALIAS,
+                    "mylogs1,mylogs2,logs*",
+                    false,
+                    EsqlExecutionInfo.Cluster.Status.RUNNING
+                )
             );
 
             EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, Map.of());
@@ -252,15 +290,26 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // all clusters had matching indices from field-caps call, so no updates to EsqlExecutionInfo should happen
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", randomBoolean()));
+            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            executionInfo.swapCluster(
+                LOCAL_CLUSTER_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
+            executionInfo.swapCluster(
+                REMOTE1_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", randomBoolean(), EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
             executionInfo.swapCluster(
                 REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", randomBoolean())
+                (k, v) -> createEsqlExecutionInfoCluster(
+                    REMOTE2_ALIAS,
+                    "mylogs1,mylogs2,logs*",
+                    randomBoolean(),
+                    EsqlExecutionInfo.Cluster.Status.RUNNING
+                )
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote1:*,remote2:mylogs1,remote2:mylogs2,remote2:logs*", // original user-provided index expression
                 randomMapping(),
                 Map.of(
@@ -278,9 +327,9 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 )
             );
 
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), Map.of());
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution), Set.of(), false);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -298,15 +347,26 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         // remote1 had no matching indices from field-caps call, it was not marked as unavailable, so it should be updated and
         // marked as SKIPPED with 0 total shards, 0 took time, etc.
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", randomBoolean()));
+            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            executionInfo.swapCluster(
+                LOCAL_CLUSTER_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
+            executionInfo.swapCluster(
+                REMOTE1_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", randomBoolean(), EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
             executionInfo.swapCluster(
                 REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", randomBoolean())
+                (k, v) -> createEsqlExecutionInfoCluster(
+                    REMOTE2_ALIAS,
+                    "mylogs1,mylogs2,logs*",
+                    randomBoolean(),
+                    EsqlExecutionInfo.Cluster.Status.RUNNING
+                )
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of(
@@ -321,9 +381,9 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                     IndexMode.STANDARD
                 )
             );
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), Map.of());
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution), Set.of(), false);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -347,15 +407,26 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         // but had no matching indices and since no concrete indices were requested, no VerificationException is thrown and is just
         // marked as SKIPPED
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", randomBoolean()));
+            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            executionInfo.swapCluster(
+                LOCAL_CLUSTER_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
+            executionInfo.swapCluster(
+                REMOTE1_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", randomBoolean(), EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
             executionInfo.swapCluster(
                 REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1*,mylogs2*,logs*", randomBoolean())
+                (k, v) -> createEsqlExecutionInfoCluster(
+                    REMOTE2_ALIAS,
+                    "mylogs1*,mylogs2*,logs*",
+                    randomBoolean(),
+                    EsqlExecutionInfo.Cluster.Status.RUNNING
+                )
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1*,remote2:mylogs2*,remote2:logs*", // original user-provided index expression
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD) // resolved indices from field-caps (none from either remote)
@@ -363,9 +434,9 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), failures);
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution), Set.of(), false);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -389,15 +460,23 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         // No remotes had matching indices from field-caps call: 1) remote1 because it was unavailable, 2) remote2 was available,
         // but had no matching indices. remote2 is set to skipped since it has skip_unavailable by default.
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*"));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", randomBoolean()));
+            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*"));
+            executionInfo.swapCluster(
+                REMOTE1_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", randomBoolean(), EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
             executionInfo.swapCluster(
                 REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2*", randomBoolean())
+                (k, v) -> createEsqlExecutionInfoCluster(
+                    REMOTE2_ALIAS,
+                    "mylogs1,mylogs2*",
+                    randomBoolean(),
+                    EsqlExecutionInfo.Cluster.Status.RUNNING
+                )
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1,remote2:mylogs2*,remote1:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD)  // resolved indices from field-caps (none from either remote)
@@ -405,8 +484,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), failures);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution), Set.of(), false);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -424,19 +503,25 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             assertThat(remote2Cluster.getSkippedShards(), equalTo(0));
             assertThat(remote2Cluster.getFailedShards(), equalTo(0));
             assertThat(remote2Cluster.getFailures(), hasSize(1));
-            assertThat(remote2Cluster.getFailures().getFirst().reason(), containsString("Unknown index [remote2:mylogs1,mylogs2*]"));
+            assertThat(
+                remote2Cluster.getFailures().getFirst().reason(),
+                containsString("Unknown index [remote2:mylogs1,remote2:mylogs2*]")
+            );
         }
 
         // test where remote2 is already marked as SKIPPED so no modifications or exceptions should be thrown
         // (the EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters() method handles that case not the one tested here)
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*"));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", randomBoolean()));
+            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*"));
+            executionInfo.swapCluster(
+                REMOTE1_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", randomBoolean(), EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
             // remote2 is already marked as SKIPPED (simulating failed enrich policy lookup due to unavailable cluster)
             executionInfo.swapCluster(
                 REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(
+                (k, v) -> createEsqlExecutionInfoCluster(
                     REMOTE2_ALIAS,
                     "mylogs1*,mylogs2*,logs*",
                     randomBoolean(),
@@ -444,7 +529,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 )
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD)  // resolved indices from field-caps (none from either remote)
@@ -453,9 +538,9 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteQualifiedIndices(), failures);
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution), Set.of(), false);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -534,24 +619,165 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         }
     }
 
+    public void testCheckForRemoteResourceErrorsWithViews() {
+        {
+            var viewEx = new RemoteViewNotSupportedException(List.of("r1:v"));
+            var wrapped = new RemoteTransportException("test failure", viewEx);
+            List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            expectThrows(
+                RemoteResourceNotSupportedException.class,
+                containsString(
+                    "ES|QL queries with remote views are not supported. Matched [r1:v]."
+                        + " Remove them from the query pattern or exclude them with [r1:-v] if matched by a wildcard."
+                ),
+                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+            );
+        }
+        {
+            var viewEx1 = new RemoteViewNotSupportedException(List.of("r1:v1"));
+            var viewEx2 = new RemoteViewNotSupportedException(List.of("r2:v2"));
+            var wrapped1 = new RemoteTransportException("test failure", viewEx1);
+            var wrapped2 = new RemoteTransportException("test failure", viewEx2);
+            List<FieldCapabilitiesFailure> failures = List.of(
+                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped1),
+                new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, wrapped2)
+            );
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            RemoteResourceNotSupportedException ex = expectThrows(
+                RemoteResourceNotSupportedException.class,
+                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+            );
+            assertThat(ex.getMessage(), containsString("ES|QL queries with remote views are not supported."));
+            assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v1", "r2:v2"));
+        }
+        {
+            List<FieldCapabilitiesFailure> failures = List.of(
+                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RuntimeException("some other error"))
+            );
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            EsqlCCSUtils.checkForRemoteResourceErrors(grouped);
+        }
+        {
+            EsqlCCSUtils.checkForRemoteResourceErrors(Map.of());
+        }
+    }
+
+    public void testCheckForRemoteResourceErrorsWithDatasets() {
+        {
+            var datasetEx = new RemoteDatasetNotSupportedException(List.of("r1:d"));
+            var wrapped = new RemoteTransportException("test failure", datasetEx);
+            List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            expectThrows(
+                RemoteResourceNotSupportedException.class,
+                containsString(
+                    "ES|QL queries with remote datasets are not supported. Matched [r1:d]."
+                        + " Remove them from the query pattern or exclude them with [r1:-d] if matched by a wildcard."
+                ),
+                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+            );
+        }
+        {
+            var datasetEx1 = new RemoteDatasetNotSupportedException(List.of("r1:d1"));
+            var datasetEx2 = new RemoteDatasetNotSupportedException(List.of("r2:d2"));
+            var wrapped1 = new RemoteTransportException("test failure", datasetEx1);
+            var wrapped2 = new RemoteTransportException("test failure", datasetEx2);
+            List<FieldCapabilitiesFailure> failures = List.of(
+                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped1),
+                new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, wrapped2)
+            );
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            RemoteResourceNotSupportedException ex = expectThrows(
+                RemoteResourceNotSupportedException.class,
+                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+            );
+            assertThat(ex.getMessage(), containsString("ES|QL queries with remote datasets are not supported."));
+            assertThat(ex.getMetadata("es.esql.dataset.names"), containsInAnyOrder("r1:d1", "r2:d2"));
+        }
+        {
+            List<FieldCapabilitiesFailure> failures = List.of(
+                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RuntimeException("some other error"))
+            );
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            EsqlCCSUtils.checkForRemoteResourceErrors(grouped);
+        }
+        {
+            EsqlCCSUtils.checkForRemoteResourceErrors(Map.of());
+        }
+    }
+
+    public void testCheckForRemoteResourceErrorsReportsViewsAndDatasetsTogether() {
+        // A query that matches a remote view on one cluster and a remote dataset on another must surface BOTH in a
+        // single response rather than whichever kind was checked first.
+        var viewEx = new RemoteViewNotSupportedException(List.of("r1:v"));
+        var datasetEx = new RemoteDatasetNotSupportedException(List.of("r2:d"));
+        List<FieldCapabilitiesFailure> failures = List.of(
+            new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RemoteTransportException("test failure", viewEx)),
+            new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, new RemoteTransportException("test failure", datasetEx))
+        );
+        var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+        RemoteResourceNotSupportedException ex = expectThrows(
+            RemoteResourceNotSupportedException.class,
+            () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+        );
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "ES|QL queries with remote views and datasets are not supported. Matched views [r1:v], datasets [r2:d]."
+                    + " Remove them from the query pattern or exclude them with [r1:-v,r2:-d] if matched by a wildcard."
+            )
+        );
+        assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v"));
+        assertThat(ex.getMetadata("es.esql.dataset.names"), containsInAnyOrder("r2:d"));
+    }
+
+    public void testCheckForRemoteResourceErrorsCollectsFromAnAlreadyCombinedRemote() {
+        // A single remote that hosts both kinds combines them into RemoteResourceNotSupportedException before it reaches
+        // the coordinator; the coordinator must collect both kinds from that combined shape, not just the per-kind ones.
+        var combined = new RemoteResourceNotSupportedException(List.of("r1:v"), List.of("r1:d"));
+        List<FieldCapabilitiesFailure> failures = List.of(
+            new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RemoteTransportException("test failure", combined))
+        );
+        var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+        RemoteResourceNotSupportedException ex = expectThrows(
+            RemoteResourceNotSupportedException.class,
+            () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+        );
+        assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v"));
+        assertThat(ex.getMetadata("es.esql.dataset.names"), containsInAnyOrder("r1:d"));
+    }
+
     public void testUpdateExecutionInfoAtEndOfPlanning() {
         String REMOTE1_ALIAS = "remote1";
         String REMOTE2_ALIAS = "remote2";
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-        executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+        executionInfo.queryProfile().planning().start();
+        executionInfo.swapCluster(
+            LOCAL_CLUSTER_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
+        );
         executionInfo.swapCluster(
             REMOTE1_ALIAS,
-            (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
+            (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
         );
-        executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", false));
-        assertNull(executionInfo.planningTookTime());
+        executionInfo.swapCluster(
+            REMOTE2_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(
+                REMOTE2_ALIAS,
+                "mylogs1,mylogs2,logs*",
+                false,
+                EsqlExecutionInfo.Cluster.Status.RUNNING
+            )
+        );
+        assertNull(executionInfo.queryProfile().planning().timeTook());
         assertNull(executionInfo.overallTook());
 
         safeSleep(1);
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
-        assertThat(executionInfo.planningTookTime().millis(), greaterThanOrEqualTo(0L));
+        assertThat(executionInfo.queryProfile().planning().timeTook().millis(), greaterThanOrEqualTo(0L));
         assertNull(executionInfo.overallTook());
 
         // only remote1 should be altered, since it is the only one marked as SKIPPED when passed into updateExecutionInfoAtEndOfPlanning
@@ -567,7 +793,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         assertThat(remote1Cluster.getSkippedShards(), equalTo(0));
         assertThat(remote1Cluster.getFailedShards(), equalTo(0));
         assertThat(remote1Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
-        assertThat(remote1Cluster.getTook().millis(), equalTo(executionInfo.planningTookTime().millis()));
+        assertThat(remote1Cluster.getTook().millis(), equalTo(executionInfo.queryProfile().planning().timeTook().millis()));
 
         EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
         assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
@@ -605,9 +831,17 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         int size = between(0, 10);
         Map<String, EsField> result = new HashMap<>(size);
         while (result.size() < size) {
-            result.put(randomAlphaOfLength(5), EsFieldTests.randomAnyEsField(1));
+            result.put(randomAlphaOfLength(5), randomSerializableEsField(1));
         }
         return result;
+    }
+
+    private EsqlExecutionInfo randomExecutionInfo(Predicate<String> skipOnPlanTimeFailurePredicate) {
+        boolean includeCcsMetadata = randomBoolean();
+        return new EsqlExecutionInfo(
+            skipOnPlanTimeFailurePredicate,
+            includeCcsMetadata ? EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY : EsqlExecutionInfo.IncludeExecutionMetadata.NEVER
+        );
     }
 
     public void testReturnSuccessWithEmptyResult() {
@@ -620,21 +854,41 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             return false;
         };
 
-        EsqlExecutionInfo.Cluster localCluster = new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false);
-        EsqlExecutionInfo.Cluster remote1 = new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "logs*", false);
-        EsqlExecutionInfo.Cluster remote2 = new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "logs*", true);
-        EsqlExecutionInfo.Cluster remote3 = new EsqlExecutionInfo.Cluster(remote3Alias, "logs*", true);
+        EsqlExecutionInfo.Cluster localCluster = createEsqlExecutionInfoCluster(
+            LOCAL_CLUSTER_ALIAS,
+            "logs*",
+            false,
+            EsqlExecutionInfo.Cluster.Status.RUNNING
+        );
+        EsqlExecutionInfo.Cluster remote1 = createEsqlExecutionInfoCluster(
+            REMOTE1_ALIAS,
+            "logs*",
+            false,
+            EsqlExecutionInfo.Cluster.Status.RUNNING
+        );
+        EsqlExecutionInfo.Cluster remote2 = createEsqlExecutionInfoCluster(
+            REMOTE2_ALIAS,
+            "logs*",
+            true,
+            EsqlExecutionInfo.Cluster.Status.RUNNING
+        );
+        EsqlExecutionInfo.Cluster remote3 = createEsqlExecutionInfoCluster(
+            remote3Alias,
+            "logs*",
+            true,
+            EsqlExecutionInfo.Cluster.Status.RUNNING
+        );
 
         // not a cross-cluster cluster search, so do not return empty result
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> localCluster);
             assertFalse(EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, noClustersException));
         }
 
         // local cluster is present, so do not return empty result
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> localCluster);
             executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> remote1);
             // TODO: this logic will be added in the follow-on PR that handles missing indices
@@ -643,7 +897,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // remote-only, one cluster is skip_unavailable=false, so do not return empty result
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> remote1);
             executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> remote2);
             assertFalse(EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, noClustersException));
@@ -652,7 +906,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         // remote-only, all clusters are skip_unavailable=true, so should return empty result with
         // NoSuchClustersException or "remote unavailable" type exception
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> remote2);
             executionInfo.swapCluster(remote3Alias, (k, v) -> remote3);
             Exception e = randomFrom(
@@ -667,7 +921,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         // remote-only, all clusters are skip_unavailable=true, but exception is not "remote unavailable" so return false
         // Note: this functionality may change in follow-on PRs, so remove this test in that case
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> remote2);
             executionInfo.swapCluster(remote3Alias, (k, v) -> remote3);
             assertFalse(EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, new NullPointerException()));
@@ -686,12 +940,32 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             return false;
         };
 
-        EsqlExecutionInfo.Cluster localCluster = new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false);
-        EsqlExecutionInfo.Cluster remote1 = new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "logs*", true);
-        EsqlExecutionInfo.Cluster remote2 = new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "logs*", true);
-        EsqlExecutionInfo.Cluster remote3 = new EsqlExecutionInfo.Cluster(remote3Alias, "logs*", true);
+        EsqlExecutionInfo.Cluster localCluster = createEsqlExecutionInfoCluster(
+            LOCAL_CLUSTER_ALIAS,
+            "logs*",
+            false,
+            EsqlExecutionInfo.Cluster.Status.RUNNING
+        );
+        EsqlExecutionInfo.Cluster remote1 = createEsqlExecutionInfoCluster(
+            REMOTE1_ALIAS,
+            "logs*",
+            true,
+            EsqlExecutionInfo.Cluster.Status.RUNNING
+        );
+        EsqlExecutionInfo.Cluster remote2 = createEsqlExecutionInfoCluster(
+            REMOTE2_ALIAS,
+            "logs*",
+            true,
+            EsqlExecutionInfo.Cluster.Status.RUNNING
+        );
+        EsqlExecutionInfo.Cluster remote3 = createEsqlExecutionInfoCluster(
+            remote3Alias,
+            "logs*",
+            true,
+            EsqlExecutionInfo.Cluster.Status.RUNNING
+        );
 
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+        EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
         executionInfo.swapCluster(localCluster.getClusterAlias(), (k, v) -> localCluster);
         executionInfo.swapCluster(remote1.getClusterAlias(), (k, v) -> remote1);
         executionInfo.swapCluster(remote2.getClusterAlias(), (k, v) -> remote2);
@@ -768,8 +1042,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         IndexPattern pattern,
         String... expectedRemotes
     ) {
-        var executionInfo = new EsqlExecutionInfo(true);
-        initCrossClusterState(indicesGrouper, createLicenseState(status), pattern, executionInfo);
+        var executionInfo = createEsqlExecutionInfo(true);
+        initCrossClusterState(indicesGrouper, createLicenseState(status), Set.of(pattern), executionInfo);
         assertThat(executionInfo.clusterAliases(), containsInAnyOrder(expectedRemotes));
     }
 
@@ -784,7 +1058,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             equalTo(
                 "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
             ),
-            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), pattern, new EsqlExecutionInfo(true))
+            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), Set.of(pattern), createEsqlExecutionInfo(true))
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
@@ -799,11 +1073,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
     static class TestIndicesExpressionGrouper implements IndicesExpressionGrouper {
         @Override
-        public Map<String, OriginalIndices> groupIndices(
-            Set<String> remoteClusterNames,
-            IndicesOptions indicesOptions,
-            String[] indexExpressions
-        ) {
+        public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indexExpressions, boolean returnLocalAll) {
             final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
             final String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 

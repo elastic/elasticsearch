@@ -12,22 +12,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StGeohash}.
+ * {@link ExpressionEvaluator} implementation for {@link StGeohash}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StGeohashFromFieldAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StGeohashFromFieldAndLiteralEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeohashFromFieldAndLiteralEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator wkbBlock;
+  private final ExpressionEvaluator wkbBlock;
 
   private final int precision;
 
@@ -35,8 +35,8 @@ public final class StGeohashFromFieldAndLiteralEvaluator implements EvalOperator
 
   private Warnings warnings;
 
-  public StGeohashFromFieldAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator wkbBlock, int precision, DriverContext driverContext) {
+  public StGeohashFromFieldAndLiteralEvaluator(Source source, ExpressionEvaluator wkbBlock,
+      int precision, DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
     this.precision = precision;
@@ -91,25 +91,19 @@ public final class StGeohashFromFieldAndLiteralEvaluator implements EvalOperator
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory wkbBlock;
+    private final ExpressionEvaluator.Factory wkbBlock;
 
     private final int precision;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock,
-        int precision) {
+    public Factory(Source source, ExpressionEvaluator.Factory wkbBlock, int precision) {
       this.source = source;
       this.wkbBlock = wkbBlock;
       this.precision = precision;

@@ -18,6 +18,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -653,7 +655,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> shrink the index");
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIdx);
-        assertAcked(indicesAdmin().prepareResizeIndex(sourceIdx, shrunkIdx).get());
+        assertAcked(ResizeIndexTestUtils.executeResize(ResizeType.SHRINK, sourceIdx, shrunkIdx, Settings.builder()));
 
         logger.info("--> snapshot the shrunk index");
         createSnapshot(repo, snapshot, Collections.singletonList(shrunkIdx));

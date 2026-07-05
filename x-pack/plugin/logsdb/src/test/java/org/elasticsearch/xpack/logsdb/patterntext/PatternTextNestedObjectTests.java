@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -59,11 +58,6 @@ public class PatternTextNestedObjectTests extends ESSingleNodeTestCase {
     private static final Settings SYNTHETIC_SETTING = Settings.builder()
         .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
         .build();
-
-    @Before
-    public void setup() {
-        assumeTrue("Only when pattern_text feature flag is enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
-    }
 
     @After
     public void cleanup() {

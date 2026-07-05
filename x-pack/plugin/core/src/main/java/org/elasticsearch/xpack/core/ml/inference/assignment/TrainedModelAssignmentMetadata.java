@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -76,6 +77,14 @@ public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = clusterState.metadata().getSingleProjectCustom(NAME);
         if (trainedModelAssignmentMetadata == null) {
             trainedModelAssignmentMetadata = clusterState.metadata().getSingleProjectCustom(DEPRECATED_NAME);
+        }
+        return trainedModelAssignmentMetadata == null ? EMPTY : trainedModelAssignmentMetadata;
+    }
+
+    public static TrainedModelAssignmentMetadata fromMetadata(ProjectMetadata projectMetadata) {
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = projectMetadata.custom(NAME);
+        if (trainedModelAssignmentMetadata == null) {
+            trainedModelAssignmentMetadata = projectMetadata.custom(DEPRECATED_NAME);
         }
         return trainedModelAssignmentMetadata == null ? EMPTY : trainedModelAssignmentMetadata;
     }
@@ -156,7 +165,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_0_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -179,7 +188,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     public boolean hasOutdatedAssignments() {
@@ -218,6 +227,10 @@ public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
 
         public boolean hasModelDeployment(String deploymentId) {
             return deploymentRoutingEntries.containsKey(deploymentId);
+        }
+
+        public Set<String> deploymentIds() {
+            return Set.copyOf(deploymentRoutingEntries.keySet());
         }
 
         public Builder addNewAssignment(String deploymentId, TrainedModelAssignment.Builder assignment) {
@@ -321,7 +334,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_0_0;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override

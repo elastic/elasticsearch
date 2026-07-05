@@ -24,7 +24,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -45,6 +44,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,7 +78,7 @@ public final class SourceConfirmedTextQuery extends Query {
         } else if (query instanceof MultiPhrasePrefixQuery) {
             return approximate((MultiPhrasePrefixQuery) query);
         } else {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
     }
 
@@ -105,7 +105,7 @@ public final class SourceConfirmedTextQuery extends Query {
     private static Query approximate(MultiPhrasePrefixQuery query) {
         Term[][] terms = query.getTerms();
         if (terms.length == 0) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         } else if (terms.length == 1) {
             // Only a prefix, approximate with a prefix query
             BooleanQuery.Builder approximation = new BooleanQuery.Builder();

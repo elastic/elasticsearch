@@ -24,11 +24,11 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
             iwc.setSoftDeletesField("_soft_deletes");
             MergePolicy mp = new SoftDeletesRetentionMergePolicy(
                 "_soft_deletes",
-                MatchAllDocsQuery::new,
+                () -> Queries.ALL_DOCS_INSTANCE,
                 new PrunePostingsMergePolicy(newLogMergePolicy(), "id")
             );
             iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));

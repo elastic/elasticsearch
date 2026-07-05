@@ -14,6 +14,7 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -48,12 +49,12 @@ import org.elasticsearch.core.SuppressForbidden;
  *     Segments smaller than this are "rounded up" to this size, i.e. treated as
  *     equal (floor) size for merge selection. This is to prevent frequent
  *     flushing of tiny segments, thus preventing a long tail in the index. Default
- *     is <code>2mb</code>.
+ *     is <code>16mb</code>.
  *
  * <li><code>index.merge.policy.max_merge_at_once</code>:
  *
  *     Maximum number of segments to be merged at a time during "normal" merging.
- *     Default is <code>10</code>.
+ *     Default is <code>16</code>.
  *
  * <li><code>index.merge.policy.max_merged_segment</code>:
  *
@@ -65,7 +66,7 @@ import org.elasticsearch.core.SuppressForbidden;
  * <li><code>index.merge.policy.segments_per_tier</code>:
  *
  *     Sets the allowed number of segments per tier. Smaller values mean more
- *     merging but fewer segments. Default is <code>10</code>. Note, this value needs to be
+ *     merging but fewer segments. Default is <code>8</code>. Note, this value needs to be
  *     &gt;= than the <code>max_merge_at_once</code> otherwise you'll force too many merges to
  *     occur.
  *
@@ -116,8 +117,8 @@ public final class MergePolicyConfig {
     private final ByteSizeValue defaultMaxTimeBasedMergedSegment;
 
     public static final double DEFAULT_EXPUNGE_DELETES_ALLOWED = 10d;
-    public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = ByteSizeValue.of(2, ByteSizeUnit.MB);
-    public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
+    public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = ByteSizeValue.of(16, ByteSizeUnit.MB);
+    public static final int DEFAULT_MAX_MERGE_AT_ONCE = 16;
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = ByteSizeValue.of(5, ByteSizeUnit.GB);
     public static final Setting<ByteSizeValue> DEFAULT_MAX_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
         "indices.merge.policy.max_merged_segment",
@@ -139,9 +140,9 @@ public final class MergePolicyConfig {
         ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Setting.Property.NodeScope
     );
-    public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
+    public static final double DEFAULT_SEGMENTS_PER_TIER = 8.0d;
     /**
-     * A default value for {@link LogByteSizeMergePolicy}'s merge factor: 32. This default value differs from the Lucene default of 10 in
+     * A default value for {@link LogByteSizeMergePolicy}'s merge factor: 32. This default value differs from the Lucene default of 8 in
      * order to account for the fact that Elasticsearch uses {@link LogByteSizeMergePolicy} for time-based data, where adjacent segment
      * merging ensures that segments have mostly non-overlapping time ranges if data gets ingested in timestamp order. In turn, this allows
      * range queries on the timestamp to remain efficient with high numbers of segments since most segments either don't match the query
@@ -292,7 +293,6 @@ public final class MergePolicyConfig {
                 INDEX_MERGE_ENABLED
             );
         }
-        maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
         setMergePolicyType(mergePolicyType);
         setCompoundFormatThreshold(indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING));
         setExpungeDeletesAllowed(forceMergeDeletesPctAllowed);
@@ -365,25 +365,6 @@ public final class MergePolicyConfig {
         // LogByteSizeMergePolicy doesn't have a similar configuration option
     }
 
-    private int adjustMaxMergeAtOnceIfNeeded(int maxMergeAtOnce, double segmentsPerTier) {
-        // fixing maxMergeAtOnce, see TieredMergePolicy#setMaxMergeAtOnce
-        if (segmentsPerTier < maxMergeAtOnce) {
-            int newMaxMergeAtOnce = (int) segmentsPerTier;
-            // max merge at once should be at least 2
-            if (newMaxMergeAtOnce <= 1) {
-                newMaxMergeAtOnce = 2;
-            }
-            logger.debug(
-                "changing max_merge_at_once from [{}] to [{}] because segments_per_tier [{}] has to be higher or " + "equal to it",
-                maxMergeAtOnce,
-                newMaxMergeAtOnce,
-                segmentsPerTier
-            );
-            maxMergeAtOnce = newMaxMergeAtOnce;
-        }
-        return maxMergeAtOnce;
-    }
-
     @SuppressForbidden(reason = "we always use an appropriate merge scheduler alongside this policy so NoMergePolic#INSTANCE is ok")
     MergePolicy getMergePolicy(boolean isTimeBasedIndex) {
         if (mergesEnabled == false) {
@@ -398,26 +379,32 @@ public final class MergePolicyConfig {
             return new CompoundFileThreshold(1.0d);
         } else if (noCFSRatio.equalsIgnoreCase("false")) {
             return new CompoundFileThreshold(0.0d);
-        } else {
+        }
+        NumberFormatException suppressedNfe = null;
+        if (noCFSRatio.endsWith("b") == false) {
+            // If the value ends with a `b`, it implies it is probably a byte size value, so do not try to parse as a ratio at all.
+            // The main motivation is to make parsing faster. Using exception throwing and catching when trying to parse
+            // as a ratio as a means of identifying that a string is not a ratio can be quite slow.
             try {
-                try {
-                    return new CompoundFileThreshold(Double.parseDouble(noCFSRatio));
-                } catch (NumberFormatException ex) {
-                    throw new IllegalArgumentException(
-                        "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
-                            + noCFSRatio
-                            + "]",
-                        ex
-                    );
-                }
-            } catch (IllegalArgumentException e) {
-                try {
-                    return new CompoundFileThreshold(ByteSizeValue.parseBytesSizeValue(noCFSRatio, INDEX_COMPOUND_FORMAT_SETTING_KEY));
-                } catch (RuntimeException e2) {
-                    e.addSuppressed(e2);
-                }
-                throw e;
+                return new CompoundFileThreshold(Double.parseDouble(noCFSRatio));
+            } catch (NumberFormatException e) {
+                // ignore for now, see if it parses as bytes
+                suppressedNfe = e;
             }
+        }
+        try {
+            return new CompoundFileThreshold(ByteSizeValue.parseBytesSizeValue(noCFSRatio, INDEX_COMPOUND_FORMAT_SETTING_KEY));
+        } catch (ElasticsearchParseException ex) {
+            final var illegalArgumentException = new IllegalArgumentException(
+                "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
+                    + noCFSRatio
+                    + "]",
+                ex
+            );
+            if (suppressedNfe != null) {
+                illegalArgumentException.addSuppressed(suppressedNfe);
+            }
+            throw illegalArgumentException;
         }
     }
 

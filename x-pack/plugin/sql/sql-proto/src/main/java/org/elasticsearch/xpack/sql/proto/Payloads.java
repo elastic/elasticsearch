@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.KEEP_ON_COMPLETION_
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.MODE_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.PAGE_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.PARAMS_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.PROJECT_ROUTING_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.QUERY_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.REQUEST_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ROWS_NAME;
@@ -241,6 +242,9 @@ public final class Payloads {
         writeIfValidAsString(generator, KEEP_ALIVE_NAME, request.keepAlive(), TimeValue::getStringRep);
         if (request.allowPartialSearchResults()) {
             generator.writeBooleanField(ALLOW_PARTIAL_SEARCH_RESULTS_NAME, request.allowPartialSearchResults());
+        }
+        if (request.projectRouting() != null) {
+            generator.writeStringField(PROJECT_ROUTING_NAME, request.projectRouting());
         }
 
         if (extraFields != null) {

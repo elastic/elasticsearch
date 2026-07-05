@@ -12,11 +12,14 @@ import org.elasticsearch.entitlement.instrumentation.impl.InstrumentationService
 
 module org.elasticsearch.entitlement.instrumentation {
     requires org.objectweb.asm;
+    requires org.objectweb.asm.tree;
+    requires org.objectweb.asm.tree.analysis;
     requires org.objectweb.asm.util;
     requires org.elasticsearch.entitlement;
 
     requires static org.elasticsearch.base; // for SuppressForbidden
     requires org.elasticsearch.logging;
+    requires static org.elasticsearch.entitlement.bridge; // for NotEntitledException
 
     provides InstrumentationService with InstrumentationServiceImpl;
 }

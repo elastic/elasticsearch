@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BwcVersions
+import org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin
 import org.elasticsearch.gradle.internal.JarApiComparisonTask
 
 import static org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin.buildBwcTaskName
@@ -28,16 +29,18 @@ buildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ex
     }
   }
 
+  ext.proj = project
   dependencies {
     if (unreleasedVersion) {
       // For unreleased snapshot versions, build them from source
-      "oldJar${baseName}"(files(project(unreleasedVersion.gradleProjectPath).tasks.named(buildBwcTaskName(project.name))))
-    } else if(bwcVersion.onOrAfter('8.7.0') && project.name.endsWith("logging")==false) {
+      def named = proj.project(unreleasedVersion.gradleProjectPath).tasks.named(InternalDistributionBwcSetupPlugin.buildBwcTaskName(proj.name))
+      "oldJar${baseName}"(files(named))
+    } else if(bwcVersion.onOrAfter('8.7.0') && proj.name.endsWith("logging")==false) {
       //there was a package rename in 8.7.0, except for es-logging
-      "oldJar${baseName}"("org.elasticsearch.plugin:elasticsearch-${project.name}:${bwcVersion}")
+      "oldJar${baseName}"("org.elasticsearch.plugin:elasticsearch-${proj.name}:${bwcVersion}")
     } else {
       // For released versions, download it
-      "oldJar${baseName}"("org.elasticsearch:elasticsearch-${project.name}:${bwcVersion}")
+      "oldJar${baseName}"("org.elasticsearch:elasticsearch-${proj.name}:${bwcVersion}")
     }
   }
 

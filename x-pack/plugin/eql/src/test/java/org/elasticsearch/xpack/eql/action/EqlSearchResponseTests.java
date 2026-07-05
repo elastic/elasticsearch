@@ -8,15 +8,14 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.ToXContent;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -43,16 +41,31 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<EqlSearchResponse> {
 
+    @Override
+    protected void dispose(EqlSearchResponse instance) {
+        if (instance != null) {
+            instance.decRef();
+        }
+    }
+
     public void testFromXContent() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values()).canonical();
         EqlSearchResponse response = randomEqlSearchResponse(xContentType);
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        EqlSearchResponse parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsed = EqlSearchResponse.fromXContent(parser);
+        try {
+            boolean humanReadable = randomBoolean();
+            BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+            EqlSearchResponse parsed;
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                parsed = EqlSearchResponse.fromXContent(parser);
+            }
+            try {
+                assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+            } finally {
+                parsed.decRef();
+            }
+        } finally {
+            response.decRef();
         }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
     private static class RandomSource implements ToXContentObject {
@@ -177,6 +190,31 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
         return EqlSearchResponse::new;
     }
 
+    public void testDirectoryMetricsSerializationRoundTrip() throws IOException {
+        long bytesRead = randomNonNegativeLong();
+        EqlSearchResponse response = createTestInstance();
+        response.setDirectoryMetrics(storeMetrics(bytesRead));
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(
+            List.of(new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, StoreMetrics.NAME, StoreMetrics::new))
+        );
+        try {
+            EqlSearchResponse deserialized = copyWriteable(response, registry, EqlSearchResponse::new, TransportVersion.current());
+            try {
+                assertEquals(bytesRead, deserialized.directoryMetrics().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
+            } finally {
+                deserialized.decRef();
+            }
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private static DirectoryMetrics storeMetrics(long bytesRead) {
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(StoreMetrics.NAME, new StoreMetrics(bytesRead));
+        return builder.build();
+    }
+
     public static EqlSearchResponse randomEqlSearchResponse(XContentType xContentType) {
         TotalHits totalHits = null;
         if (randomBoolean()) {
@@ -287,27 +325,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
         }
         List<Event> mutatedEvents = new ArrayList<>(original.size());
         for (Event e : original) {
-            mutatedEvents.add(
-                new Event(
-                    e.index(),
-                    e.id(),
-                    e.source(),
-                    e.fetchFields(),
-                    version.onOrAfter(TransportVersions.V_8_10_X) ? e.missing() : e.index().isEmpty()
-                )
-            );
+            mutatedEvents.add(new Event(e.index(), e.id(), e.source(), e.fetchFields(), e.missing()));
         }
         return mutatedEvents;
-    }
-
-    public void testEmptyIndexAsMissingEvent() throws IOException {
-        Event event = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null, false);
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersions.V_8_9_X);// 8.9.1
-        event.writeTo(out);
-        ByteArrayStreamInput in = new ByteArrayStreamInput(out.bytes().array());
-        in.setTransportVersion(TransportVersions.V_8_9_X);
-        Event event2 = Event.readFrom(in);
-        assertTrue(event2.missing());
     }
 }

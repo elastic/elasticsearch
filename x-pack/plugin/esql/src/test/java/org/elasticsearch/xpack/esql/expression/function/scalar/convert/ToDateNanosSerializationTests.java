@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class ToDateNanosSerializationTests extends AbstractUnaryScalarSerializationTests<ToDateNanos> {
     @Override
     protected ToDateNanos create(Source source, Expression child) {
-        return new ToDateNanos(source, child);
+        return new ToDateNanos(source, child, configuration());
     }
 }

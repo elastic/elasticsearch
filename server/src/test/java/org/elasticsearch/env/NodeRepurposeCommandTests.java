@@ -12,7 +12,7 @@ import joptsimple.OptionSet;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;

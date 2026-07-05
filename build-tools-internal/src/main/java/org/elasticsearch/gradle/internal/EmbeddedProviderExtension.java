@@ -18,6 +18,8 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 
+import java.util.Map;
+
 import static org.elasticsearch.gradle.internal.conventions.GUtils.capitalize;
 import static org.elasticsearch.gradle.util.GradleUtils.getJavaSourceSets;
 import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE;
@@ -37,11 +39,8 @@ public class EmbeddedProviderExtension {
         String projectName = implProject.getName();
         String capitalName = capitalize(projectName);
 
-        Configuration implConfig = project.getConfigurations().detachedConfiguration(project.getDependencies().create(implProject));
-        implConfig.attributes(attrs -> {
-            attrs.attribute(ARTIFACT_TYPE_ATTRIBUTE, DIRECTORY_TYPE);
-            attrs.attribute(EmbeddedProviderPlugin.IMPL_ATTR, true);
-        });
+        Configuration implConfig = project.getConfigurations()
+            .detachedConfiguration(project.getDependencies().project(Map.of("path", implProject.getPath())));
 
         String manifestTaskName = "generate" + capitalName + "ProviderManifest";
         Provider<Directory> generatedResourcesRoot = project.getLayout().getBuildDirectory().dir("generated-resources");
@@ -51,11 +50,17 @@ public class EmbeddedProviderExtension {
             t.getProviderImplClasspath().from(implConfig);
         });
         String implTaskName = "generate" + capitalName + "ProviderImpl";
+
+        Configuration extractedImplConfig = implConfig.copy();
+        extractedImplConfig.attributes(attrs -> {
+            attrs.attribute(ARTIFACT_TYPE_ATTRIBUTE, DIRECTORY_TYPE);
+            attrs.attribute(EmbeddedProviderPlugin.IMPL_ATTR, true);
+        });
         var generateProviderImpl = project.getTasks().register(implTaskName, Sync.class);
         generateProviderImpl.configure(t -> {
             t.into(generatedResourcesRoot.map(d -> d.dir(implTaskName)));
             t.into("IMPL-JARS/" + implName, spec -> {
-                spec.from(implConfig);
+                spec.from(extractedImplConfig);
                 spec.from(generateProviderManifest);
             });
         });

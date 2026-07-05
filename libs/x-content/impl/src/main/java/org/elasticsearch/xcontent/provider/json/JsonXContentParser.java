@@ -16,6 +16,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.exc.StreamConstraintsException;
+import com.fasterxml.jackson.core.filter.FilteringParserDelegate;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.elasticsearch.core.IOUtils;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.OptimizedTextCapable;
 import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
@@ -55,7 +57,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     private static XContentLocation getLocation(JsonProcessingException e) {
         JsonLocation loc = e.getLocation();
         if (loc != null) {
-            return new XContentLocation(loc.getLineNr(), loc.getColumnNr());
+            return new XContentLocation(loc.getLineNr(), loc.getColumnNr(), loc.getByteOffset());
         } else {
             return null;
         }
@@ -143,7 +145,19 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public XContentString optimizedText() throws IOException {
-        // TODO: enable utf-8 parsing optimization once verified it is completely safe
+        if (currentToken().isValue() == false) {
+            throwOnNoText();
+        }
+        var parser = this.parser;
+        if (parser instanceof FilteringParserDelegate delegate) {
+            parser = delegate.delegate();
+        }
+        if (parser instanceof OptimizedTextCapable optimizedTextCapableParser) {
+            var bytesRef = optimizedTextCapableParser.getValueAsText();
+            if (bytesRef != null) {
+                return bytesRef;
+            }
+        }
         return new Text(text());
     }
 
@@ -297,7 +311,16 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (loc == null) {
             return null;
         }
-        return new XContentLocation(loc.getLineNr(), loc.getColumnNr());
+        return new XContentLocation(loc.getLineNr(), loc.getColumnNr(), loc.getByteOffset());
+    }
+
+    @Override
+    public XContentLocation getCurrentLocation() {
+        JsonLocation loc = parser.getCurrentLocation();
+        if (loc == null) {
+            return null;
+        }
+        return new XContentLocation(loc.getLineNr(), loc.getColumnNr(), loc.getByteOffset());
     }
 
     @Override

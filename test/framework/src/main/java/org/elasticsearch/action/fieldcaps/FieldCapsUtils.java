@@ -61,7 +61,12 @@ public enum FieldCapsUtils {
                 .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
             List<String> indices = a[1] == null ? Collections.emptyList() : (List<String>) a[1];
             List<FieldCapabilitiesFailure> failures = a[2] == null ? Collections.emptyList() : (List<FieldCapabilitiesFailure>) a[2];
-            return new FieldCapabilitiesResponse(indices.toArray(String[]::new), responseMap, failures);
+
+            return FieldCapabilitiesResponse.builder()
+                .withIndices(indices.toArray(String[]::new))
+                .withFields(responseMap)
+                .withFailures(failures)
+                .build();
         }
     );
 
@@ -112,11 +117,13 @@ public enum FieldCapsUtils {
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.IS_METADATA_FIELD);
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), FieldCapabilities.SEARCHABLE_FIELD);
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), FieldCapabilities.AGGREGATABLE_FIELD);
+        parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.INFERENCE_FIELD);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.TIME_SERIES_DIMENSION_FIELD);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.TIME_SERIES_METRIC_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.INDICES_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.NON_SEARCHABLE_INDICES_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.NON_AGGREGATABLE_INDICES_FIELD);
+        parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.NON_INFERENCE_INDICES_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.NON_DIMENSION_INDICES_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FieldCapabilities.METRIC_CONFLICTS_INDICES_FIELD);
         parser.declareObject(

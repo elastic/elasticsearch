@@ -33,6 +33,7 @@
     "params": {
       "number_of_allocations": {
         "type": "int",
+        "default": 1,
         "description": "Update the model deployment to this number of allocations."
       }
     },

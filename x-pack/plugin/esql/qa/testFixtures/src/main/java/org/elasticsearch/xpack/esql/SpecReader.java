@@ -7,15 +7,13 @@
 
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.common.Strings;
-
 import java.io.BufferedReader;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static org.junit.Assert.assertNull;
@@ -23,11 +21,6 @@ import static org.junit.Assert.assertNull;
 public final class SpecReader {
 
     private SpecReader() {}
-
-    public static List<Object[]> readScriptSpec(URL source, String url, Parser parser) throws Exception {
-        Objects.requireNonNull(source, "Cannot find resource " + url);
-        return readURLSpec(source, parser);
-    }
 
     public static List<Object[]> readScriptSpec(List<URL> urls, Parser parser) throws Exception {
         List<Object[]> results = emptyList();
@@ -47,6 +40,12 @@ public final class SpecReader {
         String fileName = EsqlTestUtils.pathAndName(source.getFile()).v2();
         String groupName = fileName.substring(0, fileName.lastIndexOf('.'));
 
+        /**
+         * Keeps the lowercased names of the found tests.
+         * <p>
+         *     Used to detect duplicated test names.
+         * </p>
+         */
         Map<String, Integer> testNames = new LinkedHashMap<>();
         List<Object[]> testCases = new ArrayList<>();
 
@@ -60,19 +59,23 @@ public final class SpecReader {
                 if (shouldSkipLine(line) == false) {
                     // parse test name
                     if (testName == null) {
-                        if (testNames.keySet().contains(line)) {
+                        String normalizedName = line.split("#", 2)[0].trim();
+                        String lowerCasedName = normalizedName.toLowerCase(Locale.ROOT);
+                        if (testNames.containsKey(lowerCasedName)) {
                             throw new IllegalStateException(
                                 "Duplicate test name '"
-                                    + line
+                                    + normalizedName
                                     + "' at line "
                                     + lineNumber
-                                    + " (previously seen at line "
-                                    + testNames.get(line)
+                                    + " in file '"
+                                    + fileName
+                                    + "' (previously seen at line "
+                                    + testNames.get(lowerCasedName)
                                     + ")"
                             );
                         } else {
-                            testName = Strings.capitalize(line);
-                            testNames.put(testName, Integer.valueOf(lineNumber));
+                            testName = line;
+                            testNames.put(lowerCasedName, Integer.valueOf(lineNumber));
                         }
                     } else {
                         Object result = parser.parse(line);

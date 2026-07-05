@@ -53,9 +53,7 @@ public class FillMaskProcessor extends NlpTask.Processor {
             }
         }
 
-        if (ve.validationErrors().isEmpty() == false) {
-            throw ve;
-        }
+        ve.throwIfValidationErrorsExist();
     }
 
     @Override

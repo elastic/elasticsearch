@@ -26,6 +26,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -62,8 +63,8 @@ public class CartesianPointDocValuesQueryTests extends ESTestCase {
         for (int i = 0; i < 25; i++) {
             Geometry geometry = ShapeTestUtils.randomGeometry(false);
             for (ShapeRelation relation : ShapeRelation.values()) {
-                Query indexQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, true, false);
-                Query docValQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, false, true);
+                Query indexQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, IndexType.points(true, false));
+                Query docValQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, IndexType.docValuesOnly());
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }
@@ -102,8 +103,8 @@ public class CartesianPointDocValuesQueryTests extends ESTestCase {
         for (int i = 0; i < 25; i++) {
             Geometry geometry = ShapeTestUtils.randomGeometry(false);
             for (ShapeRelation relation : ShapeRelation.values()) {
-                Query indexQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, true, false);
-                Query docValQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, false, true);
+                Query indexQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, IndexType.points(true, false));
+                Query docValQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, IndexType.docValuesOnly());
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }

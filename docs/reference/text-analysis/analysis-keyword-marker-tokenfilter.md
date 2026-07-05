@@ -17,7 +17,7 @@ To work properly, the `keyword_marker` filter must be listed before any stemmer 
 ::::
 
 
-The `keyword_marker` filter uses Lucene’s [KeywordMarkerFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/KeywordMarkerFilter.md).
+The `keyword_marker` filter uses Lucene’s [KeywordMarkerFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/KeywordMarkerFilter.html).
 
 ## Example [analysis-keyword-marker-tokenfilter-analyze-ex]
 

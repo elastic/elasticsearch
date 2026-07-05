@@ -61,22 +61,26 @@ public class HuggingFaceChatCompletionModel extends HuggingFaceModel {
             taskType,
             service,
             HuggingFaceChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
-    HuggingFaceChatCompletionModel(
+    public HuggingFaceChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         HuggingFaceChatCompletionServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
+    }
+
+    public HuggingFaceChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings,
-            secretSettings
+            modelConfigurations,
+            modelSecrets,
+            (HuggingFaceChatCompletionServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings()
         );
     }
 

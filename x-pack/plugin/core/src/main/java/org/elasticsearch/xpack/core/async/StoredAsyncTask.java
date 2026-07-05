@@ -24,6 +24,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     private final AsyncExecutionId asyncExecutionId;
     private final Map<String, String> originHeaders;
     private volatile long expirationTimeMillis;
+    private volatile TimeValue keepAlive;
     protected final List<ActionListener<Response>> completionListeners;
     private boolean hasCompleted = false;
 
@@ -43,6 +44,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
         this.asyncExecutionId = asyncExecutionId;
         this.originHeaders = originHeaders;
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
+        this.keepAlive = keepAlive;
         this.completionListeners = new ArrayList<>();
     }
 
@@ -60,12 +62,18 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
      * Update the expiration time of the (partial) response.
      */
     @Override
-    public void setExpirationTime(long expirationTime) {
+    public void setExpirationTime(long expirationTime, TimeValue keepAlive) {
         this.expirationTimeMillis = expirationTime;
+        this.keepAlive = keepAlive;
     }
 
     public long getExpirationTimeMillis() {
         return expirationTimeMillis;
+    }
+
+    @Override
+    public TimeValue getKeepAlive() {
+        return keepAlive;
     }
 
     public synchronized boolean addCompletionListener(Supplier<ActionListener<Response>> listenerSupplier) {

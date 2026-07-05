@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Tuple;
@@ -16,6 +17,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -28,7 +31,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
-import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsyncId;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.getAsyncResponse;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQuery;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQueryWithPragmas;
@@ -42,6 +44,11 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CrossClusterAsyncQueryStopIT.class);
+
+    @Override
+    protected boolean reuseClusters() {
+        return false;
+    }
 
     public void testStopQuery() throws Exception {
         assumeTrue("Pragma does not work in release builds", Build.current().isSnapshot());
@@ -125,7 +132,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
         } finally {
             // Ensure proper cleanup if the test fails
             CountingPauseFieldPlugin.allowEmitting.countDown();
-            assertAcked(deleteAsyncId(client(), asyncExecutionId));
+            deleteAsyncId(client(), asyncExecutionId);
         }
     }
 
@@ -145,16 +152,16 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
         // If a node is both data and coordinator, and all drivers are blocked by the allowEmitting latch,
         // there are no workers left to execute the final driver or fetch pages from remote clusters.
         // This can prevent remote clusters from being marked as successful on the coordinator, even if they
-        // have completed. To avoid this, we reserve at least one worker for the final driver and page fetching.
-        // A single worker is enough, as these two tasks can be paused and yielded.
+        // have completed. To avoid this, we lower the concurrency to 1 or 2.
         var threadpool = cluster(LOCAL_CLUSTER).getInstance(TransportService.class).getThreadPool();
         int maxEsqlWorkers = threadpool.info(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME).getMax();
-        LOGGER.info("--> Launching async query");
+        int concurrency = between(1, maxEsqlWorkers > 3 ? 2 : 1);
+        LOGGER.info("--> Launching async query with concurrency={} max={}", concurrency, maxEsqlWorkers);
         final String asyncExecutionId = startAsyncQueryWithPragmas(
             client,
             "FROM blocking,*:logs-* | STATS total=sum(coalesce(const,v)) | LIMIT 1",
             includeCCSMetadata.v1(),
-            Map.of(QueryPragmas.TASK_CONCURRENCY.getKey(), between(1, maxEsqlWorkers - 1))
+            Map.of(QueryPragmas.TASK_CONCURRENCY.getKey(), concurrency)
         );
         try {
             // wait until we know that the local query against 'blocking' has started
@@ -222,7 +229,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
             }
         } finally {
             SimplePauseFieldPlugin.allowEmitting.countDown();
-            assertAcked(deleteAsyncId(client, asyncExecutionId));
+            deleteAsyncId(client, asyncExecutionId);
         }
     }
 
@@ -265,7 +272,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
             }
         } finally {
             SimplePauseFieldPlugin.allowEmitting.countDown();
-            assertAcked(deleteAsyncId(client(), asyncExecutionId));
+            deleteAsyncId(client(), asyncExecutionId);
         }
     }
 
@@ -314,9 +321,13 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
                 assertThat(asyncResponse.columns().size(), equalTo(2));
                 AtomicInteger i = new AtomicInteger(0);
                 asyncResponse.values().forEachRemaining(row -> {
-                    // We will have all rows here but total will be null since we stopped the inline stats before it could complete
-                    assertThat(row.next(), equalTo(null));
                     var v = row.next();
+                    // The sum could be null, if the stats did not manage to compute anything before being stopped
+                    // Or it could be 45L if it managed to add 0-9
+                    if (v != null) {
+                        assertThat((long) v, lessThanOrEqualTo(45L));
+                    }
+                    v = row.next();
                     if (v != null) {
                         assertThat((long) v, lessThanOrEqualTo(10L));
                     }
@@ -347,7 +358,16 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
         } finally {
             // Ensure proper cleanup if the test fails
             CountingPauseFieldPlugin.allowEmitting.countDown();
-            assertAcked(deleteAsyncId(client(), asyncExecutionId));
+            deleteAsyncId(client(), asyncExecutionId);
+        }
+    }
+
+    public void deleteAsyncId(Client client, String id) {
+        try {
+            DeleteAsyncResultRequest request = new DeleteAsyncResultRequest(id);
+            assertAcked(client.execute(TransportDeleteAsyncResultAction.TYPE, request).actionGet(30, TimeUnit.SECONDS));
+        } catch (ElasticsearchTimeoutException e) {
+            LOGGER.warn("timeout waiting for DELETE response: {}: {}", id, e);
         }
     }
 

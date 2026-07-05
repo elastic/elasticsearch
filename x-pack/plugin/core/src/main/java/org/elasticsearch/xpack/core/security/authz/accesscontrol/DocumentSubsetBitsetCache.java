@@ -38,7 +38,6 @@ import org.elasticsearch.lucene.util.MatchAllBitSet;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -316,7 +315,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         stats.put("evictions", cacheStats.getEvictions());
         stats.put("hits_time_in_millis", TimeValue.nsecToMSec(hitsTimeInNanos.sum()));
         stats.put("misses_time_in_millis", TimeValue.nsecToMSec(missesTimeInNanos.sum()));
-        return Collections.unmodifiableMap(stats);
+        return stats;
     }
 
     private static final class BitsetCacheKey {

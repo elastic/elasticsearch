@@ -18,9 +18,12 @@ import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -32,6 +35,17 @@ import static org.elasticsearch.xpack.eql.execution.search.OrdinalTests.randomTi
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.FULL;
 
 public class CriterionOrdinalExtractionTests extends ESTestCase {
+
+    private final List<SearchHit> pooledHitsToRelease = new ArrayList<>();
+
+    @After
+    public void releasePooledSearchHits() {
+        for (SearchHit h : pooledHitsToRelease) {
+            h.decRef();
+        }
+        pooledHitsToRelease.clear();
+    }
+
     private String tsField = "timestamp";
     private String tbField = "tiebreaker";
 
@@ -153,10 +167,10 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
         Map<String, DocumentField> fields = new HashMap<>();
         fields.put(tsField, new DocumentField(tsField, singletonList(timeValue)));
         fields.put(tbField, new DocumentField(tsField, singletonList(tiebreakerValue)));
-        SearchHit searchHit = SearchHit.unpooled(randomInt(), randomAlphaOfLength(10));
+        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLength(10));
         searchHit.addDocumentFields(fields, Map.of());
         searchHit.sortValues(searchSortValues.get());
-
+        pooledHitsToRelease.add(searchHit);
         return searchHit;
     }
 

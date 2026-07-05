@@ -34,39 +34,48 @@
     "params": {
       "exclude_interim": {
         "type": "boolean",
+        "default": false,
         "description": "Exclude interim results"
       },
       "from": {
         "type": "int",
+        "default": 0,
         "description": "skips a number of records"
       },
       "size": {
         "type": "int",
+        "default": 100,
         "description": "specifies a max number of records to get"
       },
       "start": {
-        "type": "string",
+        "type": "date",
+        "default": "-1",
         "description": "Start time filter for records"
       },
       "end": {
-        "type": "string",
+        "type": "date",
+        "default": "-1",
         "description": "End time filter for records"
       },
       "record_score": {
         "type": "double",
+        "default": 0,
         "description": "Returns records with anomaly scores greater or equal than this value"
       },
       "sort": {
         "type": "string",
+        "default": "record_score",
         "description": "Sort records by a particular field"
       },
       "desc": {
         "type": "boolean",
+        "default": false,
         "description": "Set the sort direction"
       }
     },
     "body": {
-      "description": "Record selection criteria"
+      "description": "Record selection criteria",
+      "required": false
     }
   }
 }

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -17,6 +16,8 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -39,6 +40,11 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
     private boolean explain;
     private boolean rewrite;
     private boolean allShards;
+    @Nullable
+    private String routing;
+    @Nullable
+    private String searchSlice;
+    private boolean routingFromSlice;
 
     long nowInMillis;
 
@@ -49,17 +55,18 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
     public ValidateQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            int typesSize = in.readVInt();
-            if (typesSize > 0) {
-                for (int i = 0; i < typesSize; i++) {
-                    in.readString();
-                }
-            }
-        }
         explain = in.readBoolean();
         rewrite = in.readBoolean();
         allShards = in.readBoolean();
+        if (in.getTransportVersion().supports(SliceIndexing.VALIDATE_QUERY_SLICE_ROUTING_STATE_VERSION)) {
+            routing = in.readOptionalString();
+            searchSlice = in.readOptionalString();
+            routingFromSlice = in.readBoolean();
+        } else {
+            routing = null;
+            searchSlice = null;
+            routingFromSlice = false;
+        }
     }
 
     /**
@@ -134,16 +141,56 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
         return allShards;
     }
 
+    @Nullable
+    public String routing() {
+        return routing;
+    }
+
+    public ValidateQueryRequest routing(String routing) {
+        this.routing = routing;
+        return this;
+    }
+
+    public ValidateQueryRequest routing(String... routings) {
+        this.routing = Strings.arrayToCommaDelimitedString(routings);
+        return this;
+    }
+
+    @Nullable
+    public String searchSlice() {
+        return searchSlice;
+    }
+
+    public ValidateQueryRequest searchSlice(@Nullable String searchSlice) {
+        this.searchSlice = searchSlice;
+        if (searchSlice == null) {
+            if (routingFromSlice) {
+                this.routing = null;
+            }
+            this.routingFromSlice = false;
+        } else {
+            this.routingFromSlice = true;
+            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
+        }
+        return this;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeNamedWriteable(query);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeVInt(0);   // no types to filter
-        }
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
         out.writeBoolean(allShards);
+        if (out.getTransportVersion().supports(SliceIndexing.VALIDATE_QUERY_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeOptionalString(routing);
+            out.writeOptionalString(searchSlice);
+            out.writeBoolean(routingFromSlice);
+        }
     }
 
     @Override
@@ -157,7 +204,11 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
             + ", rewrite:"
             + rewrite
             + ", all_shards:"
-            + allShards;
+            + allShards
+            + ", routing:"
+            + routing
+            + ", _slice:"
+            + searchSlice;
     }
 
     @Override

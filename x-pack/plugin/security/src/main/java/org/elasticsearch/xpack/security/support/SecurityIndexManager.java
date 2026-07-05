@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -39,6 +40,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -50,10 +52,12 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
+import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 
@@ -85,6 +89,17 @@ public class SecurityIndexManager implements ClusterStateListener {
     public static final String SECURITY_VERSION_STRING = "security-version";
     protected static final String FILE_SETTINGS_METADATA_NAMESPACE = "file_settings";
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
+
+    /**
+     * Determines how long {@link #tryAwaitIndexAvailableForSearch(ActionListener)} will wait for the security index
+     * to become available for search before performing its single fresh re-check.
+     * The default value of 0 bypasses all waiting-related logic entirely.
+     */
+    private static final TimeValue SECURITY_INDEX_WAIT_TIMEOUT = TimeValue.parseTimeValue(
+        System.getProperty("es.security.security_index.wait_timeout", null),
+        TimeValue.ZERO,
+        "system property <es.security.security_index.wait_timeout>"
+    );
 
     /**
      * When checking availability, check for availability of search or availability of all primaries
@@ -158,6 +173,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             false,
             false,
             null,
+            false,
             null,
             null,
             null,
@@ -180,6 +196,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final boolean mappingUpToDate;
         public final boolean createdOnLatestVersion;
         public final RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus;
+        public final boolean securityMigrationRunning;
         public final Integer migrationsVersion;
         // Min mapping version supported by the descriptors in the cluster
         public final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion;
@@ -201,6 +218,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean mappingUpToDate,
             boolean createdOnLatestVersion,
             RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus,
+            boolean securityMigrationRunning,
             Integer migrationsVersion,
             SystemIndexDescriptor.MappingsVersion minClusterMappingVersion,
             Integer indexMappingVersion,
@@ -220,6 +238,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.migrationsVersion = migrationsVersion;
             this.createdOnLatestVersion = createdOnLatestVersion;
             this.roleMappingsCleanupMigrationStatus = roleMappingsCleanupMigrationStatus;
+            this.securityMigrationRunning = securityMigrationRunning;
             this.minClusterMappingVersion = minClusterMappingVersion;
             this.indexMappingVersion = indexMappingVersion;
             this.concreteIndexName = concreteIndexName;
@@ -247,6 +266,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && mappingUpToDate == other.mappingUpToDate
                 && createdOnLatestVersion == other.createdOnLatestVersion
                 && roleMappingsCleanupMigrationStatus == other.roleMappingsCleanupMigrationStatus
+                && securityMigrationRunning == other.securityMigrationRunning
                 && Objects.equals(indexMappingVersion, other.indexMappingVersion)
                 && Objects.equals(migrationsVersion, other.migrationsVersion)
                 && Objects.equals(minClusterMappingVersion, other.minClusterMappingVersion)
@@ -268,6 +288,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 mappingUpToDate,
                 createdOnLatestVersion,
                 roleMappingsCleanupMigrationStatus,
+                securityMigrationRunning,
                 migrationsVersion,
                 minClusterMappingVersion,
                 indexMappingVersion,
@@ -370,6 +391,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 + createdOnLatestVersion
                 + ", roleMappingsCleanupMigrationStatus="
                 + roleMappingsCleanupMigrationStatus
+                + ", securityMigrationRunning="
+                + securityMigrationRunning
                 + ", migrationsVersion="
                 + migrationsVersion
                 + ", minClusterMappingVersion="
@@ -653,6 +676,71 @@ public class SecurityIndexManager implements ClusterStateListener {
         return getProjectState(project, stateByProject);
     }
 
+    /**
+     * Resolves a fresh {@link IndexState} for the current project once the security index is available for search,
+     * waiting up to {@link #SECURITY_INDEX_WAIT_TIMEOUT} when shards are temporarily unavailable.
+     *
+     * <p>Behavior:
+     * <ul>
+     *   <li>If the index is already available for search, completes immediately with the current snapshot.</li>
+     *   <li>If the index is unavailable for a non-shards reason (e.g. closed, version mismatch, not found),
+     *       completes immediately with that failure.</li>
+     *   <li>If shards are unavailable and the wait timeout is zero, completes immediately with the
+     *       {@link UnavailableShardsException}.</li>
+     *   <li>Otherwise waits via {@link IndexState#onIndexAvailableForSearch} and, after the wait fires
+     *       (success or timeout), performs a single fresh re-check: completes successfully with the fresh snapshot
+     *       if shards are now available, or with the fresh {@link IndexState#getUnavailableReason(Availability)}
+     *       otherwise. A timeout from the wait itself is never propagated to the listener.</li>
+     * </ul>
+     */
+    public void tryAwaitIndexAvailableForSearch(ActionListener<IndexState> listener) {
+        if (SECURITY_INDEX_WAIT_TIMEOUT.equals(TimeValue.ZERO)) {
+            completeAvailableForSearchWait(listener);
+            return;
+        }
+        tryAwaitIndexAvailableForSearch(listener, SECURITY_INDEX_WAIT_TIMEOUT);
+    }
+
+    // package-private for testing
+    void tryAwaitIndexAvailableForSearch(ActionListener<IndexState> listener, TimeValue waitTimeout) {
+        final IndexState snapshot = forCurrentProject();
+        if (snapshot.isAvailable(Availability.SEARCH_SHARDS)) {
+            listener.onResponse(snapshot);
+            return;
+        }
+        final ElasticsearchException reason = snapshot.getUnavailableReason(Availability.SEARCH_SHARDS);
+        if (waitTimeout.equals(TimeValue.ZERO) || (reason instanceof UnavailableShardsException) == false) {
+            listener.onFailure(reason);
+            return;
+        }
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final ActionListener<IndexState> contextPreserving = new ContextPreservingActionListener<>(
+            threadContext.newRestorableContext(false),
+            listener
+        );
+        snapshot.onIndexAvailableForSearch(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                completeAvailableForSearchWait(contextPreserving);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(() -> "Failure while waiting for security index [" + snapshot.getConcreteIndexName() + "]", e);
+                completeAvailableForSearchWait(contextPreserving);
+            }
+        }, waitTimeout);
+    }
+
+    private void completeAvailableForSearchWait(ActionListener<IndexState> listener) {
+        final IndexState current = forCurrentProject();
+        if (current.isAvailable(Availability.SEARCH_SHARDS)) {
+            listener.onResponse(current);
+        } else {
+            listener.onFailure(current.getUnavailableReason(Availability.SEARCH_SHARDS));
+        }
+    }
+
     private IndexState getProjectState(ProjectId project, Map<ProjectId, IndexState> byProject) {
         if (byProject == null) {
             return unavailableState(project, ProjectStatus.CLUSTER_NOT_RECOVERED);
@@ -775,7 +863,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             final IndexState previousState = getProjectState(projectId, previousStateByProject);
             final IndexState newState = updateProjectState(clusterState.projectState(projectId));
 
-            if (newState.equals(previousState) == false) {
+            if (shouldNotifyListeners(newState, previousState)) {
                 notifications.add(() -> {
                     for (var listener : stateChangeListeners) {
                         listener.apply(projectId, previousState, newState);
@@ -807,6 +895,25 @@ public class SecurityIndexManager implements ClusterStateListener {
         notifications.forEach(Runnable::run);
     }
 
+    private static boolean shouldNotifyListeners(IndexState newState, IndexState previousState) {
+        if (newState.equals(previousState)) {
+            // If we add a new migration (in code), but don't change anything internal to the index state then the `IndexState`` will never
+            // change (unless the index health changes) but we do want to treat changes to "is-up-to-date-with-migrations" as a state change
+            // However we can't do that (easily) with a flag in `IndexState` because that flag wouldn't change - as soon as the new version
+            // of the code was deployed it would think that the state was "not-up-to-date" and wouldn't detect a change.
+            // Instead we just handle it as a special case here.
+            // But, this class manages multiple different indices, not all of which have migrations defined. So we only trigger this is
+            // the index has had at least 1 migration before (if the index is entirely new then it will be picked up by other state changes)
+            return newState.indexExists()
+                && newState.securityMigrationRunning == false
+                && newState.migrationsVersion != null
+                && newState.migrationsVersion > 0
+                && newState.migrationsVersion < SecurityMigrations.highestMigrationVersion();
+        } else {
+            return true;
+        }
+    }
+
     private IndexState updateProjectState(ProjectState project) {
         final IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), project.metadata());
         final boolean createdOnLatestVersion = isCreatedOnLatestVersion(indexMetadata);
@@ -821,6 +928,9 @@ public class SecurityIndexManager implements ClusterStateListener {
             project,
             migrationsVersion
         );
+        var persistentTaskCustomMetadata = PersistentTasksCustomMetadata.get(project.metadata());
+        final boolean securityMigrationRunning = persistentTaskCustomMetadata != null
+            && persistentTaskCustomMetadata.getTask(SecurityMigrationTaskParams.TASK_NAME) != null;
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(project);
         final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(project);
         final int indexMappingVersion = loadIndexMappingVersion(systemIndexDescriptor.getAliasName(), project.metadata());
@@ -853,6 +963,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             mappingIsUpToDate,
             createdOnLatestVersion,
             roleMappingsCleanupMigrationStatus,
+            securityMigrationRunning,
             migrationsVersion,
             minClusterMappingVersion,
             indexMappingVersion,

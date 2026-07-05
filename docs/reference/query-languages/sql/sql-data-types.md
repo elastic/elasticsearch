@@ -15,7 +15,7 @@ mapped_pages:
 | [`short`](/reference/elasticsearch/mapping-reference/number.md) | `short` | SMALLINT | 5 |
 | [`integer`](/reference/elasticsearch/mapping-reference/number.md) | `integer` | INTEGER | 10 |
 | [`long`](/reference/elasticsearch/mapping-reference/number.md) | `long` | BIGINT | 19 |
-| [`unsigned_long`](/reference/elasticsearch/mapping-reference/number.md) | `[preview] unsigned_long` | BIGINT | 20 |
+| [`unsigned_long`](/reference/elasticsearch/mapping-reference/number.md) | {applies_to}`stack: preview` {applies_to}`serverless: preview` `unsigned_long` | BIGINT | 20 |
 | [`double`](/reference/elasticsearch/mapping-reference/number.md) | `double` | DOUBLE | 15 |
 | [`float`](/reference/elasticsearch/mapping-reference/number.md) | `float` | REAL | 7 |
 | [`half_float`](/reference/elasticsearch/mapping-reference/number.md) | `half_float` | FLOAT | 3 |
@@ -96,6 +96,7 @@ Consider the following `string` mapping:
   }
 }
 ```
+% NOTCONSOLE
 
 The following SQL query:
 

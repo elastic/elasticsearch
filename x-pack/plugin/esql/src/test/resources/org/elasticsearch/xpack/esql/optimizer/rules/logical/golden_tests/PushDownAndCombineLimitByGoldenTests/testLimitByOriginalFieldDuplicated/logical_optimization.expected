@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_LimitBy[5[INTEGER],[emp_no{f}#0],true]
+  \_Join[LEFT,[language_code{r}#1],[language_code{f}#2],null]
+    |_Eval[[languages{f}#3 AS language_code#1]]
+    | \_LimitBy[5[INTEGER],[emp_no{f}#0],false]
+    |   \_EsRelation[employees][avg_worked_seconds{f}#4, birth_date{f}#5, emp_no{f}#0, first_name{f}#6, gender{f}#7, height{f}#8, height.float{f}#9, height.half_float{f}#10, height.scaled_float{f}#11, hire_date{f}#12, is_rehired{f}#13, job_positions{f}#14, languages{f}#3, languages.byte{f}#15, languages.long{f}#16, languages.short{f}#17, last_name{f}#18, salary{f}#19, salary_change{f}#20, salary_change.int{f}#21, salary_change.keyword{f}#22, salary_change.long{f}#23, still_hired{f}#24]
+    \_EsRelation[languages_lookup][LOOKUP][language_code{f}#2, language_name{f}#25]

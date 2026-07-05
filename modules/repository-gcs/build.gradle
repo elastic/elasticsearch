@@ -52,8 +52,9 @@ dependencies {
   runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   implementation 'com.google.apis:google-api-services-storage:v1-rev20250224-2.0.0'
   implementation 'org.checkerframework:checker-qual:3.49.0'
-  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.47.0'
-  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.47.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.62.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-common:1.62.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.62.0'
   runtimeOnly 'com.google.api.grpc:proto-google-cloud-storage-v2:2.50.0'
   runtimeOnly 'io.grpc:grpc-api:1.70.0'
 
@@ -275,7 +276,6 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyUnitTest", Test) {
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/GoogleCloudStorageThirdPartyTests.class'
-  systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
   systemProperty 'test.google.fixture', Boolean.toString(useFixture)
   nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + buildParams.testSeed
@@ -288,6 +288,20 @@ tasks.register('gcsThirdPartyTest') {
   dependsOn 'yamlRestTest', gcsThirdPartyTest
 }
 
+// Run the ADC fallback test in its own JVM so the DefaultCredentialsProvider singleton
+// (cachedCredentials, checkedComputeEngine) starts with a clean state. Sharing a JVM with
+// other tests causes flaky failures when the singleton is primed before this test runs.
+tasks.named("test").configure {
+  exclude '**/GoogleCloudStorageAdcTests.class'
+}
+
+def gcsAdcTest = tasks.register("gcsAdcTest", Test) {
+  setTestClassesDirs(sourceSets.test.output.classesDirs)
+  setClasspath(sourceSets.test.runtimeClasspath)
+  include '**/GoogleCloudStorageAdcTests.class'
+  environment.remove('GOOGLE_APPLICATION_CREDENTIALS')
+}
+
 tasks.named('check') {
-  dependsOn gcsThirdPartyTest
+  dependsOn gcsThirdPartyTest, gcsAdcTest
 }

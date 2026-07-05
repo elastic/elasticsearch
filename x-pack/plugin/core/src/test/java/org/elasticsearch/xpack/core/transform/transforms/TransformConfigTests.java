@@ -7,15 +7,19 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -27,6 +31,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
@@ -45,9 +50,11 @@ import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
 
@@ -192,7 +199,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            TransformConfigVersion.CURRENT.toString()
+            TransformConfigVersion.CURRENT.toString(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16)
         );
     }
 
@@ -232,7 +240,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            version == null ? null : version.toString()
+            version == null ? null : version.toString(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16)
         );
     }
 
@@ -314,9 +323,9 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     @Override
     protected TransformConfig doParseInstance(XContentParser parser) throws IOException {
         if (randomBoolean()) {
-            return TransformConfig.fromXContent(parser, transformId, runWithHeaders);
+            return TransformConfig.fromXContent(parser, transformId, runWithHeaders, new TransformParsingContext(false));
         } else {
-            return TransformConfig.fromXContent(parser, null, runWithHeaders);
+            return TransformConfig.fromXContent(parser, null, runWithHeaders, new TransformParsingContext(false));
         }
     }
 
@@ -328,6 +337,31 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     @Override
     protected TransformConfig mutateInstance(TransformConfig instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected TransformConfig mutateInstanceForVersion(TransformConfig instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
+    }
+
+    public static TransformConfig mutateForVersion(TransformConfig instance, TransportVersion version) {
+        return new TransformConfig(
+            instance.getId(),
+            SourceConfigTests.mutateForVersion(instance.getSource(), version),
+            instance.getDestination(),
+            instance.getFrequency(),
+            instance.getSyncConfig(),
+            instance.getHeaders(),
+            instance.getPivotConfig(),
+            instance.getLatestConfig(),
+            instance.getDescription(),
+            instance.getSettings(),
+            instance.getMetadata(),
+            instance.getRetentionPolicyConfig(),
+            instance.getCreateTime(),
+            instance.getVersion() == null ? null : instance.getVersion().toString(),
+            version.supports(TransformConfig.TRANSFORM_CLOUD_TOKEN) ? instance.getCredentialId() : null
+        );
     }
 
     @Override
@@ -1048,6 +1082,133 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
     }
 
+    public void testCrossProjectWithFeatureEnabled() throws IOException {
+        var transformConfig = createTransformConfigFromString("""
+            {
+              "source": {
+                "index": "project-1:src",
+                "project_routing": "_alias:_origin"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""", "cross-project-feature-enabled");
+        assertNull(transformConfig.validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(true, null));
+    }
+
+    public void testCrossProjectWithFeatureDisabled() throws IOException {
+        var transformConfig = createTransformConfigFromString("""
+            {
+              "source": {
+                "index": "project-1:src",
+                "project_routing": "_alias:_origin"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""", "cross-project-feature-not-enabled");
+        var validationException = transformConfig.validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(false, null);
+        assertNotNull(validationException);
+        assertThat(
+            validationException.getMessage(),
+            containsString("Cross-project calls are not supported, but remote indices were requested: [project-1:src]")
+        );
+    }
+
+    public void testNotCrossProjectEnvironment() throws IOException {
+        var transformConfig = createTransformConfigFromString("""
+            {
+              "source": {
+                "index": "remote-1:src",
+                "project_routing": "_alias:_origin"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""", "cross-project");
+        assertNull(transformConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(new CrossProjectModeDecider(Settings.EMPTY), null));
+    }
+
+    public void testCloudApiKeyIdExposedOnPublicGet() throws IOException {
+        TransformConfig withCredential = new TransformConfig.Builder(randomTransformConfigWithoutHeaders()).setCredentialId("cred-abc")
+            .build();
+        TransformConfig withoutCredential = new TransformConfig.Builder(randomTransformConfigWithoutHeaders()).setCredentialId(null)
+            .build();
+        ToXContent.Params internalParams = new ToXContent.MapParams(Map.of(TransformField.FOR_INTERNAL_STORAGE, "true"));
+        ToXContent.Params excludeParams = new ToXContent.MapParams(Map.of(TransformField.EXCLUDE_GENERATED, "true"));
+
+        Map<String, Object> publicResult = toMap(withCredential, ToXContent.EMPTY_PARAMS);
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key.id", publicResult), equalTo("cred-abc"));
+        assertThat(XContentMapValues.extractValue("credential_id", publicResult), nullValue());
+
+        // No credential: no cloud_api_key block.
+        Map<String, Object> noCredResult = toMap(withoutCredential, ToXContent.EMPTY_PARAMS);
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key", noCredResult), nullValue());
+
+        // Internal storage: raw credential_id present; no cloud_api_key block.
+        Map<String, Object> internalResult = toMap(withCredential, internalParams);
+        assertThat(XContentMapValues.extractValue("credential_id", internalResult), equalTo("cred-abc"));
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key", internalResult), nullValue());
+
+        // exclude_generated=true: neither field present.
+        Map<String, Object> excludeResult = toMap(withCredential, excludeParams);
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key", excludeResult), nullValue());
+        assertThat(XContentMapValues.extractValue("credential_id", excludeResult), nullValue());
+    }
+
+    private static Map<String, Object> toMap(TransformConfig config, ToXContent.Params params) throws IOException {
+        return XContentHelper.convertToMap(XContentHelper.toXContent(config, XContentType.JSON, params, false), false, XContentType.JSON)
+            .v2();
+    }
+
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {
         return createTransformConfigFromString(json, id, false);
     }
@@ -1055,6 +1216,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     private TransformConfig createTransformConfigFromString(String json, String id, boolean lenient) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
             .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
-        return TransformConfig.fromXContent(parser, id, lenient);
+        return TransformConfig.fromXContent(parser, id, lenient, new TransformParsingContext(false));
     }
 }

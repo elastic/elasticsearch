@@ -48,7 +48,6 @@ import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.io.Closeable;
@@ -304,7 +303,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     }
 
     @Override
-    public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    public void mergeOneFlatVectorField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             final float[] centroid;
             final float[] mergedCentroid = new float[fieldInfo.getVectorDimension()];
@@ -352,7 +351,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     ) throws IOException {
         DocsWithFieldSet docsWithField = new DocsWithFieldSet();
         byte[] toIndex = new byte[BQVectorUtils.discretize(floatVectorValues.dimension(), 64) / 8];
-        byte[] toQuery = new byte[(BQVectorUtils.discretize(floatVectorValues.dimension(), 64) / 8) * BQSpaceUtils.B_QUERY];
+        byte[] toQuery = new byte[(BQVectorUtils.discretize(floatVectorValues.dimension(), 64) / 8) * BinaryQuantizer.B_QUERY];
         int queryCorrectionCount = binaryQuantizer.getSimilarity() != EUCLIDEAN ? 5 : 3;
         final ByteBuffer queryCorrectionsBuffer = ByteBuffer.allocate(Float.BYTES * queryCorrectionCount + Short.BYTES)
             .order(ByteOrder.LITTLE_ENDIAN);
@@ -408,26 +407,6 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             docsWithField.add(docV);
         }
         return docsWithField;
-    }
-
-    @Override
-    public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
-            final float[] centroid;
-            final float cDotC;
-            final float[] mergedCentroid = new float[fieldInfo.getVectorDimension()];
-            int vectorCount = mergeAndRecalculateCentroids(mergeState, fieldInfo, mergedCentroid);
-
-            // Don't need access to the random vectors, we can just use the merged
-            rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
-            centroid = mergedCentroid;
-            cDotC = vectorCount > 0 ? VectorUtil.dotProduct(centroid, centroid) : 0;
-            if (segmentWriteState.infoStream.isEnabled(BINARIZED_VECTOR_COMPONENT)) {
-                segmentWriteState.infoStream.message(BINARIZED_VECTOR_COMPONENT, "Vectors' count:" + vectorCount);
-            }
-            return mergeOneFieldToIndex(segmentWriteState, fieldInfo, mergeState, centroid, cDotC);
-        }
-        return rawVectorDelegate.mergeOneFieldToIndex(fieldInfo, mergeState);
     }
 
     private CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(
@@ -753,7 +732,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             this.vectorSimilarityFunction = vectorSimilarityFunction;
             this.correctiveValuesSize = vectorSimilarityFunction != EUCLIDEAN ? 5 : 3;
             // 4x the quantized binary dimensions
-            int binaryDimensions = (BQVectorUtils.discretize(dimension, 64) / 8) * BQSpaceUtils.B_QUERY;
+            int binaryDimensions = (BQVectorUtils.discretize(dimension, 64) / 8) * BinaryQuantizer.B_QUERY;
             this.byteBuffer = ByteBuffer.allocate(binaryDimensions);
             this.binaryValue = byteBuffer.array();
             this.correctiveValues = new float[correctiveValuesSize];

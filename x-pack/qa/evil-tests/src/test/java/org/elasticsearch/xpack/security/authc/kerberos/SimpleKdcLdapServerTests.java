@@ -12,20 +12,16 @@ import com.unboundid.ldap.sdk.SearchResult;
 import com.unboundid.ldap.sdk.SearchScope;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
-import org.ietf.jgss.GSSException;
 
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.PrivilegedActionException;
-import java.text.ParseException;
 import java.util.Base64;
-
-import javax.security.auth.login.LoginException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -39,8 +35,9 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         simpleKdcLdapServer.createPrincipal(workDir.resolve("p1p2.keytab"), "p1", "p2");
         assertTrue(Files.exists(workDir.resolve("p1p2.keytab")));
         try (
-            LDAPConnection ldapConn = LdapUtils.privilegedConnect(
-                () -> new LDAPConnection("localhost", simpleKdcLdapServer.getLdapListenPort())
+            LDAPConnection ldapConn = new LDAPConnection(
+                NetworkAddress.format(InetAddress.getLoopbackAddress()),
+                simpleKdcLdapServer.getLdapListenPort()
             );
         ) {
             assertThat(ldapConn.isConnected(), is(true));
@@ -50,7 +47,7 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         }
     }
 
-    public void testClientServiceMutualAuthentication() throws PrivilegedActionException, GSSException, LoginException, ParseException {
+    public void testClientServiceMutualAuthentication() throws Exception {
         final String serviceUserName = randomFrom(serviceUserNames);
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);

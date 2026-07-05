@@ -1,0 +1,231 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.codec.tsdb;
+
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.TsidBuilder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
+
+import java.util.List;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+
+public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
+
+    protected abstract void assumeCodecSelected();
+
+    protected abstract void assertTSDBDocValuesFormat(DocValuesFormat format, String field);
+
+    protected abstract void assertStandardIndexDocValuesFormat(DocValuesFormat format, String field);
+
+    protected abstract String expectedCodecName();
+
+    public void testTSDBWithSinglePrefixByte() throws Exception {
+        assumeCodecSelected();
+        assumeTrue("require single prefix byte to enable partitions", TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
+        final String indexName = "tsdb-test";
+        final Settings settings = tsdbSettings();
+
+        createIndex(
+            indexName,
+            settings,
+            "@timestamp",
+            "type=date",
+            "hostname",
+            "type=keyword,time_series_dimension=true",
+            "gauge",
+            "type=long,time_series_metric=gauge"
+        );
+        indexDocuments(indexName);
+
+        final Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_tsid", "_ts_routing_hash");
+        assertDocValuesFormat(indexName, expectedFields);
+
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
+        final IndexShard shard = indexService.getShard(0);
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            assertTrue(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
+            PartitionedDocValues.PrefixPartitions partition = null;
+            for (LeafReaderContext leaf : searcher.getLeafContexts()) {
+                final SortedDocValues dv = leaf.reader().getSortedDocValues("_tsid");
+                assertThat(dv, instanceOf(PartitionedDocValues.class));
+                partition = ((PartitionedDocValues) dv).prefixPartitions(partition);
+                assertNotNull(partition);
+            }
+        }
+    }
+
+    public void testTSDBWithMultiplePrefixByte() throws Exception {
+        assumeCodecSelected();
+        assumeFalse("require multiple byte prefix to disable partitions", TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
+        final String indexName = "tsdb-test";
+        final Settings settings = tsdbSettings();
+
+        createIndex(
+            indexName,
+            settings,
+            "@timestamp",
+            "type=date",
+            "hostname",
+            "type=keyword,time_series_dimension=true",
+            "gauge",
+            "type=long,time_series_metric=gauge"
+        );
+        indexDocuments(indexName);
+
+        final Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_tsid", "_ts_routing_hash");
+        assertDocValuesFormat(indexName, expectedFields);
+
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
+        final IndexShard shard = indexService.getShard(0);
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            assertFalse(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
+        }
+    }
+
+    public void testStandardIndexWithTSDBDocValuesFormatSetting() throws Exception {
+        assumeCodecSelected();
+        final String indexName = "standard-tsdb-dv-test";
+        final Settings settings = Settings.builder().put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true).build();
+
+        createIndex(indexName, settings, "@timestamp", "type=date", "hostname", "type=keyword", "gauge", "type=long");
+        indexDocuments(indexName);
+
+        final Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_seq_no");
+        for (String field : expectedFields) {
+            final DocValuesFormat format = getDocValuesFormatForField(indexName, field);
+            assertStandardIndexDocValuesFormat(format, field);
+        }
+    }
+
+    public void testTimeSeriesDocValuesFormatLargeBinaryBlockSize() throws Exception {
+        assumeCodecSelected();
+        final String indexName = "standard-large-binary-block-dv-test";
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE.getKey(), true)
+            .build();
+
+        createIndex(indexName, settings, "@timestamp", "type=date", "hostname", "type=keyword", "gauge", "type=long");
+        indexDocuments(indexName);
+
+        final Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_seq_no");
+        for (String field : expectedFields) {
+            final DocValuesFormat format = getDocValuesFormatForField(indexName, field);
+            assertStandardIndexDocValuesFormat(format, field);
+        }
+    }
+
+    protected Settings tsdbSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2024-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-01-01T00:00:00Z")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean())
+            .build();
+    }
+
+    protected void indexDocuments(final String indexName) throws Exception {
+        final long baseTimestamp = 1704067200000L;
+        final int numDocs = randomIntBetween(5, 20);
+        for (int i = 0; i < numDocs; i++) {
+            prepareIndex(indexName).setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("@timestamp", baseTimestamp + i * 1000)
+                    .field("hostname", "host-" + (i % 3))
+                    .field("gauge", randomLong())
+                    .endObject()
+            ).get();
+        }
+    }
+
+    protected IndexShard getShard(final String indexName) {
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
+        return indexService.getShard(0);
+    }
+
+    protected DocValuesFormat getDocValuesFormatForField(final String indexName, final String field) {
+        return getDocValuesFormatForField(getShard(indexName), field);
+    }
+
+    private DocValuesFormat getDocValuesFormatForField(final IndexShard shard, final String field) {
+        final Codec codec = shard.withEngineOrNull(engine -> engine.config().getCodec());
+
+        if (codec instanceof Elasticsearch93Lucene104Codec es93104codec) {
+            return es93104codec.getDocValuesFormatForField(field);
+        } else if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            if (deduplicateFieldInfosCodec.delegate() instanceof LegacyPerFieldMapperCodec legacyCodec) {
+                return legacyCodec.getDocValuesFormatForField(field);
+            } else if (deduplicateFieldInfosCodec.delegate() instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
+                assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
+                return ((XPerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat()).getDocValuesFormatForField(field);
+            }
+        }
+        fail("Unexpected codec type: " + codec.getClass().getName());
+        return null;
+    }
+
+    private void assertDocValuesFormat(final String indexName, final Set<String> expectedFields) {
+        final IndexShard shard = getShard(indexName);
+
+        for (String field : expectedFields) {
+            final DocValuesFormat format = getDocValuesFormatForField(shard, field);
+            assertTSDBDocValuesFormat(format, field);
+        }
+
+        indicesAdmin().flush(new FlushRequest(indexName).force(true)).actionGet();
+        indicesAdmin().prepareRefresh(indexName).get();
+
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            final List<LeafReaderContext> leaves = searcher.getDirectoryReader().leaves();
+            assertThat(leaves.size(), greaterThan(0));
+
+            for (LeafReaderContext leaf : leaves) {
+                for (FieldInfo fieldInfo : leaf.reader().getFieldInfos()) {
+                    if (fieldInfo.getDocValuesType() == DocValuesType.NONE) {
+                        continue;
+                    }
+                    final String formatAttr = fieldInfo.getAttribute("PerFieldDocValuesFormat.format");
+                    if (expectedFields.contains(fieldInfo.name)) {
+                        assertThat(
+                            "field [" + fieldInfo.name + "] should use the expected TSDB doc values format",
+                            formatAttr,
+                            equalTo(expectedCodecName())
+                        );
+                    }
+                }
+            }
+        }
+    }
+}

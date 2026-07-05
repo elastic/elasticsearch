@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 
-import java.util.Map;
+import java.util.Optional;
 
 /**
  * Allows to provide remote cluster interception that's capable of intercepting remote connections
@@ -32,16 +33,20 @@ public interface RemoteClusterTransportInterceptor {
     boolean isRemoteClusterConnection(Transport.Connection connection);
 
     /**
-     * Allows interceptors to provide a custom {@link ServerTransportFilter} implementations per transport profile.
-     * The transport filter is called on the receiver side to filter incoming requests
-     * and execute authentication and authorization for all requests.
+     * Allows interceptors to provide a custom {@link ServerTransportFilter} implementation
+     * for intercepting requests for {@link RemoteClusterPortSettings#REMOTE_CLUSTER_PROFILE}
+     * transport profile.
+     * <p>
+     * The transport filter is called on the receiver side to filter incoming remote cluster requests
+     * and to execute authentication and authorization for all incoming requests.
+     * <p>
+     * This method is only called when setting {@link RemoteClusterPortSettings#REMOTE_CLUSTER_SERVER_ENABLED}
+     * is set to {@code true}.
      *
-     * @return map of {@link ServerTransportFilter}s per transport profile name
+     * @return a custom {@link ServerTransportFilter}s for the given transport profile,
+     *         or an empty optional to fall back to the default transport filter
      */
-    Map<String, ServerTransportFilter> getProfileTransportFilters(
-        Map<String, SslProfile> profileConfigurations,
-        DestructiveOperations destructiveOperations
-    );
+    Optional<ServerTransportFilter> getRemoteProfileTransportFilter(SslProfile sslProfile, DestructiveOperations destructiveOperations);
 
     /**
      * Returns {@code true} if any of the remote cluster access headers are in the security context.

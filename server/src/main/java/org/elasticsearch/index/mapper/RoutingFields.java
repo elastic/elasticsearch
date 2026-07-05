@@ -22,8 +22,8 @@ public interface RoutingFields {
     /**
      * Collect routing fields from index settings
      */
-    static RoutingFields fromIndexSettings(IndexSettings indexSettings, SourceToParse source) {
-        return indexSettings.getMode().buildRoutingFields(indexSettings, source);
+    static RoutingFields fromIndexSettings(IndexSettings indexSettings) {
+        return indexSettings.getMode().buildRoutingFields(indexSettings);
     }
 
     /**

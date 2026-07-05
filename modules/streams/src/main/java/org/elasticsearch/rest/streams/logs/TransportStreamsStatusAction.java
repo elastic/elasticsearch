@@ -18,10 +18,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.StreamsMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Map;
 
 /**
  * Transport action to retrieve the status of logs streams in a project / cluster.
@@ -62,8 +65,16 @@ public class TransportStreamsStatusAction extends TransportLocalProjectMetadataA
         ActionListener<StreamsStatusAction.Response> listener
     ) {
         StreamsMetadata streamsState = state.metadata().custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
-        boolean logsEnabled = streamsState.isLogsEnabled();
-        StreamsStatusAction.Response response = new StreamsStatusAction.Response(logsEnabled);
+        StreamsStatusAction.Response response = new StreamsStatusAction.Response(
+            Map.of(
+                StreamType.LOGS,
+                streamsState.isLogsEnabled(),
+                StreamType.LOGS_ECS,
+                streamsState.isLogsECSEnabled(),
+                StreamType.LOGS_OTEL,
+                streamsState.isLogsOTelEnabled()
+            )
+        );
         listener.onResponse(response);
     }
 }

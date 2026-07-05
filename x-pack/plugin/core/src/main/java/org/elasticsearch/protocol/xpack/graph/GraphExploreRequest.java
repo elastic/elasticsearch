@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.protocol.xpack.graph;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -33,7 +32,7 @@ import java.util.List;
  * Holds the criteria required to guide the exploration of connected terms which
  * can be returned as a graph.
  */
-public class GraphExploreRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public class GraphExploreRequest extends UntypedActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
 
     public static final String NO_HOPS_ERROR_MESSAGE = "Graph explore request must have at least one hop";
     public static final String NO_VERTICES_ERROR_MESSAGE = "Graph explore hop must have at least one VertexRequest";
@@ -111,10 +110,6 @@ public class GraphExploreRequest extends LegacyActionRequest implements IndicesR
 
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String[] types = in.readStringArray();
-            assert types.length == 0;
-        }
         routing = in.readOptionalString();
         timeout = in.readOptionalTimeValue();
         sampleSize = in.readInt();
@@ -174,9 +169,6 @@ public class GraphExploreRequest extends LegacyActionRequest implements IndicesR
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
         out.writeOptionalString(routing);
         out.writeOptionalTimeValue(timeout);
 

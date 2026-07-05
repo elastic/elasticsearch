@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.CheckedConsumer;
+import org.opensaml.core.config.InitializationException;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.core.xml.schema.XSString;
@@ -45,7 +46,6 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.security.PrivilegedActionException;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -85,7 +85,7 @@ public class SamlResponseBuilder {
     public SamlResponseBuilder() {
         try {
             SamlUtils.initialize(logger);
-        } catch (PrivilegedActionException e) {
+        } catch (InitializationException e) {
             throw new RuntimeException("Cannot initialise SAML utilities", e);
         }
 
@@ -119,6 +119,11 @@ public class SamlResponseBuilder {
 
     public SamlResponseBuilder attribute(String name, String value) {
         this.attributes.put(name, List.of(value));
+        return this;
+    }
+
+    public SamlResponseBuilder inResponseTo(String requestId) {
+        this.inResponseTo = requestId;
         return this;
     }
 

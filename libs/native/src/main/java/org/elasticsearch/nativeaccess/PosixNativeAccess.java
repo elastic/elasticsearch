@@ -10,24 +10,29 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.nativeaccess.jdk.PosixCloseableMappedByteBuffer;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
+import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalLong;
 
-abstract class PosixNativeAccess extends AbstractNativeAccess {
+public abstract class PosixNativeAccess extends AbstractNativeAccess {
 
-    public static final int MCL_CURRENT = 1;
-    public static final int ENOMEM = 12;
-    public static final int O_RDONLY = 0;
-    public static final int O_WRONLY = 1;
+    private static final int MCL_CURRENT = 1;
+    private static final int ENOMEM = 12;
+    private static final int O_RDONLY = 0;
+    private static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
     protected final VectorSimilarityFunctions vectorDistance;
+    protected final ParquetRsFunctions parquetRsFunctions;
     protected final PosixConstants constants;
     protected final ProcessLimits processLimits;
 
@@ -35,6 +40,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
         this.vectorDistance = vectorSimilarityFunctionsOrNull(libraryProvider);
+        this.parquetRsFunctions = parquetRsFunctionsOrNull(libraryProvider);
         this.constants = constants;
         this.processLimits = new ProcessLimits(
             getMaxThreads(),
@@ -69,6 +75,20 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
             var lib = libraryProvider.getLibrary(VectorLibrary.class).getVectorSimilarityFunctions();
             logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
             return lib;
+        }
+        return null;
+    }
+
+    static ParquetRsFunctions parquetRsFunctionsOrNull(NativeLibraryProvider libraryProvider) {
+        if (isNativeRustLibSupported()) {
+            try {
+                var lib = libraryProvider.getLibrary(ParquetRsLibrary.class);
+                logger.info("Loaded parquet-rs native library");
+                return new ParquetRsFunctions(lib);
+            } catch (UnsatisfiedLinkError e) {
+                logger.info("parquet-rs native library not available: {}", e.getMessage());
+                return null;
+            }
         }
         return null;
     }
@@ -191,6 +211,16 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         return Optional.ofNullable(vectorDistance);
     }
 
+    @Override
+    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
+        return Optional.ofNullable(parquetRsFunctions);
+    }
+
+    @Override
+    public CloseableMappedByteBuffer map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
+        return PosixCloseableMappedByteBuffer.ofShared(fileChannel, mode, position, size);
+    }
+
     String rlimitToString(long value) {
         if (value == constants.RLIMIT_INFINITY()) {
             return "unlimited";
@@ -201,6 +231,10 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     static boolean isNativeVectorLibSupported() {
         return Runtime.version().feature() >= 21 && (isMacOrLinuxAarch64() || isLinuxAmd64()) && checkEnableSystemProperty();
+    }
+
+    static boolean isNativeRustLibSupported() {
+        return isMacOrLinuxAarch64() || isLinuxAmd64();
     }
 
     /**

@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
+import org.elasticsearch.index.mapper.blockloader.script.IpScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.IpFieldScript;
@@ -213,6 +214,16 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new IpScriptBlockDocValuesReader.IpScriptBlockLoader(leafFactory(blContext.lookup()));
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+            blContext,
+            BlockLoader.BlockFactory::bytesRefs,
+            () -> new IpFallbackSyntheticSourceReader(null)
+        );
+
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        }
+        return new IpScriptBlockDocValuesReader.IpScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
     }
+
 }

@@ -9,13 +9,13 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,30 +41,14 @@ public class IndexResponse extends DocWriteResponse {
 
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
-        } else {
-            executedPipelines = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus = IndexDocFailureStoreStatus.read(in);
-        } else {
-            failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
-        }
+        executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
+        failureStoreStatus = IndexDocFailureStoreStatus.read(in);
     }
 
     public IndexResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
-        } else {
-            executedPipelines = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus = IndexDocFailureStoreStatus.read(in);
-        } else {
-            failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
-        }
+        executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
+        failureStoreStatus = IndexDocFailureStoreStatus.read(in);
     }
 
     public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean created) {
@@ -123,23 +107,15 @@ public class IndexResponse extends DocWriteResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus.writeTo(out);
-        }
+        out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
+        failureStoreStatus.writeTo(out);
     }
 
     @Override
     public void writeThin(StreamOutput out) throws IOException {
         super.writeThin(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus.writeTo(out);
-        }
+        out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
+        failureStoreStatus.writeTo(out);
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
@@ -154,6 +130,22 @@ public class IndexResponse extends DocWriteResponse {
     private static Result assertCreatedOrUpdated(Result result) {
         assert result == Result.CREATED || result == Result.UPDATED;
         return result;
+    }
+
+    @Override
+    public IndexResponse withoutSequenceNumber() {
+        IndexResponse copy = new IndexResponse(
+            getShardId(),
+            getId(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+            getVersion(),
+            result,
+            executedPipelines,
+            failureStoreStatus
+        );
+        copyMutableFieldsTo(copy);
+        return copy;
     }
 
     @Override

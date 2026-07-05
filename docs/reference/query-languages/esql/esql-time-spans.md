@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Time spans"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-time-spans.html
@@ -13,18 +16,23 @@ Time spans represent intervals between two datetime values. There are currently 
 
 A time span requires two elements: an integer value and a temporal unit.
 
-Time spans work with grouping functions such as [BUCKET](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-bucket),
-scalar functions such as [DATE_TRUNC](/reference/query-languages/esql/functions-operators/date-time-functions.md#esql-date_trunc)
+Time spans work with grouping functions such as [BUCKET](/reference/query-languages/esql/functions-operators/grouping-functions/bucket.md),
+scalar functions such as [DATE_TRUNC](/reference/query-languages/esql/functions-operators/date-time-functions/date_trunc.md)
 and arithmetic operators such as [`+`](/reference/query-languages/esql/functions-operators/operators.md#esql-add)
 and [`-`](/reference/query-languages/esql/functions-operators/operators.md#esql-sub).
-Convert strings to time spans using [TO_DATEPERIOD](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_dateperiod),
-[TO_TIMEDURATION](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_timeduration),
+Convert strings to time spans using [TO_DATEPERIOD](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dateperiod.md),
+[TO_TIMEDURATION](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_timeduration.md),
 or the [cast operators](/reference/query-languages/esql/functions-operators/operators.md#esql-cast-operator) `::DATE_PERIOD`, `::TIME_DURATION`.
+
+The [`TRANGE`](/reference/query-languages/esql/functions-operators/date-time-functions/trange.md)
+function takes a time span and filters on a sliding range relative to query time. It
+works in any ES|QL query, and is commonly paired with
+[`TS`](/reference/query-languages/esql/commands/ts.md) for time series.
 
 
 ## Examples of using time spans in {{esql}} [esql-time-spans-examples]
 
-With `BUCKET`:
+### With BUCKET
 
 ```esql
 FROM employees
@@ -42,7 +50,7 @@ FROM employees
 | 2 | 1985-10-14T00:00:00.000Z |
 | 4 | 1985-11-18T00:00:00.000Z |
 
-With `DATE_TRUNC`:
+### With DATE_TRUNC
 
 ```esql
 FROM employees
@@ -56,7 +64,7 @@ FROM employees
 | Amabile | Gomatam | 1992-11-18T00:00:00.000Z | 1992-01-01T00:00:00.000Z |
 | Anneke | Preusig | 1989-06-02T00:00:00.000Z | 1989-01-01T00:00:00.000Z |
 
-With `+` and/or `-`:
+### With arithmetic operators
 
 ```esql
 FROM sample_data
@@ -65,6 +73,16 @@ FROM sample_data
 
 | @timestamp:date | client_ip:ip | event_duration:long | message:keyword |
 | --- | --- | --- | --- |
+
+### With TRANGE
+
+```esql
+TS k8s
+| WHERE TRANGE(1 hour)
+| STATS SUM(RATE(network.total_bytes_in)) BY cluster, TBUCKET(1 minute)
+```
+
+### Named parameters with arithmetic operators
 
 When a time span is provided as a named parameter in string format, `TO_DATEPERIOD`, `::DATE_PERIOD`, `TO_TIMEDURATION` or `::TIME_DURATION` can be used to convert to its corresponding time span value for arithmetic operations like `+` and/or `-`.
 
@@ -79,7 +97,9 @@ POST /_query
 }
 ```
 
-When a time span is provided as a named parameter in string format, it can be automatically converted to its corresponding time span value in grouping functions and scalar functions, like `BUCKET` and `DATE_TRUNC`.
+### Named parameters with BUCKET
+
+When a time span is provided as a named parameter in string format, it can be automatically converted to its corresponding time span value in grouping functions such as `BUCKET`.
 
 ```esql
 POST /_query
@@ -93,6 +113,10 @@ POST /_query
    "params": [{"timespan" : "1 week"}]
 }
 ```
+
+### Named parameters with DATE_TRUNC
+
+Named string parameters are also automatically converted in scalar functions such as `DATE_TRUNC`.
 
 ```esql
 POST /_query
@@ -117,7 +141,7 @@ POST /_query
 | week | w, weeks |
 | day | d, days |
 | hour | h, hours |
-| minute | min, minutes |
+| minute | m, min, minutes |
 | second | s, sec, seconds |
 | millisecond | ms, milliseconds |
 

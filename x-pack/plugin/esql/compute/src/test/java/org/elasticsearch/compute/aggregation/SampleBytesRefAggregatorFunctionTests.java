@@ -15,9 +15,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.SequenceBytesRefBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceBytesRefBlockSourceOperator;
 import org.elasticsearch.test.MixWithIncrement;
 
 import java.util.List;
@@ -73,14 +73,14 @@ public class SampleBytesRefAggregatorFunctionTests extends AggregatorFunctionTes
         // Repeat 1000x, count how often each number is sampled.
         int[] sampledCounts = new int[N];
         for (int iteration = 0; iteration < 1000; iteration++) {
-            List<Page> input = CannedSourceOperator.collectPages(
+            var runner = new TestDriverRunner().builder(driverContext());
+            runner.input(
                 new SequenceBytesRefBlockSourceOperator(
-                    driverContext().blockFactory(),
+                    runner.blockFactory(),
                     IntStream.range(0, N).mapToObj(i -> new BytesRef(Integer.toString(i)))
                 )
             );
-            List<Page> results = drive(operatorFactory.get(driverContext()), input.iterator(), driverContext());
-            for (Page page : results) {
+            for (Page page : runner.run(operatorFactory)) {
                 BytesRefBlock block = page.getBlock(0);
                 BytesRef scratch = new BytesRef();
                 for (int i = 0; i < block.getTotalValueCount(); i++) {

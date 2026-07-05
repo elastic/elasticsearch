@@ -11,10 +11,9 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
@@ -22,7 +21,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -38,7 +36,6 @@ import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEm
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils;
-import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
 
@@ -47,17 +44,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationBinary;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationByte;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationBinary;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationByte;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionCreator.EMBEDDINGS_HANDLER;
-import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.convertToString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.INPUT_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.INPUT_TYPE_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.MODEL_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.OUTPUT_DIMENSION_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.OUTPUT_DTYPE_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.TRUNCATION_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.convertInputTypeToString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -66,7 +68,19 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 public class VoyageAIEmbeddingsActionTests extends ESTestCase {
+
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String TEST_API_KEY = "secret";
+    private static final String TEST_MODEL_ID = "some-model-id";
+    private static final String TEST_INPUT = "some input";
+    private static final int TEST_DIMENSIONS = 1024;
+    private static final int TEST_MAX_INPUT_TOKENS = 2048;
+    private static final String TEST_FAILURE_MESSAGE = "failed";
+    private static final String TEST_FAILED_REQUEST_MESSAGE = Strings.format(
+        "Failed to send VoyageAI embeddings request. Cause: %s",
+        TEST_FAILURE_MESSAGE
+    );
+
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -89,8 +103,6 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
-            sender.start();
-
             String responseJson = """
                 {
                     "object": "list",
@@ -110,75 +122,62 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var action = createAction(
-                getUrl(webServer),
-                "secret",
-                new VoyageAIEmbeddingsTaskSettings(null, true),
-                "model",
-                VoyageAIEmbeddingType.FLOAT,
-                sender
-            );
+            var embeddingType = VoyageAIEmbeddingType.FLOAT;
+            var action = createAction(getUrl(webServer), new VoyageAIEmbeddingsTaskSettings(null, true), embeddingType, sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(
-                new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of(TEST_INPUT), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            MatcherAssert.assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F }))));
-            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F }))));
+            assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaType())
-            );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-            MatcherAssert.assertThat(
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is("Bearer " + TEST_API_KEY));
+            assertThat(
                 webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
-                equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
+                is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
             );
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             if (inputType != null && inputType != InputType.UNSPECIFIED) {
-                var convertedInputType = convertToString(inputType);
-                MatcherAssert.assertThat(
+                var convertedInputType = convertInputTypeToString(inputType);
+                assertThat(
                     requestMap,
-                    equalTo(
+                    is(
                         Map.of(
-                            "input",
-                            List.of("abc"),
-                            "model",
-                            "model",
-                            "input_type",
+                            INPUT_FIELD,
+                            List.of(TEST_INPUT),
+                            MODEL_FIELD,
+                            TEST_MODEL_ID,
+                            INPUT_TYPE_FIELD,
                             convertedInputType,
-                            "output_dtype",
-                            "float",
-                            "truncation",
+                            OUTPUT_DTYPE_FIELD,
+                            embeddingType.toRequestString(),
+                            TRUNCATION_FIELD,
                             true,
-                            "output_dimension",
-                            1024
+                            OUTPUT_DIMENSION_FIELD,
+                            TEST_DIMENSIONS
                         )
                     )
                 );
             } else {
-                MatcherAssert.assertThat(
+                assertThat(
                     requestMap,
-                    equalTo(
+                    is(
                         Map.of(
-                            "input",
-                            List.of("abc"),
-                            "model",
-                            "model",
-                            "output_dtype",
-                            "float",
-                            "truncation",
+                            INPUT_FIELD,
+                            List.of(TEST_INPUT),
+                            MODEL_FIELD,
+                            TEST_MODEL_ID,
+                            OUTPUT_DTYPE_FIELD,
+                            embeddingType.toRequestString(),
+                            TRUNCATION_FIELD,
                             true,
-                            "output_dimension",
-                            1024
+                            OUTPUT_DIMENSION_FIELD,
+                            TEST_DIMENSIONS
                         )
                     )
                 );
@@ -190,8 +189,6 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
-            sender.start();
-
             String responseJson = """
                 {
                     "object": "list",
@@ -211,75 +208,62 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var action = createAction(
-                getUrl(webServer),
-                "secret",
-                new VoyageAIEmbeddingsTaskSettings(null, true),
-                "model",
-                VoyageAIEmbeddingType.INT8,
-                sender
-            );
+            var embeddingType = VoyageAIEmbeddingType.INT8;
+            var action = createAction(getUrl(webServer), new VoyageAIEmbeddingsTaskSettings(null, true), embeddingType, sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(
-                new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of(TEST_INPUT), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
             assertEquals(buildExpectationByte(List.of(new byte[] { 0, -1 })), result.asMap());
-            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaType())
-            );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-            MatcherAssert.assertThat(
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is("Bearer " + TEST_API_KEY));
+            assertThat(
                 webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
-                equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
+                is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
             );
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             if (inputType != null && inputType != InputType.UNSPECIFIED) {
-                var convertedInputType = convertToString(inputType);
-                MatcherAssert.assertThat(
+                var convertedInputType = convertInputTypeToString(inputType);
+                assertThat(
                     requestMap,
                     is(
                         Map.of(
-                            "input",
-                            List.of("abc"),
-                            "model",
-                            "model",
-                            "input_type",
+                            INPUT_FIELD,
+                            List.of(TEST_INPUT),
+                            MODEL_FIELD,
+                            TEST_MODEL_ID,
+                            INPUT_TYPE_FIELD,
                             convertedInputType,
-                            "output_dtype",
-                            "int8",
-                            "truncation",
+                            OUTPUT_DTYPE_FIELD,
+                            embeddingType.toRequestString(),
+                            TRUNCATION_FIELD,
                             true,
-                            "output_dimension",
-                            1024
+                            OUTPUT_DIMENSION_FIELD,
+                            TEST_DIMENSIONS
                         )
                     )
                 );
             } else {
-                MatcherAssert.assertThat(
+                assertThat(
                     requestMap,
                     is(
                         Map.of(
-                            "input",
-                            List.of("abc"),
-                            "model",
-                            "model",
-                            "output_dtype",
-                            "int8",
-                            "truncation",
+                            INPUT_FIELD,
+                            List.of(TEST_INPUT),
+                            MODEL_FIELD,
+                            TEST_MODEL_ID,
+                            OUTPUT_DTYPE_FIELD,
+                            embeddingType.toRequestString(),
+                            TRUNCATION_FIELD,
                             true,
-                            "output_dimension",
-                            1024
+                            OUTPUT_DIMENSION_FIELD,
+                            TEST_DIMENSIONS
                         )
                     )
                 );
@@ -291,8 +275,6 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
-            sender.start();
-
             String responseJson = """
                 {
                     "object": "list",
@@ -312,75 +294,62 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var action = createAction(
-                getUrl(webServer),
-                "secret",
-                new VoyageAIEmbeddingsTaskSettings(null, true),
-                "model",
-                VoyageAIEmbeddingType.BINARY,
-                sender
-            );
+            var embeddingType = VoyageAIEmbeddingType.BINARY;
+            var action = createAction(getUrl(webServer), new VoyageAIEmbeddingsTaskSettings(null, true), embeddingType, sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(
-                new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of(TEST_INPUT), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
             assertEquals(buildExpectationBinary(List.of(new byte[] { 0, -1 })), result.asMap());
-            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaType())
-            );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-            MatcherAssert.assertThat(
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is("Bearer " + TEST_API_KEY));
+            assertThat(
                 webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
-                equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
+                is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
             );
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             if (inputType != null && inputType != InputType.UNSPECIFIED) {
-                var convertedInputType = convertToString(inputType);
-                MatcherAssert.assertThat(
+                var convertedInputType = convertInputTypeToString(inputType);
+                assertThat(
                     requestMap,
                     is(
                         Map.of(
-                            "input",
-                            List.of("abc"),
-                            "model",
-                            "model",
-                            "input_type",
+                            INPUT_FIELD,
+                            List.of(TEST_INPUT),
+                            MODEL_FIELD,
+                            TEST_MODEL_ID,
+                            INPUT_TYPE_FIELD,
                             convertedInputType,
-                            "output_dtype",
-                            "binary",
-                            "truncation",
+                            OUTPUT_DTYPE_FIELD,
+                            embeddingType.toRequestString(),
+                            TRUNCATION_FIELD,
                             true,
-                            "output_dimension",
-                            1024
+                            OUTPUT_DIMENSION_FIELD,
+                            TEST_DIMENSIONS
                         )
                     )
                 );
             } else {
-                MatcherAssert.assertThat(
+                assertThat(
                     requestMap,
                     is(
                         Map.of(
-                            "input",
-                            List.of("abc"),
-                            "model",
-                            "model",
-                            "output_dtype",
-                            "binary",
-                            "truncation",
+                            INPUT_FIELD,
+                            List.of(TEST_INPUT),
+                            MODEL_FIELD,
+                            TEST_MODEL_ID,
+                            OUTPUT_DTYPE_FIELD,
+                            embeddingType.toRequestString(),
+                            TRUNCATION_FIELD,
                             true,
-                            "output_dimension",
-                            1024
+                            OUTPUT_DIMENSION_FIELD,
+                            TEST_DIMENSIONS
                         )
                     )
                 );
@@ -390,20 +359,16 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
     public void testExecute_ThrowsElasticsearchException() {
         var sender = mock(Sender.class);
-        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any(), any());
+        doThrow(new ElasticsearchException(TEST_FAILURE_MESSAGE)).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(getUrl(webServer), "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
+        var action = createAction(getUrl(webServer), VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, VoyageAIEmbeddingType.FLOAT, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomSearchAndIngestWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is("failed"));
+        assertThat(thrownException.getMessage(), is(TEST_FAILURE_MESSAGE));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled() {
@@ -411,57 +376,55 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             ActionListener<HttpResult> listener = invocation.getArgument(3);
-            listener.onFailure(new IllegalStateException("failed"));
+            listener.onFailure(new IllegalStateException(TEST_FAILURE_MESSAGE));
 
             return Void.TYPE;
         }).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(getUrl(webServer), "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
+        var action = createAction(getUrl(webServer), VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, VoyageAIEmbeddingType.FLOAT, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomSearchAndIngestWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request. Cause: failed"));
+        assertThat(thrownException.getMessage(), is(TEST_FAILED_REQUEST_MESSAGE));
     }
 
     public void testExecute_ThrowsException() {
         var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
+        doThrow(new IllegalArgumentException(TEST_FAILURE_MESSAGE)).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(getUrl(webServer), "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
+        var action = createAction(getUrl(webServer), VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, VoyageAIEmbeddingType.FLOAT, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomSearchAndIngestWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request. Cause: failed"));
+        assertThat(thrownException.getMessage(), is(TEST_FAILED_REQUEST_MESSAGE));
     }
 
     private ExecutableAction createAction(
         String url,
-        String apiKey,
         VoyageAIEmbeddingsTaskSettings taskSettings,
-        @Nullable String modelName,
-        @Nullable VoyageAIEmbeddingType embeddingType,
+        VoyageAIEmbeddingType embeddingType,
         Sender sender
     ) {
-        var model = VoyageAIEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
+        var model = VoyageAIEmbeddingsModelTests.createModel(
+            url,
+            TEST_API_KEY,
+            taskSettings,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_DIMENSIONS,
+            TEST_MODEL_ID,
+            embeddingType
+        );
         var manager = new GenericRequestManager<>(
             threadPool,
             model,
             EMBEDDINGS_HANDLER,
-            (embeddingsInput) -> new VoyageAIEmbeddingsRequest(embeddingsInput.getStringInputs(), embeddingsInput.getInputType(), model),
+            (embeddingsInput) -> new VoyageAIEmbeddingsRequest(embeddingsInput.getTextInputs(), embeddingsInput.getInputType(), model),
             EmbeddingsInput.class
         );
 

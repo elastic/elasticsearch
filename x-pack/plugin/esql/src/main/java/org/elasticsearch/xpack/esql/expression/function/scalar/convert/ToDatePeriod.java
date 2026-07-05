@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -21,8 +22,13 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 
 public class ToDatePeriod extends FoldablesConvertFunction {
 
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDatePeriod.class)
+        .unary(ToDatePeriod::new)
+        .name("to_dateperiod");
+
     @FunctionInfo(
         returnType = "date_period",
+        briefSummary = "Converts a value to a date_period.",
         description = "Converts an input value into a `date_period` value.",
         examples = @Example(file = "convert", tag = "castToDatePeriod")
     )
@@ -31,6 +37,7 @@ public class ToDatePeriod extends FoldablesConvertFunction {
         @Param(
             name = "field",
             type = { "date_period", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Input value. The input is a valid constant date period expression."
         ) Expression v
     ) {

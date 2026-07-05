@@ -36,8 +36,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -122,27 +120,21 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
     }
 
     protected static void assertConnectionCanReconnect(LDAPInterface conn) {
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                try {
-                    if (conn instanceof LDAPConnection) {
-                        ((LDAPConnection) conn).reconnect();
-                    } else if (conn instanceof LDAPConnectionPool) {
-                        try (LDAPConnection c = ((LDAPConnectionPool) conn).getConnection()) {
-                            c.reconnect();
-                        }
-                    }
-                } catch (LDAPException e) {
-                    fail(
-                        "Connection is not valid. It will not work on follow referral flow."
-                            + System.lineSeparator()
-                            + ExceptionsHelper.stackTrace(e)
-                    );
+        try {
+            if (conn instanceof LDAPConnection) {
+                ((LDAPConnection) conn).reconnect();
+            } else if (conn instanceof LDAPConnectionPool) {
+                try (LDAPConnection c = ((LDAPConnectionPool) conn).getConnection()) {
+                    c.reconnect();
                 }
-                return null;
             }
-        });
+        } catch (LDAPException e) {
+            fail(
+                "Connection is not valid. It will not work on follow referral flow."
+                    + System.lineSeparator()
+                    + ExceptionsHelper.stackTrace(e)
+            );
+        }
     }
 
     private static String getFromEnv(String envVar, String defaultValue) {

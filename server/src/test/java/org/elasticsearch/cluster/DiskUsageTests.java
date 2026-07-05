@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
@@ -142,13 +143,15 @@ public class DiskUsageTests extends ESTestCase {
         Map<ShardId, Double> shardWriteLoads = new HashMap<>();
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
         Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
+        WriteLoadDeciderShardWriteLoadType shardWriteLoadType = randomFrom(WriteLoadDeciderShardWriteLoadType.values());
         InternalClusterInfoService.buildShardLevelInfo(
             stats,
             shardWriteLoads,
             shardSizes,
             shardDataSetSizes,
             routingToPath,
-            new HashMap<>()
+            new HashMap<>(),
+            shardWriteLoadType
         );
 
         assertThat(
@@ -176,9 +179,9 @@ public class DiskUsageTests extends ESTestCase {
             equalTo(
                 Map.of(
                     test_0.shardId(),
-                    commonStats0.indexing.getTotal().getPeakWriteLoad(),
+                    shardWriteLoadType.getWriteLoad(commonStats0.indexing),
                     test_1.shardId(),
-                    Math.max(commonStats1.indexing.getTotal().getPeakWriteLoad(), commonStats2.indexing.getTotal().getPeakWriteLoad())
+                    Math.max(shardWriteLoadType.getWriteLoad(commonStats1.indexing), shardWriteLoadType.getWriteLoad(commonStats2.indexing))
                 )
             )
         );

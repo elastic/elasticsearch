@@ -11,8 +11,8 @@ package org.elasticsearch.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentType;
@@ -29,7 +29,7 @@ public class RestFieldCapabilitiesActionTests extends ESTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestFieldCapabilitiesAction(Settings.EMPTY);
+        action = new RestFieldCapabilitiesAction(CrossProjectModeDecider.NOOP);
     }
 
     public void testRequestBodyAndParamsBothInput() throws IOException {

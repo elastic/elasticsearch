@@ -80,7 +80,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
         },
             new AggTestConfig(
                 new CategorizeTextAggregationBuilder("my_agg", TEXT_FIELD_NAME),
-                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean()),
+                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean(), false),
                 longField(NUMERIC_FIELD_NAME)
             )
         );
@@ -118,7 +118,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
         },
             new AggTestConfig(
                 aggBuilder,
-                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean()),
+                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean(), false),
                 longField(NUMERIC_FIELD_NAME)
             )
         );
@@ -173,7 +173,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
         },
             new AggTestConfig(
                 aggBuilder,
-                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean()),
+                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean(), false),
                 longField(NUMERIC_FIELD_NAME)
             )
         );
@@ -261,7 +261,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
         },
             new AggTestConfig(
                 aggBuilder,
-                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean()),
+                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean(), false),
                 longField(NUMERIC_FIELD_NAME)
             )
         );
@@ -316,7 +316,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
         },
             new AggTestConfig(
                 aggBuilder,
-                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean()),
+                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean(), false),
                 longField(NUMERIC_FIELD_NAME)
             )
         );
@@ -400,7 +400,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
         },
             new AggTestConfig(
                 aggBuilder,
-                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean()),
+                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME, randomBoolean(), false),
                 longField(NUMERIC_FIELD_NAME)
             )
         );

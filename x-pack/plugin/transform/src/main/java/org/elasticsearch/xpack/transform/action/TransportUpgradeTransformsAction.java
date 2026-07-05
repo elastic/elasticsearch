@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -29,7 +30,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
@@ -60,6 +60,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
     private final Client client;
     private final TransformAuditor auditor;
     private final Settings destIndexSettings;
+    private final ProjectResolver projectResolver;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportUpgradeTransformsAction(
@@ -71,7 +73,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         TransformServices transformServices,
         Client client,
         Settings settings,
-        TransformExtensionHolder transformExtensionHolder
+        TransformExtensionHolder transformExtensionHolder,
+        ProjectResolver projectResolver
     ) {
         super(
             UpgradeTransformsAction.NAME,
@@ -93,13 +96,16 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
+        this.projectResolver = projectResolver;
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
     protected void masterOperation(Task ignoredTask, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
-        TransformNodes.warnIfNoTransformNodes(state);
-        if (TransformMetadata.upgradeMode(state)) {
+        final var projectMetadata = projectResolver.getProjectMetadata(state);
+        TransformNodes.warnIfNoTransformNodes(projectMetadata, state.getNodes());
+        if (TransformMetadata.isUpgradeMode(projectMetadata)) {
             listener.onFailure(
                 new ElasticsearchStatusException("Cannot upgrade Transforms while the Transform feature is upgrading.", RestStatus.CONFLICT)
             );
@@ -107,7 +113,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         }
 
         // do not allow in mixed clusters
-        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
+        if (state.nodes().isMixedVersionCluster()) {
             listener.onFailure(
                 new ElasticsearchStatusException("Cannot upgrade transforms while cluster upgrade is in progress.", RestStatus.CONFLICT)
             );
@@ -172,9 +178,12 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 configAndVersion.v2(),
                 false, // defer validation
                 dryRun,
-                false, // check access,
+                false, // check access
+                false, // hasLinkedProjects (irrelevant since checkAccess is false)
                 timeout,
                 destIndexSettings,
+                cloudCredentialManager,
+                false, // mintCloudCredential — validate with stored credential only
                 listener
             );
         }, failure -> {

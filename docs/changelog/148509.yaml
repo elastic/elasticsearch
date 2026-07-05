@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 143532
+pr: 148509
+summary: Return an empty response for scrolls with no shard contexts
+type: bug

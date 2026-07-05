@@ -15,7 +15,7 @@ set -euo pipefail
 
 env_id_baseline=$(python3 -c 'import uuid; print(uuid.uuid4())')
 env_id_contender=$(python3 -c 'import uuid; print(uuid.uuid4())')
-merge_base=$(git merge-base "${GITHUB_PR_TARGET_BRANCH}" HEAD)
+merge_base=$(git merge-base "origin/${GITHUB_PR_TARGET_BRANCH}" HEAD)
 
 # PR comment
 buildkite-agent meta-data set pr_comment:early_comment_job_id "$BUILDKITE_JOB_ID"
@@ -46,6 +46,7 @@ steps:
         CONFIGURATION_NAME: ${GITHUB_PR_COMMENT_VAR_BENCHMARK}
         ENV_ID: ${env_id_baseline}
         REVISION: ${merge_base}
+        BENCHMARK_TYPE: baseline
   - label: Trigger contender benchmark with ${GITHUB_PR_TRIGGERED_SHA:0:7}
     trigger: elasticsearch-performance-esbench-pr
     build:
@@ -56,6 +57,7 @@ steps:
         ENV_ID: ${env_id_contender}
         ES_REPO_URL: https://github.com/${GITHUB_PR_OWNER}/${GITHUB_PR_REPO}.git
         REVISION: ${GITHUB_PR_TRIGGERED_SHA}
+        BENCHMARK_TYPE: contender
   - wait: ~
   - label: Update PR comment and Buildkite annotation
     command: |

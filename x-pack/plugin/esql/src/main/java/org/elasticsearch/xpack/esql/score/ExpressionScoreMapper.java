@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.esql.score;
 
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.ScoreOperator.ExpressionScorer;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
-
-import java.util.List;
 
 /**
  * Maps expressions that have a mapping to an {@link ExpressionScorer}. Allows for transforming expressions into their corresponding scores.
@@ -20,10 +19,14 @@ public interface ExpressionScoreMapper {
     interface ToScorer {
         ExpressionScorer.Factory toScorer(Expression expression);
 
-        default List<EsPhysicalOperationProviders.ShardContext> shardContexts() {
+        default IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts() {
             throw new UnsupportedOperationException("Shard contexts should only be needed for scoring operations");
         }
     }
 
     ExpressionScorer.Factory toScorer(ToScorer toScorer);
+
+    default boolean contributesToScore() {
+        return true;
+    }
 }

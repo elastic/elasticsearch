@@ -15,8 +15,8 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -96,9 +96,9 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
 
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
                 try {
-                    if (bulkByScrollResponse.getDeleted() > 0) {
+                    if (bulkByPaginatedSearchResponse.getDeleted() > 0) {
                         auditAnnotationsWereDeleted(job.getId(), cutoffEpochMs);
                     }
                     listener.onResponse(true);
@@ -131,9 +131,9 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
             .filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"))
             .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), InternalUsers.XPACK_USER.principal()));
         DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setSlices(
-            AbstractBulkByScrollRequest.AUTO_SLICES
+            AbstractBulkByPaginatedSearchRequest.AUTO_SLICES
         )
-            .setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
+            .setBatchSize(AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_SIZE)
             // We are deleting old data, we should simply proceed as a version conflict could mean that another deletion is taking place
             .setAbortOnVersionConflict(false)
             .setTimeout(DEFAULT_MAX_DURATION)

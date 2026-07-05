@@ -11,6 +11,8 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.BufferedChecksum;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutputHelper;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.zip.CRC32;
@@ -43,6 +45,32 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
     public void writeBytes(byte[] b, int offset, int length) throws IOException {
         out.writeBytes(b, offset, length);
         digest.update(b, offset, length);
+    }
+
+    @Override
+    public long position() {
+        return out.position();
+    }
+
+    @Override
+    public void writeString(String str) throws IOException {
+        // Have to update the digest with the bytes written.
+        // Not performance-critical: only used for sending translog operations during recovery.
+        StreamOutputHelper.writeString(str, this);
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        // Have to update the digest with the bytes written.
+        // Not performance-critical: only used for sending translog operations during recovery.
+        StreamOutputHelper.writeOptionalString(str, this);
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        // Have to update the digest with the bytes written.
+        // Not performance-critical: only used for sending translog operations during recovery.
+        StreamOutputHelper.writeGenericString(value, this);
     }
 
     @Override

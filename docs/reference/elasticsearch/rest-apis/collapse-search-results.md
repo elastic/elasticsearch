@@ -8,7 +8,7 @@ navigation_title: Collapse search results
 
 # Collapse search results [collapse-search-results]
 
-You can use the `collapse` parameter to collapse search results based on field values. The collapsing is done by selecting only the top sorted document per collapse key.
+You can use the Search API's [`collapse` parameter](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-body-application-json-collapse) to collapse search results based on field values. The collapsing is done by selecting only the top sorted document per collapse key.
 
 For example, the following search collapses results by `user.id` and sorts them by `http.response.bytes`.
 
@@ -33,6 +33,7 @@ GET my-index-000001/_search
   "from": 0                    <3>
 }
 ```
+% TEST[setup:my_index]
 
 1. Collapse the result set using the `user.id` field
 2. Sort the results by `http.response.bytes`
@@ -82,6 +83,7 @@ GET /my-index-000001/_search
   ]
 }
 ```
+% TEST[setup:my_index]
 
 1. Collapse the result set using the `user.id` field
 2. The name used for the inner hit section in the response
@@ -134,6 +136,7 @@ GET /my-index-000001/_search
   ]
 }
 ```
+% TEST[setup:my_index]
 
 1. Collapse the result set using the `user.id` field
 2. Return the three largest HTTP responses for the user
@@ -169,7 +172,7 @@ GET /my-index-000001/_search
   "search_after": ["dd5ce1ad"]
 }
 ```
-
+% TEST[setup:my_index]
 
 ## Rescore collapse results [rescore-collapse-results]
 
@@ -183,6 +186,7 @@ POST /my-index-000001/_doc?routing=xyz      <1>
   "user.id": "xyz"
 }
 ```
+% TEST[setup:my_index]
 
 1. Assign routing with the collapse field value (`user.id`).
 
@@ -216,6 +220,7 @@ GET /my-index-000001/_search
    }
 }
 ```
+% TEST[setup:my_index]
 
 ::::{warning}
 Rescorers are not applied to [`inner hits`](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md).
@@ -252,6 +257,8 @@ GET /my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
+% TEST[s/_search/_search\?filter_path=hits.hits/]
 
 ```console-result
 {

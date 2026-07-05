@@ -157,4 +157,9 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("failed to parse field [" + FIELD_NAME + "] of type"));
         assertThat(e.getCause().getMessage(), containsString("found Z value [34567.33] but [ignore_z_value] parameter is [false]"));
     }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
 }

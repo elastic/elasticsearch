@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -50,7 +51,17 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new NumberSyntheticSourceSupport(
             n -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue())),
-            ignoreMalformed
+            ignoreMalformed,
+            false
+        );
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(
+            n -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue())),
+            ignoreMalformed,
+            true
         );
     }
 
@@ -72,5 +83,14 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     @Override
     protected boolean supportsBulkDoubleBlockReading() {
         return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            // TODO enable pruning here
+            new SortShortcutSupport(this::minimalMapping, this::writeField, true),
+            new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
+        );
     }
 }

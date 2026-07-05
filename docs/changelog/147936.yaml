@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147936
+summary: Adaptive S3 prefetch depth and zero-copy strings
+type: enhancement

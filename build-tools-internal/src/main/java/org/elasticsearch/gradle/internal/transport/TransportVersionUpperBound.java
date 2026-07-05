@@ -16,7 +16,7 @@ import java.nio.file.Path;
  *
  * An upper bound is the maximum transport version definitionId that should be loaded for a given release branch.
  */
-record TransportVersionUpperBound(String name, String definitionName, TransportVersionId definitionId) {
+public record TransportVersionUpperBound(String name, String definitionName, TransportVersionId definitionId) {
     public static TransportVersionUpperBound fromString(Path file, String contents) {
         String filename = file.getFileName().toString();
         assert filename.endsWith(".csv");
@@ -24,9 +24,11 @@ record TransportVersionUpperBound(String name, String definitionName, TransportV
         String branch = filename.substring(slashIndex == -1 ? 0 : (slashIndex + 1), filename.length() - 4);
 
         String idsLine = null;
-        String[] lines = contents.split(System.lineSeparator());
+        // Regardless of whether windows newlines exist (they could be added by git), we split on line feed.
+        // All we care about skipping lines with the comment character, so the remaining \r won't matter
+        String[] lines = contents.split("\n");
         for (String line : lines) {
-            line = line.replaceAll("\\s+", "");
+            line = line.strip();
             if (line.startsWith("#") == false) {
                 idsLine = line;
                 break;

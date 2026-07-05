@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -33,6 +35,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_OBJECT_ARRAY;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isValidParamName;
@@ -86,18 +90,23 @@ final class RequestXContent {
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
     static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
+    static final ParseField SETTINGS_FIELD = new ParseField("settings");
 
-    private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(EsqlQueryRequest::syncEsqlQueryRequest);
-    private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(EsqlQueryRequest::asyncEsqlQueryRequest);
+    private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(() -> syncEsqlQueryRequest(null));
+    private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(() -> asyncEsqlQueryRequest(null));
 
     /** Parses a synchronous request. */
     static EsqlQueryRequest parseSync(XContentParser parser) {
-        return SYNC_PARSER.apply(parser, null);
+        EsqlQueryRequest request = SYNC_PARSER.apply(parser, null);
+        request.applyCanonicalRequestSettings();
+        return request;
     }
 
     /** Parses an asynchronous request. */
     static EsqlQueryRequest parseAsync(XContentParser parser) {
-        return ASYNC_PARSER.apply(parser, null);
+        EsqlQueryRequest request = ASYNC_PARSER.apply(parser, null);
+        request.applyCanonicalRequestSettings();
+        return request;
     }
 
     private static void objectParserCommon(ObjectParser<EsqlQueryRequest, ?> parser) {
@@ -116,6 +125,82 @@ final class RequestXContent {
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
+        declareRegistryAliases(parser);
+        parser.declareField((p, request, c) -> parseSettingsObject(p, request), SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
+    }
+
+    /** Declares one parser per registered body alias. Nested-path aliases throw at parser-build time. */
+    private static void declareRegistryAliases(ObjectParser<EsqlQueryRequest, ?> parser) {
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            for (QuerySettingDef.RequestBodyBinding alias : def.aliases()) {
+                if (alias.isAtRoot() == false) {
+                    throw new IllegalStateException(
+                        "Body alias for setting ["
+                            + def.name()
+                            + "] at nested path ["
+                            + alias.parentPath()
+                            + "."
+                            + alias.name()
+                            + "] is not wired in RequestXContent yet; only root-level aliases are currently parsed."
+                    );
+                }
+                declareRootAlias(parser, def, alias.name());
+            }
+        }
+    }
+
+    private static <T> void declareRootAlias(ObjectParser<EsqlQueryRequest, ?> parser, QuerySettingDef<T> def, String aliasName) {
+        parser.declareField((p, request, c) -> {
+            // Deprecation warns on every surface a setting can arrive — including this legacy top-level alias,
+            // which is where the BWC-aliased settings are most commonly supplied.
+            QuerySettings.warnIfDeprecated(def);
+            request.set(def, def.readFromJson(p));
+        }, new ParseField(aliasName), VALUE_OBJECT_ARRAY);
+    }
+
+    private static void parseSettingsObject(XContentParser p, EsqlQueryRequest request) throws IOException {
+        if (p.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new XContentParseException(p.getTokenLocation(), "[" + SETTINGS_FIELD.getPreferredName() + "] must be an object");
+        }
+        XContentParser.Token token;
+        while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token != XContentParser.Token.FIELD_NAME) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Expected a setting name inside [" + SETTINGS_FIELD.getPreferredName() + "], got [" + token + "]"
+                );
+            }
+            String settingName = p.currentName();
+            QuerySettingDef<?> def = QuerySettings.lookup(settingName);
+            if (def == null) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Unknown setting [" + settingName + "] under [" + SETTINGS_FIELD.getPreferredName() + "]"
+                );
+            }
+            if (def.requestBody() == false) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Setting [" + settingName + "] is not exposed as a request body parameter"
+                );
+            }
+            QuerySettings.warnIfDeprecated(def);
+            p.nextToken(); // move to value
+            Object value;
+            try {
+                value = def.readFromJson(p);
+            } catch (IOException e) {
+                // Propagate low-level parse/IO failures unwrapped; only reader-thrown validation errors below
+                // get turned into a friendly "Failed to parse value" message.
+                throw e;
+            } catch (Exception e) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Failed to parse value for setting [" + settingName + "]: " + e.getMessage()
+                );
+            }
+            request.canonicalRequestSettings().put(def, value);
+        }
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {
@@ -186,6 +271,9 @@ final class RequestXContent {
                             classification = VALUE;
                             checkParamValueValidity(entry, classification, paramValue, loc, errors);
                         }
+                        if (classification == VALUE && paramValue instanceof List<?> list && list.isEmpty()) {
+                            paramValue = null;
+                        }
                         type = DataType.fromJava(paramValue);
                         currentParam = new QueryParam(
                             paramName,
@@ -203,8 +291,8 @@ final class RequestXContent {
                         while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
                             ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
                             DataType currentType = valueAndDataType.type;
-                            nullValueFound = nullValueFound | (currentType == DataType.NULL);
-                            mixedTypesFound = mixedTypesFound | (arrayType != DataType.NULL && arrayType != currentType);
+                            nullValueFound = nullValueFound || (currentType == DataType.NULL);
+                            mixedTypesFound = mixedTypesFound || (arrayType != DataType.NULL && arrayType != currentType);
                             if (currentType != DataType.NULL) {
                                 arrayType = currentType;
                             }
@@ -215,13 +303,29 @@ final class RequestXContent {
                         } else if (mixedTypesFound) {
                             addMixedTypesError(errors, loc, null, paramValues);
                         }
-                        unNamedParams.add(new QueryParam(null, paramValues, arrayType, VALUE));
+                        if (paramValues.isEmpty()) {
+                            unNamedParams.add(new QueryParam(null, null, DataType.NULL, VALUE));
+                        } else {
+                            unNamedParams.add(new QueryParam(null, paramValues, arrayType, VALUE));
+                        }
                     } else {
                         ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
                         unNamedParams.add(new QueryParam(null, valueAndDataType.value, valueAndDataType.type, VALUE));
                     }
                 }
             }
+        } else {
+            errors.add(
+                new XContentParseException(
+                    "Unexpected token ["
+                        + token
+                        + "] at "
+                        + p.getTokenLocation()
+                        + ", expected "
+                        + XContentParser.Token.START_ARRAY
+                        + ". Please check documentation for the correct format of the 'params' field."
+                )
+            );
         }
         // don't allow mixed named and unnamed parameters
         if (namedParams.isEmpty() == false && unNamedParams.isEmpty() == false) {

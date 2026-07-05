@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiUnifiedStreamingProcessor;
 
 import java.io.IOException;
@@ -80,9 +80,9 @@ public class GoogleVertexAiCompletionResponseEntity {
      *    </code>
      * </pre>
      *
-     * @param request The original request made to the service.
+     * @param outboundRequest The original request made to the service.
      **/
-    public static InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static InferenceServiceResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         var responseJson = new String(response.body(), StandardCharsets.UTF_8);
 
         // Response from generateContent has the same shape as streamGenerateContent. We reuse the already implemented

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
@@ -23,6 +25,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.FixForMultiProject;
@@ -79,7 +82,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         final SnapshotHistoryStore historyStore
     ) {
         this.projectId = projectId;
-        this.client = client;
+        this.client = new OriginSettingClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN);
         this.clusterService = clusterService;
         this.historyStore = historyStore;
     }
@@ -263,9 +266,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    SnapshotHistoryStore.logErrorOrWarning(
-                        clusterService.state(),
-                        () -> format("failed to create snapshot for snapshot lifecycle policy [{}]", policyMetadata.getPolicy().getId()),
+                    logger.warn(
+                        () -> format("failed to create snapshot for snapshot lifecycle policy [%s]", policyMetadata.getPolicy().getId()),
                         e
                     );
                     final long timestamp = Instant.now().toEpochMilli();
@@ -495,7 +497,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             final SnapshotLifecyclePolicyMetadata.Builder newPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder(policyMetadata);
             SnapshotLifecycleStats newStats = snapMeta.getStats();
 
-            if (registeredSnapshots.contains(snapshotId) == false) {
+            final boolean snapshotIsRegistered = registeredSnapshots.contains(snapshotId);
+            if (snapshotIsRegistered == false) {
                 logger.warn(
                     "Snapshot [{}] not found in registered set after snapshot completion. This means snapshot was"
                         + " recorded as a failure by another snapshot's cleanup run.",
@@ -562,7 +565,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         exception.map(SnapshotLifecycleTask::exceptionToString).orElse(null)
                     )
                 );
-                newPolicyMetadata.incrementInvocationsSinceLastSuccess();
+                // If the snapshot was not registered, it means it was already counted as a failure by another snapshot's cleanup run
+                // so we should not increment the invocationsSinceLastSuccess again.
+                if (snapshotIsRegistered) {
+                    newPolicyMetadata.incrementInvocationsSinceLastSuccess();
+                }
             } else {
                 newStats = newStats.withTakenIncremented(policyName);
                 newPolicyMetadata.setLastSuccess(
@@ -582,11 +589,14 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         @Override
         public void onFailure(Exception e) {
-            logger.error(
-                "failed to record snapshot policy execution status [{}] for snapshot [{}] in policy [{}]: {}",
-                exception.isPresent() ? "failure" : "success",
-                snapshotId.getName(),
-                policyName,
+            logger.log(
+                MasterService.isPublishFailureException(e) ? Level.INFO : Level.WARN,
+                format(
+                    "failed to record snapshot policy execution status [%s] for snapshot [%s] in policy [%s]",
+                    exception.isPresent() ? "failure" : "success",
+                    snapshotId.getName(),
+                    policyName
+                ),
                 e
             );
         }

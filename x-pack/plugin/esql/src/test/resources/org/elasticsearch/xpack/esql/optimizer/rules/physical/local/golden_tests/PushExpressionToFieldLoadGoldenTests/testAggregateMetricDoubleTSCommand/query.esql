@@ -1,0 +1,5 @@
+TS k8s-downsampled |
+STATS m = max(max_over_time(network.eth0.tx)),
+      c = count(count_over_time(network.eth0.tx)),
+      a = avg(avg_over_time(network.eth0.tx))
+BY pod, time_bucket = BUCKET(@timestamp,5minute)

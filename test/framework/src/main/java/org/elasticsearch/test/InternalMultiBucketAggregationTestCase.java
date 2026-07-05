@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -69,9 +70,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         return subAggregationsSupplier.get();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeSubAggregations() throws Exception {
         if (randomBoolean()) {
             subAggregationsSupplier = () -> InternalAggregations.EMPTY;
         } else {
@@ -84,6 +84,11 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                 return InternalAggregations.from(aggs);
             };
         }
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        super.setUp();
     }
 
     @Override
@@ -150,7 +155,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                     }
                 }
             },
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            null
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> InternalAggregationTestCase.reduce(List.of(agg), reduceContext));
         assertThat(e.getMessage(), equalTo("too big!"));
@@ -177,7 +183,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
             () -> false,
             mock(AggregationBuilder.class),
             v -> breaker.getBreaker("request").addEstimateBytesAndMaybeBreak(0, "test"),
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            null
         );
         Exception e = expectThrows(CircuitBreakingException.class, () -> InternalAggregationTestCase.reduce(List.of(agg), reduceContext));
         assertThat(e.getMessage(), startsWith("[parent] Data too large, data for [test] "));

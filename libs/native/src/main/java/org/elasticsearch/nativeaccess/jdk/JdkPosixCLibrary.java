@@ -9,9 +9,10 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.foreign.CloseableByteBuffer;
+import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.lang.foreign.Arena;
@@ -23,6 +24,8 @@ import java.lang.foreign.StructLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.lang.ref.Reference;
+import java.util.Objects;
 
 import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.ValueLayout.ADDRESS;
@@ -30,12 +33,14 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
-import static org.elasticsearch.nativeaccess.jdk.MemorySegmentUtil.varHandleWithoutOffset;
+import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
+import static org.elasticsearch.foreign.adapter.MemorySegmentAdapter.varHandleWithoutOffset;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 
     private static final Logger logger = LogManager.getLogger(JdkPosixCLibrary.class);
+
+    private static final int PAGE_SIZE;
 
     // errno can change between system calls, so we capture it
     private static final StructLayout CAPTURE_ERRNO_LAYOUT = Linker.Option.captureStateLayout();
@@ -53,6 +58,10 @@ class JdkPosixCLibrary implements PosixCLibrary {
         FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS)
     );
     private static final MethodHandle mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+    private static final MethodHandle madvise$mh = downcallHandleWithErrno(
+        "madvise",
+        FunctionDescriptor.of(JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_INT)
+    );
     private static final MethodHandle fcntl$mh = downcallHandle(
         "fcntl",
         FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS),
@@ -92,6 +101,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
             );
         }
         fstat$mh = fstat;
+
+        try {
+            PAGE_SIZE = (int) downcallHandle("getpagesize", FunctionDescriptor.of(JAVA_INT)).invokeExact();
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
     }
     private static final MethodHandle socket$mh = downcallHandleWithErrno(
         "socket",
@@ -121,7 +136,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     public String strerror(int errno) {
         try {
             MemorySegment str = (MemorySegment) strerror$mh.invokeExact(errno);
-            return MemorySegmentUtil.getString(str.reinterpret(Long.MAX_VALUE), 0);
+            return MemorySegmentAdapter.getString(str.reinterpret(Long.MAX_VALUE), 0);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -183,6 +198,33 @@ class JdkPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
+    public int madvise(MemorySegment segment, long offset, long length, int advice) {
+        if (segment.isNative() == false) {
+            throw new IllegalArgumentException("unexpected non-native segment: " + segment);
+        }
+        Objects.checkFromIndexSize(offset, length, segment.byteSize());
+        long base = segment.address() + offset;
+        try {
+            return (int) madvise$mh.invokeExact(errnoState, base, length, advice);
+        } catch (Throwable t) {
+            throw madviseError(t, segment);
+        } finally {
+            // protects the segment from being potentially being GC'ed during out downcall
+            Reference.reachabilityFence(segment);
+        }
+    }
+
+    static Error madviseError(Throwable t, MemorySegment segment) {
+        String msg = "madvise failed: segment=" + segment + ", scope=" + segment.scope() + ", isAlive=" + segment.scope().isAlive();
+        return new AssertionError(msg, t);
+    }
+
+    @Override
+    public int getPageSize() {
+        return PAGE_SIZE;
+    }
+
+    @Override
     public int fcntl(int fd, int cmd, FStore fst) {
         assert fst instanceof JdkFStore;
         var jdkFst = (JdkFStore) fst;
@@ -205,7 +247,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int open(String pathname, int flags) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment nativePathname = MemorySegmentUtil.allocateString(arena, pathname);
+            MemorySegment nativePathname = MemorySegmentAdapter.allocateString(arena, pathname);
             return (int) open$mh.invokeExact(errnoState, nativePathname, flags);
         } catch (Throwable t) {
             throw new AssertionError(t);
@@ -215,7 +257,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int open(String pathname, int flags, int mode) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment nativePathname = MemorySegmentUtil.allocateString(arena, pathname);
+            MemorySegment nativePathname = MemorySegmentAdapter.allocateString(arena, pathname);
             return (int) openWithMode$mh.invokeExact(errnoState, nativePathname, flags, mode);
         } catch (Throwable t) {
             throw new AssertionError(t);
@@ -388,7 +430,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         JdkSockAddr(String path) {
             segment = Arena.ofAuto().allocate(layout);
             segment.set(JAVA_SHORT, 0, AF_UNIX);
-            MemorySegmentUtil.setString(segment, 2, path);
+            MemorySegmentAdapter.setString(segment, 2, path);
         }
     }
 }

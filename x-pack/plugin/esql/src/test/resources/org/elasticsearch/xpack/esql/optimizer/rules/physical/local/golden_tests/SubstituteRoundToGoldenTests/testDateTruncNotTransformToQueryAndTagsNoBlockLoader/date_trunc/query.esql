@@ -1,0 +1,5 @@
+from all_types
+| sort date
+| eval x = date_trunc(1 day, date)
+| keep alias_integer, date, x
+| limit 5

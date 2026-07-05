@@ -9,9 +9,6 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +23,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -46,8 +44,17 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     public static final String STABLE_DESCRIPTOR_FILENAME = "stable-plugin-descriptor.properties";
     public static final String NAMED_COMPONENTS_FILENAME = "named_components.json";
 
-    private static final TransportVersion MODULE_NAME_SUPPORT = TransportVersions.V_8_3_0;
-    private static final TransportVersion BOOTSTRAP_SUPPORT_REMOVED = TransportVersions.V_8_4_0;
+    /**
+     * Deployment target describing when to load a plugin (stateful, stateless, or both).
+     */
+    public enum DeploymentTarget {
+        /** Only load plugin on stateful deployments (stateless mode disabled) */
+        STATEFUL_ONLY,
+        /** Only load plugin on stateless deployments (stateless mode enabled) */
+        STATELESS_ONLY,
+        /** All deployment targets (default) */
+        ALL
+    }
 
     private final String name;
     private final String description;
@@ -61,6 +68,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private final boolean isLicensed;
     private final boolean isModular;
     private final boolean isStable;
+    private final DeploymentTarget deploymentTarget;
 
     /**
      * Construct plugin info.
@@ -77,6 +85,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      * @param isLicensed           whether is this a licensed plugin
      * @param isModular            whether this plugin should be loaded in a module layer
      * @param isStable             whether this plugin is implemented using the stable plugin API
+     * @param deploymentTarget     when to load this plugin
      */
     public PluginDescriptor(
         String name,
@@ -90,7 +99,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         boolean hasNativeController,
         boolean isLicensed,
         boolean isModular,
-        boolean isStable
+        boolean isStable,
+        DeploymentTarget deploymentTarget
     ) {
         this.name = name;
         this.description = description;
@@ -104,6 +114,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.isLicensed = isLicensed;
         this.isModular = isModular;
         this.isStable = isStable;
+        this.deploymentTarget = deploymentTarget;
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -118,38 +129,18 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_12_0)) {
-            elasticsearchVersion = Version.readVersion(in).toString();
-        } else {
-            elasticsearchVersion = in.readString();
-        }
+        elasticsearchVersion = in.readString();
         javaVersion = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.classname = in.readOptionalString();
-        } else {
-            this.classname = in.readString();
-        }
-        if (in.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
-            this.moduleName = in.readOptionalString();
-        } else {
-            this.moduleName = null;
-        }
+        this.classname = in.readOptionalString();
+        this.moduleName = in.readOptionalString();
         extendedPlugins = in.readStringCollectionAsList();
         hasNativeController = in.readBoolean();
 
-        if (in.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
-            in.readString(); // plugin type
-            in.readOptionalString(); // java opts
-        }
         isLicensed = in.readBoolean();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            isModular = in.readBoolean();
-            isStable = in.readBoolean();
-        } else {
-            isModular = moduleName != null;
-            isStable = false;
-        }
+        isModular = in.readBoolean();
+        isStable = in.readBoolean();
+        deploymentTarget = DeploymentTarget.ALL; // only read from descriptor property files, not serialized
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -159,32 +150,15 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        if (out.getTransportVersion().before(TransportVersions.V_8_12_0)) {
-            Version.writeVersion(Version.fromString(elasticsearchVersion), out);
-        } else {
-            out.writeString(elasticsearchVersion);
-        }
+        out.writeString(elasticsearchVersion);
         out.writeString(javaVersion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalString(classname);
-        } else {
-            out.writeString(classname);
-        }
-        if (out.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
-            out.writeOptionalString(moduleName);
-        }
+        out.writeOptionalString(classname);
+        out.writeOptionalString(moduleName);
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
-
-        if (out.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
-            out.writeString("ISOLATED");
-            out.writeOptionalString(null);
-        }
         out.writeBoolean(isLicensed);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(isModular);
-            out.writeBoolean(isStable);
-        }
+        out.writeBoolean(isModular);
+        out.writeBoolean(isStable);
     }
 
     private void ensureCorrectArgumentsForPluginType() {
@@ -297,8 +271,42 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         boolean isLicensed = readBoolean(propsMap, name, "licensed");
         boolean modular = module != null;
+        DeploymentTarget deploymentTarget = readDeploymentTarget(propsMap, name);
 
-        return new PluginDescriptor(name, desc, ver, esVer, javaVer, classname, module, extended, nativeCont, isLicensed, modular, false);
+        return new PluginDescriptor(
+            name,
+            desc,
+            ver,
+            esVer,
+            javaVer,
+            classname,
+            module,
+            extended,
+            nativeCont,
+            isLicensed,
+            modular,
+            false,
+            deploymentTarget
+        );
+    }
+
+    private static DeploymentTarget readDeploymentTarget(Map<String, String> propsMap, String pluginId) {
+        String rawValue = propsMap.remove("deployment.target");
+        if (rawValue == null) {
+            return DeploymentTarget.ALL;
+        }
+        try {
+            return DeploymentTarget.valueOf(rawValue.trim());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Descriptor of plugin [%s] contains invalid deployment.target [%s], expected one of %s",
+                    pluginId,
+                    rawValue,
+                    Arrays.toString(DeploymentTarget.values())
+                )
+            );
+        }
     }
 
     private static PluginDescriptor readerStableDescriptor(Map<String, String> propsMap, String filename) {
@@ -308,8 +316,23 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String esVer = readElasticsearchVersion(propsMap, name);
         String javaVer = readJavaVersion(propsMap, name);
         boolean isModular = readBoolean(propsMap, name, "modular");
+        DeploymentTarget deploymentTarget = readDeploymentTarget(propsMap, name);
 
-        return new PluginDescriptor(name, desc, ver, esVer, javaVer, null, null, List.of(), false, false, isModular, true);
+        return new PluginDescriptor(
+            name,
+            desc,
+            ver,
+            esVer,
+            javaVer,
+            null,
+            null,
+            List.of(),
+            false,
+            false,
+            isModular,
+            true,
+            deploymentTarget
+        );
     }
 
     private static String readNonEmptyString(Map<String, String> propsMap, String pluginId, String name) {
@@ -459,6 +482,13 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         return isStable;
     }
 
+    /**
+     * The deployment target of this plugin, specifically if to include the plugin in stateful and/or stateless mode.
+     */
+    public DeploymentTarget getDeploymentTarget() {
+        return deploymentTarget;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -477,7 +507,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         builder.field("extended_plugins", extendedPlugins);
         builder.field("has_native_controller", hasNativeController);
         builder.field("licensed", isLicensed);
-
         return builder;
     }
 
@@ -514,6 +543,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         appendLine(lines, prefix, "Licensed: ", isLicensed);
         appendLine(lines, prefix, "Extended Plugins: ", extendedPlugins.toString());
         appendLine(lines, prefix, " * Classname: ", classname);
+        appendLine(lines, prefix, "Deployment Target: ", deploymentTarget);
 
         return String.join(System.lineSeparator(), lines);
     }

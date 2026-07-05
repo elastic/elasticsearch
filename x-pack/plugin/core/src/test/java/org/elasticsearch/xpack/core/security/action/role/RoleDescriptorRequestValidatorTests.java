@@ -73,6 +73,57 @@ public class RoleDescriptorRequestValidatorTests extends ESTestCase {
         }
     }
 
+    public void testCommaValidation() {
+        String[] invalidIndexNames = {
+            "index1,index2",
+            "logs-*,metrics-*",
+            ",leading",
+            "trailing,",
+            "a,b,c",
+            "my,index",
+            randomAlphaOfLengthBetween(3, 6) + "," + randomAlphaOfLengthBetween(3, 6) };
+        for (String indexName : invalidIndexNames) {
+            validateAndAssertCommaNotAllowed(roleWithIndexPrivileges(indexName), indexName);
+            validateAndAssertCommaNotAllowed(roleWithRemoteIndexPrivileges(indexName), indexName);
+        }
+
+        String[] validIndexNames = {
+            "no-comma",
+            "logs-*",
+            "*",
+            "",
+            null,
+            "index:with:colons",
+            "/regex,with,commas/",
+            "/[a-z]+,[0-9]+/",
+            "/logs-(foo|bar),.*/" };
+        for (String indexName : validIndexNames) {
+            validateAndAssertNoException(roleWithIndexPrivileges(indexName), indexName);
+            validateAndAssertNoException(roleWithRemoteIndexPrivileges(indexName), indexName);
+        }
+    }
+
+    public void testRegularExpressionValidation() {
+        String[] invalidRegexPatterns = { "/", "/unclosed", "/[invalid/", "/(/", "/[a-/" };
+        for (String indexName : invalidRegexPatterns) {
+            validateAndAssertInvalidRegex(roleWithIndexPrivileges(indexName), indexName);
+            validateAndAssertInvalidRegex(roleWithRemoteIndexPrivileges(indexName), indexName);
+        }
+
+        String[] validRegexPatterns = {
+            "/logs-.*/",
+            "/[a-z]+/",
+            "/[abc]{2,5}/",
+            "/index-[0-9]{4}/",
+            "/.*/",
+            "/*/",
+            "/logs-[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}/" };
+        for (String indexName : validRegexPatterns) {
+            validateAndAssertNoException(roleWithIndexPrivileges(indexName), indexName);
+            validateAndAssertNoException(roleWithRemoteIndexPrivileges(indexName), indexName);
+        }
+    }
+
     private static void validateAndAssertSelectorNotAllowed(RoleDescriptor roleDescriptor, String indexName) {
         var validationException = RoleDescriptorRequestValidator.validate(roleDescriptor);
         assertThat("expected validation exception for " + indexName, validationException, notNullValue());
@@ -80,6 +131,21 @@ public class RoleDescriptorRequestValidatorTests extends ESTestCase {
             validationException.validationErrors(),
             containsInAnyOrder("selectors [::] are not allowed in the index name expression [" + indexName + "]")
         );
+    }
+
+    private static void validateAndAssertCommaNotAllowed(RoleDescriptor roleDescriptor, String indexName) {
+        var validationException = RoleDescriptorRequestValidator.validate(roleDescriptor);
+        assertThat("expected validation exception for " + indexName, validationException, notNullValue());
+        assertThat(
+            validationException.validationErrors(),
+            containsInAnyOrder("commas [,] are not allowed in the index name expression [" + indexName + "]")
+        );
+    }
+
+    private static void validateAndAssertInvalidRegex(RoleDescriptor roleDescriptor, String indexName) {
+        var validationException = RoleDescriptorRequestValidator.validate(roleDescriptor);
+        assertThat("expected validation exception for " + indexName, validationException, notNullValue());
+        assertThat(validationException.validationErrors(), containsInAnyOrder("invalid regular expression pattern [" + indexName + "]"));
     }
 
     private static void validateAndAssertNoException(RoleDescriptor roleDescriptor, String indexName) {

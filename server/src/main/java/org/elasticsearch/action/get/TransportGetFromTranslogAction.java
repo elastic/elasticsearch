@@ -10,12 +10,11 @@
 package org.elasticsearch.action.get;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
@@ -74,7 +72,9 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                         getRequest.version(),
                         getRequest.versionType(),
                         getRequest.fetchSourceContext(),
-                        getRequest.isForceSyntheticSource()
+                        getRequest.isForceSyntheticSource(),
+                        getRequest.getSplitShardCountSummary(),
+                        getRequest.refresh()
                     );
                 long segmentGeneration = -1;
                 if (result == null) {
@@ -85,7 +85,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         });
     }
 
-    public static class Request extends LegacyActionRequest implements IndicesRequest {
+    public static class Request extends UntypedActionRequest implements IndicesRequest {
 
         private final GetRequest getRequest;
         private final ShardId shardId;
@@ -152,16 +152,14 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         public Response(StreamInput in) throws IOException {
             segmentGeneration = in.readZLong();
             getResult = in.readOptionalWriteable(GetResult::new);
-            primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
+            primaryTerm = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(segmentGeneration);
             out.writeOptionalWriteable(getResult);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeVLong(primaryTerm);
-            }
+            out.writeVLong(primaryTerm);
         }
 
         @Nullable

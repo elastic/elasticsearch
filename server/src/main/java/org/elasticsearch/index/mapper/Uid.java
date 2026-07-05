@@ -23,7 +23,8 @@ public final class Uid {
 
     private static final int UTF8 = 0xff;
     private static final int NUMERIC = 0xfe;
-    private static final int BASE64_ESCAPE = 0xfd;
+    /** Escape byte prepended to base64-decoded IDs when the first byte is >= 0xfd */
+    public static final int BASE64_ESCAPE = 0xfd;
 
     private Uid() {}
 
@@ -171,6 +172,12 @@ public final class Uid {
             idBytes = Arrays.copyOfRange(idBytes, offset, offset + length);
         }
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(idBytes);
+    }
+
+    /** Decode an indexed id back to its original form.
+     *  @see #encodeId */
+    public static String decodeId(BytesRef idBytes) {
+        return decodeId(idBytes.bytes, idBytes.offset, idBytes.length);
     }
 
     /** Decode an indexed id back to its original form.

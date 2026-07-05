@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
@@ -26,7 +27,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class Fuse extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
+public class Fuse extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware, ExecutesOn.Coordinator {
     private final Attribute score;
     private final Attribute discriminator;
     private final List<NamedExpression> keys;

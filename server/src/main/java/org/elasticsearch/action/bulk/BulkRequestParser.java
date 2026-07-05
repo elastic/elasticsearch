@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -45,7 +46,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  */
 public final class BulkRequestParser {
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     // Remove deprecation logger when its usages in checkBulkActionIsProperlyClosed are removed
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
 
@@ -56,6 +57,7 @@ public final class BulkRequestParser {
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
+    private static final ParseField SLICE = new ParseField(SliceIndexing.PARAM_NAME);
     private static final ParseField OP_TYPE = new ParseField("op_type");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
@@ -68,6 +70,7 @@ public final class BulkRequestParser {
     private static final ParseField REQUIRE_DATA_STREAM = new ParseField(DocWriteRequest.REQUIRE_DATA_STREAM);
     private static final ParseField LIST_EXECUTED_PIPELINES = new ParseField(DocWriteRequest.LIST_EXECUTED_PIPELINES);
     private static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
+    private static final ParseField DYNAMIC_TEMPLATE_PARAMS = new ParseField("dynamic_template_params");
 
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
     // for CompatibleApi V7 this means to deprecate on type, for V8+ it means to throw an error
@@ -142,9 +145,44 @@ public final class BulkRequestParser {
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer
     ) throws IOException {
+        parse(
+            data,
+            defaultIndex,
+            defaultRouting,
+            false,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            allowExplicitIndex,
+            xContentType,
+            indexRequestConsumer,
+            updateRequestConsumer,
+            deleteRequestConsumer
+        );
+    }
+
+    public void parse(
+        BytesReference data,
+        @Nullable String defaultIndex,
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
+        @Nullable FetchSourceContext defaultFetchSourceContext,
+        @Nullable String defaultPipeline,
+        @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
+        @Nullable Boolean defaultListExecutedPipelines,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        BiConsumer<IndexRequest, String> indexRequestConsumer,
+        Consumer<UpdateRequest> updateRequestConsumer,
+        Consumer<DeleteRequest> deleteRequestConsumer
+    ) throws IOException {
         IncrementalParser incrementalParser = new IncrementalParser(
             defaultIndex,
             defaultRouting,
+            defaultRoutingFromSlice,
             defaultFetchSourceContext,
             defaultPipeline,
             defaultRequireAlias,
@@ -174,9 +212,42 @@ public final class BulkRequestParser {
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer
     ) {
+        return incrementalParser(
+            defaultIndex,
+            defaultRouting,
+            false,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            allowExplicitIndex,
+            xContentType,
+            indexRequestConsumer,
+            updateRequestConsumer,
+            deleteRequestConsumer
+        );
+    }
+
+    public IncrementalParser incrementalParser(
+        @Nullable String defaultIndex,
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
+        @Nullable FetchSourceContext defaultFetchSourceContext,
+        @Nullable String defaultPipeline,
+        @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
+        @Nullable Boolean defaultListExecutedPipelines,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        BiConsumer<IndexRequest, String> indexRequestConsumer,
+        Consumer<UpdateRequest> updateRequestConsumer,
+        Consumer<DeleteRequest> deleteRequestConsumer
+    ) {
         return new IncrementalParser(
             defaultIndex,
             defaultRouting,
+            defaultRoutingFromSlice,
             defaultFetchSourceContext,
             defaultPipeline,
             defaultRequireAlias,
@@ -199,6 +270,7 @@ public final class BulkRequestParser {
 
         private final String defaultIndex;
         private final String defaultRouting;
+        private final boolean defaultRoutingFromSlice;
         private final FetchSourceContext defaultFetchSourceContext;
         private final String defaultPipeline;
         private final Boolean defaultRequireAlias;
@@ -225,6 +297,7 @@ public final class BulkRequestParser {
         private IncrementalParser(
             @Nullable String defaultIndex,
             @Nullable String defaultRouting,
+            boolean defaultRoutingFromSlice,
             @Nullable FetchSourceContext defaultFetchSourceContext,
             @Nullable String defaultPipeline,
             @Nullable Boolean defaultRequireAlias,
@@ -238,6 +311,7 @@ public final class BulkRequestParser {
         ) {
             this.defaultIndex = defaultIndex;
             this.defaultRouting = defaultRouting;
+            this.defaultRoutingFromSlice = defaultRoutingFromSlice;
             this.defaultFetchSourceContext = defaultFetchSourceContext;
             this.defaultPipeline = defaultPipeline;
             this.defaultRequireAlias = defaultRequireAlias;
@@ -350,6 +424,8 @@ public final class BulkRequestParser {
                 String index = defaultIndex;
                 String id = null;
                 String routing = defaultRouting;
+                boolean routingProvided = false;
+                boolean sliceProvided = false;
                 String opType = null;
                 long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
@@ -359,6 +435,7 @@ public final class BulkRequestParser {
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
                 boolean requireDataStream = defaultRequireDataStream != null && defaultRequireDataStream;
                 Map<String, String> dynamicTemplates = Map.of();
+                Map<String, Map<String, String>> dynamicTemplatesParms = Map.of();
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
@@ -385,7 +462,26 @@ public final class BulkRequestParser {
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
+                                if (sliceProvided || defaultRoutingFromSlice) {
+                                    throw new IllegalArgumentException(
+                                        "Action/metadata line [" + line + "] contains both [routing] and [_slice]"
+                                    );
+                                }
                                 routing = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
+                                routingProvided = true;
+                            } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
+                                if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+                                    throw new IllegalArgumentException("request does not support [_slice]");
+                                }
+                                final String sliceValue = parser.text();
+                                SliceIndexing.validateUserSliceValue(sliceValue);
+                                if (routingProvided) {
+                                    throw new IllegalArgumentException(
+                                        "Action/metadata line [" + line + "] contains both [routing] and [_slice]"
+                                    );
+                                }
+                                routing = stringDeduplicator.computeIfAbsent(sliceValue, Function.identity());
+                                sliceProvided = true;
                             } else if (OP_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 opType = parser.text();
                             } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -427,19 +523,22 @@ public final class BulkRequestParser {
                             && DYNAMIC_TEMPLATES.match(currentFieldName, parser.getDeprecationHandler())) {
                                 dynamicTemplates = parser.mapStrings();
                             } else if (token == XContentParser.Token.START_OBJECT
-                                && SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    currentFetchSourceContext = FetchSourceContext.fromXContent(parser);
-                                } else if (token != XContentParser.Token.VALUE_NULL) {
-                                    throw new IllegalArgumentException(
-                                        "Malformed action/metadata line ["
-                                            + line
-                                            + "], expected a simple value for field ["
-                                            + currentFieldName
-                                            + "] but found ["
-                                            + token
-                                            + "]"
-                                    );
-                                }
+                                && DYNAMIC_TEMPLATE_PARAMS.match(currentFieldName, parser.getDeprecationHandler())) {
+                                    dynamicTemplatesParms = parser.map(HashMap::new, XContentParser::mapStrings);
+                                } else if (token == XContentParser.Token.START_OBJECT
+                                    && SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
+                                        currentFetchSourceContext = FetchSourceContext.fromXContent(parser);
+                                    } else if (token != XContentParser.Token.VALUE_NULL) {
+                                        throw new IllegalArgumentException(
+                                            "Malformed action/metadata line ["
+                                                + line
+                                                + "], expected a simple value for field ["
+                                                + currentFieldName
+                                                + "] but found ["
+                                                + token
+                                                + "]"
+                                        );
+                                    }
                     }
                 } else if (token != XContentParser.Token.END_OBJECT) {
                     throw new IllegalArgumentException(
@@ -462,8 +561,14 @@ public final class BulkRequestParser {
                             "Delete request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName()
                         );
                     }
+                    if (dynamicTemplatesParms.isEmpty() == false) {
+                        throw new IllegalArgumentException(
+                            "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATE_PARAMS.getPreferredName()
+                        );
+                    }
                     currentRequest = new DeleteRequest(index).id(id)
                         .routing(routing)
+                        .setRoutingFromSlice(sliceProvided || defaultRoutingFromSlice)
                         .version(version)
                         .versionType(versionType)
                         .setIfSeqNo(ifSeqNo)
@@ -474,12 +579,14 @@ public final class BulkRequestParser {
                     if ("index".equals(action) || "create".equals(action)) {
                         var indexRequest = new IndexRequest(index).id(id)
                             .routing(routing)
+                            .setRoutingFromSlice(sliceProvided || defaultRoutingFromSlice)
                             .version(version)
                             .versionType(versionType)
                             .setPipeline(currentPipeline)
                             .setIfSeqNo(ifSeqNo)
                             .setIfPrimaryTerm(ifPrimaryTerm)
                             .setDynamicTemplates(dynamicTemplates)
+                            .setDynamicTemplateParams(dynamicTemplatesParms)
                             .setRequireAlias(requireAlias)
                             .setRequireDataStream(requireDataStream)
                             .setListExecutedPipelines(currentListExecutedPipelines)
@@ -508,9 +615,15 @@ public final class BulkRequestParser {
                                 "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName()
                             );
                         }
+                        if (dynamicTemplatesParms.isEmpty() == false) {
+                            throw new IllegalArgumentException(
+                                "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATE_PARAMS.getPreferredName()
+                            );
+                        }
                         UpdateRequest updateRequest = new UpdateRequest().index(index)
                             .id(id)
                             .routing(routing)
+                            .setRoutingFromSlice(sliceProvided || defaultRoutingFromSlice)
                             .retryOnConflict(retryOnConflict)
                             .setIfSeqNo(ifSeqNo)
                             .setIfPrimaryTerm(ifPrimaryTerm)
@@ -550,7 +663,7 @@ public final class BulkRequestParser {
 
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove lenient parsing in V8 BWC mode
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Remove lenient parsing in V8 BWC mode
     private void checkBulkActionIsProperlyClosed(XContentParser parser, int line) throws IOException {
         XContentParser.Token token;
         try {

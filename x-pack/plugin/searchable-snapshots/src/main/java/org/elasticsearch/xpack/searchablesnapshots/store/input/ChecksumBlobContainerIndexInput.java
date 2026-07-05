@@ -115,7 +115,7 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
     }
 
     private static void ensureReadOnceChecksumContext(IOContext context) {
-        if (context != Store.READONCE_CHECKSUM) {
+        if (context.hints().contains(Store.FileFooterOnly.INSTANCE) == false) {
             assert false : "expected READONCE_CHECKSUM but got " + context;
             throw new IllegalArgumentException("ChecksumBlobContainerIndexInput should only be used with READONCE_CHECKSUM context");
         }

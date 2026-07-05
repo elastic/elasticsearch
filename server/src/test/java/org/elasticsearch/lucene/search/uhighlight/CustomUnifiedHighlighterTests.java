@@ -30,7 +30,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -43,6 +42,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.ResourceLoader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -140,7 +140,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 iw.close();
-                TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
+                TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 1, Sort.INDEXORDER);
                 assertThat(topDocs.totalHits.value(), equalTo(1L));
                 String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
                 UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
@@ -399,6 +399,27 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             .addTokenFilter(NYCFilterFactory.class, "synonyms", "N/A")
             .build();
         assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
+    }
+
+    public void testPhraseSpanningMultipleValues() throws Exception {
+        final String[] inputs = { "If you say things to a person that turn out not to be true", "the person is not going to believe" };
+        final String[] outputs = { "If you say things to a person that turn out not <b>to be true the person</b>" };
+        Query query = new PhraseQuery.Builder().add(new Term("text", "to"))
+            .add(new Term("text", "be"))
+            .add(new Term("text", "true"))
+            .add(new Term("text", "the"))
+            .add(new Term("text", "person"))
+            .build();
+        assertHighlightOneDoc(
+            "text",
+            inputs,
+            new StandardAnalyzer(),
+            query,
+            Locale.ROOT,
+            BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 256),
+            0,
+            outputs
+        );
     }
 
     public void testExceedMaxAnalyzedOffset() throws Exception {

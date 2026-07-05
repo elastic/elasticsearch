@@ -23,7 +23,7 @@ This connector is available as a self-managed connector. To use this connector, 
 
 To create a new Outlook connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Outlook** self-managed connector.
 
 
@@ -41,6 +41,7 @@ PUT _connector/my-outlook-connector
   "service_type": "outlook"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -192,8 +193,9 @@ You can deploy the Outlook connector as a self-managed connector using Docker. F
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -285,6 +287,7 @@ The connector syncs the following objects and entities:
 ::::{note}
 * Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+* For Outlook Cloud (Office 365), the connector only discovers mailboxes belonging to **enabled** directory users (`accountEnabled = true`) that have an email address. **Shared mailboxes are not synced by default**, because their backing Entra ID account has sign-in disabled. To sync a shared mailbox, enable sign-in for its account in Entra ID (this may require assigning a license).
 
 ::::
 
@@ -345,5 +348,5 @@ See [Security](/reference/search-connectors/es-connectors-security.md).
 
 This connector is included in the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/outlook.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/outlook) (branch *main*, compatible with Elastic *9.0*).
 

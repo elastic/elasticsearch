@@ -45,8 +45,6 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
     // | \_EsRelation[languages_lookup][LOOKUP][language_code{f}#24]
     // \_EsRelation[languages_lookup][LOOKUP][language_code{f}#26, language_name{f}#27]
     public void testMultipleLookups() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String query = """
             FROM test
             | KEEP languages, emp_no
@@ -86,8 +84,6 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
     // | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
     // \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
     public void testShadowingBeforePushdown() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String query = """
             FROM test
             | RENAME languages AS language_code, last_name AS language_name
@@ -118,8 +114,6 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
     // | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
     // \_EsRelation[languages_lookup][LOOKUP][language_code{f}#25, language_name{f}#26]
     public void testShadowingAfterPushdown() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String query = """
             FROM test
             | EVAL language_name = 2*salary
@@ -168,21 +162,20 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         assertLeftJoinConfig(join.config(), "languages", mainRel.outputSet(), "language_code", lookupRel.outputSet());
     }
 
-    // Expects
-    //
-    // Project[[$$emp_no$temp_name$48{r$}#49 AS languages#16, emp_no{f}#37,
-    // salary{f}#42, $$salary$temp_name$50{r$}#51 AS salary2#7, last_name{f}#30 AS ln#19]]
-    // \_Limit[1000[INTEGER],true]
-    // \_Join[LEFT,[emp_no{f}#26],[emp_no{f}#26],[languages{f}#40]]
-    // |_Eval[[emp_no{f}#26 AS $$emp_no$temp_name$48#49, salary{f}#31 AS $$salary$temp_name$50#51]]
-    // | \_Limit[1000[INTEGER],false]
-    // | \_EsRelation[test][_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, ..]
-    // \_EsRelation[test_lookup][LOOKUP][emp_no{f}#37, languages{f}#40, salary{f}#42]
+    /*
+     * Expects
+     * Project[[$$emp_no$temp_name$51{r$}#52 AS languages#17, emp_no{f}#38, salary{f}#43, $$salary$temp_name$49{r$}#50 AS salary2#8,
+     * last_name{f}#31 AS ln#20]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_Join[LEFT,[emp_no{f}#27],[languages{f}#41],null]
+     *     |_Eval[[salary{f}#32 AS $$salary$temp_name$49#50, emp_no{f}#27 AS $$emp_no$temp_name$51#52]]
+     *     | \_Limit[1000[INTEGER],false,false]
+     *     |   \_EsRelation[test][_meta_field{f}#33, emp_no{f}#27, first_name{f}#28, ..]
+     *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#38, languages{f}#41, salary{f}#43]
+     */
     public void testShadowingAfterPushdown2() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String query = """
-            FROM test_lookup
+            FROM test
             | RENAME emp_no AS x, salary AS salary2
             | EVAL y = x, gender = last_name
             | RENAME y AS languages, gender AS ln
@@ -225,17 +218,17 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         assertTrue(mainRel.outputSet().contains(lastName));
 
         var evalExprs = eval.fields();
-        assertThat(Expressions.names(evalExprs), contains(empNoTempName.name(), salaryTempName.name()));
+        assertThat(Expressions.names(evalExprs), contains(salaryTempName.name(), empNoTempName.name()));
 
-        var originalEmpNo = unwrapAlias(evalExprs.get(0), FieldAttribute.class);
-        assertTrue(evalExprs.get(0).toAttribute().semanticEquals(empNoTempName));
-        assertEquals("emp_no", originalEmpNo.fieldName().string());
-        assertTrue(mainRel.outputSet().contains(originalEmpNo));
-
-        var originalSalary = unwrapAlias(evalExprs.get(1), FieldAttribute.class);
-        assertTrue(evalExprs.get(1).toAttribute().semanticEquals(salaryTempName));
+        var originalSalary = unwrapAlias(evalExprs.get(0), FieldAttribute.class);
+        assertTrue(evalExprs.get(0).toAttribute().semanticEquals(salaryTempName));
         assertEquals("salary", originalSalary.fieldName().string());
         assertTrue(mainRel.outputSet().contains(originalSalary));
+
+        var originalEmpNo = unwrapAlias(evalExprs.get(1), FieldAttribute.class);
+        assertTrue(evalExprs.get(1).toAttribute().semanticEquals(empNoTempName));
+        assertEquals("emp_no", originalEmpNo.fieldName().string());
+        assertTrue(mainRel.outputSet().contains(originalEmpNo));
 
         assertLeftJoinConfig(join.config(), "emp_no", mainRel.outputSet(), "languages", lookupRel.outputSet());
     }
@@ -249,14 +242,13 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
      *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#27, languages{f}#30, salary{f}#32]
      */
     public void testShadowingAfterPushdownExpressionJoin() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
 
         String query = """
-            FROM test_lookup
+            FROM test
             | RENAME languages as lang2
             | EVAL y = emp_no
             | RENAME y AS lang
@@ -298,14 +290,13 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
      *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#28, languages{f}#31, salary{f}#33]
      */
     public void testShadowingAfterPushdownExpressionJoinKeepOrig() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
 
         String query = """
-            FROM test_lookup
+            FROM test
             | RENAME languages as lang2
             | EVAL y = emp_no
             | RENAME y AS lang
@@ -351,14 +342,13 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
      *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#21, languages{f}#24, salary{f}#26]
      */
     public void testShadowingAfterPushdownRenameExpressionJoin() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
 
         String query = """
-            FROM test_lookup
+            FROM test
             | RENAME languages AS lang
             | LOOKUP JOIN test_lookup ON lang == languages
             | KEEP languages, emp_no, salary
@@ -398,14 +388,13 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
      *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#22, languages{f}#25, salary{f}#27]
      */
     public void testShadowingAfterPushdownEvalExpressionJoin() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
 
         String query = """
-            FROM test_lookup
+            FROM test
             | EVAL lang = languages + 0
             | DROP languages
             | LOOKUP JOIN test_lookup ON lang == languages

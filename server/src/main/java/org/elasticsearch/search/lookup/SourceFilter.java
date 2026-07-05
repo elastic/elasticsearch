@@ -69,6 +69,26 @@ public final class SourceFilter {
     }
 
     /**
+     * Checks if the given path matches at least one explicitly defined include pattern.
+     * <p>
+     * If no include patterns are defined, this method always returns {@code false}.
+     *
+     * @param fullPath the full path to evaluate
+     * @return {@code true} if the path matches any explicitly defined include pattern,
+     *         {@code false} otherwise
+     */
+    public boolean isExplicitlyIncluded(String fullPath) {
+        if (includes.length == 0) {
+            return false;
+        }
+        if (includeAut == null) {
+            includeAut = XContentMapValues.compileAutomaton(includes, new CharacterRunAutomaton(Automata.makeAnyString()));
+        }
+        int state = step(includeAut, fullPath, 0);
+        return state != -1 && includeAut.isAccept(state);
+    }
+
+    /**
      * Determines whether the given full path should be filtered out.
      *
      * @param fullPath The full path to evaluate.
@@ -77,7 +97,7 @@ public final class SourceFilter {
      */
     public boolean isPathFiltered(String fullPath, boolean isObject) {
         final boolean included;
-        if (includes != null) {
+        if (includes.length > 0) {
             if (includeAut == null) {
                 includeAut = XContentMapValues.compileAutomaton(includes, new CharacterRunAutomaton(Automata.makeAnyString()));
             }
@@ -87,7 +107,7 @@ public final class SourceFilter {
             included = true;
         }
 
-        if (excludes != null) {
+        if (excludes.length > 0) {
             if (excludeAut == null) {
                 excludeAut = XContentMapValues.compileAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()));
             }
@@ -101,8 +121,11 @@ public final class SourceFilter {
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {
-        for (int i = 0; state != -1 && i < key.length(); ++i) {
-            state = automaton.step(state, key.charAt(i));
+        // Step by code point, not UTF-16 char: the automaton is built over code points (see CharacterRunAutomaton#run).
+        for (int i = 0; state != -1 && i < key.length();) {
+            final int cp = key.codePointAt(i);
+            state = automaton.step(state, cp);
+            i += Character.charCount(cp);
         }
         return state;
     }

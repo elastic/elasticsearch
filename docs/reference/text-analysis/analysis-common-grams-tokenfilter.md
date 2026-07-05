@@ -13,7 +13,7 @@ For example, you can specify `is` and `the` as common words. This filter then co
 
 You can use the `common_grams` filter in place of the [stop token filter](/reference/text-analysis/analysis-stop-tokenfilter.md) when you don’t want to completely ignore common words.
 
-This filter uses Lucene’s [CommonGramsFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/commongrams/CommonGramsFilter.md).
+This filter uses Lucene’s [CommonGramsFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/commongrams/CommonGramsFilter.html).
 
 ## Example [analysis-common-grams-analyze-ex]
 

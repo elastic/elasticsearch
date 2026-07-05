@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,6 +23,8 @@ import java.util.Objects;
 public class InferenceFeatureSetUsage extends XPackFeatureUsage {
 
     public static final InferenceFeatureSetUsage EMPTY = new InferenceFeatureSetUsage(List.of());
+    // Public so tests can access it
+    public static final String MODELS_FIELD = "models";
 
     private final Collection<ModelStats> modelStats;
 
@@ -40,7 +41,7 @@ public class InferenceFeatureSetUsage extends XPackFeatureUsage {
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
-        builder.xContentList("models", modelStats);
+        builder.xContentList(MODELS_FIELD, modelStats);
     }
 
     @Override
@@ -51,7 +52,7 @@ public class InferenceFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

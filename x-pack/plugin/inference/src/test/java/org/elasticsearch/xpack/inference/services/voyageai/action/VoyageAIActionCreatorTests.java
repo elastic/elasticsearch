@@ -11,7 +11,6 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
@@ -19,7 +18,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -38,21 +36,34 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.convertToString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.INPUT_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.INPUT_TYPE_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.MODEL_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.OUTPUT_DIMENSION_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.OUTPUT_DTYPE_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.TRUNCATION_FIELD;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.convertInputTypeToString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class VoyageAIActionCreatorTests extends ESTestCase {
+
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String TEST_API_KEY = "secret";
+    private static final String TEST_MODEL_ID = "some-model-id";
+    private static final String TEST_INPUT = "some input";
+    private static final int TEST_DIMENSIONS = 1024;
+    private static final int TEST_MAX_INPUT_TOKENS = 1024;
+    private static final VoyageAIEmbeddingType TEST_EMBEDDING_TYPE = VoyageAIEmbeddingType.FLOAT;
+
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -75,8 +86,6 @@ public class VoyageAIActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
-
             String responseJson = """
                 {
                     "object": "list",
@@ -98,12 +107,12 @@ public class VoyageAIActionCreatorTests extends ESTestCase {
 
             var model = VoyageAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
-                "secret",
+                TEST_API_KEY,
                 new VoyageAIEmbeddingsTaskSettings(null, true),
-                1024,
-                1024,
-                "model",
-                VoyageAIEmbeddingType.FLOAT
+                TEST_MAX_INPUT_TOKENS,
+                TEST_DIMENSIONS,
+                TEST_MODEL_ID,
+                TEST_EMBEDDING_TYPE
             );
             var actionCreator = new VoyageAIActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null);
@@ -111,11 +120,7 @@ public class VoyageAIActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(
-                new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of(TEST_INPUT), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -124,29 +129,29 @@ public class VoyageAIActionCreatorTests extends ESTestCase {
             assertNull(webServer.requests().getFirst().getUri().getQuery());
             MatcherAssert.assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaType())
+                is(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is("Bearer " + TEST_API_KEY));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             if (inputType != null && inputType != InputType.UNSPECIFIED) {
-                var convertedInputType = convertToString(inputType);
+                var convertedInputType = convertInputTypeToString(inputType);
                 MatcherAssert.assertThat(
                     requestMap,
                     is(
                         Map.of(
-                            "output_dtype",
-                            "float",
-                            "truncation",
+                            OUTPUT_DTYPE_FIELD,
+                            TEST_EMBEDDING_TYPE.toRequestString(),
+                            TRUNCATION_FIELD,
                             true,
-                            "input_type",
+                            INPUT_TYPE_FIELD,
                             convertedInputType,
-                            "output_dimension",
-                            1024,
-                            "input",
-                            List.of("abc"),
-                            "model",
-                            "model"
+                            OUTPUT_DIMENSION_FIELD,
+                            TEST_DIMENSIONS,
+                            INPUT_FIELD,
+                            List.of(TEST_INPUT),
+                            MODEL_FIELD,
+                            TEST_MODEL_ID
                         )
                     )
                 );
@@ -155,16 +160,16 @@ public class VoyageAIActionCreatorTests extends ESTestCase {
                     requestMap,
                     is(
                         Map.of(
-                            "output_dtype",
-                            "float",
-                            "truncation",
+                            OUTPUT_DTYPE_FIELD,
+                            TEST_EMBEDDING_TYPE.toRequestString(),
+                            TRUNCATION_FIELD,
                             true,
-                            "output_dimension",
-                            1024,
-                            "input",
-                            List.of("abc"),
-                            "model",
-                            "model"
+                            OUTPUT_DIMENSION_FIELD,
+                            TEST_DIMENSIONS,
+                            INPUT_FIELD,
+                            List.of(TEST_INPUT),
+                            MODEL_FIELD,
+                            TEST_MODEL_ID
                         )
                     )
                 );

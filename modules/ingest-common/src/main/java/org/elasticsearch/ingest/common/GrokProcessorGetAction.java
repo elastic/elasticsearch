@@ -8,12 +8,11 @@
  */
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -47,7 +46,7 @@ public class GrokProcessorGetAction {
 
     private GrokProcessorGetAction() {/* no instances */}
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         private final boolean sorted;
         private final String ecsCompatibility;
@@ -60,9 +59,7 @@ public class GrokProcessorGetAction {
         Request(StreamInput in) throws IOException {
             super(in);
             this.sorted = in.readBoolean();
-            this.ecsCompatibility = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
-                ? in.readString()
-                : GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE;
+            this.ecsCompatibility = in.readString();
         }
 
         @Override
@@ -74,9 +71,7 @@ public class GrokProcessorGetAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(sorted);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                out.writeString(ecsCompatibility);
-            }
+            out.writeString(ecsCompatibility);
         }
 
         public boolean sorted() {

@@ -38,7 +38,7 @@ import java.util.function.Supplier;
 public class RecordingInstruments {
     protected abstract static class RecordingInstrument implements Instrument {
         protected final String name;
-        private final MetricRecorder<Instrument> recorder;
+        final MetricRecorder<Instrument> recorder;
 
         public RecordingInstrument(String name, MetricRecorder<Instrument> recorder) {
             this.name = Objects.requireNonNull(name);
@@ -81,7 +81,8 @@ public class RecordingInstruments {
         }
 
         @Override
-        public void close() throws Exception {
+        public void close() {
+            recorder.deregister(this);
             try (ReleasableLock lock = closedLock.acquire()) {
                 assert closed == false : "double close";
                 closed = true;
@@ -207,7 +208,7 @@ public class RecordingInstruments {
         public RecordingLongGauge(String name, Supplier<Collection<LongWithAttributes>> observer, MetricRecorder<Instrument> recorder) {
             super(name, () -> {
                 var observation = observer.get();
-                return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
+                return observation.stream().filter(Objects::nonNull).map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
             }, recorder);
         }
     }

@@ -10,7 +10,9 @@
 package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 
@@ -25,11 +27,32 @@ public class PutSynonymsActionRequestSerializingTests extends AbstractWireSerial
 
     @Override
     protected PutSynonymsAction.Request createTestInstance() {
-        return new PutSynonymsAction.Request(randomIdentifier(), randomSynonymsSet(), randomBoolean());
+        return new PutSynonymsAction.Request(randomIdentifier(), randomSynonymsSet(), randomBoolean(), randomBoolean());
     }
 
     @Override
     protected PutSynonymsAction.Request mutateInstance(PutSynonymsAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String synonymsSetId = instance.synonymsSetId();
+        SynonymRule[] synonymRules = instance.synonymRules();
+        boolean refresh = instance.refresh();
+        boolean append = instance.append();
+        switch (between(0, 3)) {
+            case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
+            case 1 -> synonymRules = randomArrayOtherThan(synonymRules, () -> randomSynonymsSet());
+            case 2 -> refresh = refresh == false;
+            case 3 -> append = append == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PutSynonymsAction.Request(synonymsSetId, synonymRules, refresh, append);
+    }
+
+    /**
+     * Serializing append=true to a node that does not support it must throw rather than silently
+     * dropping the flag and defaulting to replace behaviour.
+     */
+    public void testWriteToThrowsWhenAppendTrueAndVersionNotSupporting() throws IOException {
+        var oldVersion = TransportVersionUtils.randomVersionNotSupporting(PutSynonymsAction.Request.SYNONYMS_APPEND_PARAM);
+        PutSynonymsAction.Request request = new PutSynonymsAction.Request(randomIdentifier(), randomSynonymsSet(), randomBoolean(), true);
+        expectThrows(IllegalArgumentException.class, () -> copyInstance(request, oldVersion));
     }
 }

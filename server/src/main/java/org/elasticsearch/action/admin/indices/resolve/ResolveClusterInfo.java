@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -71,9 +70,6 @@ public class ResolveClusterInfo implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            throw new UnsupportedOperationException(ResolveClusterActionRequest.createVersionErrorMessage(out.getTransportVersion()));
-        }
         out.writeBoolean(connected);
         out.writeOptionalBoolean(skipUnavailable);
         out.writeOptionalBoolean(matchingIndices);

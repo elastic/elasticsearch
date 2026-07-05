@@ -10,7 +10,8 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -99,7 +100,7 @@ import java.util.stream.Collectors;
  *   are the pipelineIds ("my-pipeline-1" and "my-pipeline-2" in the example above). The values are the Maps of "processors" to the List of
  *   processor definitions.
  */
-public class SimulateBulkRequest extends BulkRequest {
+public class SimulateBulkRequest extends BulkRequest implements IndicesRequest {
 
     private static final TransportVersion SIMULATE_INGEST_MAPPING_MERGE_TYPE = TransportVersion.fromName(
         "simulate_ingest_mapping_merge_type"
@@ -144,18 +145,9 @@ public class SimulateBulkRequest extends BulkRequest {
     public SimulateBulkRequest(StreamInput in) throws IOException {
         super(in);
         this.pipelineSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.componentTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-            this.indexTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-        } else {
-            componentTemplateSubstitutions = Map.of();
-            indexTemplateSubstitutions = Map.of();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            this.mappingAddition = (Map<String, Object>) in.readGenericValue();
-        } else {
-            mappingAddition = Map.of();
-        }
+        this.componentTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
+        this.indexTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
+        this.mappingAddition = (Map<String, Object>) in.readGenericValue();
         if (in.getTransportVersion().supports(SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
             mappingMergeType = in.readOptionalString();
         } else {
@@ -167,13 +159,9 @@ public class SimulateBulkRequest extends BulkRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericValue(pipelineSubstitutions);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeGenericValue(componentTemplateSubstitutions);
-            out.writeGenericValue(indexTemplateSubstitutions);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            out.writeGenericValue(mappingAddition);
-        }
+        out.writeGenericValue(componentTemplateSubstitutions);
+        out.writeGenericValue(indexTemplateSubstitutions);
+        out.writeGenericValue(mappingAddition);
         if (out.getTransportVersion().supports(SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
             out.writeOptionalString(mappingMergeType);
         }
@@ -247,5 +235,15 @@ public class SimulateBulkRequest extends BulkRequest {
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
         return bulkRequest;
+    }
+
+    @Override
+    public String[] indices() {
+        return getIndices().toArray(new String[0]);
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 }

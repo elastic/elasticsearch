@@ -47,6 +47,7 @@
       },
       "stored_fields": {
         "type": "list",
+        "default": "false",
         "description": "A comma-separated list of stored fields to return in the response"
       },
       "preference": {
@@ -55,14 +56,16 @@
       },
       "realtime": {
         "type": "boolean",
+        "default": true,
         "description": "Specify whether to perform the operation in realtime or search mode"
       },
       "refresh": {
         "type": "boolean",
+        "default": false,
         "description": "Refresh the shard containing the document before performing the operation"
       },
       "routing": {
-        "type": "string",
+        "type": "list",
         "description": "Specific routing value"
       },
       "_source": {

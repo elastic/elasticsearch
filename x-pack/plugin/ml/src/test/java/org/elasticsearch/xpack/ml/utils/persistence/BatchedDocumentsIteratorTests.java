@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -172,8 +173,8 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             SearchHits searchHits = createHits(hits);
             SearchResponse searchResponse = mock(SearchResponse.class);
             when(searchResponse.getScrollId()).thenReturn(SCROLL_ID);
-            when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
-            searchHits.decRef();
+            when(searchResponse.getHits()).thenReturn(searchHits);
+            SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, searchHits);
             return searchResponse;
         }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class SearchApplicationSearchRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<SearchApplicationSearchRequest> {
 
@@ -32,7 +33,14 @@ public class SearchApplicationSearchRequestBWCSerializingTests extends AbstractB
 
     @Override
     protected SearchApplicationSearchRequest mutateInstance(SearchApplicationSearchRequest instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String name = instance.name();
+        Map<String, Object> queryParams = instance.queryParams();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLengthBetween(1, 10));
+            case 1 -> queryParams = randomValueOtherThan(queryParams, EnterpriseSearchModuleTestUtils::randomSearchApplicationQueryParams);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new SearchApplicationSearchRequest(name, queryParams);
     }
 
     @Override

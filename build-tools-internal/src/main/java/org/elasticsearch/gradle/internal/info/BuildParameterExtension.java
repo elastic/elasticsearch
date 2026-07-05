@@ -71,4 +71,6 @@ public interface BuildParameterExtension {
     Provider<Random> getRandom();
 
     Boolean getGraalVmRuntime();
+
+    String getFipsMode();
 }

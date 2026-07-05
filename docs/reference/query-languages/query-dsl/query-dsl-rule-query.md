@@ -29,6 +29,35 @@ To use the rule query, you first need a defined set of query rules. Use the [que
 
 ## Example request [_example_request_2]
 
+<!--
+```console
+PUT _query_rules/my-ruleset
+{
+  "rules": [
+    {
+      "rule_id": "my-rule1",
+      "type": "pinned",
+      "criteria": [
+        {
+          "type": "exact",
+          "metadata": "user_query",
+          "values": ["puggles"]
+        }
+      ],
+      "actions": {
+        "ids": [ "id1" ]
+      }
+    }
+  ]
+}
+```
+% TESTSETUP
+
+```console
+DELETE _query_rules/my-ruleset
+```
+% TEARDOWN
+-->
 ```console
 GET /_search
 {

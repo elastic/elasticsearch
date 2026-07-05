@@ -89,7 +89,6 @@ import java.util.Map;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.integration.FieldLevelSecurityTests.openPointInTime;
@@ -893,15 +892,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = new float[] { 0.0f, 0.0f, 0.0f };
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(
-            "vector",
-            queryVector,
-            50,
-            50,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null,
-            null
-        );
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50, 50, 10f, null, null);
 
         if (randomBoolean()) {
             query.addFilterQuery(new WildcardQueryBuilder("other", "value*"));
@@ -1640,8 +1631,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setProfile(true).setQuery(new FuzzyQueryBuilder("other_field", "valeu")),
             response -> {
-                assertThat(response.getProfileResults().size(), equalTo(1));
-                SearchProfileShardResult shardResult = response.getProfileResults().get(response.getProfileResults().keySet().toArray()[0]);
+                assertThat(response.getSearchProfileShardResults().size(), equalTo(1));
+                SearchProfileShardResult shardResult = response.getSearchProfileShardResults()
+                    .get(response.getSearchProfileShardResults().keySet().toArray()[0]);
                 assertThat(shardResult.getQueryProfileResults().size(), equalTo(1));
                 QueryProfileShardResult queryProfileShardResult = shardResult.getQueryProfileResults().get(0);
                 assertThat(queryProfileShardResult.getQueryResults().size(), equalTo(1));

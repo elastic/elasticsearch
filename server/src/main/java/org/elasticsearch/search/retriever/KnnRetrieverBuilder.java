@@ -28,13 +28,11 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -55,59 +53,38 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField VECTOR_SIMILARITY = new ParseField("similarity");
     public static final ParseField RESCORE_VECTOR_FIELD = new ParseField("rescore_vector");
 
-    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<KnnRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
         "knn",
         args -> {
-            List<Float> vector = (List<Float>) args[1];
-            final float[] vectorArray;
-            if (vector != null) {
-                vectorArray = new float[vector.size()];
-                for (int i = 0; i < vector.size(); i++) {
-                    vectorArray[i] = vector.get(i);
-                }
-            } else {
-                vectorArray = null;
-            }
-            if (IVF_FORMAT.isEnabled()) {
-                return new KnnRetrieverBuilder(
-                    (String) args[0],
-                    vectorArray,
-                    (QueryVectorBuilder) args[2],
-                    (int) args[3],
-                    (int) args[4],
-                    (Float) args[5],
-                    (RescoreVectorBuilder) args[7],
-                    (Float) args[6]
-                );
-            } else {
-                return new KnnRetrieverBuilder(
-                    (String) args[0],
-                    vectorArray,
-                    (QueryVectorBuilder) args[2],
-                    (int) args[3],
-                    (int) args[4],
-                    null,
-                    (RescoreVectorBuilder) args[6],
-                    (Float) args[5]
-                );
-            }
+            return new KnnRetrieverBuilder(
+                (String) args[0],
+                (VectorData) args[1],
+                (QueryVectorBuilder) args[2],
+                (int) args[3],
+                (Integer) args[4],
+                (Float) args[5],
+                (RescoreVectorBuilder) args[7],
+                (Float) args[6]
+            );
         }
     );
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
-        PARSER.declareFloatArray(optionalConstructorArg(), QUERY_VECTOR_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> VectorData.parseXContent(p),
+            QUERY_VECTOR_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_STRING_OR_NUMBER
+        );
         PARSER.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, c),
             QUERY_VECTOR_BUILDER_FIELD
         );
         PARSER.declareInt(constructorArg(), K_FIELD);
-        PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
-        if (IVF_FORMAT.isEnabled()) {
-            PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
-        }
+        PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY);
         PARSER.declareField(
             optionalConstructorArg(),
@@ -123,10 +100,10 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     }
 
     private final String field;
-    private final Supplier<float[]> queryVector;
+    private final Supplier<VectorData> queryVector;
     private final QueryVectorBuilder queryVectorBuilder;
     private final int k;
-    private final int numCands;
+    private final Integer numCands;
     private final Float visitPercentage;
     private final RescoreVectorBuilder rescoreVectorBuilder;
     private final Float similarity;
@@ -136,7 +113,20 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         float[] queryVector,
         QueryVectorBuilder queryVectorBuilder,
         int k,
-        int numCands,
+        Integer numCands,
+        Float visitPercentage,
+        RescoreVectorBuilder rescoreVectorBuilder,
+        Float similarity
+    ) {
+        this(field, VectorData.fromFloats(queryVector), queryVectorBuilder, k, numCands, visitPercentage, rescoreVectorBuilder, similarity);
+    }
+
+    public KnnRetrieverBuilder(
+        String field,
+        VectorData queryVector,
+        QueryVectorBuilder queryVectorBuilder,
+        int k,
+        Integer numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
@@ -168,7 +158,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         this.rescoreVectorBuilder = rescoreVectorBuilder;
     }
 
-    private KnnRetrieverBuilder(KnnRetrieverBuilder clone, Supplier<float[]> queryVector, QueryVectorBuilder queryVectorBuilder) {
+    private KnnRetrieverBuilder(KnnRetrieverBuilder clone, Supplier<VectorData> queryVector, QueryVectorBuilder queryVectorBuilder) {
         this.queryVector = queryVector;
         this.queryVectorBuilder = queryVectorBuilder;
         this.field = clone.field;
@@ -196,10 +186,9 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         }
 
         if (queryVectorBuilder != null) {
-            SetOnce<float[]> toSet = new SetOnce<>();
+            SetOnce<VectorData> toSet = new SetOnce<>();
             ctx.registerAsyncAction((c, l) -> {
                 queryVectorBuilder.buildVector(c, l.delegateFailureAndWrap((ll, v) -> {
-                    toSet.set(v);
                     if (v == null) {
                         ll.onFailure(
                             new IllegalArgumentException(
@@ -212,6 +201,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                         );
                         return;
                     }
+                    toSet.set(VectorData.fromFloats(v));
                     ll.onResponse(null);
                 }));
             });
@@ -239,7 +229,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         assert rankDocs != null : "rankDocs should have been materialized by now";
         var rankDocsQuery = new RankDocsQueryBuilder(
             rankDocs,
-            new QueryBuilder[] { new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector.get()), field, similarity) },
+            new QueryBuilder[] { new ExactKnnQueryBuilder(queryVector.get(), field, similarity) },
             true
         );
         if (preFilterQueryBuilders.isEmpty()) {
@@ -253,16 +243,16 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         assert queryVector != null : "query vector must be materialized at this point.";
-        KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(
-            field,
-            VectorData.fromFloats(queryVector.get()),
-            null,
-            k,
-            numCands,
-            visitPercentage,
-            rescoreVectorBuilder,
-            similarity
-        );
+        KnnSearchBuilder.Builder builder = new KnnSearchBuilder.Builder().field(field)
+            .queryVector(queryVector.get())
+            .k(k)
+            .visitPercentage(visitPercentage)
+            .rescoreVectorBuilder(rescoreVectorBuilder)
+            .similarity(similarity);
+        if (numCands != null) {
+            builder.numCandidates(numCands);
+        }
+        KnnSearchBuilder knnSearchBuilder = builder.build(k);
         if (preFilterQueryBuilders != null) {
             knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);
         }
@@ -284,9 +274,12 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(K_FIELD.getPreferredName(), k);
-        builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
 
-        if (IVF_FORMAT.isEnabled() && visitPercentage != null) {
+        if (numCands != null) {
+            builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
+        }
+
+        if (visitPercentage != null) {
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
         }
 
@@ -311,11 +304,10 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public boolean doEquals(Object o) {
         KnnRetrieverBuilder that = (KnnRetrieverBuilder) o;
         return k == that.k
-            && numCands == that.numCands
+            && Objects.equals(numCands, that.numCands)
             && Objects.equals(visitPercentage, that.visitPercentage)
             && Objects.equals(field, that.field)
-            && ((queryVector == null && that.queryVector == null)
-                || (queryVector != null && that.queryVector != null && Arrays.equals(queryVector.get(), that.queryVector.get())))
+            && Objects.equals(queryVector != null ? queryVector.get() : null, that.queryVector != null ? that.queryVector.get() : null)
             && Objects.equals(queryVectorBuilder, that.queryVectorBuilder)
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(rescoreVectorBuilder, that.rescoreVectorBuilder);
@@ -324,7 +316,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     @Override
     public int doHashCode() {
         int result = Objects.hash(field, queryVectorBuilder, k, numCands, visitPercentage, rescoreVectorBuilder, similarity);
-        result = 31 * result + Arrays.hashCode(queryVector != null ? queryVector.get() : null);
+        result = 31 * result + Objects.hashCode(queryVector != null ? queryVector.get() : null);
         return result;
     }
 

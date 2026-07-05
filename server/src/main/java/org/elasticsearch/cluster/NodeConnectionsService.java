@@ -35,7 +35,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -105,9 +104,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
         try (var refs = new RefCountingRunnable(onCompletion)) {
             synchronized (mutex) {
-                // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, just iterate over discoveryNodes here
-                for (final Iterator<DiscoveryNode> iterator = discoveryNodes.mastersFirstStream().iterator(); iterator.hasNext();) {
-                    final DiscoveryNode discoveryNode = iterator.next();
+                for (final DiscoveryNode discoveryNode : discoveryNodes) {
                     ConnectionTarget connectionTarget = targetsByNode.get(discoveryNode);
                     final boolean isNewNode = connectionTarget == null;
                     if (isNewNode) {

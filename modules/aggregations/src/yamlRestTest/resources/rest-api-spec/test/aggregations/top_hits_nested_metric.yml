@@ -157,3 +157,70 @@ setup:
   - match: { aggregations.groups.buckets.0.users.hits.hits.1._index: my-index }
   - gte: { aggregations.groups.buckets.0.users.hits.hits.1._seq_no: 0 }
   - gte: { aggregations.groups.buckets.0.users.hits.hits.1._primary_term: 1 }
+
+---
+"nested top_hits aggregation with query inner_hits":
+  - requires:
+      cluster_features: ["nested_agg_top_hits_with_inner_hits"]
+      reason: "Fix for nested aggregation top_hits with query inner_hits"
+  - do:
+      indices.create:
+        index: nested-inner-hits-test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              nested_item:
+                type: nested
+                properties:
+                  title:
+                    type: text
+                  content:
+                    type: text
+                  number:
+                    type: long
+
+  - do:
+      index:
+        index: nested-inner-hits-test
+        id: "1"
+        refresh: true
+        body:
+          nested_item:
+            - title: "foo"
+            - title: "foobar"
+              content: "foobar foobar"
+            - title: "baz"
+              content: "foobar"
+              number: 2
+
+  - do:
+      search:
+        index: nested-inner-hits-test
+        rest_total_hits_as_int: true
+        body:
+          query:
+            nested:
+              path: nested_item
+              inner_hits: {}
+              query:
+                match_all: {}
+          aggs:
+            nested_item:
+              nested:
+                path: nested_item
+              aggs:
+                top_nested:
+                  top_hits: {}
+
+  - match: { hits.total: 1 }
+  - length: { hits.hits.0.inner_hits.nested_item.hits.hits: 3 }
+  - match: { aggregations.nested_item.top_nested.hits.total: 3 }
+  - length: { aggregations.nested_item.top_nested.hits.hits: 3 }
+  - match: { aggregations.nested_item.top_nested.hits.hits.0._nested.field: nested_item }
+  - match: { aggregations.nested_item.top_nested.hits.hits.0._nested.offset: 0 }
+  - match: { aggregations.nested_item.top_nested.hits.hits.1._nested.field: nested_item }
+  - match: { aggregations.nested_item.top_nested.hits.hits.1._nested.offset: 1 }
+  - match: { aggregations.nested_item.top_nested.hits.hits.2._nested.field: nested_item }
+  - match: { aggregations.nested_item.top_nested.hits.hits.2._nested.offset: 2 }

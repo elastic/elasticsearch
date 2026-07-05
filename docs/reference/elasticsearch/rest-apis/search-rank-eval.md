@@ -38,7 +38,7 @@ For full details about the API syntax, refer to:
 
 In its most basic form, a request to the `_rank_eval` endpoint has two sections:
 
-```console
+```js
 GET /my-index-000001/_rank_eval
 {
   "requests": [ ... ],                            <1>
@@ -47,6 +47,7 @@ GET /my-index-000001/_rank_eval
   }
 }
 ```
+% NOTCONSOLE
 
 1. A set of typical search requests, together with their provided ratings.
 2. A definition of the evaluation metric to calculate.
@@ -54,7 +55,7 @@ GET /my-index-000001/_rank_eval
 
 The request section contains several search requests typical to your application, along with the document ratings for each particular search request.
 
-```console
+```js
 GET /my-index-000001/_rank_eval
 {
   "requests": [
@@ -81,6 +82,7 @@ GET /my-index-000001/_rank_eval
   ]
 }
 ```
+% NOTCONSOLE
 
 1. The search request's ID, used to group result details later.
 2. The query being evaluated.
@@ -101,7 +103,7 @@ As an alternative to having to provide a single query per test request, it is po
 This way, queries with a similar structure that differ only in their parameters don't have to be repeated all the time in the `requests` section.
 In typical search systems, where user inputs usually get filled into a small set of query templates, this helps make the evaluation request more succinct.
 
-```console
+```js
 GET /my-index-000001/_rank_eval
 {
    [...]
@@ -131,6 +133,7 @@ GET /my-index-000001/_rank_eval
   ]
 }
 ```
+% NOTCONSOLE
 
 1. The template ID.
 2. The template definition to use.
@@ -140,7 +143,7 @@ GET /my-index-000001/_rank_eval
 You can also use a stored [search template](docs-content://solutions/search/search-templates.md).
 For example:
 
-```console
+```js
 GET /my_index/_rank_eval
 {
    [...]
@@ -155,6 +158,7 @@ GET /my_index/_rank_eval
   "requests": [...]
 }
 ```
+% NOTCONSOLE
 
 1. The template ID used for requests.
 2. The template ID stored in the cluster state.
@@ -193,6 +197,7 @@ GET /my-index-000001/_rank_eval
   }
 }
 ```
+% TEST[setup:my_index]
 
 The `precision` metric takes optional parameters, including:
 
@@ -232,6 +237,7 @@ GET /my-index-000001/_rank_eval
   }
 }
 ```
+% TEST[setup:my_index]
 
 The `recall` metric takes optional parameters including:
 
@@ -265,6 +271,7 @@ GET /my-index-000001/_rank_eval
   }
 }
 ```
+% TEST[setup:my_index]
 
 The `mean_reciprocal_rank` metric takes optional parameters including:
 
@@ -299,6 +306,7 @@ GET /my-index-000001/_rank_eval
   }
 }
 ```
+% TEST[setup:my_index]
 
 The `dcg` metric takes optional parameters including:
 
@@ -339,6 +347,7 @@ GET /my-index-000001/_rank_eval
   }
 }
 ```
+% TEST[setup:my_index]
 
 The `expected_reciprocal_rank` metric takes parameters including:
 
@@ -391,6 +400,7 @@ The response has the following format:
   }
 }
 ```
+% NOTCONSOLE
 
 1. The overall evaluation quality calculated by the defined metric.
 2. The `details` section contains one entry for every query in the original `requests` section, keyed by the search request ID.

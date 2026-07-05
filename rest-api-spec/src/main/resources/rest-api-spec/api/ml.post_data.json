@@ -6,6 +6,10 @@
     },
     "stability": "stable",
     "visibility": "public",
+    "deprecated": {
+      "version": "7.11.0",
+      "description": "Posting data directly to anomaly detection jobs is deprecated, in a future major version a datafeed will be required."
+    },
     "headers": {
       "accept": [
         "application/json"
@@ -33,11 +37,11 @@
     },
     "params": {
       "reset_start": {
-        "type": "string",
+        "type": "date",
         "description": "Optional parameter to specify the start of the bucket resetting range"
       },
       "reset_end": {
-        "type": "string",
+        "type": "date",
         "description": "Optional parameter to specify the end of the bucket resetting range"
       }
     },

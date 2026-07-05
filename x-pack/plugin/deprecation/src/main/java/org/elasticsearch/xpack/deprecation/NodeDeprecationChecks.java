@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +53,6 @@ public class NodeDeprecationChecks {
             NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
             NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
             NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
-            NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
             NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
             NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
             NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
@@ -92,7 +92,8 @@ public class NodeDeprecationChecks {
             NodeDeprecationChecks::checkEqlEnabledSetting,
             NodeDeprecationChecks::checkNodeAttrData,
             NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
-            NodeDeprecationChecks::checkTracingApmSettings
+            NodeDeprecationChecks::checkTracingApmSettings,
+            NodeDeprecationChecks::checkDynamicLoggerChildOverride
         );
 
     static DeprecationIssue checkDeprecatedSetting(
@@ -139,22 +140,30 @@ public class NodeDeprecationChecks {
         String additionalDetailMessage,
         DeprecationIssue.Level deprecationLevel
     ) {
-        if (removedSetting.exists(clusterSettings) == false && removedSetting.exists(nodeSettings) == false) {
+        boolean existsInClusterSettings = removedSetting.exists(clusterSettings);
+        boolean existsInNodeSettings = removedSetting.exists(nodeSettings);
+        if (existsInClusterSettings == false && existsInNodeSettings == false) {
             return null;
         }
         final String removedSettingKey = removedSetting.getKey();
         // read setting to force the deprecation warning
-        if (removedSetting.exists(clusterSettings)) {
-            removedSetting.get(clusterSettings);
+        Settings settings;
+        if (existsInClusterSettings) {
+            settings = clusterSettings;
         } else {
-            removedSetting.get(nodeSettings);
+            settings = nodeSettings;
+        }
+        if (removedSetting instanceof Setting.AffixSetting<?> affixSetting) {
+            affixSetting.getAsMap(settings);
+        } else {
+            removedSetting.get(settings);
         }
 
         final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", removedSettingKey);
         final String details = additionalDetailMessage == null
             ? String.format(Locale.ROOT, "Remove the [%s] setting.", removedSettingKey)
             : String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetailMessage);
-        boolean canAutoRemoveSetting = removedSetting.exists(clusterSettings) && removedSetting.exists(nodeSettings) == false;
+        boolean canAutoRemoveSetting = existsInClusterSettings && existsInNodeSettings == false;
         Map<String, Object> meta = createMetaMapForRemovableSettings(canAutoRemoveSetting, removedSettingKey);
         return new DeprecationIssue(deprecationLevel, message, url, details, false, meta);
     }
@@ -326,7 +335,7 @@ public class NodeDeprecationChecks {
             .collect(Collectors.joining(","));
         final String message = String.format(
             Locale.ROOT,
-            "The [%s] settings are deprecated and will be removed after 8.0",
+            "The [%s] settings are deprecated and will be removed in 10.0",
             concatSettingNames
         );
         final String details = String.format(Locale.ROOT, detailPattern, concatSettingNames);
@@ -385,7 +394,7 @@ public class NodeDeprecationChecks {
 
         final String message = String.format(
             Locale.ROOT,
-            "The [%s] settings are deprecated and will be removed after 8.0",
+            "The [%s] settings are deprecated and will be removed in 10.0",
             groupSettingNames
         );
         final String details = String.format(Locale.ROOT, detailPattern, allSubSettings);
@@ -396,20 +405,20 @@ public class NodeDeprecationChecks {
         return new DeprecationIssue(warningLevel, message, url, details, false, meta);
     }
 
-    private static final String MONITORING_SETTING_DEPRECATION_LINK = "https://ela.st/es-deprecation-7-monitoring-settings";
-    private static final String MONITORING_SETTING_REMOVAL_TIME = "after 8.0";
+    private static final String LEGACY_MONITORING_REMOVAL = "https://ela.st/es-10-legacy-monitoring-removal";
 
     static DeprecationIssue genericMonitoringSetting(
         final ClusterState clusterState,
         final Settings nodeSettings,
         final Setting<?> deprecated
     ) {
-        return checkDeprecatedSetting(
+        return checkRemovedSetting(
             clusterState.metadata().settings(),
             nodeSettings,
             deprecated,
-            MONITORING_SETTING_DEPRECATION_LINK,
-            MONITORING_SETTING_REMOVAL_TIME
+            LEGACY_MONITORING_REMOVAL,
+            "This setting will be removed in 10.0.",
+            DeprecationIssue.Level.CRITICAL
         );
     }
 
@@ -425,8 +434,8 @@ public class NodeDeprecationChecks {
                 (Function<String, Setting<String>>) Setting::simpleString
             ),
             "Remove the following settings: [%s]",
-            MONITORING_SETTING_DEPRECATION_LINK,
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterSettings,
             nodeSettings
         );
@@ -440,8 +449,8 @@ public class NodeDeprecationChecks {
         return deprecatedAffixSetting(
             Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix, k -> SecureSetting.secureString(k, null)),
             "Remove the following settings from the keystore: [%s]",
-            MONITORING_SETTING_DEPRECATION_LINK,
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterSettings,
             nodeSettings
         );
@@ -455,8 +464,8 @@ public class NodeDeprecationChecks {
         return deprecatedAffixGroupedSetting(
             Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix, k -> Setting.groupSetting(k + ".")),
             "Remove the following settings: [%s]",
-            MONITORING_SETTING_DEPRECATION_LINK,
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterSettings,
             nodeSettings
         );
@@ -754,8 +763,8 @@ public class NodeDeprecationChecks {
         return deprecatedAffixSetting(
             MonitoringDeprecatedSettings.USE_INGEST_PIPELINE_SETTING,
             "Remove the following settings: [%s]",
-            "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterState.metadata().settings(),
             settings
         );
@@ -770,8 +779,8 @@ public class NodeDeprecationChecks {
         return deprecatedAffixSetting(
             MonitoringDeprecatedSettings.PIPELINE_CHECK_TIMEOUT_SETTING,
             "Remove the following settings: [%s]",
-            "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting",
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterState.metadata().settings(),
             settings
         );
@@ -786,8 +795,8 @@ public class NodeDeprecationChecks {
         return deprecatedAffixSetting(
             MonitoringDeprecatedSettings.TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING,
             "Remove the following settings: [%s]",
-            "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting",
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterState.metadata().settings(),
             settings
         );
@@ -1054,6 +1063,56 @@ public class NodeDeprecationChecks {
             "[tracing.apm.*] settings are no longer accepted as of 9.0.0"
                 + " and should be replaced by [telemetry.*] or [telemetry.tracing.*] settings.",
             DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    /**
+     * Checks whether existing cluster logger settings contain parent-logger/child-logger pairs where both are explicitly
+     * configured. In a future major version, setting a parent logger will no longer override explicitly-configured child
+     * loggers (see elastic/dev#3454). Any such pairs discovered here indicate a potential behavior change on upgrade.
+     */
+    static DeprecationIssue checkDynamicLoggerChildOverride(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Settings clusterSettings = clusterState.metadata().settings();
+        List<String> loggerNames = Stream.concat(clusterSettings.keySet().stream(), settings.keySet().stream())
+            .filter(Loggers.LOG_LEVEL_SETTING::match)
+            .map(key -> key.substring("logger.".length()))
+            .filter(name -> "level".equals(name) == false && "_root".equals(name) == false)
+            .distinct()
+            .sorted()
+            .toList();
+
+        List<String> affectedChildren = new ArrayList<>();
+        for (var parent : loggerNames) {
+            for (var candidate : loggerNames) {
+                if (candidate.startsWith(parent + ".")) {
+                    affectedChildren.add(candidate);
+                }
+            }
+        }
+
+        if (affectedChildren.isEmpty()) {
+            return null;
+        }
+
+        String childList = affectedChildren.stream().map(n -> "[logger." + n + "]").collect(Collectors.joining(", "));
+        return new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Explicitly configured child logger(s) will no longer be overridden by a parent logger update in a future major version",
+            "https://ela.st/es-deprecation-9-logger-child-override",
+            "The following child logger(s) are explicitly configured alongside a parent logger: "
+                + childList
+                + ". Today, setting a parent logger level via the cluster settings API also overrides all such child loggers."
+                + " In a future major version this behavior will change: each logger will be configured independently,"
+                + " and child loggers with their own explicit configuration will retain their level."
+                + " Review these settings and remove child logger overrides that you no longer need,"
+                + " or use the wildcard reset [logger.*: null] to clear all logger overrides.",
+            false,
+            null
         );
     }
 

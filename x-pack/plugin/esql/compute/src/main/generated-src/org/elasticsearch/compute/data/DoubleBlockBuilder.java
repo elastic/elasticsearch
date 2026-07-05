@@ -29,7 +29,7 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
     DoubleBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
         values = new double[initialSize];
     }
 
@@ -115,9 +115,15 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
     }
 
     private void copyFromVector(DoubleVector vector, int beginInclusive, int endExclusive) {
-        for (int p = beginInclusive; p < endExclusive; p++) {
-            appendDouble(vector.getDouble(p));
+        int count = endExclusive - beginInclusive;
+        if (count == 0) {
+            return;
         }
+        ensureCapacity(count);
+        vector.copyTo(beginInclusive, values, valueCount, count);
+        hasNonNullValue = true;
+        valueCount += count;
+        updatePositions(count);
     }
 
     /**

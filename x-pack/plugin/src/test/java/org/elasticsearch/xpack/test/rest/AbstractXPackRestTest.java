@@ -25,8 +25,10 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
+import org.elasticsearch.xpack.inference.MlModelServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,12 +45,20 @@ import static java.util.Collections.singletonMap;
 
 /** Runs rest tests against external cluster */
 // TODO: Remove this timeout increase once this test suite is broken up
-@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 90 * TimeUnits.MINUTE)
 public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
         "x_pack_rest_user",
         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
     );
+
+    @ClassRule
+    public static MlModelServer mlModelServer = new MlModelServer();
+
+    @Before
+    public void setMlModelRepository() throws IOException {
+        assertOK(mlModelServer.setMlModelRepository(adminClient()));
+    }
 
     public AbstractXPackRestTest(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -136,6 +146,10 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     private void clearMlState() throws Exception {
         if (isMachineLearningTest()) {
             new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
+            // _features/_reset can enqueue async cluster-state updates (e.g. inference
+            // endpoint cache invalidation via ClearInferenceEndpointCacheAction). Drain
+            // them here so the subsequent waitForPendingTasks does not race with them.
+            waitForClusterUpdates();
         }
     }
 

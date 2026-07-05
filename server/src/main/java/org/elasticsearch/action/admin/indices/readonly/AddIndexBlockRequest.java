@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.readonly;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -40,11 +39,7 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         block = APIBlock.readFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE)) {
-            markVerified = in.readBoolean();
-        } else {
-            markVerified = false;
-        }
+        markVerified = in.readBoolean();
     }
 
     /**
@@ -132,9 +127,7 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         block.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE)) {
-            out.writeBoolean(markVerified);
-        }
+        out.writeBoolean(markVerified);
     }
 
     @Override

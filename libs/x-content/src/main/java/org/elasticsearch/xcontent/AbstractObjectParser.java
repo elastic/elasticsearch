@@ -197,6 +197,23 @@ public abstract class AbstractObjectParser<Value, Context> {
         );
     }
 
+    /**
+     * Declare an object or boolean field that parses explicit {@code null}s in the json to a default value.
+     */
+    public <T> void declareObjectOrBooleanOrNull(
+        BiConsumer<Value, T> consumer,
+        ContextParser<Context, T> objectParser,
+        T nullValue,
+        ParseField field
+    ) {
+        declareField(
+            consumer,
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? nullValue : objectParser.parse(p, c),
+            field,
+            ValueType.OBJECT_OR_BOOLEAN_OR_NULL
+        );
+    }
+
     public void declareFloat(BiConsumer<Value, Float> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.floatValue(), field, ValueType.FLOAT);

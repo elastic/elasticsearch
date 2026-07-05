@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Syntax reference"
 ---
 
@@ -7,6 +10,8 @@ navigation_title: "Syntax reference"
 This section covers the essential syntax of the ES|QL language.
 
 * [Basic syntax](esql-syntax.md): Learn the fundamentals of ES|QL query structure, including pipes, commands, and expressions.
+
+* [Query directives](directives/directives.md): Define query settings and general behavior at the start of a query.
 
 * [Commands](esql-commands.md): Discover the core commands for data retrieval, filtering, aggregation, and transformation.
 

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +29,8 @@ import java.util.Objects;
 public class SearchStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {
+
+        private static final TransportVersion SEARCH_LOAD_PER_INDEX_STATS = TransportVersion.fromName("search_load_per_index_stats");
 
         private long queryCount;
         private long queryTimeInMillis;
@@ -113,12 +115,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestTimeInMillis = in.readVLong();
             suggestCurrent = in.readVLong();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                queryFailure = in.readVLong();
-                fetchFailure = in.readVLong();
-            }
+            queryFailure = in.readVLong();
+            fetchFailure = in.readVLong();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_LOAD_PER_INDEX_STATS)) {
+            if (in.getTransportVersion().supports(SEARCH_LOAD_PER_INDEX_STATS)) {
                 recentSearchLoad = in.readDouble();
             }
         }
@@ -141,12 +141,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeVLong(suggestTimeInMillis);
             out.writeVLong(suggestCurrent);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeVLong(queryFailure);
-                out.writeVLong(fetchFailure);
-            }
+            out.writeVLong(queryFailure);
+            out.writeVLong(fetchFailure);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_LOAD_PER_INDEX_STATS)) {
+            if (out.getTransportVersion().supports(SEARCH_LOAD_PER_INDEX_STATS)) {
                 out.writeDouble(recentSearchLoad);
             }
         }

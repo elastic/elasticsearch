@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -27,7 +28,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -82,16 +85,39 @@ public final class XContentTestUtils {
      * @return null if maps are equal or path to the element where the difference was found
      */
     public static String differenceBetweenMapsIgnoringArrayOrder(Map<String, Object> first, Map<String, Object> second) {
-        return differenceBetweenMapsIgnoringArrayOrder("", first, second);
+        return differenceBetweenMapsIgnoringArrayOrder("", first, second, p -> true);
     }
 
-    private static String differenceBetweenMapsIgnoringArrayOrder(String path, Map<String, Object> first, Map<String, Object> second) {
+    /**
+     * Compares two maps generated from XContentObjects. The order of elements in arrays is ignored.
+     *
+     * @param pathFilter Predicate to filter a path and its children. True if the path should be checked, false to exclude it.
+     * @return null if maps are equal or path to the element where the difference was found
+     */
+    public static String differenceBetweenMapsIgnoringArrayOrder(
+        Map<String, Object> first,
+        Map<String, Object> second,
+        Predicate<String> pathFilter
+    ) {
+        return differenceBetweenMapsIgnoringArrayOrder("", first, second, pathFilter);
+    }
+
+    private static String differenceBetweenMapsIgnoringArrayOrder(
+        String path,
+        Map<String, Object> first,
+        Map<String, Object> second,
+        Predicate<String> pathFilter
+    ) {
+        if (pathFilter.test(path) == false) {
+            return null;
+        }
+
         if (first.size() != second.size()) {
             return path + ": sizes of the maps don't match: " + first.size() + " != " + second.size();
         }
 
         for (String key : first.keySet()) {
-            String reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/" + key, first.get(key), second.get(key));
+            String reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/" + key, first.get(key), second.get(key), pathFilter);
             if (reason != null) {
                 return reason;
             }
@@ -100,7 +126,16 @@ public final class XContentTestUtils {
     }
 
     @SuppressWarnings("unchecked")
-    private static String differenceBetweenObjectsIgnoringArrayOrder(String path, Object first, Object second) {
+    private static String differenceBetweenObjectsIgnoringArrayOrder(
+        String path,
+        Object first,
+        Object second,
+        Predicate<String> pathFilter
+    ) {
+        if (pathFilter.test(path) == false) {
+            return null;
+        }
+
         if (first == null) {
             if (second == null) {
                 return null;
@@ -116,7 +151,7 @@ public final class XContentTestUtils {
                     for (Object firstObj : firstList) {
                         boolean found = false;
                         for (Object secondObj : secondList) {
-                            reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/*", firstObj, secondObj);
+                            reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/*", firstObj, secondObj, pathFilter);
                             if (reason == null) {
                                 secondList.remove(secondObj);
                                 found = true;
@@ -140,10 +175,19 @@ public final class XContentTestUtils {
             }
         } else if (first instanceof Map) {
             if (second instanceof Map) {
-                return differenceBetweenMapsIgnoringArrayOrder(path, (Map<String, Object>) first, (Map<String, Object>) second);
+                return differenceBetweenMapsIgnoringArrayOrder(path, (Map<String, Object>) first, (Map<String, Object>) second, pathFilter);
             } else {
                 return path + ": the second element is not a map (got " + second + ")";
             }
+        } else if (first instanceof byte[] firstBytes) {
+            if (second instanceof byte[] secondBytes && Arrays.equals(firstBytes, secondBytes)) {
+                return null;
+            }
+            return path
+                + ": the byte arrays don't match: "
+                + summarizeByteArray(firstBytes)
+                + " != "
+                + (second instanceof byte[] sb ? summarizeByteArray(sb) : String.valueOf(second));
         } else {
             if (first.equals(second)) {
                 return null;
@@ -152,6 +196,13 @@ public final class XContentTestUtils {
             }
 
         }
+    }
+
+    /** Renders a length-prefixed hex preview, truncated, so failure messages don't dump multi-KB payloads. */
+    private static String summarizeByteArray(byte[] bytes) {
+        String hex = HexFormat.of().formatHex(bytes);
+        int previewHexChars = 32;
+        return "byte[" + bytes.length + "] 0x" + Strings.cleanTruncate(hex, previewHexChars) + (hex.length() > previewHexChars ? "…" : "");
     }
 
     /**

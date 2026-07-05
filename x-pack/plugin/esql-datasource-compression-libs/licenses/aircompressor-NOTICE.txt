@@ -1,0 +1,7 @@
+aircompressor
+Copyright 2011 Dain Sundstrom
+Copyright 2011 Google Inc.
+https://github.com/airlift/aircompressor
+
+This product includes software ported from the Snappy C++ library,
+originally developed by Google Inc. under the BSD 3-Clause License.

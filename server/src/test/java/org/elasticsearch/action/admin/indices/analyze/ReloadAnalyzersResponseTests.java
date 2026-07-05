@@ -130,7 +130,7 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
             response,
             writableRegistry(),
             ReloadAnalyzersResponse::new,
-            TransportVersionUtils.randomVersion(random())
+            TransportVersionUtils.randomVersion()
         );
         assertEquals(response.getReloadDetails(), copy.getReloadDetails());
     }

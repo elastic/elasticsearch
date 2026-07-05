@@ -9,17 +9,20 @@
 
 package org.elasticsearch.search.nested;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -74,8 +77,7 @@ public class VectorNestedIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch("test").setKnnSearch(
                 List.of(
-                    new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
-                        .innerHit(new InnerHitBuilder())
+                    new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, 10f, null, null).innerHit(new InnerHitBuilder())
                 )
             ).setAllowPartialSearchResults(false),
             response -> assertThat(response.getHits().getHits().length, greaterThan(0))
@@ -157,15 +159,7 @@ public class VectorNestedIT extends ESIntegTestCase {
         waitForRelocation(ClusterHealthStatus.GREEN);
         refresh();
 
-        var knn = new KnnSearchBuilder(
-            "nested.vector",
-            new float[] { -0.5f, 90.0f, -10f, 14.8f, -156.0f },
-            2,
-            3,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null,
-            null
-        );
+        var knn = new KnnSearchBuilder("nested.vector", new float[] { -0.5f, 90.0f, -10f, 14.8f, -156.0f }, 2, 3, 10f, null, null);
         var request = prepareSearch("test").addFetchField("name").setKnnSearch(List.of(knn));
         assertNoFailuresAndResponse(request, response -> {
             assertHitCount(response, 2);
@@ -174,5 +168,77 @@ public class VectorNestedIT extends ESIntegTestCase {
             assertEquals("3", response.getHits().getHits()[1].getId());
             assertEquals("rat", response.getHits().getHits()[1].field("name").getValue());
         });
+    }
+
+    public void testDoubleNestedFloat() throws Exception {
+        testDoubleNested("float");
+    }
+
+    public void testDoubleNestedByte() throws Exception {
+        testDoubleNested("byte");
+    }
+
+    private void testDoubleNested(String elementType) throws Exception {
+        assertAcked(
+            prepareCreate("test").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("nested")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("nested")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("vector")
+                    .field("type", "dense_vector")
+                    .field("element_type", elementType)
+                    .field("index", true)
+                    .field("dims", 3)
+                    .field("similarity", "cosine")
+                    .startObject("index_options")
+                    .field("type", "hnsw")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
+        );
+        ensureGreen();
+
+        // empty document
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().endObject()).get();
+        refresh();
+
+        QueryBuilder knn = new KnnVectorQueryBuilder("nested.nested.vector", new float[] { 1, 1, 1 }, 1, 1, 10f, null, null);
+        QueryBuilder nested1 = new NestedQueryBuilder("nested.nested", knn, ScoreMode.Total);
+        QueryBuilder nested2 = new NestedQueryBuilder("nested", nested1, ScoreMode.Total);
+
+        assertResponse(prepareSearch("test").setQuery(nested2), response -> assertThat(response.getHits().getHits().length, equalTo(0)));
+
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .startArray("nested")
+                    .startObject()
+                    .startArray("nested")
+                    .startObject()
+                    .field("vector", new float[] { 1, 1, 1 })
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        refresh();
+
+        assertResponse(
+            prepareSearch("test").setQuery(nested2),
+            response -> assertThat(response.getHits().getHits().length, greaterThan(0))
+        );
     }
 }

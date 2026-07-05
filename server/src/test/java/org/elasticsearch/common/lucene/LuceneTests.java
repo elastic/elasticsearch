@@ -27,10 +27,10 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
@@ -54,6 +54,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -306,7 +307,7 @@ public class LuceneTests extends ESTestCase {
         try (DirectoryReader reader = w.getReader()) {
             // match_all does not match anything on an empty index
             IndexSearcher searcher = newSearcher(reader);
-            assertFalse(Lucene.exists(searcher, new MatchAllDocsQuery()));
+            assertFalse(Lucene.exists(searcher, Queries.ALL_DOCS_INSTANCE));
         }
 
         Document doc = new Document();
@@ -317,7 +318,7 @@ public class LuceneTests extends ESTestCase {
 
         try (DirectoryReader reader = w.getReader()) {
             IndexSearcher searcher = newSearcher(reader);
-            assertTrue(Lucene.exists(searcher, new MatchAllDocsQuery()));
+            assertTrue(Lucene.exists(searcher, Queries.ALL_DOCS_INSTANCE));
             assertFalse(Lucene.exists(searcher, new TermQuery(new Term("baz", "bar"))));
             assertTrue(Lucene.exists(searcher, new TermQuery(new Term("foo", "bar"))));
         }
@@ -465,7 +466,9 @@ public class LuceneTests extends ESTestCase {
     public void testWrapAllDocsLive() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
+            .setMergePolicy(
+                new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, newMergePolicy())
+            );
         IndexWriter writer = new IndexWriter(dir, config);
         int numDocs = between(1, 10);
         Set<String> liveDocs = new HashSet<>();
@@ -493,7 +496,7 @@ public class LuceneTests extends ESTestCase {
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = newSearcher(reader);
             Set<String> actualDocs = new HashSet<>();
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
             StoredFields storedFields = reader.storedFields();
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
@@ -506,7 +509,9 @@ public class LuceneTests extends ESTestCase {
     public void testWrapLiveDocsNotExposeAbortedDocuments() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()))
+            .setMergePolicy(
+                new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, newMergePolicy())
+            )
             // disable merges on refresh as we will verify the deleted documents
             .setMaxFullFlushMergeWaitMillis(-1);
         IndexWriter writer = new IndexWriter(dir, config);
@@ -540,7 +545,7 @@ public class LuceneTests extends ESTestCase {
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = newSearcher(reader);
             List<String> actualDocs = new ArrayList<>();
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
             StoredFields storedFields = reader.storedFields();
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
@@ -556,19 +561,14 @@ public class LuceneTests extends ESTestCase {
             sortFieldTuple.v1(),
             Lucene::writeSortField,
             Lucene::readSortField,
-            TransportVersionUtils.randomVersion(random())
+            TransportVersionUtils.randomVersion()
         );
         assertEquals(sortFieldTuple.v2(), deserialized);
     }
 
     public void testSortValueSerialization() throws IOException {
         Object sortValue = randomSortValue();
-        Object deserialized = copyInstance(
-            sortValue,
-            Lucene::writeSortValue,
-            Lucene::readSortValue,
-            TransportVersionUtils.randomVersion(random())
-        );
+        Object deserialized = copyInstance(sortValue, Lucene::writeSortValue, Lucene::readSortValue, TransportVersionUtils.randomVersion());
         assertEquals(sortValue, deserialized);
     }
 
@@ -705,6 +705,95 @@ public class LuceneTests extends ESTestCase {
                 return Tuple.tuple(sortField, expected);
             }
             default -> throw new UnsupportedOperationException();
+        }
+    }
+
+    public void testSearchWithoutBulkScorer() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new KeywordAnalyzer()))) {
+                w.addDocument(new Document());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = newSearcher(reader);
+
+                // A query that throws AssertionError if bulkScorer() is called from its weight directly
+                Query throwingQuery = new ThrowingBulkScorerQuery(Queries.ALL_DOCS_INSTANCE);
+
+                // Normal search routes through bulkScorer() and hits the assertion
+                expectThrows(AssertionError.class, () -> searcher.search(throwingQuery, 1));
+
+                // searchWithoutBulkScorer wraps in NoBulkScoringQuery, so the custom bulkScorer()
+                // is never reached; the default Weight.bulkScorer() builds from scorerSupplier() instead
+                TopDocs topDocs = Lucene.searchWithoutBulkScorer(searcher, throwingQuery, 1);
+                assertEquals(1, topDocs.scoreDocs.length);
+            }
+        }
+    }
+
+    private static class ThrowingBulkScorerQuery extends Query {
+
+        private final Query delegate;
+
+        ThrowingBulkScorerQuery(Query delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            final Weight delegateWeight = delegate.createWeight(searcher, scoreMode, boost);
+            return new Weight(this) {
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false;
+                }
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    return delegateWeight.explain(context, doc);
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    final ScorerSupplier innerSupplier = delegateWeight.scorerSupplier(context);
+                    if (innerSupplier == null) return null;
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            return innerSupplier.get(leadCost);
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() {
+                            throw new AssertionError("bulkScorer() should not be called");
+                        }
+
+                        @Override
+                        public long cost() {
+                            return innerSupplier.cost();
+                        }
+                    };
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "ThrowingBulkScorer(" + delegate.toString(field) + ")";
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof ThrowingBulkScorerQuery other && delegate.equals(other.delegate);
+        }
+
+        @Override
+        public int hashCode() {
+            return delegate.hashCode();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            delegate.visit(visitor);
         }
     }
 

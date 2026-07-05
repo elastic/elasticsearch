@@ -172,11 +172,20 @@ public abstract class AbstractHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return "http://127.0.0.1:" + httpServer.getAddress().getPort();
+        return "http://" + getHttpAddress();
     }
 
     public String getHostAndPort() {
-        return "127.0.0.1:" + httpServer.getAddress().getPort();
+        return getHttpAddress();
+    }
+
+    /**
+     * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
+     */
+    public String getHttpAddress() {
+        InetSocketAddress addr = httpServer.getAddress();
+        String host = addr.getAddress() instanceof Inet6Address ? "[" + addr.getHostString() + "]" : addr.getHostString();
+        return host + ":" + addr.getPort();
     }
 
     @FunctionalInterface

@@ -9,12 +9,11 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
@@ -178,7 +177,7 @@ class ContendedRegisterAnalyzeAction extends HandledTransportAction<ContendedReg
         }
     }
 
-    static class Request extends LegacyActionRequest {
+    static class Request extends UntypedActionRequest {
         private final String repositoryName;
         private final String containerPath;
         private final String registerName;
@@ -195,7 +194,6 @@ class ContendedRegisterAnalyzeAction extends HandledTransportAction<ContendedReg
 
         Request(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0);
             repositoryName = in.readString();
             containerPath = in.readString();
             registerName = in.readString();
@@ -205,7 +203,6 @@ class ContendedRegisterAnalyzeAction extends HandledTransportAction<ContendedReg
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0);
             super.writeTo(out);
             out.writeString(repositoryName);
             out.writeString(containerPath);

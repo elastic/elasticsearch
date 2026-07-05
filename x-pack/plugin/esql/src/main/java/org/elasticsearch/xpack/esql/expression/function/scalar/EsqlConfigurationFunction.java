@@ -9,12 +9,19 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 import java.util.Objects;
 
-public abstract class EsqlConfigurationFunction extends EsqlScalarFunction {
+/**
+ * Implementation of {@link ConfigurationFunction}.
+ * <p>
+ *     Extend this class if possible instead of the base interface.
+ * </p>
+ */
+public abstract class EsqlConfigurationFunction extends EsqlScalarFunction implements ConfigurationFunction {
 
     private final Configuration configuration;
 

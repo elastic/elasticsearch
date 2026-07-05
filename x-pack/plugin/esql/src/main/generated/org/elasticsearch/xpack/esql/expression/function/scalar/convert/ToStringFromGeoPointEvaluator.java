@@ -14,28 +14,28 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link ExpressionEvaluator} implementation for {@link ToString}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromGeoPointEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator wkb;
+  private final ExpressionEvaluator wkb;
 
-  public ToStringFromGeoPointEvaluator(Source source, EvalOperator.ExpressionEvaluator wkb,
+  public ToStringFromGeoPointEvaluator(Source source, ExpressionEvaluator wkb,
       DriverContext driverContext) {
     super(driverContext, source);
     this.wkb = wkb;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return wkb;
   }
 
@@ -130,12 +130,12 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory wkb;
+    private final ExpressionEvaluator.Factory wkb;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkb) {
+    public Factory(Source source, ExpressionEvaluator.Factory wkb) {
       this.source = source;
       this.wkb = wkb;
     }

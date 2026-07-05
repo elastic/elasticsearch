@@ -11,7 +11,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringAdvancedSnippet;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +34,7 @@ public class UpdateConnectorFilteringActionRequestBWCSerializingTests extends Ab
         this.connectorId = randomUUID();
         return new UpdateConnectorFilteringAction.Request(
             connectorId,
-            List.of(ConnectorTestUtils.getRandomConnectorFiltering(), ConnectorTestUtils.getRandomConnectorFiltering()),
+            randomList(10, ConnectorTestUtils::getRandomConnectorFiltering),
             ConnectorTestUtils.getRandomConnectorFiltering().getActive().getAdvancedSnippet(),
             ConnectorTestUtils.getRandomConnectorFiltering().getActive().getRules()
         );
@@ -39,7 +42,21 @@ public class UpdateConnectorFilteringActionRequestBWCSerializingTests extends Ab
 
     @Override
     protected UpdateConnectorFilteringAction.Request mutateInstance(UpdateConnectorFilteringAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String originalConnectorId = instance.getConnectorId();
+        List<ConnectorFiltering> filtering = instance.getFiltering();
+        FilteringAdvancedSnippet advancedSnippet = instance.getAdvancedSnippet();
+        List<FilteringRule> rules = instance.getRules();
+        switch (between(0, 3)) {
+            case 0 -> originalConnectorId = randomValueOtherThan(originalConnectorId, () -> randomUUID());
+            case 1 -> filtering = randomValueOtherThan(filtering, () -> randomList(10, ConnectorTestUtils::getRandomConnectorFiltering));
+            case 2 -> advancedSnippet = randomValueOtherThan(
+                advancedSnippet,
+                () -> ConnectorTestUtils.getRandomConnectorFiltering().getActive().getAdvancedSnippet()
+            );
+            case 3 -> rules = randomValueOtherThan(rules, () -> ConnectorTestUtils.getRandomConnectorFiltering().getActive().getRules());
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new UpdateConnectorFilteringAction.Request(originalConnectorId, filtering, advancedSnippet, rules);
     }
 
     @Override

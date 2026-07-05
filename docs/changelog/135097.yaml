@@ -1,6 +1,0 @@
-pr: 135097
-summary: Fixes `countDistinctWithConditions` in csv-spec tests
-area: ES|QL
-type: bug
-issues:
-  - 134380

@@ -194,6 +194,13 @@ public class Archives {
 
         Stream.of("NOTICE.txt", "LICENSE.txt", "README.asciidoc")
             .forEach(doc -> assertThat(es.home.resolve(doc), file(File, owner, owner, p644)));
+
+        // Linux distributions (x86 and aarch64) include a native server-launcher binary; ensure it exists
+        // so we do not silently fall back to Java when the native image build was skipped or broken
+        if (distribution.platform == Distribution.Platform.LINUX) {
+            Path nativeLauncher = es.lib.resolve("tools").resolve("server-launcher").resolve("server-launcher");
+            assertThat("native server-launcher must exist on Linux distribution", nativeLauncher, file(File, owner, owner, p755));
+        }
     }
 
     private static void verifyDefaultInstallation(Installation es, Distribution distribution, String owner) {

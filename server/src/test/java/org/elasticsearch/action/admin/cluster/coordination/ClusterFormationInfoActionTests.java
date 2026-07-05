@@ -62,16 +62,18 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                 ClusterFormationFailureHelper.ClusterFormationState newClusterFormationState =
                     new ClusterFormationFailureHelper.ClusterFormationState(
                         clusterFormationState.initialMasterNodesSetting(),
-                        clusterFormationState.localNode(),
-                        clusterFormationState.masterEligibleNodes(),
-                        clusterFormationState.clusterStateVersion() + 1,
-                        clusterFormationState.acceptedTerm(),
-                        clusterFormationState.lastAcceptedConfiguration(),
-                        clusterFormationState.lastCommittedConfiguration(),
+                        new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                            clusterFormationState.clusterFormationClusterStateView().localNode(),
+                            clusterFormationState.clusterFormationClusterStateView().masterEligibleNodes(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedVersion() + 1,
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedTerm(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().lastCommittedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().currentTerm()
+                        ),
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
                         clusterFormationState.mastersOfPeers(),
-                        clusterFormationState.currentTerm(),
                         clusterFormationState.hasDiscoveredQuorum(),
                         clusterFormationState.statusInfo(),
                         clusterFormationState.inFlightJoinStatuses()
@@ -82,16 +84,18 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                 ClusterFormationFailureHelper.ClusterFormationState newClusterFormationState =
                     new ClusterFormationFailureHelper.ClusterFormationState(
                         clusterFormationState.initialMasterNodesSetting(),
-                        clusterFormationState.localNode(),
-                        clusterFormationState.masterEligibleNodes(),
-                        clusterFormationState.clusterStateVersion(),
-                        clusterFormationState.acceptedTerm() + 1,
-                        clusterFormationState.lastAcceptedConfiguration(),
-                        clusterFormationState.lastCommittedConfiguration(),
+                        new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                            clusterFormationState.clusterFormationClusterStateView().localNode(),
+                            clusterFormationState.clusterFormationClusterStateView().masterEligibleNodes(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedVersion(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedTerm() + 1,
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().lastCommittedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().currentTerm()
+                        ),
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
                         clusterFormationState.mastersOfPeers(),
-                        clusterFormationState.currentTerm(),
                         clusterFormationState.hasDiscoveredQuorum(),
                         clusterFormationState.statusInfo(),
                         clusterFormationState.inFlightJoinStatuses()
@@ -102,16 +106,10 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                 ClusterFormationFailureHelper.ClusterFormationState newClusterFormationState =
                     new ClusterFormationFailureHelper.ClusterFormationState(
                         clusterFormationState.initialMasterNodesSetting(),
-                        clusterFormationState.localNode(),
-                        clusterFormationState.masterEligibleNodes(),
-                        clusterFormationState.clusterStateVersion(),
-                        clusterFormationState.acceptedTerm(),
-                        clusterFormationState.lastAcceptedConfiguration(),
-                        clusterFormationState.lastCommittedConfiguration(),
+                        clusterFormationState.clusterFormationClusterStateView(),
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
                         clusterFormationState.mastersOfPeers(),
-                        clusterFormationState.currentTerm(),
                         clusterFormationState.hasDiscoveredQuorum() == false,
                         clusterFormationState.statusInfo(),
                         clusterFormationState.inFlightJoinStatuses()
@@ -144,16 +142,18 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
         DiscoveryNode localNode = masterEligibleNodesMap.values().stream().findAny().get();
         return new ClusterFormationFailureHelper.ClusterFormationState(
             initialMasterNodesSetting,
-            localNode,
-            Map.copyOf(masterEligibleNodesMap),
-            randomLong(),
-            randomLong(),
-            new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
-            new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+            new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                localNode,
+                Map.copyOf(masterEligibleNodesMap),
+                randomLong(),
+                randomLong(),
+                new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+                new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+                randomLong()
+            ),
             Collections.emptyList(),
             Collections.emptyList(),
             Collections.emptySet(),
-            randomLong(),
             randomBoolean(),
             new StatusInfo(randomFrom(StatusInfo.Status.HEALTHY, StatusInfo.Status.UNHEALTHY), randomAlphaOfLength(20)),
             Collections.emptyList()

@@ -17,7 +17,7 @@ For example, this filter changes the `[ the, fox, was, very, very, quick ]` toke
 
 Output tokens produced by this filter are useful for fingerprinting and clustering a body of text as described in the [OpenRefine project](https://github.com/OpenRefine/OpenRefine/wiki/Clustering-In-Depth#fingerprint).
 
-This filter uses Lucene’s [FingerprintFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/FingerprintFilter.md).
+This filter uses Lucene’s [FingerprintFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/FingerprintFilter.html).
 
 ## Example [analysis-fingerprint-tokenfilter-analyze-ex]
 

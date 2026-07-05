@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -42,12 +42,12 @@ public class GoogleVertexAiEmbeddingsResponseEntityTests extends ESTestCase {
                  }
             """;
 
-        TextEmbeddingFloatResults parsedResults = GoogleVertexAiEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+        DenseEmbeddingFloatResults parsedResults = GoogleVertexAiEmbeddingsResponseEntity.fromResponse(
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.embeddings(), is(List.of(TextEmbeddingFloatResults.Embedding.of(List.of(-0.123F, 0.123F)))));
+        assertThat(parsedResults.embeddings(), is(List.of(DenseEmbeddingFloatResults.Embedding.of(List.of(-0.123F, 0.123F)))));
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
@@ -82,8 +82,8 @@ public class GoogleVertexAiEmbeddingsResponseEntityTests extends ESTestCase {
                  }
             """;
 
-        TextEmbeddingFloatResults parsedResults = GoogleVertexAiEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+        DenseEmbeddingFloatResults parsedResults = GoogleVertexAiEmbeddingsResponseEntity.fromResponse(
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -91,8 +91,8 @@ public class GoogleVertexAiEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
-                    TextEmbeddingFloatResults.Embedding.of(List.of(-0.123F, 0.123F)),
-                    TextEmbeddingFloatResults.Embedding.of(List.of(-0.456F, 0.456F))
+                    DenseEmbeddingFloatResults.Embedding.of(List.of(-0.123F, 0.123F)),
+                    DenseEmbeddingFloatResults.Embedding.of(List.of(-0.456F, 0.456F))
                 )
             )
         );
@@ -133,7 +133,7 @@ public class GoogleVertexAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalStateException.class,
             () -> GoogleVertexAiEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -164,7 +164,7 @@ public class GoogleVertexAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalStateException.class,
             () -> GoogleVertexAiEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -195,7 +195,7 @@ public class GoogleVertexAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalStateException.class,
             () -> GoogleVertexAiEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );

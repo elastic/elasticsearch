@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
@@ -56,7 +55,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
         verify(mockExecutorService).execute(captor.capture());
 
         ExecutableInferenceRequest executableRequest = captor.getValue();
-        assertThat(executableRequest.request(), is(instanceOf(AlibabaCloudSearchCompletionRequest.class)));
+        assertThat(executableRequest.outboundRequest(), is(instanceOf(AlibabaCloudSearchCompletionRequest.class)));
         assertThat(executableRequest.responseHandler().getRequestType(), is("alibaba cloud search completion"));
     }
 
@@ -75,7 +74,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
     }
 
     public void testExecute_throwsIllegalArgumentException_whenInputIsNotChatCompletion() {
-        var inputs = new EmbeddingsInput(List.of(new ChunkInferenceInput("input1")), InputType.SEARCH);
+        var inputs = new EmbeddingsInput(List.of("input1"), InputType.SEARCH);
         RequestSender mockSender = mock(RequestSender.class);
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 

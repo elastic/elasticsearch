@@ -13,23 +13,23 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialDisjoint}.
+ * {@link ExpressionEvaluator} implementation for {@link SpatialDisjoint}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class SpatialDisjointGeoSourceAndConstantGridEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SpatialDisjointGeoSourceAndConstantGridEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SpatialDisjointGeoSourceAndConstantGridEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator wkb;
+  private final ExpressionEvaluator wkb;
 
   private final long gridId;
 
@@ -39,9 +39,8 @@ public final class SpatialDisjointGeoSourceAndConstantGridEvaluator implements E
 
   private Warnings warnings;
 
-  public SpatialDisjointGeoSourceAndConstantGridEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator wkb, long gridId, DataType gridType,
-      DriverContext driverContext) {
+  public SpatialDisjointGeoSourceAndConstantGridEvaluator(Source source, ExpressionEvaluator wkb,
+      long gridId, DataType gridType, DriverContext driverContext) {
     this.source = source;
     this.wkb = wkb;
     this.gridId = gridId;
@@ -97,27 +96,21 @@ public final class SpatialDisjointGeoSourceAndConstantGridEvaluator implements E
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory wkb;
+    private final ExpressionEvaluator.Factory wkb;
 
     private final long gridId;
 
     private final DataType gridType;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkb, long gridId,
-        DataType gridType) {
+    public Factory(Source source, ExpressionEvaluator.Factory wkb, long gridId, DataType gridType) {
       this.source = source;
       this.wkb = wkb;
       this.gridId = gridId;

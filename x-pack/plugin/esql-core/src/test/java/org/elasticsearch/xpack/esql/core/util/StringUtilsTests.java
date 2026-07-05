@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.util;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.escapeWildcardLiteral;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.luceneWildcardToRegExp;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.wildcardToJavaPattern;
 import static org.hamcrest.Matchers.is;
@@ -56,6 +57,15 @@ public class StringUtilsTests extends ESTestCase {
 
     public void testEscapedEscape() {
         assertEquals("^\\\\\\\\$", wildcardToJavaPattern("\\\\\\\\", '\\'));
+    }
+
+    public void testEscapeWildcardLiteral() {
+        assertThat(escapeWildcardLiteral("foo"), is("foo"));
+        assertThat(escapeWildcardLiteral(""), is(""));
+        assertThat(escapeWildcardLiteral("foo*bar"), is("foo\\*bar"));
+        assertThat(escapeWildcardLiteral("foo?bar"), is("foo\\?bar"));
+        assertThat(escapeWildcardLiteral("foo\\bar"), is("foo\\\\bar"));
+        assertThat(escapeWildcardLiteral("*?\\"), is("\\*\\?\\\\"));
     }
 
     public void testLuceneWildcardToRegExp() {

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
@@ -20,8 +22,10 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.internal.PitReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -29,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -40,6 +45,8 @@ public class MockSearchService extends SearchService {
      */
     public static class TestPlugin extends Plugin {}
 
+    private static final Logger logger = LogManager.getLogger(MockSearchService.class);
+
     private static final Map<ReaderContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
     private Consumer<ReaderContext> onPutContext = context -> {};
@@ -49,7 +56,18 @@ public class MockSearchService extends SearchService {
 
     private Function<CancellableTask, CancellableTask> onCheckCancelled = Function.identity();
 
-    /** Throw an {@link AssertionError} if there are still in-flight contexts. */
+    /**
+     * Throw an {@link AssertionError} if there are still in-flight contexts.
+     * <p>
+     * Note: this assertion can spuriously trip when {@code search.low_level_cancellation} is {@code false}
+     *     (a setting that is randomized by {@link org.elasticsearch.test.ESIntegTestCase}) and a test stops
+     *     the coordinating node while a search is in-flight. With low-level cancellation disabled, the
+     *     search is not canceled when the associated connection drops, leaving the reader context active
+     *     long enough to fail this check. Tests that deliberately stop coordinators mid-search should
+     *     override the setting via their {@code nodeSettings}
+     *     (e.g. {@code search.low_level_cancellation: true}) rather than relaxing this assertion, so that
+     *     genuine context leaks remain detectable.
+     */
     public static void assertNoInFlightContext() {
         final Map<ReaderContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
         if (copy.isEmpty() == false) {
@@ -66,7 +84,7 @@ public class MockSearchService extends SearchService {
      * Add an active search context to the list of tracked contexts. Package private for testing.
      */
     static void addActiveContext(ReaderContext context) {
-        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(context.toString()));
+        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(String.format(Locale.ROOT, "%s : %s", context.toString(), context.id())));
     }
 
     /**
@@ -110,7 +128,14 @@ public class MockSearchService extends SearchService {
     }
 
     @Override
-    protected ReaderContext removeReaderContext(long id) {
+    protected void putRelocatedReaderContext(Long mappingKey, PitReaderContext context) {
+        onPutContext.accept(context);
+        addActiveContext(context);
+        super.putRelocatedReaderContext(mappingKey, context);
+    }
+
+    @Override
+    protected ReaderContext removeReaderContext(ShardSearchContextId id) {
         final ReaderContext removed = super.removeReaderContext(id);
         if (removed != null) {
             onRemoveContext.accept(removed);

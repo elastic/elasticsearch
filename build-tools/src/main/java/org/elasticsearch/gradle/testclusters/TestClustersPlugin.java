@@ -26,6 +26,7 @@ import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
@@ -33,6 +34,10 @@ import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.build.event.BuildEventsListenerRegistry;
 import org.gradle.internal.jvm.Jvm;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaLauncher;
+import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JvmVendorSpec;
 import org.gradle.process.ExecOperations;
 import org.gradle.tooling.events.FinishEvent;
 import org.gradle.tooling.events.OperationCompletionListener;
@@ -41,6 +46,7 @@ import org.gradle.tooling.events.task.TaskFinishEvent;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -99,11 +105,19 @@ public class TestClustersPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(DistributionDownloadPlugin.class);
+        project.getPlugins().apply(JvmToolchainsPlugin.class);
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
         Provider<ReaperService> reaperServiceProvider = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             ReaperPlugin.REAPER_SERVICE_NAME
         );
+
+        JavaToolchainService toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
+        Provider<JavaLauncher> fallbackJdk17Launcher = toolChainService.launcherFor(spec -> {
+            spec.getVendor().set(JvmVendorSpec.ADOPTIUM);
+            spec.getLanguageVersion().set(JavaLanguageVersion.of(17));
+        });
+
         runtimeJavaProvider = providerFactory.provider(
             () -> System.getenv("RUNTIME_JAVA_HOME") == null ? Jvm.current().getJavaHome() : new File(System.getenv("RUNTIME_JAVA_HOME"))
         );
@@ -117,7 +131,8 @@ public class TestClustersPlugin implements Plugin<Project> {
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(
             project,
             testClustersRegistryProvider,
-            reaperServiceProvider
+            reaperServiceProvider,
+            fallbackJdk17Launcher
         );
 
         // provide a task to be able to list defined clusters.
@@ -154,7 +169,8 @@ public class TestClustersPlugin implements Plugin<Project> {
     private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(
         Project project,
         Provider<TestClustersRegistry> testClustersRegistryProvider,
-        Provider<ReaperService> reaper
+        Provider<ReaperService> reaper,
+        Provider<JavaLauncher> fallbackJdk17Launcher
     ) {
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
@@ -171,7 +187,8 @@ public class TestClustersPlugin implements Plugin<Project> {
                 getFileOperations(),
                 new File(project.getBuildDir(), "testclusters"),
                 runtimeJavaProvider,
-                isReleasedVersion
+                isReleasedVersion,
+                fallbackJdk17Launcher
             )
         );
         project.getExtensions().add(EXTENSION_NAME, container);
@@ -251,6 +268,17 @@ public class TestClustersPlugin implements Plugin<Project> {
                             awareTask.beforeStart();
                             awareTask.getClusters().forEach(awareTask.getRegistry().get()::maybeStartCluster);
                         });
+                        awareTask.doLast("Stop clusters and check for resource leaks", task -> {
+                            TestClustersRegistry registry = awareTask.getRegistry().get();
+                            awareTask.getClusters().forEach(cluster -> registry.stopCluster(cluster, false));
+                            List<String> leaks = awareTask.getClusters()
+                                .stream()
+                                .flatMap(cluster -> cluster.getLeakMessages().stream())
+                                .toList();
+                            if (leaks.isEmpty() == false) {
+                                throw new TestClustersException(String.join("\n", leaks));
+                            }
+                        });
                     });
             });
         }
@@ -267,18 +295,15 @@ public class TestClustersPlugin implements Plugin<Project> {
         @Override
         public void onFinish(FinishEvent finishEvent) {
             if (finishEvent instanceof TaskFinishEvent taskFinishEvent) {
-                // Handle task finish event...
                 String taskPath = taskFinishEvent.getDescriptor().getTaskPath();
                 if (tasksMap.containsKey(taskPath)) {
                     TestClustersAware task = tasksMap.get(taskPath);
-                    // unclaim the cluster if the task has been executed and the cluster has been claimed in the doFirst block.
-                    if (task.getDidWork()) {
-                        task.getClusters()
-                            .forEach(
-                                cluster -> getParameters().getRegistry()
-                                    .get()
-                                    .stopCluster(cluster, taskFinishEvent.getResult() instanceof TaskFailureResult)
-                            );
+                    // Only stop clusters here when the task failed. On the success path, the doLast
+                    // action already stopped clusters and checked for resource leaks. When the task
+                    // fails (test failure or doLast leak exception), doLast may not have run or may
+                    // have only partially completed, so onFinish ensures clusters are cleaned up.
+                    if (task.getDidWork() && taskFinishEvent.getResult() instanceof TaskFailureResult) {
+                        task.getClusters().forEach(cluster -> getParameters().getRegistry().get().stopCluster(cluster, true));
                     }
                 }
             }

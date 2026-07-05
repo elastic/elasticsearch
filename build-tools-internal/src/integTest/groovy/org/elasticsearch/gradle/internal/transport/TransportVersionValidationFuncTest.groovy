@@ -246,9 +246,8 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         when:
         def result = validateResourcesFails()
         then:
-        assertValidateResourcesFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/referable/some_tv.csv] " +
-            "has the highest transport version id [8124000] but is not present in any upper bounds files")
+        assertValidateResourcesFailure(result,
+            "was added but no corresponding upper bounds file was changed")
     }
 
     def "highest id in an unreferable definition should exist in an upper bounds file"() {
@@ -293,5 +292,106 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
 
         then:
         result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "only current upper bound validated on release branch"() {
+        given:
+        file("myserver/build.gradle") << """
+            tasks.named('validateTransportVersionResources') {
+                currentUpperBoundName = '9.0'
+            }
+        """
+        referableAndReferencedTransportVersion("some_tv", "8124000,8012004")
+        transportVersionUpperBound("9.1", "some_tv", "8012004")
+
+        when:
+        def result = gradleRunner("validateTransportVersionResources").build()
+
+        then:
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
+    }
+
+    void baseBranchSetup() {
+        // create 9.1 branch
+        execute("git checkout -b 9.1")
+        // setup 9.1 upper bound as if 9.2 was just branched, so no patches yet
+        unreferableTransportVersion("initial_9.1.0", "8013000")
+        transportVersionUpperBound("9.1", "initial_9.1.0", "8013000")
+        execute("git add .")
+        execute("git commit -m initial")
+
+        // advance main branch
+        execute("git checkout main")
+        unreferableTransportVersion("initial_9.1.0", "8013000")
+        referableAndReferencedTransportVersion("new_tv", "8124000,8013001")
+        transportVersionUpperBound("9.2", "new_tv", "8124000")
+        transportVersionUpperBound("9.1", "new_tv", "8013001")
+        execute("git add .")
+        execute("git commit -m update")
+
+        // create a 9.1 backport
+        execute("git checkout 9.1")
+        execute("git checkout -b test_9.1")
+        referableAndReferencedTransportVersion("new_tv", "8124000,8013001")
+        transportVersionUpperBound("9.2", "new_tv", "8124000")
+        transportVersionUpperBound("9.1", "new_tv", "8013001")
+        file("myserver/build.gradle") << """
+            tasks.named('validateTransportVersionResources') {
+                currentUpperBoundName = '9.1'
+            }
+        """
+    }
+
+    def "modification checks use PR base branch in CI"() {
+        given:
+        baseBranchSetup()
+
+        when:
+        def result = gradleRunner("validateTransportVersionResources")
+            .withEnvironment(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", "9.1", "BUILDKITE_BRANCH", "foobar")).build()
+
+        then:
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "modification checks use buildkite base branch in CI if not in PR"() {
+        given:
+        baseBranchSetup()
+
+        when:
+        def result = gradleRunner("validateTransportVersionResources")
+            .withEnvironment(Map.of("BUILDKITE_BRANCH", "9.1")).build()
+
+        then:
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "new definition must have corresponding upper bound change"() {
+        given:
+        referableAndReferencedTransportVersion("some_new_tv", "8124000")
+        when:
+        def result = validateResourcesFails()
+        then:
+        assertValidateResourcesFailure(result,
+            "was added but no corresponding upper bounds file was changed")
+    }
+
+    def "new definition must use increment"() {
+        given:
+        file("myserver/build.gradle") << """
+            tasks.named('generateTransportVersion') {
+                increment = 100
+            }
+            tasks.named('validateTransportVersionResources') {
+                shouldValidatePrimaryIdNotPatch = false
+            }
+        """
+        referableAndReferencedTransportVersion("some_new_tv", "8123050")
+        transportVersionUpperBound("9.2", "some_new_tv", "8123050")
+        when:
+        def result = validateResourcesFails()
+        then:
+        assertValidateResourcesFailure(result,
+            "has primary id 8123050 which is not aligned to increment 100")
     }
 }

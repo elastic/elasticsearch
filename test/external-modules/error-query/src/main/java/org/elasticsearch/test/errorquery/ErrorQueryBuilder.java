@@ -19,7 +19,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -80,7 +81,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  *  </pre>
  */
 
-public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
+public class ErrorQueryBuilder extends LeafQueryBuilder<ErrorQueryBuilder> {
     public static final String NAME = "error_query";
 
     private List<IndexError> indices;
@@ -117,7 +118,7 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
             }
         }
         if (error == null) {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         return new ErrorQuery(error, context);
@@ -189,7 +190,7 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
         ErrorQuery(IndexError error, SearchExecutionContext context) {
             this.indexError = error;
             this.sleepCompleted = false;
-            this.matchAllQuery = new MatchAllDocsQuery();
+            this.matchAllQuery = Queries.ALL_DOCS_INSTANCE;
 
             if (error.getShardIds() != null) {
                 boolean match = false;

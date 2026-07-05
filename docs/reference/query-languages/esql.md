@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "{{esql}}"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-language.html
@@ -19,6 +22,9 @@ products:
 You can author {{esql}} queries to find specific events, perform statistical analysis, and create visualizations. It supports a wide range of commands, functions, and operators to perform various data operations, such as filter, aggregation, time-series analysis, and more. It initially supported a subset of the features available in Query DSL, but it is rapidly evolving with every {{serverless-full}} and Stack release.
 
 {{esql}} is designed to be easy to read and write, making it accessible for users with varying levels of technical expertise. It is particularly useful for data analysts, security professionals, and developers who need to work with large datasets in Elasticsearch.
+
+::::{include} esql/_snippets/common/query-performance-tip.md
+::::
 
 ## How does it work? [search-analyze-data-esql]
 
@@ -46,4 +52,9 @@ You can interact with {{esql}} in two ways:
 
 - **Interactive interfaces**: Work with {{esql}} through Elastic user interfaces including Kibana Discover, Dashboards, Dev Tools, and analysis tools in Elastic Security and Observability.
   - Refer to [Using {{esql}} in {{kib}}](docs-content://explore-analyze/query-filter/languages/esql-kibana.md).
+
+
+## ES|QL circuit breaker settings [esql-circuit-breaker]
+
+The relevant circuit breaker settings can be found in the [Circuit Breakers page](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql).
 

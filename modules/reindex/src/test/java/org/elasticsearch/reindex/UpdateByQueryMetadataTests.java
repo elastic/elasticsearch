@@ -10,18 +10,18 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 
-public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByScrollActionMetadataTestCase<
+public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByPaginatedSearchActionMetadataTestCase<
     UpdateByQueryRequest,
-    BulkByScrollResponse> {
+    BulkByPaginatedSearchResponse> {
 
     public void testRoutingIsCopied() {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
+        action().copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("foo"));
         assertEquals("foo", index.routing());
     }
 
@@ -44,14 +44,17 @@ public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByScrollActionM
                 UpdateByQueryMetadataTests.this.threadPool,
                 null,
                 request(),
-                ClusterState.EMPTY_STATE,
-                listener()
+                listener(),
+                randomPositiveTimeValue(),
+                null,
+                new ReindexSettings(),
+                new NoopCircuitBreaker("test")
             );
         }
 
         @Override
-        public AbstractAsyncBulkByScrollAction.RequestWrapper<?> copyMetadata(
-            AbstractAsyncBulkByScrollAction.RequestWrapper<?> request,
+        public AbstractAsyncBulkByPaginatedSearchAction.RequestWrapper<?> copyMetadata(
+            AbstractAsyncBulkByPaginatedSearchAction.RequestWrapper<?> request,
             Hit doc
         ) {
             return super.copyMetadata(request, doc);

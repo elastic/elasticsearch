@@ -10,7 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -24,7 +24,7 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class ClearScrollRequest extends LegacyActionRequest implements ToXContentObject {
+public class ClearScrollRequest extends UntypedActionRequest implements ToXContentObject {
 
     private List<String> scrollIds;
 
@@ -113,6 +113,8 @@ public class ClearScrollRequest extends LegacyActionRequest implements ToXConten
                         }
                         addScrollId(parser.text());
                     }
+                } else if ("project_routing".equals(currentFieldName)) {
+                    throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
                 } else {
                     throw new IllegalArgumentException(
                         "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "

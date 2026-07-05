@@ -1,0 +1,4 @@
+FROM books METADATA _score
+| WHERE author:"Tolkien"
+| FORK ( SORT _score DESC | LIMIT 3 )
+       ( STATS total = COUNT(*) )

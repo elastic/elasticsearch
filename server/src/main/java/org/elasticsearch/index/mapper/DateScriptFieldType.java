@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.blockloader.script.DateScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.DateFieldScript;
@@ -33,7 +34,9 @@ import org.elasticsearch.search.runtime.LongScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldTermsQuery;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -183,7 +186,57 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new DateScriptBlockDocValuesReader.DateScriptBlockLoader(leafFactory(blContext.lookup()));
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+            blContext,
+            BlockLoader.BlockFactory::longs,
+            this::fallbackSyntheticSourceBlockLoaderReader
+        );
+
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        }
+        return new DateScriptBlockDocValuesReader.DateScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
+    }
+
+    private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+        return new FallbackSyntheticSourceBlockLoader.SingleValueReader<Long>(null) {
+            @Override
+            public void convertValue(Object value, List<Long> accumulator) {
+                try {
+                    if (value instanceof Number) {
+                        accumulator.add(((Number) value).longValue());
+                    } else {
+                        // when the value is given a string formatted date; ex. 2020-07-22T16:09:41.355Z
+                        accumulator.add(dateTimeFormatter.parseMillis(value.toString()));
+                    }
+                } catch (Exception e) {
+                    // ensure a malformed value doesn't crash
+                }
+            }
+
+            @Override
+            public void writeToBlock(List<Long> values, BlockLoader.Builder blockBuilder) {
+                var longBuilder = (BlockLoader.LongBuilder) blockBuilder;
+                for (Long value : values) {
+                    longBuilder.appendLong(value);
+                }
+            }
+
+            @Override
+            protected void parseNonNullValue(XContentParser parser, List<Long> accumulator) throws IOException {
+                try {
+                    String dateAsStr = parser.textOrNull();
+
+                    if (dateAsStr == null) {
+                        accumulator.add(dateTimeFormatter.parseMillis(null));
+                    } else {
+                        accumulator.add(dateTimeFormatter.parseMillis(dateAsStr));
+                    }
+                } catch (Exception e) {
+                    // ensure a malformed value doesn't crash
+                }
+            }
+        };
     }
 
     @Override
@@ -245,6 +298,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             parser,
             context,
             DateFieldMapper.Resolution.MILLISECONDS,
+            name(),
             (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, name(), l, u)
         );
     }
@@ -261,7 +315,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
         return DateFieldType.handleNow(context, now -> {
             Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());

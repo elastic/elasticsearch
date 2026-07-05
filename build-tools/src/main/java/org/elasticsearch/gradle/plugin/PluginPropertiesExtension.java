@@ -43,6 +43,9 @@ public class PluginPropertiesExtension {
     /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
     private boolean requiresKeystore;
 
+    /** The optional deployment target of this plugin. */
+    private String deploymentTarget;
+
     /** A license file that should be included in the built plugin zip. */
     private File licenseFile;
 
@@ -115,6 +118,14 @@ public class PluginPropertiesExtension {
 
     public boolean isRequiresKeystore() {
         return requiresKeystore;
+    }
+
+    public String getDeploymentTarget() {
+        return deploymentTarget;
+    }
+
+    public void setDeploymentTarget(String deploymentTarget) {
+        this.deploymentTarget = deploymentTarget;
     }
 
     public void setRequiresKeystore(boolean requiresKeystore) {

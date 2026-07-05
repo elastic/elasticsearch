@@ -619,10 +619,12 @@ public class StoreTests extends ESTestCase {
             assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(1));
             assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.get(0).name(), endsWith(".liv"));
         }
+        // segments_N, fnm, dvd, dvm, dvs for the updated segment
+        int missingSize = 5;
 
-        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.identical.size(), equalTo(dvUpdateSnapshot.size() - 4 - delFileCount));
+        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.identical.size(), equalTo(dvUpdateSnapshot.size() - missingSize - delFileCount));
         assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(delFileCount));
-        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.missing.size(), equalTo(4)); // segments_N, fnm, dvd, dvm for the updated segment
+        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.missing.size(), equalTo(missingSize));
 
         deleteContent(store.directory());
         IOUtils.close(store);
@@ -950,7 +952,7 @@ public class StoreTests extends ESTestCase {
 
     public void testMetadataSnapshotStreaming() throws Exception {
         Store.MetadataSnapshot outMetadataSnapshot = createMetadataSnapshot();
-        TransportVersion targetVersion = randomVersion(random());
+        TransportVersion targetVersion = randomVersion();
 
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
@@ -972,7 +974,7 @@ public class StoreTests extends ESTestCase {
 
     public void testEmptyMetadataSnapshotStreaming() throws Exception {
         var outMetadataSnapshot = randomBoolean() ? Store.MetadataSnapshot.EMPTY : new Store.MetadataSnapshot(emptyMap(), emptyMap(), 0L);
-        var targetVersion = randomCompatibleVersion(random());
+        var targetVersion = randomCompatibleVersion();
 
         var outBuffer = new ByteArrayOutputStream();
         var out = new OutputStreamStreamOutput(outBuffer);
@@ -1033,7 +1035,7 @@ public class StoreTests extends ESTestCase {
             new TransportNodesListShardStoreMetadata.StoreFilesMetadata(metadataSnapshot, peerRecoveryRetentionLeases);
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        TransportVersion targetVersion = randomCompatibleVersion(random());
+        TransportVersion targetVersion = randomCompatibleVersion();
         out.setTransportVersion(targetVersion);
         outStoreFileMetadata.writeTo(out);
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
@@ -1053,7 +1055,7 @@ public class StoreTests extends ESTestCase {
             : new TransportNodesListShardStoreMetadata.StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
         var outBuffer = new ByteArrayOutputStream();
         var out = new OutputStreamStreamOutput(outBuffer);
-        var targetVersion = randomCompatibleVersion(random());
+        var targetVersion = randomCompatibleVersion();
         out.setTransportVersion(targetVersion);
         outStoreFileMetadata.writeTo(out);
 

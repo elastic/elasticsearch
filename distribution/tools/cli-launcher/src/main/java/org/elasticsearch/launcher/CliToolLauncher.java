@@ -14,13 +14,14 @@ import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.Map;
 
 /**
@@ -49,7 +50,11 @@ class CliToolLauncher {
      * @param args args to the tool
      * @throws Exception if the tool fails with an unknown error
      */
+    @SuppressForbidden(reason = "uses System.out and System.err")
     public static void main(String[] args) throws Exception {
+        Terminal terminal = isRedirectStdoutToStderr() ? Terminal.DEFAULT.delegateTo(RedirectedStdoutTerminal.create()) : Terminal.DEFAULT;
+        terminal.installSystemStreams();
+
         ProcessInfo pinfo = ProcessInfo.fromSystem();
 
         // configure logging as early as possible
@@ -59,7 +64,6 @@ class CliToolLauncher {
         String libs = pinfo.sysprops().getOrDefault("cli.libs", "");
 
         command = CliToolProvider.load(pinfo.sysprops(), toolname, libs).create();
-        Terminal terminal = Terminal.DEFAULT;
         Runtime.getRuntime().addShutdownHook(createShutdownHook(terminal, command));
 
         int exitCode = command.main(args, terminal, pinfo);
@@ -67,6 +71,23 @@ class CliToolLauncher {
         if (exitCode != ExitCodes.OK) {
             exit(exitCode);
         }
+    }
+
+    /**
+     * Returns true when stdout should be redirected to stderr so that the real
+     * stdout can be used for binary output (e.g. the launch descriptor).
+     */
+    @SuppressForbidden(reason = "Check redirect env and sysprop")
+    static boolean isRedirectStdoutToStderr() {
+        return "true".equalsIgnoreCase(System.getenv("ES_REDIRECT_STDOUT_TO_STDERR"))
+            || "true".equalsIgnoreCase(System.getProperty("cli.redirectStdoutToStderr", ""));
+    }
+
+    @SuppressForbidden(reason = "Multiplex stdout and stderr onto a single pipe so the launcher can demux them")
+    private static void installOutputMux() {
+        OutputStreamMux mux = new OutputStreamMux(System.err);
+        System.setOut(new PrintStream(mux.channel(OutputStreamMux.STDOUT_MODE), true));
+        System.setErr(new PrintStream(mux.channel(OutputStreamMux.STDERR_MODE), true));
     }
 
     // package private for tests

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ESCborParserTests extends ESTestCase {
 
@@ -54,7 +55,14 @@ public class ESCborParserTests extends ESTestCase {
         assertThat(text.hasBytes(), equalTo(true));
         assertThat(text.stringLength(), equalTo(expected.length()));
         assertThat(text.string(), equalTo(expected));
+        // Retrieve twice
         assertThat(parser.getValueAsText().string(), equalTo(expected));
+        assertThat(parser.getValueAsString(), equalTo(expected));
+        // Use the getText() to ensure _tokenIncomplete works
+        assertThat(parser.getText(), equalTo(expected));
+        // The optimisation is not used after the getText()
+        assertThat(parser.getValueAsText(), nullValue());
+        // Original CBOR getValueAsString works.
         assertThat(parser.getValueAsString(), equalTo(expected));
         assertThat(parser.nextToken(), equalTo(JsonToken.END_OBJECT));
     }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,7 +50,7 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
 
     @Override
     protected ModelSecrets mutateInstance(ModelSecrets instance) {
-        return randomValueOtherThan(instance, ModelSecretsTests::createRandomInstance);
+        return new ModelSecrets(randomValueOtherThan(instance.getSecretSettings(), ModelSecretsTests::randomSecretSettings));
     }
 
     public record FakeSecretSettings(String apiKey) implements SecretSettings {
@@ -82,7 +81,7 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override

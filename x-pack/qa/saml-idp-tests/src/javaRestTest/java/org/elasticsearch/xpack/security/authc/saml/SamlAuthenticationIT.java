@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -46,12 +47,12 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.idp.IdpTestContainer;
 import org.elasticsearch.test.fixtures.idp.OpenLdapTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.Junit4NetworkRule;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
@@ -60,7 +61,6 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.testcontainers.containers.Network;
-import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -155,7 +155,10 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(network).around(openLdapTestContainer).around(idpFixture).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(Junit4NetworkRule.from(network))
+        .around(openLdapTestContainer)
+        .around(idpFixture)
+        .around(cluster);
 
     private static String calculateIdpMetaData() {
         Resource resource = Resource.fromClasspath("/idp/shibboleth-idp/metadata/idp-metadata.xml");
@@ -534,7 +537,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             .build();
         request.setConfig(requestConfig);
         logger.info("Execute HTTP " + request.getMethod() + ' ' + request.getURI());
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request, context))) {
+        try (CloseableHttpResponse response = client.execute(request, context)) {
             return body.apply(response);
         } catch (Exception e) {
             logger.warn(() -> "HTTP Request [" + request.getURI() + "] failed", e);

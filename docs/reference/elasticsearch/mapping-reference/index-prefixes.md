@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-prefixes.html
 ---
@@ -72,4 +75,4 @@ GET my-index-000001/_search
   }
 }
 ```
-
+% TEST[continued]

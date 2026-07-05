@@ -22,40 +22,11 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportVersionTests extends ESTestCase {
-
-    public void testVersionComparison() {
-        TransportVersion V_8_2_0 = TransportVersions.V_8_2_0;
-        TransportVersion V_8_16_0 = TransportVersions.V_8_16_0;
-        assertThat(V_8_2_0.before(V_8_16_0), is(true));
-        assertThat(V_8_2_0.before(V_8_2_0), is(false));
-        assertThat(V_8_16_0.before(V_8_2_0), is(false));
-
-        assertThat(V_8_2_0.onOrBefore(V_8_16_0), is(true));
-        assertThat(V_8_2_0.onOrBefore(V_8_2_0), is(true));
-        assertThat(V_8_16_0.onOrBefore(V_8_2_0), is(false));
-
-        assertThat(V_8_2_0.after(V_8_16_0), is(false));
-        assertThat(V_8_2_0.after(V_8_2_0), is(false));
-        assertThat(V_8_16_0.after(V_8_2_0), is(true));
-
-        assertThat(V_8_2_0.onOrAfter(V_8_16_0), is(false));
-        assertThat(V_8_2_0.onOrAfter(V_8_2_0), is(true));
-        assertThat(V_8_16_0.onOrAfter(V_8_2_0), is(true));
-
-        assertThat(V_8_2_0, is(lessThan(V_8_16_0)));
-        assertThat(V_8_2_0.compareTo(V_8_2_0), is(0));
-        assertThat(V_8_16_0, is(greaterThan(V_8_2_0)));
-    }
 
     public static class CorrectFakeVersion {
         public static final TransportVersion V_0_00_01 = new TransportVersion(199);
@@ -68,23 +39,6 @@ public class TransportVersionTests extends ESTestCase {
         public static final TransportVersion V_0_000_001 = new TransportVersion(1);
         public static final TransportVersion V_0_000_002 = new TransportVersion(2);
         public static final TransportVersion V_0_000_003 = new TransportVersion(2);
-    }
-
-    public void testStaticTransportVersionChecks() {
-        assertThat(
-            TransportVersions.collectAllVersionIdsDefinedInClass(CorrectFakeVersion.class),
-            contains(
-                CorrectFakeVersion.V_0_000_002,
-                CorrectFakeVersion.V_0_000_003,
-                CorrectFakeVersion.V_0_000_004,
-                CorrectFakeVersion.V_0_00_01
-            )
-        );
-        AssertionError e = expectThrows(
-            AssertionError.class,
-            () -> TransportVersions.collectAllVersionIdsDefinedInClass(DuplicatedIdFakeVersion.class)
-        );
-        assertThat(e.getMessage(), containsString("have the same version number"));
     }
 
     private static String padNumber(String number) {
@@ -131,8 +85,8 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testMin() {
         assertEquals(
-            TransportVersionUtils.getPreviousVersion(),
-            TransportVersion.min(TransportVersion.current(), TransportVersionUtils.getPreviousVersion())
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current()),
+            TransportVersion.min(TransportVersion.current(), TransportVersionUtils.getPreviousVersion(TransportVersion.current()))
         );
         assertEquals(
             TransportVersion.fromId(1_01_01_99),
@@ -150,7 +104,7 @@ public class TransportVersionTests extends ESTestCase {
     public void testMax() {
         assertEquals(
             TransportVersion.current(),
-            TransportVersion.max(TransportVersion.current(), TransportVersionUtils.getPreviousVersion())
+            TransportVersion.max(TransportVersion.current(), TransportVersionUtils.getPreviousVersion(TransportVersion.current()))
         );
         assertEquals(TransportVersion.current(), TransportVersion.max(TransportVersion.fromId(1_01_01_99), TransportVersion.current()));
         TransportVersion version = TransportVersionUtils.randomVersion();
@@ -160,18 +114,6 @@ public class TransportVersionTests extends ESTestCase {
         } else {
             assertEquals(version1, TransportVersion.max(version1, version));
         }
-    }
-
-    public void testIsPatchFrom() {
-        TransportVersion patchVersion = TransportVersion.fromId(8_800_0_04);
-        assertThat(TransportVersion.fromId(8_799_0_00).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_799_0_09).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_0_00).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_0_03).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_0_04).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_0_49).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_1_00).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_801_0_00).isPatchFrom(patchVersion), is(false));
     }
 
     public void testVersionConstantPresent() {
@@ -191,19 +133,14 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testPatchVersionsStillAvailable() {
         for (TransportVersion tv : TransportVersion.getAllVersions()) {
-            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
-                fail(
-                    "Transport version "
-                        + tv
-                        + " is nearing the limit of available patch numbers."
-                        + " Please inform the Core/Infra team that isPatchFrom may need to be modified"
-                );
+            if (tv.id() >= 8_84_10_00 && (tv.id() % 1000) >= 999) {
+                fail("Transport version " + tv + " has exhausted the available patch numbers for its base. A new base is needed.");
             }
         }
     }
 
     public void testToReleaseVersion() {
-        assertThat(TransportVersion.current().toReleaseVersion(), endsWith(Version.CURRENT.toString()));
+        assertThat(TransportVersion.current().toReleaseVersion(), endsWith(Build.current().version()));
     }
 
     public void testToString() {
@@ -354,6 +291,14 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(new TransportVersion(null, 3004000, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 100001000, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 100001001, null).supports(test4), is(true));
+
+        // Patch ids spanning past the hundred boundary within the same base: 1001002 is the backport,
+        // so 1001099-1001999 are all still on the same base and must be recognized as patches.
+        assertThat(new TransportVersion(null, 1001099, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 1001100, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 1001999, null).supports(test4), is(true));
+        // A different base (1002xxx) must not be recognized as a patch of 1001xxx.
+        assertThat(new TransportVersion(null, 1002000, null).supports(test4), is(false));
     }
 
     public void testComment() {
@@ -400,7 +345,7 @@ public class TransportVersionTests extends ESTestCase {
             is(
                 "Unknown transport version [to_child_lock_join_query]. "
                     + "Did you mean [to_child_block_join_query]? "
-                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+                    + "If this is a new transport version, run './gradlew generateTransportVersion'."
             )
         );
 
@@ -409,17 +354,8 @@ public class TransportVersionTests extends ESTestCase {
             ise.getMessage(),
             is(
                 "Unknown transport version [brand_new_version_unrelated_to_others]. "
-                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+                    + "If this is a new transport version, run './gradlew generateTransportVersion'."
             )
-        );
-    }
-
-    public void testTransportVersionsLocked() {
-        assertThat(
-            "TransportVersions.java is locked. Generate transport versions with TransportVersion.fromName "
-                + "and generateTransportVersion gradle task",
-            TransportVersions.DEFINED_VERSIONS.getLast().id(),
-            equalTo(9_162_0_00)
         );
     }
 }

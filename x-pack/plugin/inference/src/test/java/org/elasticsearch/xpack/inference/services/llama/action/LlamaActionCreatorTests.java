@@ -18,8 +18,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -48,7 +47,6 @@ import static org.elasticsearch.xpack.inference.external.http.retry.RetrySetting
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -80,8 +78,6 @@ public class LlamaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
-
             String responseJson = """
                 {
                     "embeddings": [
@@ -98,7 +94,10 @@ public class LlamaActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(TextEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F }))));
+            assertThat(
+                result.asMap(),
+                is(DenseEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F })))
+            );
 
             assertEmbeddingsRequest();
         }
@@ -113,8 +112,6 @@ public class LlamaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
-
             String responseJson = """
                 [
                     {
@@ -145,8 +142,6 @@ public class LlamaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
-
             String responseJson = """
                 {
                     "id": "chatcmpl-03e70a75-efb6-447d-b661-e5ed0bd59ce9",
@@ -201,8 +196,6 @@ public class LlamaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
-
             String responseJson = """
                 {
                     "invalid_field": "unexpected"
@@ -231,11 +224,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
         var action = actionCreator.create(model);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
         return listener;
     }
 
@@ -245,7 +234,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
         var action = actionCreator.create(model);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("Hello"), false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of("Hello"), false), null, listener);
         return listener;
     }
 
@@ -268,7 +257,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
         assertThat(requestMap.size(), is(2));
         assertThat(requestMap.get("contents"), instanceOf(List.class));
         var inputList = (List<String>) requestMap.get("contents");
-        assertThat(inputList, contains("abc"));
+        assertThat(inputList, is(List.of("abc")));
     }
 
     private void assertCommonRequestProperties() {

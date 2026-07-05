@@ -10,11 +10,12 @@
 package org.elasticsearch.telemetry;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -84,13 +85,13 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     @Override
-    public TelemetryProvider getTelemetryProvider(Settings settings) {
-        return new TelemetryProvider() {
-            @Override
-            public Tracer getTracer() {
-                return Tracer.NOOP;
-            }
+    public final TelemetryProvider getTelemetryProvider(Environment environment) {
+        return getTelemetryProvider(environment.settings());
+    }
 
+    /** Test-friendly entry point used directly by call sites that don't have an {@link Environment}. */
+    public TelemetryProvider getTelemetryProvider(Settings settings) {
+        return new NoopTelemetryProvider() {
             @Override
             public MeterRegistry getMeterRegistry() {
                 return meter;

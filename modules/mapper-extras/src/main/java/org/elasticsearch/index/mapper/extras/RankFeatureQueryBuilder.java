@@ -10,15 +10,15 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.extras.RankFeatureFieldMapper.RankFeatureFieldType;
 import org.elasticsearch.index.mapper.extras.RankFeaturesFieldMapper.RankFeaturesFieldType;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -32,7 +32,7 @@ import java.util.Objects;
 /**
  * Query to run on a [rank_feature] field.
  */
-public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeatureQueryBuilder> {
+public final class RankFeatureQueryBuilder extends LeafQueryBuilder<RankFeatureQueryBuilder> {
     private static final ScoreFunction DEFAULT_SCORE_FUNCTION = new ScoreFunction.Saturation();
 
     /**
@@ -392,7 +392,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
                     return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
                 }
             }
-            return new MatchNoDocsQuery(); // unmapped field
+            return Queries.NO_DOCS_INSTANCE; // unmapped field
         } else {
             throw new IllegalArgumentException(
                 "[rank_feature] query only works on [rank_feature] fields and "

@@ -87,13 +87,7 @@ public class ILMHistoryItem implements ToXContentObject {
     ) {
         Objects.requireNonNull(error, "ILM failures require an attached exception");
         String fullErrorString = exceptionToString(error);
-        String truncatedErrorString = LifecycleExecutionState.truncateWithExplanation(fullErrorString);
-        if (truncatedErrorString.equals(fullErrorString) == false) {
-            // Append a closing quote and closing brace to attempt to make it valid JSON.
-            // There is no requirement that it actually be valid JSON, so this is
-            // best-effort, but does not cause problems if it is still invalid.
-            truncatedErrorString += "\"}";
-        }
+        String truncatedErrorString = LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(fullErrorString);
         return new ILMHistoryItem(index, policyId, timestamp, indexAge, false, executionState, truncatedErrorString);
     }
 

@@ -54,7 +54,15 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "id",
+          "host",
+          "ip",
+          "node",
+          "field",
+          "size"
+        ]
       },
       "help": {
         "type": "boolean",

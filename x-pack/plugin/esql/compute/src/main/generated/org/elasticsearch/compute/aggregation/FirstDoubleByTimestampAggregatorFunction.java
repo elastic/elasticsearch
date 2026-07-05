@@ -36,16 +36,10 @@ public final class FirstDoubleByTimestampAggregatorFunction implements Aggregato
 
   private final List<Integer> channels;
 
-  public FirstDoubleByTimestampAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, LongDoubleState state) {
+  FirstDoubleByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static FirstDoubleByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new FirstDoubleByTimestampAggregatorFunction(driverContext, channels, FirstDoubleByTimestampAggregator.initSingle(driverContext));
+    this.state = FirstDoubleByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -149,18 +143,20 @@ public final class FirstDoubleByTimestampAggregatorFunction implements Aggregato
 
   private void addRawBlock(DoubleBlock valueBlock, LongBlock timestampBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      if (timestampBlock.isNull(p)) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         double valueValue = valueBlock.getDouble(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path
@@ -180,18 +176,20 @@ public final class FirstDoubleByTimestampAggregatorFunction implements Aggregato
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      if (timestampBlock.isNull(p)) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         double valueValue = valueBlock.getDouble(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path
@@ -212,18 +210,45 @@ public final class FirstDoubleByTimestampAggregatorFunction implements Aggregato
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block timestampsUncast = page.getBlock(channels.get(0));
     if (timestampsUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
     assert timestamps.getPositionCount() == 1;
     Block valuesUncast = page.getBlock(channels.get(1));
     if (valuesUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector values = ((DoubleBlock) valuesUncast).asVector();
     assert values.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();

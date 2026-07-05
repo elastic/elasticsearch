@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.textstructure.structurefinder;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -226,11 +225,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            ecsCompatibility = getNonNullEcsCompatibilityString(in.readString());
-        } else {
-            ecsCompatibility = getNonNullEcsCompatibilityString(null);
-        }
+        ecsCompatibility = getNonNullEcsCompatibilityString(in.readString());
         jodaTimestampFormats = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
         javaTimestampFormats = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
         timestampField = in.readOptionalString();
@@ -272,9 +267,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeString(ecsCompatibility);
-        }
+        out.writeString(ecsCompatibility);
         if (jodaTimestampFormats == null) {
             out.writeBoolean(false);
         } else {

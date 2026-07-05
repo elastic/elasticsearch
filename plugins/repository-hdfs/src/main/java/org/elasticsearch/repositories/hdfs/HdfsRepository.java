@@ -274,7 +274,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             /*
              * This should not block since it should already be resolved via Log4J and Netty. The
              * host information is cached by the JVM and the TTL for the cache entry is infinite
-             * when the SecurityManager is activated.
+             * and its TTL for the cache entry is infinite.
              */
             return InetAddress.getLocalHost().getCanonicalHostName();
         } catch (UnknownHostException e) {

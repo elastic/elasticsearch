@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.rerank;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEnd
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -28,65 +28,149 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.ENDPOINT_TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
-import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType.TOKEN;
-import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider.COHERE;
 import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<AzureAiStudioRerankServiceSettings> {
-    private static final String TARGET_URI = "http://testtarget.local";
+    private static final String TEST_TARGET = "http://sometarget.local";
+    private static final String INITIAL_TEST_TARGET = "http://initialtarget.local";
+    private static final AzureAiStudioProvider TEST_PROVIDER = AzureAiStudioProvider.OPENAI;
+    private static final AzureAiStudioProvider INITIAL_TEST_PROVIDER = AzureAiStudioProvider.MISTRAL;
+    private static final AzureAiStudioEndpointType TEST_ENDPOINT_TYPE = AzureAiStudioEndpointType.TOKEN;
+    private static final AzureAiStudioEndpointType INITIAL_TEST_ENDPOINT_TYPE = AzureAiStudioEndpointType.REALTIME;
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int DEFAULT_RATE_LIMIT = 240;
 
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
-        final var serviceSettings = AzureAiStudioRerankServiceSettings.fromMap(
-            createRequestSettingsMap(TARGET_URI, COHERE.name(), TOKEN.name()),
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var originalServiceSettings = new AzureAiStudioRerankServiceSettings(
+            INITIAL_TEST_TARGET,
+            INITIAL_TEST_PROVIDER,
+            INITIAL_TEST_ENDPOINT_TYPE,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            createRequestSettingsMap(TEST_TARGET, TEST_PROVIDER.toString(), TEST_ENDPOINT_TYPE.toString(), TEST_RATE_LIMIT)
+        );
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new AzureAiStudioRerankServiceSettings(
+                    INITIAL_TEST_TARGET,
+                    INITIAL_TEST_PROVIDER,
+                    INITIAL_TEST_ENDPOINT_TYPE,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new AzureAiStudioRerankServiceSettings(
+            INITIAL_TEST_TARGET,
+            INITIAL_TEST_PROVIDER,
+            INITIAL_TEST_ENDPOINT_TYPE,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
+    public void testFromMap_Request_OnlyMandatoryFields_CreatesSettingsCorrectly() {
+        var serviceSettings = AzureAiStudioRerankServiceSettings.fromMap(
+            createRequestSettingsMap(TEST_TARGET, TEST_PROVIDER.toString(), TEST_ENDPOINT_TYPE.toString(), null),
             ConfigurationParseContext.REQUEST
         );
 
-        assertThat(serviceSettings, is(new AzureAiStudioRerankServiceSettings(TARGET_URI, COHERE, TOKEN, null)));
-    }
-
-    public void testFromMap_RequestWithRateLimit_CreatesSettingsCorrectly() {
-        final var settingsMap = createRequestSettingsMap(TARGET_URI, COHERE.name(), TOKEN.name());
-        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3)));
-
-        final var serviceSettings = AzureAiStudioRerankServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
-
-        assertThat(serviceSettings, is(new AzureAiStudioRerankServiceSettings(TARGET_URI, COHERE, TOKEN, new RateLimitSettings(3))));
-    }
-
-    public void testFromMap_Persistent_CreatesSettingsCorrectly() {
-        final var serviceSettings = AzureAiStudioRerankServiceSettings.fromMap(
-            createRequestSettingsMap(TARGET_URI, COHERE.name(), TOKEN.name()),
-            ConfigurationParseContext.PERSISTENT
+        assertThat(
+            serviceSettings,
+            is(
+                new AzureAiStudioRerankServiceSettings(
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
+                    new RateLimitSettings(DEFAULT_RATE_LIMIT)
+                )
+            )
         );
+    }
 
-        assertThat(serviceSettings, is(new AzureAiStudioRerankServiceSettings(TARGET_URI, COHERE, TOKEN, null)));
+    public void testFromMap_Request_AllFields_CreatesSettingsCorrectly() {
+        var settingsMap = createRequestSettingsMap(TEST_TARGET, TEST_PROVIDER.toString(), TEST_ENDPOINT_TYPE.toString(), TEST_RATE_LIMIT);
+
+        var serviceSettings = AzureAiStudioRerankServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new AzureAiStudioRerankServiceSettings(
+                    TEST_TARGET,
+                    TEST_PROVIDER,
+                    TEST_ENDPOINT_TYPE,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        final var settings = new AzureAiStudioRerankServiceSettings(TARGET_URI, COHERE, TOKEN, new RateLimitSettings(3));
-        final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        var settings = new AzureAiStudioRerankServiceSettings(
+            TEST_TARGET,
+            TEST_PROVIDER,
+            TEST_ENDPOINT_TYPE,
+            new RateLimitSettings(TEST_RATE_LIMIT)
+        );
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
-        final String xContentResult = Strings.toString(builder);
+        String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"target":"http://testtarget.local","provider":"cohere","endpoint_type":"token",""" + """
-            "rate_limit":{"requests_per_minute":3}}"""));
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "target": "%s",
+              "provider": "%s",
+              "endpoint_type": "%s",
+              "rate_limit": {
+                "requests_per_minute": %d
+              }
+            }
+            """, TEST_TARGET, TEST_PROVIDER, TEST_ENDPOINT_TYPE, TEST_RATE_LIMIT))));
     }
 
     public void testToFilteredXContent_WritesAllValues() throws IOException {
-        final var settings = new AzureAiStudioRerankServiceSettings(TARGET_URI, COHERE, TOKEN, new RateLimitSettings(3));
-        final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        final var filteredXContent = settings.getFilteredXContentObject();
+        var settings = new AzureAiStudioRerankServiceSettings(
+            TEST_TARGET,
+            TEST_PROVIDER,
+            TEST_ENDPOINT_TYPE,
+            new RateLimitSettings(TEST_RATE_LIMIT)
+        );
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        var filteredXContent = settings.getFilteredXContentObject();
         filteredXContent.toXContent(builder, null);
-        final String xContentResult = Strings.toString(builder);
+        String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"target":"http://testtarget.local","provider":"cohere","endpoint_type":"token",""" + """
-            "rate_limit":{"requests_per_minute":3}}"""));
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "target": "%s",
+              "provider": "%s",
+              "endpoint_type": "%s",
+              "rate_limit": {
+                "requests_per_minute": %d
+              }
+            }
+            """, TEST_TARGET, TEST_PROVIDER, TEST_ENDPOINT_TYPE, TEST_RATE_LIMIT))));
     }
 
-    public static HashMap<String, Object> createRequestSettingsMap(String target, String provider, String endpointType) {
-        return new HashMap<>(Map.of(TARGET_FIELD, target, PROVIDER_FIELD, provider, ENDPOINT_TYPE_FIELD, endpointType));
+    public static HashMap<String, Object> createRequestSettingsMap(String target, String provider, String endpointType, Integer rateLimit) {
+        var result = new HashMap<String, Object>();
+        result.put(TARGET_FIELD, target);
+        result.put(PROVIDER_FIELD, provider);
+        result.put(ENDPOINT_TYPE_FIELD, endpointType);
+        if (rateLimit != null) {
+            result.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        }
+        return result;
     }
 
     @Override
@@ -101,7 +185,19 @@ public class AzureAiStudioRerankServiceSettingsTests extends AbstractBWCWireSeri
 
     @Override
     protected AzureAiStudioRerankServiceSettings mutateInstance(AzureAiStudioRerankServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureAiStudioRerankServiceSettingsTests::createRandom);
+        var target = instance.target();
+        var provider = instance.provider();
+        var endpointType = instance.endpointType();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(3)) {
+            case 0 -> target = randomValueOtherThan(target, () -> randomAlphaOfLength(10));
+            case 1 -> provider = randomValueOtherThan(provider, () -> randomFrom(AzureAiStudioProvider.values()));
+            case 2 -> endpointType = randomValueOtherThan(endpointType, () -> randomFrom(AzureAiStudioEndpointType.values()));
+            case 3 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new AzureAiStudioRerankServiceSettings(target, provider, endpointType, rateLimitSettings);
     }
 
     @Override

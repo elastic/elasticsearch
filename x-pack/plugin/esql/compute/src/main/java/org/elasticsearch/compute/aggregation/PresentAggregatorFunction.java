@@ -31,12 +31,12 @@ public class PresentAggregatorFunction implements AggregatorFunction {
 
             @Override
             public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-                return PresentAggregatorFunction.create(channels);
+                return new PresentAggregatorFunction(channels);
             }
 
             @Override
             public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-                return PresentGroupingAggregatorFunction.create(driverContext, channels);
+                return new PresentGroupingAggregatorFunction(channels, driverContext);
             }
 
             @Override
@@ -58,13 +58,9 @@ public class PresentAggregatorFunction implements AggregatorFunction {
 
     private boolean state;
 
-    public static PresentAggregatorFunction create(List<Integer> inputChannels) {
-        return new PresentAggregatorFunction(inputChannels, false);
-    }
-
-    private PresentAggregatorFunction(List<Integer> channels, boolean state) {
+    PresentAggregatorFunction(List<Integer> channels) {
         this.channels = channels;
-        this.state = state;
+        this.state = false;
     }
 
     @Override
@@ -78,6 +74,8 @@ public class PresentAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void addRawInput(Page page, BooleanVector mask) {
+        // is a previous page has non-null values we can return immediately
+        if (state) return;
         if (mask.isConstant() && mask.getBoolean(0) == false) return;
 
         Block block = page.getBlock(blockIndex());

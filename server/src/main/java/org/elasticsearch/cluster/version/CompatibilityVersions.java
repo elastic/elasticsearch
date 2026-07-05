@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.version;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -74,8 +73,9 @@ public record CompatibilityVersions(
 
     public static void ensureVersionsCompatibility(CompatibilityVersions candidate, Collection<CompatibilityVersions> existing) {
         CompatibilityVersions minimumClusterVersions = minimumVersions(existing);
-
-        if (candidate.transportVersion().before(minimumClusterVersions.transportVersion())) {
+        if (candidate.transportVersion().equals(minimumClusterVersions.transportVersion()) == false
+            && TransportVersion.min(candidate.transportVersion(), minimumClusterVersions.transportVersion()) == candidate
+                .transportVersion()) {
             throw new IllegalStateException(
                 "node with version ["
                     + candidate.transportVersion().toReleaseVersion()
@@ -109,9 +109,7 @@ public record CompatibilityVersions(
         TransportVersion transportVersion = TransportVersion.readVersion(in);
 
         Map<String, SystemIndexDescriptor.MappingsVersion> mappingsVersions = Map.of();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            mappingsVersions = in.readMap(SystemIndexDescriptor.MappingsVersion::new);
-        }
+        mappingsVersions = in.readMap(SystemIndexDescriptor.MappingsVersion::new);
 
         return new CompatibilityVersions(transportVersion, mappingsVersions);
     }
@@ -120,9 +118,7 @@ public record CompatibilityVersions(
     public void writeTo(StreamOutput out) throws IOException {
         TransportVersion.writeVersion(this.transportVersion(), out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            out.writeMap(this.systemIndexMappingsVersion(), StreamOutput::writeWriteable);
-        }
+        out.writeMap(this.systemIndexMappingsVersion(), StreamOutput::writeWriteable);
     }
 
     /**

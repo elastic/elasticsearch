@@ -1,0 +1,101 @@
+---
+"Test chained synonym_graph filters":
+  - do:
+      indices.create:
+        index: test_chained_synonyms
+        body:
+          settings:
+            analysis:
+              filter:
+                synonyms_a:
+                  type: synonym_graph
+                  synonyms: [ "foo, bar" ]
+                synonyms_b:
+                  type: synonym_graph
+                  synonyms: [ "baz, qux" ]
+                synonyms_c:
+                  type: synonym_graph
+                  synonyms: [ "hello, world" ]
+              analyzer:
+                chained_syn:
+                  tokenizer: standard
+                  filter: [ lowercase, synonyms_a, synonyms_b, synonyms_c ]
+          mappings:
+            properties:
+              text:
+                type: text
+                analyzer: chained_syn
+
+  - do:
+      index:
+        index: test_chained_synonyms
+        id: "1"
+        body:
+          text: "foo baz hello"
+        refresh: true
+
+  # Test that all three chained synonym filters work correctly
+  - do:
+      search:
+        index: test_chained_synonyms
+        body:
+          query:
+            match:
+              text: "bar qux world"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # Verify analyzer behavior - synonym_graph produces synonym first, then original
+  - do:
+      indices.analyze:
+        index: test_chained_synonyms
+        body:
+          text: "foo"
+          analyzer: chained_syn
+  - length: { tokens: 2 }
+  - match: { tokens.0.position: 0 }
+  - match: { tokens.1.position: 0 }
+
+  # Test with multi-word query to verify all chained filters work together
+  - do:
+      indices.analyze:
+        index: test_chained_synonyms
+        body:
+          text: "foo baz hello"
+          analyzer: chained_syn
+  # Each word that matches a synonym expands to 2 tokens: foo→(foo,bar), baz→(baz,qux), hello→(hello,world)
+  - length: { tokens: 6 }
+  # Verify positions: each synonym pair at same position
+  - match: { tokens.0.position: 0 }
+  - match: { tokens.1.position: 0 }
+  - match: { tokens.2.position: 1 }
+  - match: { tokens.3.position: 1 }
+  - match: { tokens.4.position: 2 }
+  - match: { tokens.5.position: 2 }
+  # Verify token content - synonym_graph produces synonym first, then original
+  - match: { tokens.0.token: "bar" }
+  - match: { tokens.1.token: "foo" }
+  - match: { tokens.2.token: "qux" }
+  - match: { tokens.3.token: "baz" }
+  - match: { tokens.4.token: "world" }
+  - match: { tokens.5.token: "hello" }
+
+  # Test that analyzer reload doesn't cause issues (critical for the fix)
+  - do:
+      indices.close:
+        index: test_chained_synonyms
+
+  - do:
+      indices.open:
+        index: test_chained_synonyms
+
+  # Verify it still works after reload
+  - do:
+      search:
+        index: test_chained_synonyms
+        body:
+          query:
+            match:
+              text: "bar qux world"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }

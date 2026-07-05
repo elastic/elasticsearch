@@ -139,4 +139,21 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         assertTrue(nodeStats.containsKey("node1"));
         assertFalse(nodeStats.containsKey("node2"));
     }
+
+    public void testArsFormulaAdjustmentFeatureFlag() {
+        // 100ms response time, 10ms service time
+        collector.addNodeStatistics("node1", 1, 100 * 1_000_000L, 10 * 1_000_000L);
+        double rank = collector.getAllNodeStatistics().get("node1").rank(1);
+
+        if (ResponseCollectorService.ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG.isEnabled()) {
+            // With the adjustment enabled, the response time component (rS - muBarSInverse) is dropped,
+            // so rank should equal just the queue-based term: qHatS^3 * muBarSInverse
+            // qHatS = 1 + 1*1 + 1 = 3, muBarSInverse = 10ms, so rank = 27 * 10 = 270
+            assertThat(rank, equalTo(270.0));
+        } else {
+            // Without the adjustment, rank = (rS - muBarSInverse) + qHatS^3 * muBarSInverse
+            // = (100 - 10) + 270 = 360
+            assertThat(rank, equalTo(360.0));
+        }
+    }
 }

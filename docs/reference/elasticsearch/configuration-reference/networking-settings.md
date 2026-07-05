@@ -2,9 +2,10 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-network.html
 applies_to:
-  deployment:
-    ess:
-    self:
+  stack: ga
+  serverless: unavailable
+products:
+  - id: elasticsearch
 ---
 
 # Networking settings [modules-network]
@@ -23,7 +24,7 @@ Never expose an unprotected node to the public internet. If you do, you are perm
 ::::
 
 
-Configuring {{es}} to bind to a non-local address will [convert some warnings into fatal exceptions](docs-content://deploy-manage/deploy/self-managed/important-system-configuration.md#dev-vs-prod). If a node refuses to start after configuring its network settings then you must address the logged exceptions before proceeding.
+Configuring {{es}} to bind to a non-local address will [convert some warnings into fatal exceptions](docs-content://deploy-manage/deploy/self-managed/important-settings-configuration.md#bootstrap-checks). If a node refuses to start after configuring its network settings then you must address the logged exceptions before proceeding.
 
 ## Commonly used network settings [common-network-settings]
 
@@ -308,12 +309,8 @@ $$$http-cors-allow-credentials$$$
 
 ### HTTP client configuration [_http_client_configuration]
 
-Many HTTP clients and proxies are configured for browser-like response latency and impose a fairly short timeout by default, reporting a failure if {{es}} takes longer than this timeout to complete the processing of a request. {{es}} will always eventually respond to every request, but some requests may require many minutes of processing time to complete. Consider carefully whether your client’s default response timeout is appropriate for your needs. In many cases it is better to wait longer for a response instead of failing, and this means you should disable any response timeouts:
-
-* If you react to a timeout by retrying the request, the retry will often end up being placed at the back of the same queue which held the original request. It will therefore take longer to complete the processing of the request if you time out and retry instead of waiting more patiently. Retrying also imposes additional load on {{es}}.
-* If a request is not idempotent and cannot be retried then failing the request is your last resort. Waiting more patiently for a response will usually allow the overall operation to succeed.
-
-If you disable the response timeout in your client, make sure to configure TCP keepalives instead. TCP keepalives are the recommended way to prevent a client from waiting indefinitely in the event of a network outage.
+::::{include} _snippets/http-client-configuration.md
+::::
 
 
 
@@ -434,7 +431,9 @@ The compression settings do not configure compression for responses. {{es}} will
 
 ## Advanced remote cluster (API key based model) settings [remote-cluster-network-settings]
 
-Use the following advanced settings to configure the remote cluster interface (API key based model) independently of the [transport interface](#transport-settings). You can also configure both interfaces together using the [network settings](#common-network-settings).
+The section describes the advanced settings to configure the remote cluster interface ([API key-based security model](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md)) independently of the [transport interface](#transport-settings). You can also configure both interfaces together using the [network settings](#common-network-settings).
+
+For client settings that control how your local cluster connects to remote clusters, refer to [Remote cluster settings](/reference/elasticsearch/configuration-reference/remote-clusters.md).
 
 `remote_cluster_server.enabled`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), boolean) Determines whether the remote cluster server should be enabled. This setting must be `true` for `remote_cluster.port` and all following remote cluster settings to take effect. Enabling it allows the cluster to serve cross-cluster requests using the API key based model. Defaults to `false`.
@@ -663,11 +662,6 @@ It may also be possible to identify some reasons for delays from the server logs
 
 
 ## TCP readiness port [tcp-readiness-port]
-
-::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 If configured, a node can open a TCP port when the node is in a ready state. A node is deemed ready when it has successfully joined a cluster. In a single node configuration, the node is said to be ready, when it’s able to accept requests.
 

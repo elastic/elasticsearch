@@ -9,7 +9,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.SegmentInfos;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -46,7 +45,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         generation = in.readLong();
         id = in.readOptionalString();
         numDocs = in.readInt();
-        numLeaves = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVInt() : 0;
+        numLeaves = in.readVInt();
     }
 
     @Override
@@ -100,9 +99,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         out.writeLong(generation);
         out.writeOptionalString(id);
         out.writeInt(numDocs);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVInt(numLeaves);
-        }
+        out.writeVInt(numLeaves);
     }
 
     static final class Fields {

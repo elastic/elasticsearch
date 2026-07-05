@@ -9,9 +9,9 @@
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.util.NoSuchElementException;
@@ -28,11 +28,11 @@ public abstract class AbstractLongDocValuesField extends AbstractScriptFieldFact
     // as a delegate to this field class
     protected ScriptDocValues<?> scriptDocValues = null;
 
-    protected final SortedNumericDocValues input;
+    protected final SortedNumericLongValues input;
     protected long[] values = new long[0];
     protected int count;
 
-    public AbstractLongDocValuesField(SortedNumericDocValues input, String name) {
+    public AbstractLongDocValuesField(SortedNumericLongValues input, String name) {
         this.input = input;
         this.name = name;
     }

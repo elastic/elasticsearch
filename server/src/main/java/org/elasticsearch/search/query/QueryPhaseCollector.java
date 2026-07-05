@@ -157,7 +157,7 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
         try {
             tdlc = topDocsCollector.getLeafCollector(context);
         } catch (@SuppressWarnings("unused") CollectionTerminatedException e) {
-            // top docs collector does not need this segment, but the aggs collector does.
+            // top docs collector does not need this segment, but the aggs collector may.
         }
         final LeafCollector topDocsLeafCollector = tdlc;
 
@@ -172,9 +172,11 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
         }
         final LeafCollector aggsLeafCollector = alf;
 
-        if (topDocsLeafCollector == null && minScore == null) {
-            // top docs collector early terminated, we can avoid wrapping as long as we don't need to apply min_score.
-            // post_filter and terminate_after do not matter because they not applied to aggs collection anyways.
+        if (topDocsLeafCollector == null && minScore == null && terminateAfterChecker == NO_OP_TERMINATE_AFTER_CHECKER) {
+            // top docs collector early terminated, we can avoid wrapping as long as we don't need to apply min_score
+            // or check terminate_after. terminate_after must still be enforced via CompositeLeafCollector to limit
+            // the number of documents collected by the aggs collector.
+            // post_filter does not matter because it is not applied to aggs collection anyway.
             // aggs don't support skipping low scoring hits, so we can rely on setMinCompetitiveScore being a no-op already.
             return aggsLeafCollector;
         }

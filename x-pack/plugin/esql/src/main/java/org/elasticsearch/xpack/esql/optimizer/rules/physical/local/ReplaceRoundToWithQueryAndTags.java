@@ -7,7 +7,19 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.FuzzyQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MultiTermQueryBuilder;
+import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RegexpQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -15,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,15 +40,20 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.Rounding.RoundingConvention.DOWN;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_THRESHOLD;
@@ -45,18 +63,24 @@ import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_
  * {@code RoundTo} function. It then rewrites the {@code EsQueryExec.query()} into a corresponding list of {@code QueryBuilder}s and tags,
  * each mapped to its respective range.
  *
- * Here are some examples:
+ * <p>Here are some examples:
  *
- * 1. Aggregation with date_histogram.
- *    The {@code DATE_TRUNC} function in the query below can be rewritten to {@code RoundTo} by {@code ReplaceDateTruncBucketWithRoundTo}.
+ * <ol>
+ * <li>Aggregation with date_histogram.
+ * <p>The {@code DATE_TRUNC} function in the query below can be rewritten to {@code RoundTo} by {@code ReplaceDateTruncBucketWithRoundTo}.
  *    This rule pushes down the {@code RoundTo} function by creating a list of {@code QueryBuilderAndTags}, so that
  *    {@code EsPhysicalOperationProviders} can build {@code LuceneSliceQueue} with the corresponding list of {@code QueryAndTags} to process
  *    further.
+ *    <pre>
  *    | STATS COUNT(*) BY d = DATE_TRUNC(1 day, date)
+ *    </pre>
  *    becomes, the rounding points are calculated according to SearchStats and predicates from the query.
+ *    <pre>
  *    | EVAL d = ROUND_TO(hire_date, 1697760000000, 1697846400000, 1697932800000)
  *    | STATS COUNT(*) BY d
+ *    </pre>
  *    becomes
+ *    <pre>
  *    [QueryBuilderAndTags[query={
  *     "esql_single_value" : {
  *      "field" : "date",
@@ -116,16 +140,23 @@ import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_
  *     "boost" : 1.0
  *    }
  *   }, tags=[null]]]
+ *    </pre>
+ * </li>
  *
- * 2. Aggregation with date_histogram and the other pushdown functions
- *    When there are other functions that can also be pushed down to Lucene, this rule combines the main query with the {@code RoundTo}
+ * <li>Aggregation with date_histogram and the other pushdown functions
+ * <p>When there are other functions that can also be pushed down to Lucene, this rule combines the main query with the {@code RoundTo}
  *    ranges to create a list of {@code QueryBuilderAndTags}. The main query is then applied to each query leg.
+ *    <pre>
  *    | WHERE keyword : "keyword"
  *    | STATS COUNT(*) BY d = DATE_TRUNC(1 day, date)
+ *    </pre>
  *    becomes
+ *    <pre>
  *    | EVAL d = ROUND_TO(hire_date, 1697760000000, 1697846400000, 1697932800000)
  *    | STATS COUNT(*) BY d
+ *    </pre>
  *    becomes
+ *    <pre>
  *    [QueryBuilderAndTags[query={
  *    "bool" : {
  *     "filter" : [
@@ -245,12 +276,17 @@ import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_
  *     "boost" : 1.0
  *     }
  *    }, tags=[null]]]
+ *    </pre>
+ * </li>
+ * </ol>
  *
- * There are some restrictions:
- * 1. Tags are not supported by {@code LuceneTopNSourceOperator}, if the sort is pushed down to Lucene, this rewrite does not apply.
- * 2. Tags are not supported by {@code TimeSeriesSourceOperator}, this rewrite does not apply to timeseries indices.
- * 3. Tags are not supported by {@code LuceneCountOperator}, this rewrite does not apply to {@code EsStatsQueryExec}, count with grouping
- *    is not supported by {@code EsStatsQueryExec} today.
+ * <p>There are some restrictions:
+ * <ol>
+ * <li>Tags are not supported by {@code LuceneTopNSourceOperator}, if the sort is pushed down to Lucene, this rewrite does not apply.</li>
+ * <li>Tags are not supported by {@code TimeSeriesSourceOperator}, this rewrite does not apply to timeseries indices.</li>
+ * <li>Tags are not supported by {@code LuceneCountOperator}, this rewrite does not apply to {@code EsStatsQueryExec}, count with grouping
+ *    is not supported by {@code EsStatsQueryExec} today.</li>
+ * </ol>
  */
 public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     EvalExec,
@@ -274,8 +310,19 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
             if (roundTos.size() == 1) {
                 RoundTo roundTo = roundTos.get(0);
+                // The range queries and tags generated below assume DOWN (floor) semantics: each interval [p_i, p_{i+1})
+                // is tagged with p_i. UP (ceiling) convention would require tagging with p_{i+1} instead, which is not
+                // implemented here. Skip the pushdown for UP convention.
+                if (roundTo.roundingConvention() != DOWN) {
+                    return evalExec;
+                }
                 int count = roundTo.points().size();
-                int roundingPointsUpperLimit = roundingPointsThreshold(ctx);
+                int roundingPointsUpperLimit = adjustedRoundingPointsThreshold(
+                    ctx.searchStats(),
+                    roundingPointsThreshold(ctx),
+                    queryExec.query(),
+                    queryExec.indexMode()
+                );
                 if (count > roundingPointsUpperLimit) {
                     logger.debug(
                         "Skipping RoundTo push down for [{}], as it has [{}] points, which is more than [{}]",
@@ -284,6 +331,28 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                         roundingPointsUpperLimit
                     );
                     return evalExec;
+                }
+                // Time-series indices are sorted by _tsid, then @timestamp. Replacing round_to causes fragmentation,
+                // leading to reading many small chunks of data. It is more efficient to query sequentially
+                // and apply round_to on the timestamp field.
+                //
+                // For example, with 1,000 TSIDs over 15 minutes (tbucket=1m), replacing round_to would generate
+                // 15 queries. Each query would necessitate 1,000 seeks, requiring decompression and partial reads
+                // of many doc-value blocks.
+                //
+                // However, if the EsQueryExec index mode is time-series (e.g., rate), we prefer partitioning by tsid
+                // prefixes. When prefix partitioning is not available (old codec), we fall back to replacing round_to
+                // with QueryAndTags.
+                if (((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
+                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES)) {
+                    if (queryExec.indexMode() != IndexMode.TIME_SERIES) {
+                        return evalExec;
+                    }
+                    // prefer partitioning by tsid prefixes
+                    var partitioning = ctx.configuration().pragmas().dataPartitioning(ctx.plannerSettings().defaultDataPartitioning());
+                    if (partitioning != DataPartitioning.SHARD && ctx.searchStats().canPartitionByTsidPrefix()) {
+                        return evalExec;
+                    }
                 }
                 plan = planRoundTo(roundTo, evalExec, queryExec, ctx);
             }
@@ -324,7 +393,6 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             queryExec.source(),
             queryExec.indexPattern(),
             queryExec.indexMode(),
-            queryExec.indexNameWithModes(),
             newAttributes,
             queryExec.limit(),
             queryExec.sorts(),
@@ -355,7 +423,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         int count = roundingPoints.size();
         DataType dataType = roundTo.dataType();
         // sort rounding points
-        List<Object> points = resolveRoundingPoints(roundingPoints, dataType);
+        List<Number> points = resolveRoundingPoints(roundingPoints, dataType);
         if (points.size() != count || points.isEmpty()) {
             return null;
         }
@@ -370,7 +438,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             Object lower = null;
             Object upper = null;
             Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
-            ZoneId zoneId = ctx.configuration().zoneId();
+            ZoneId zoneId = QuerySettings.TIME_ZONE.get(ctx.configuration().resolvedSettings());
             for (int i = 1; i < count; i++) {
                 upper = points.get(i);
                 // build predicates and range queries for RoundTo ranges
@@ -386,8 +454,8 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         return queries;
     }
 
-    private static List<Object> resolveRoundingPoints(List<Expression> roundingPoints, DataType dataType) {
-        List<Object> points = new ArrayList<>(roundingPoints.size());
+    private static List<Number> resolveRoundingPoints(List<Expression> roundingPoints, DataType dataType) {
+        List<Number> points = new ArrayList<>(roundingPoints.size());
         for (Expression e : roundingPoints) {
             if (e instanceof Literal l && l.value() instanceof Number n) {
                 switch (dataType) {
@@ -399,7 +467,13 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                 }
             }
         }
-        return RoundTo.sortedRoundingPoints(points, dataType);
+        switch (dataType) {
+            case INTEGER -> points.sort(Comparator.comparingInt(Number::intValue));
+            case LONG, DATETIME, DATE_NANOS -> points.sort(Comparator.comparingLong(Number::longValue));
+            case DOUBLE -> points.sort(Comparator.comparingDouble(Number::doubleValue));
+            default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
+        }
+        return points;
     }
 
     private static Expression createRangeExpression(
@@ -484,5 +558,64 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             roundingPointsThreshold = queryLevelRoundingPointsThreshold;
         }
         return roundingPointsThreshold;
+    }
+
+    /**
+     * If the main query is expensive (such as including wildcard queries), executing more queries with tags is slower and more costly
+     * than executing fewer queries without tags and then reading points and rounding. The rounding points threshold is treated as the
+     * maximum number of clauses allowed to execute. We estimate the number of clauses in the main query and adjust the threshold so
+     * that the total number of clauses does not exceed the limit by too much. Some expensive queries count as more than one clause;
+     * for example, a wildcard query counts as 5 clauses, and a terms query counts as the number of terms.
+     */
+    static int adjustedRoundingPointsThreshold(SearchStats stats, int threshold, QueryBuilder query, IndexMode indexMode) {
+        int clauses = estimateQueryClauses(stats, query) + 1;
+        if (indexMode == IndexMode.TIME_SERIES) {
+            // No doc partitioning for time_series sources; increase the threshold to trade overhead for parallelism.
+            threshold *= 2;
+        }
+        return Math.ceilDiv(threshold, clauses);
+    }
+
+    static int estimateQueryClauses(SearchStats stats, QueryBuilder q) {
+        if (q == null || q instanceof MatchAllQueryBuilder || q instanceof MatchNoneQueryBuilder) {
+            return 0;
+        }
+        if (q instanceof WildcardQueryBuilder
+            || q instanceof RegexpQueryBuilder
+            || q instanceof PrefixQueryBuilder
+            || q instanceof FuzzyQueryBuilder) {
+            return 5;
+        }
+        if (q instanceof RangeQueryBuilder r) {
+            // with points count 1, without count 3
+            return stats.min(new FieldAttribute.FieldName(r.fieldName())) != null ? 1 : 3;
+        }
+        if (q instanceof MultiTermQueryBuilder) {
+            return 3;
+        }
+        if (q instanceof TermsQueryBuilder terms && terms.values() != null) {
+            return terms.values().size();
+        }
+        if (q instanceof SingleValueQuery.Builder b) {
+            // ignore the single_value clause
+            return Math.max(1, estimateQueryClauses(stats, b.next()));
+        }
+        if (q instanceof BoolQueryBuilder bq) {
+            int total = 0;
+            for (var c : bq.filter()) {
+                total += estimateQueryClauses(stats, c);
+            }
+            for (var c : bq.must()) {
+                total += estimateQueryClauses(stats, c);
+            }
+            for (var c : bq.should()) {
+                total += estimateQueryClauses(stats, c);
+            }
+            for (var c : bq.mustNot()) {
+                total += Math.max(2, estimateQueryClauses(stats, c));
+            }
+            return total;
+        }
+        return 1;
     }
 }

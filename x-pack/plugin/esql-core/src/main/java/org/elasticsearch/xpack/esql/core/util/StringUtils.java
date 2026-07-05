@@ -222,6 +222,22 @@ public final class StringUtils {
     }
 
     /**
+     * Escapes Lucene wildcard metacharacters ({@code *}, {@code ?}, {@code \}) in a literal string
+     * so it can be safely embedded in a Lucene wildcard pattern.
+     */
+    public static String escapeWildcardLiteral(String literal) {
+        StringBuilder sb = new StringBuilder(literal.length());
+        for (int i = 0; i < literal.length(); i++) {
+            char c = literal.charAt(i);
+            if (c == '*' || c == '?' || c == '\\') {
+                sb.append('\\');
+            }
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    /**
      * Translates a like pattern to a Lucene wildcard.
      * This methods pays attention to the custom escape char which gets converted into \ (used by Lucene).
      * <pre>
@@ -419,11 +435,6 @@ public final class StringUtils {
             case 11, 12, 13 -> i + "th";
             default -> i + INTEGER_ORDINALS[i % 10];
         };
-    }
-
-    public static Tuple<String, String> splitQualifiedIndex(String indexName) {
-        String[] split = RemoteClusterAware.splitIndexName(indexName);
-        return Tuple.tuple(split[0], split[1]);
     }
 
     public static String qualifyAndJoinIndices(String cluster, String[] indices) {

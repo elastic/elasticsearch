@@ -8,18 +8,25 @@
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.eirf.EirfBatch;
+import org.elasticsearch.eirf.EirfRowBuilder;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -27,9 +34,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ShardBatchMapper;
+import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
@@ -38,12 +47,15 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ConstantKeywordFieldMapperTests extends MapperTestCase {
 
@@ -109,8 +121,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         assertNull(doc.rootDoc().getField("field"));
         assertNotNull(doc.dynamicMappingsUpdate());
 
-        CompressedXContent mappingUpdate = new CompressedXContent(Strings.toString(doc.dynamicMappingsUpdate()));
-        DocumentMapper updatedMapper = mapperService.merge("_doc", mappingUpdate, MergeReason.MAPPING_UPDATE);
+        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_UPDATE);
         String expectedMapping = Strings.toString(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
 
@@ -129,8 +140,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         assertNull(doc.rootDoc().getField("field"));
         assertNotNull(doc.dynamicMappingsUpdate());
 
-        CompressedXContent mappingUpdate = new CompressedXContent(Strings.toString(doc.dynamicMappingsUpdate()));
-        DocumentMapper updatedMapper = mapperService.merge("_doc", mappingUpdate, MergeReason.MAPPING_UPDATE);
+        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_UPDATE);
         String expectedMapping = Strings.toString(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
 
@@ -194,7 +204,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("value", "foo"), m -> {
+        checker.registerUpdateCheck("value", b -> b.field("value", "foo"), m -> {
             ConstantKeywordFieldType ft = (ConstantKeywordFieldType) m.fieldType();
             assertEquals("foo", ft.value());
         });
@@ -233,60 +243,18 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             b.field("type", "constant_keyword");
             b.endObject();
         }));
-        BlockLoader loader = mapper.fieldType("field").blockLoader(new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                return mapper.mappingLookup().sourcePaths(name);
-            }
-
-            @Override
-            public String parentField(String field) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-            }
-        });
+        BlockLoader loader = mapper.fieldType("field").blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapper));
         try (Directory directory = newDirectory()) {
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
             LuceneDocument doc = mapper.documentMapper().parse(source(b -> {})).rootDoc();
             iw.addDocument(doc);
             iw.close();
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                TestBlock block = (TestBlock) loader.columnAtATimeReader(reader.leaves().get(0))
-                    .read(TestBlock.factory(), new BlockLoader.Docs() {
-                        @Override
-                        public int count() {
-                            return 1;
-                        }
-
-                        @Override
-                        public int get(int i) {
-                            return 0;
-                        }
-                    }, 0, false);
+            try (
+                DirectoryReader reader = DirectoryReader.open(directory);
+                BlockLoader.ColumnAtATimeReader columnReader = loader.columnAtATimeReader(reader.leaves().get(0)).apply(breaker)
+            ) {
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
                 assertThat(block.get(0), nullValue());
             }
         }
@@ -345,5 +313,95 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean addsValueWhenNotSupplied() {
         return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            // TODO this should surely be able to support pruning
+            new SortShortcutSupport(this::minimalMapping, this::writeField, false)
+        );
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
+    public void testSupportsBatchIndexingWhenValueIsSet() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
+        FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertTrue(mapper.supportsBatchIndexing());
+    }
+
+    public void testSupportsBatchIndexingFalseWhenValueIsUnset() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "constant_keyword")));
+        FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertFalse(mapper.supportsBatchIndexing());
+    }
+
+    public void testBatchResolveHappyPath() throws IOException {
+        MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
+        try (EirfBatch batch = singleStringRowBatch("field", "foo")) {
+            BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), ms.mappingLookup());
+            assertNotNull(resolution);
+            assertEquals(1, resolution.columnMappers().length);
+            assertThat(resolution.columnMappers()[0], instanceOf(ConstantKeywordFieldMapper.class));
+        }
+    }
+
+    public void testBatchResolveFallsBackWhenValueUnset() throws IOException {
+        MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "constant_keyword")));
+        try (EirfBatch batch = singleStringRowBatch("field", "foo")) {
+            assertNull(ShardBatchMapper.resolveMappers(batch.schema(), ms.mappingLookup()));
+        }
+    }
+
+    public void testBatchParseAddsSyntheticSourceMarker() throws IOException {
+        MapperService ms = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
+        BulkItemRequest[] items = { new BulkItemRequest(0, new IndexRequest("idx").id("1")) };
+        try (EirfBatch batch = singleStringRowBatch("field", "foo")) {
+            List<Engine.Index> ops = parseBatch(ms, batch, items);
+            LuceneDocument doc = ops.get(0).parsedDoc().rootDoc();
+            // Synthetic-source mode records a single-valued doc-values marker so reconstruction
+            // knows the field was present.
+            List<IndexableField> fields = doc.getFields("field");
+            assertThat(fields, hasSize(1));
+            assertThat(fields.get(0).numericValue().longValue(), equalTo(1L));
+        }
+    }
+
+    public void testBatchParseStoredSourceProducesNoField() throws IOException {
+        // In non-synthetic mode the constant_keyword mapper validates the value matches the
+        // pinned value but does not add any indexed/doc-value field.
+        MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
+        BulkItemRequest[] items = { new BulkItemRequest(0, new IndexRequest("idx").id("1")) };
+        try (EirfBatch batch = singleStringRowBatch("field", "foo")) {
+            List<Engine.Index> ops = parseBatch(ms, batch, items);
+            LuceneDocument doc = ops.get(0).parsedDoc().rootDoc();
+            assertThat(doc.getFields("field"), empty());
+        }
+    }
+
+    private static EirfBatch singleStringRowBatch(String field, String value) {
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            builder.startDocument();
+            builder.setString(field, value);
+            builder.endDocument();
+            return builder.build();
+        }
+    }
+
+    private static List<Engine.Index> parseBatch(MapperService ms, EirfBatch batch, BulkItemRequest[] items) throws IOException {
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), ms.mappingLookup());
+        assertNotNull("expected batch path to support this mapping", resolution);
+        IndexShard primary = mock(IndexShard.class);
+        when(primary.mapperService()).thenReturn(ms);
+        when(primary.getOperationPrimaryTerm()).thenReturn(1L);
+        when(primary.getRelativeTimeInNanos()).thenReturn(0L);
+        List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, primary, items.length, 0, resolution);
+        assertNotNull("parseMappings returned null (fallback signal)", ops);
+        assertThat(ops, hasSize(items.length));
+        return ops;
     }
 }

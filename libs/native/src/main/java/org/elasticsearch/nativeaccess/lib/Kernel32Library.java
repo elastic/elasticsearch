@@ -9,11 +9,11 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-import org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler;
+import org.elasticsearch.nativeaccess.WindowsNativeAccess.ConsoleCtrlHandler;
 
 import java.util.function.IntConsumer;
 
-public non-sealed interface Kernel32Library extends NativeLibrary {
+public interface Kernel32Library {
     interface Handle {}
 
     interface Address {

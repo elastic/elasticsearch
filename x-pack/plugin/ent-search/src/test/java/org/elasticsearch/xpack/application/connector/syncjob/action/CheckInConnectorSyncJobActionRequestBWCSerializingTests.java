@@ -29,7 +29,9 @@ public class CheckInConnectorSyncJobActionRequestBWCSerializingTests extends Abs
 
     @Override
     protected CheckInConnectorSyncJobAction.Request mutateInstance(CheckInConnectorSyncJobAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new CheckInConnectorSyncJobAction.Request(
+            randomValueOtherThan(instance.getConnectorSyncJobId(), () -> randomAlphaOfLength(10))
+        );
     }
 
     @Override

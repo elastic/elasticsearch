@@ -7,24 +7,35 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
-
+import org.elasticsearch.swisshash.LongSwissHash;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * Maps a {@link LongBlock} column to group ids.
@@ -32,7 +43,7 @@ import java.util.BitSet;
  */
 final class LongBlockHash extends BlockHash {
     private final int channel;
-    final LongHash hash;
+    final LongHashTable hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -43,10 +54,14 @@ final class LongBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
+    private static final int PREFETCH_BATCH = 128;
+    private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
+    private final int[] batchHashes = new int[PREFETCH_BATCH];
+
     LongBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new LongHash(1, blockFactory.bigArrays());
+        this.hash = HashImplFactory.newLongHash(blockFactory);
     }
 
     @Override
@@ -77,12 +92,35 @@ final class LongBlockHash extends BlockHash {
      *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
      */
     IntVector add(LongVector vector) {
+        if (hash instanceof LongSwissHash swiss && swiss.shouldPrefetch()) {
+            return addWithPrefetch(vector, swiss);
+        }
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 long v = vector.getLong(i);
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));
             }
+            return builder.build();
+        }
+    }
+
+    private IntVector addWithPrefetch(LongVector vector, LongSwissHash swiss) {
+        int positions = vector.getPositionCount();
+        int dummy = 0;
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            for (int offset = 0; offset < positions; offset += PREFETCH_BATCH) {
+                int batchSize = Math.min(PREFETCH_BATCH, positions - offset);
+                for (int i = 0; i < batchSize; i++) {
+                    batchHashes[i] = LongSwissHash.hash(vector.getLong(offset + i));
+                    dummy ^= swiss.prefetch(batchHashes[i]);
+                }
+                for (int i = 0; i < batchSize; i++) {
+                    final long id = swiss.addWithHash(vector.getLong(offset + i), batchHashes[i]);
+                    builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(id)));
+                }
+            }
+            prefetchBarrier.consume(dummy);
             return builder.build();
         }
     }
@@ -136,29 +174,32 @@ final class LongBlockHash extends BlockHash {
     }
 
     @Override
-    public LongBlock[] getKeys() {
-        if (seenNull) {
-            final int size = Math.toIntExact(hash.size() + 1);
-            final long[] keys = new long[size];
-            for (int i = 1; i < size; i++) {
-                keys[i] = hash.get(i - 1);
+    public LongBlock[] getKeys(IntVector selected) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int groupId = selected.getInt(i);
+                if (groupId == 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendLong(hash.get(groupId - 1));
+                }
             }
-            BitSet nulls = new BitSet(1);
-            nulls.set(0);
-            return new LongBlock[] {
-                blockFactory.newLongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
+            return new LongBlock[] { builder.build() };
         }
-        final int size = Math.toIntExact(hash.size());
-        final long[] keys = new long[size];
-        for (int i = 0; i < size; i++) {
-            keys[i] = hash.get(i);
-        }
-        return new LongBlock[] { blockFactory.newLongArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1), blockFactory);
+        return blockFactory.newIntRangeVector(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1));
+    }
+
+    @Override
+    public int numKeys() {
+        if (seenNull) {
+            return Math.toIntExact(hash.size() + 1);
+        } else {
+            return Math.toIntExact(hash.size());
+        }
     }
 
     @Override
@@ -168,6 +209,7 @@ final class LongBlockHash extends BlockHash {
 
     @Override
     public void close() {
+        prefetchBarrier.flush();
         hash.close();
     }
 

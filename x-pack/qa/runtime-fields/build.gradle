@@ -44,7 +44,6 @@ subprojects {
       setting 'xpack.security.enabled', 'false'
 
       requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-      requiresFeature 'es.sub_objects_auto_feature_flag_enabled', Version.fromString("8.16.0")
     }
 
     tasks.named("yamlRestTest").configure {
@@ -107,6 +106,8 @@ subprojects {
           'aggregations/composite_sorted/*',
           // timeseries dimensions can't be runtime fields
           'aggregations/time_series/*',
+          // columnar index modes reject mapping-level runtime fields
+          'search/400_columnar_default_field/*',
           // The error messages are different
           'search/330_fetch_fields/error includes field name',
           'search/330_fetch_fields/error includes glob pattern',

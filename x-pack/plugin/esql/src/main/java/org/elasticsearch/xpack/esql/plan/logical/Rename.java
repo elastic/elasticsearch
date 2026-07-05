@@ -14,15 +14,15 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class Rename extends UnaryPlan implements TelemetryAware, SortAgnostic {
+public class Rename extends UnaryPlan implements TelemetryAware, Streaming, SortAgnostic {
 
     private final List<Alias> renamings;
 

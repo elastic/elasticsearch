@@ -1,0 +1,95 @@
+version: 9.1.6
+released: true
+generated: 2025-10-23T16:05:25.757289375Z
+changelogs:
+  - pr: 132651
+    summary: Use java8 variant of apm-agent
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 135966
+    summary: Ensure queued `AbstractRunnables` are notified when executor stops
+    area: Machine Learning
+    type: bug
+    issues:
+      - 134651
+  - pr: 135994
+    summary: Cardinality Aggregator Throws `UnsupportedOperationException` When Field Type is Vector
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 136017
+    summary: Cohere service Model Id field is required
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 136058
+    summary: Configurable HTTP read and connect timeouts for url based SAML metadata resolution
+    area: Security
+    type: bug
+    issues: []
+  - pr: 136119
+    summary: Fix logsdb settings provider mapping filters
+    area: Logs
+    type: bug
+    issues:
+      - 136107
+  - pr: 136279
+    summary: Initialize `TermsEnum` eagerly
+    area: Search
+    type: bug
+    issues: []
+  - pr: 136315
+    summary: Store full path in `_ignored` when ignoring dynamic array field
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 136492
+    summary: Make `ResolveUnionTypes` rule stateless
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 136501
+    summary: "Reindex-from-remote: Validate basic auth params"
+    area: Indices APIs
+    type: bug
+    issues:
+      - 135925
+  - pr: 136577
+    summary: Clean up inference indices on failed endpoint creation
+    area: Machine Learning
+    type: bug
+    issues:
+      - 123726
+  - pr: 136625
+    summary: Optimize Index Permission Automatons for Has Privileges
+    area: Security
+    type: bug
+    issues: []
+  - pr: 136664
+    summary: Drop project-id from threadcontext for CCS
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 136684
+    summary: Lazy compute and cache `grantsAll` per privilege
+    area: Authorization
+    type: enhancement
+    issues: []
+  - pr: 136751
+    summary: Adjust jinaai rerank response parser to handle document field as string or object
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 136757
+    summary: Allow dynamic updates to frequency
+    area: Transform
+    type: bug
+    issues:
+      - 133321
+  - pr: 136769
+    summary: Release cluster state
+    area: Machine Learning
+    type: bug
+    issues:
+      - 123243

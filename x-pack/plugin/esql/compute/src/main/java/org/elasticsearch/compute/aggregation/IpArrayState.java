@@ -114,7 +114,6 @@ public final class IpArrayState extends AbstractArrayState implements GroupingAg
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
-    @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
         assert blocks.length >= offset + 2;
         try (

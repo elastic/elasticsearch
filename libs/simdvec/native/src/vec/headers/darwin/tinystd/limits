@@ -1,0 +1,17 @@
+#ifndef STD_LIMITS_H
+#define STD_LIMITS_H
+
+namespace std {
+
+template<typename T>
+class numeric_limits {};
+
+template<>
+class numeric_limits<float> {
+public:
+    static constexpr float infinity() noexcept { return __builtin_huge_valf(); }
+};
+
+}
+
+#endif //STD_LIMITS_H

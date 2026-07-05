@@ -11,6 +11,8 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -37,10 +39,12 @@ public final class IndexWarmer {
 
     private final List<Listener> listeners;
 
-    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService, Listener... listeners) {
+    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService, IndexSettings indexSettings, Listener... listeners) {
         ArrayList<Listener> list = new ArrayList<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
-        list.add(new FieldDataWarmer(executor, indexFieldDataService));
+        if (shouldWarmGlobalOrdinals(indexSettings)) {
+            list.add(new FieldDataWarmer(executor, indexFieldDataService));
+        }
 
         Collections.addAll(list, listeners);
         this.listeners = Collections.unmodifiableList(list);
@@ -95,6 +99,14 @@ public final class IndexWarmer {
         TerminationHandle warmReader(IndexShard indexShard, ElasticsearchDirectoryReader reader);
     }
 
+    static boolean shouldWarmGlobalOrdinals(IndexSettings settings) {
+        boolean isStateless = DiscoveryNode.isStateless(settings.getNodeSettings());
+        if (isStateless) {
+            return DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.SEARCH_ROLE);
+        }
+        return true;
+    }
+
     private static class FieldDataWarmer implements IndexWarmer.Listener {
 
         private final Executor executor;
@@ -120,7 +132,7 @@ public final class IndexWarmer {
                         final long start = System.nanoTime();
                         IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(
                             fieldType,
-                            FieldDataContext.noRuntimeFields("index warming")
+                            FieldDataContext.noRuntimeFields(mapperService.index().getName(), "index warming")
                         );
                         IndexFieldData<?> global = ifd.loadGlobal(reader);
                         if (reader.leaves().isEmpty() == false) {

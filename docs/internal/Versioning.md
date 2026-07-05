@@ -36,6 +36,9 @@ In order to ensure consistency and robustness, all new `TransportVersion`s
 must first be created in the `main` branch and then backported to the relevant
 release branches.
 
+_Elastic developers_ - instructions in this section for managing transport
+versions are the same in Serverless.
+
 ### Internal state files
 
 The Elasticsearch server jar contains resource files representing each
@@ -50,9 +53,6 @@ regenerated to resolve the conflict before merging to `main`.
 
 All of these internal state files are managed by gradle tasks; they should
 not be edited directly.
-
-_Elastic developers_ - please see corresponding documentation for Serverless
-on creating transport versions for Serverless changes.
 
 ### Creating transport versions locally
 
@@ -78,10 +78,26 @@ must be generated. Run the following gradle task:
 
     ./gradlew generateTransportVersion
 
-This will generate the internal state to support the new transport version. If
-you also intend to backport your code, include branches you will backport to:
+This will generate the internal state to support the new transport version.
+A new file will be created for the transport version:
+
+    server/src/main/resources/transport/definitions/referable/my_new_tv.csv
+
+Additionally, the upper bounds for the current branch's minor version will be
+updated to include the new transport version. For example, if main is `9.4` then
+the following upper bound file will have modifications:
+
+    server/src/main/resources/transport/upper_bounds/9.4.csv
+
+If you also intend to backport your code, include branches you will backport to:
 
     ./gradlew generateTransportVersion --backport-branches=9.1,8.19
+
+This will update the upper bounds for those branches as well. You will see
+modifications to the following files:
+
+    server/src/main/resources/transport/upper_bounds/9.1.csv
+    server/src/main/resources/transport/upper_bounds/8.19.csv
 
 ### Updating transport versions
 
@@ -109,9 +125,41 @@ needed to backport to `8.19` you would run (in `main`):
 
     ./gradlew generateTransportVersion --name=my_tv --backport-branches=9.1,8.19
 
+This will update the existing definition file and the upper bounds for the newly
+added branch. You will see modifications to the following files:
+
+    server/src/main/resources/transport/definitions/referable/my_tv.csv
+    server/src/main/resources/transport/upper_bounds/8.19.csv
+
 In the above case CI will not know what transport version name to update, so you
-must run the generate task again as described. After merging the updated transport
-version it will need to be backported to all the applicable branches.
+must run the generate task again as described. After merging the updated
+transport version it will need to be backported to all the applicable branches.
+Backport branches that already included the original change can use
+auto-backport in CI or cherry-pick the updated transport version. Backport
+branches that did not include the original change need to cherry-pick both the
+original change and the updated transport version. For example, with the above
+change that is first backported to `9.1`, and subsequently added to `8.19`, the
+sequence of events would look like the following:
+
+1. Create a pull request with target branch `main` for a new change
+(`C0`) with a newly created transport version (`TV`) required by `C0`
+   1. Use the `github` labels `auto-backport` and `branch:9.1` to backport `C0`
+   and `TV` into the target branch `9.1`.
+2. Discover that `C0` is also required in target branch `8.19`.
+3. Create a pull request with target branch `main` for a change (`C1`) to only
+update `TV` to include `8.19`
+   1. Use the gradle task
+   `./gradlew generateTransportVersion --name=my_tv
+   --backport-branches=9.1,8.19`
+   to update `TV` to include `8.19`
+   2. Use the `github` labels `auto-backport`, `branch:9.1`, and `branch:8.19`
+   to backport `C1` and updated `TV` into the target branches `9.1` and `8.19`.
+   This creates a source branch for `8.19` (`SB819`) that does not contain `C0`.
+   3. Cherry-pick `C0` into the source branch `SB819`
+
+Note there are several ways to achieve the desired end state. This
+specific example takes advantage of the available CI tooling to simplify the
+process.
 
 ### Resolving merge conflicts
 
@@ -127,7 +175,28 @@ task to resolve the conflict(s):
     ./gradlew resolveTransportVersionConflict
 
 This command will regenerate your transport version and stage the updated
-state files in git. You can then proceed with your merge as usual.
+state files in git. For a transport version named `my_new_tv` and the main
+branch using version `9.4` the following files will be updated:
+
+    server/src/main/resources/transport/definitions/referable/my_new_tv.csv
+    server/src/main/resources/transport/upper_bounds/9.4.csv
+
+You can then proceed with your merge as usual.
+
+### Backport conflicts
+
+When backporting a change using `git cherry-pick`, you may encounter conflicts in
+the transport version internal state files. This happens when the main branch
+has had other transport versions added since the last transport version was
+backported to the release branch.
+
+In this case, use the same task as for merge conflicts:
+
+    ./gradlew resolveTransportVersionConflict
+
+This command will apply the changes from the original PR to the release branch
+being backported to, fixing the transport version state files as necessary for
+that branch, and staging those files.
 
 ### Reverting changes
 
@@ -175,19 +244,19 @@ a no-op.
 ## Index version
 
 Index version is a single incrementing version number for the index data format,
-metadata, and associated mappings. It is declared the same way as the
-transport version - with the pattern `M_NNN_S_PP`, for the major version, version id,
-subsidiary version id, and patch number respectively.
+metadata, and associated mappings. It is declared with the pattern `M_NNN_S_PP`,
+for the major version, version id, subsidiary version id, and patch number
+respectively.
 
 Index version is stored in index metadata when an index is created,
 and it is used to determine the storage format and what functionality that index supports.
 The index version does not change once an index is created.
 
-In the same way as transport versions, when a change is needed to the index
-data format or metadata, or new mapping types are added, create a new version constant
-below the last one, incrementing the `NNN` version component.
+When a change is needed to the index data format or metadata, or new mapping
+types are added, create a new version constant below the last one, incrementing
+the `NNN` version component.
 
-Unlike transport version, version constants cannot be collapsed together,
+Index version constants cannot be collapsed together,
 as an index keeps its creation version id once it is created.
 Fortunately, new index versions are only created once a month or so,
 so we don’t have a large list of index versions that need managing.

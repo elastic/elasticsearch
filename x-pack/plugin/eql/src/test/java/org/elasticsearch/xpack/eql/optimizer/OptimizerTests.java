@@ -292,6 +292,61 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(LocalRelation.class, optimized.getClass());
     }
 
+    /**
+     * A LocalRelation inside a missing event filter means no event can ever satisfy the negated condition,
+     * so the absence is always guaranteed — the sequence must NOT be skipped.
+     * <p>
+     * sequence
+     * ![ LocalRelation ]   -- always absent, absence always satisfied
+     * [ filter X ]
+     * ==
+     * sequence (unchanged, not replaced with LocalRelation)
+     */
+    public void testSkipEmptyJoinDoesNotSkipWhenMissingEventFilterIsEmpty() {
+        KeyedFilter negatedRule = missingEventKeyedFilter(new LocalRelation(EMPTY, emptyList()));
+        KeyedFilter positiveRule = keyedFilter(basicFilter(new IsNull(EMPTY, TRUE)));
+        KeyedFilter until = keyedFilter(basicFilter(Literal.FALSE));
+        Sequence s = new Sequence(
+            EMPTY,
+            asList(negatedRule, positiveRule),
+            until,
+            TimeValue.MINUS_ONE,
+            timestamp(),
+            tiebreaker(),
+            OrderDirection.ASC
+        );
+
+        LogicalPlan result = new Optimizer.SkipEmptyJoin().rule(s);
+        assertEquals(Sequence.class, result.getClass());
+    }
+
+    /**
+     * A LocalRelation inside a positive rule still causes the whole sequence to be skipped.
+     * <p>
+     * sequence
+     * [ LocalRelation ]    -- no events can ever match
+     * ![ filter X ]
+     * ==
+     * LocalRelation
+     */
+    public void testSkipEmptyJoinSkipsWhenPositiveRuleIsEmpty() {
+        KeyedFilter positiveRule = keyedFilter(new LocalRelation(EMPTY, emptyList()));
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(new IsNull(EMPTY, TRUE)));
+        KeyedFilter until = keyedFilter(basicFilter(Literal.FALSE));
+        Sequence s = new Sequence(
+            EMPTY,
+            asList(positiveRule, negatedRule),
+            until,
+            TimeValue.MINUS_ONE,
+            timestamp(),
+            tiebreaker(),
+            OrderDirection.ASC
+        );
+
+        LogicalPlan result = new Optimizer.SkipEmptyJoin().rule(s);
+        assertEquals(LocalRelation.class, result.getClass());
+    }
+
     public void testSortByLimit() {
         Filter f = new Filter(EMPTY, rel(), TRUE);
         OrderBy o = new OrderBy(EMPTY, f, singletonList(new Order(EMPTY, tiebreaker(), OrderDirection.ASC, NullsPosition.FIRST)));
@@ -627,6 +682,92 @@ public class OptimizerTests extends ESTestCase {
     }
 
     /**
+     * Key conditions in a negated (missing event) rule must NOT be propagated to positive rules.
+     * <p>
+     * sequence by a
+     * ![ filter a gt 1 by a ]
+     * [ filter X by a ]
+     * ==
+     * same (no propagation)
+     */
+    public void testKeyConstraintNotPropagatedFromMissingEventFilter() {
+        Attribute a = key("a");
+
+        Expression keyCondition = gtExpression(a);
+        Expression filter = equalsExpression();
+
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter positiveRule = keyedFilter(basicFilter(filter), a);
+
+        Sequence seq = sequence(negatedRule, positiveRule);
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(seq);
+        Sequence resultSeq = (Sequence) result;
+
+        List<KeyedFilter> queries = resultSeq.queries();
+        assertEquals(negatedRule, queries.get(0));
+        assertEquals(positiveRule, queries.get(1));
+    }
+
+    /**
+     * Key conditions in a positive rule must NOT be propagated into a negated (missing event) rule.
+     * <p>
+     * sequence by a
+     * [ filter a gt 1 by a ]
+     * ![ filter X by a ]
+     * ==
+     * same (missing event filter unchanged)
+     */
+    public void testKeyConstraintNotPropagatedToMissingEventFilter() {
+        Attribute a = key("a");
+
+        Expression keyCondition = gtExpression(a);
+        Expression filter = equalsExpression();
+
+        KeyedFilter positiveRule = keyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(filter), a);
+
+        Sequence seq = sequence(positiveRule, negatedRule);
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(seq);
+        Sequence resultSeq = (Sequence) result;
+
+        List<KeyedFilter> queries = resultSeq.queries();
+        // positive rule is unchanged (no other positive rules to propagate to)
+        assertEquals(positiveRule, queries.get(0));
+        // negated rule must not receive the key constraint
+        assertEquals(negatedRule, queries.get(1));
+    }
+
+    /**
+     * Key conditions in the negated (middle) rule must NOT appear on the second positive rule.
+     * <p>
+     * sequence by a
+     * [ filter X by a ]
+     * ![ filter a gt 1 by a ]
+     * [ filter X by a ]
+     * ==
+     * same (key condition from negated rule not propagated to positive2)
+     */
+    public void testKeyConstraintNotPropagatedAcrossMissingEventFilter() {
+        Attribute a = key("a");
+
+        Expression keyCondition = gtExpression(a);
+        Expression filter = equalsExpression();
+
+        KeyedFilter positive1 = keyedFilter(basicFilter(filter), a);
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter positive2 = keyedFilter(basicFilter(filter), a);
+
+        Sequence seq = sequence(positive1, negatedRule, positive2);
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(seq);
+        Sequence resultSeq = (Sequence) result;
+
+        List<KeyedFilter> queries = resultSeq.queries();
+        assertEquals(positive1, queries.get(0));
+        assertEquals(negatedRule, queries.get(1));
+        assertEquals(positive2, queries.get(2));
+    }
+
+    /**
      * sequence
      * 1. filter startsWith(a, b) and c > 10 by a, c
      * 2. filter X by a, c
@@ -870,6 +1011,10 @@ public class OptimizerTests extends ESTestCase {
 
     private static KeyedFilter keyedFilter(LogicalPlan child, NamedExpression... keys) {
         return new KeyedFilter(EMPTY, child, asList(keys), timestamp(), tiebreaker(), false);
+    }
+
+    private static KeyedFilter missingEventKeyedFilter(LogicalPlan child, NamedExpression... keys) {
+        return new KeyedFilter(EMPTY, child, asList(keys), timestamp(), tiebreaker(), true);
     }
 
     private static Attribute key(String name) {

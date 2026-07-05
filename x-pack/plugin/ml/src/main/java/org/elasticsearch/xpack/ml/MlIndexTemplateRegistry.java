@@ -40,9 +40,10 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
      * the state index has no mappings - its template basically just says
      * this - hence there's no mappings version for the state index. Please
      * add a comment with a reason each time the base number is incremented.
-     * 10000001: TODO - reason
+     *
+     * 10000001: ".reindexed-v7-ml-anomalies-*" added to ml-anomalies index pattern
      */
-    public static final int ML_INDEX_TEMPLATE_VERSION = 10000000 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
+    public static final int ML_INDEX_TEMPLATE_VERSION = 10000001 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
         + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
         + NotificationsIndex.NOTIFICATIONS_INDEX_TEMPLATE_VERSION;
 
@@ -60,9 +61,6 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     private IndexTemplateConfig stateTemplate() {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(ML_INDEX_TEMPLATE_VERSION));
-        // In serverless a different version of "state_index_template.json" is shipped that won't substitute the ILM policy variable
-        variables.put(INDEX_LIFECYCLE_NAME, ML_SIZE_BASED_ILM_POLICY_NAME);
-        variables.put(INDEX_LIFECYCLE_ROLLOVER_ALIAS, AnomalyDetectorsIndex.jobStateIndexWriteAlias());
 
         return new IndexTemplateConfig(
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,

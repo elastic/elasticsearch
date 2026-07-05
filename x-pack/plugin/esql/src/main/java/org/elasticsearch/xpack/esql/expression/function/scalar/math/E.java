@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -25,9 +26,11 @@ import java.util.List;
  */
 public class E extends DoubleConstantFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "E", E::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(E.class).noArgs(E::new).name("e");
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the mathematical constant e.",
         description = "Returns {wikipedia}/E_(mathematical_constant)[Euler’s number].",
         examples = @Example(file = "math", tag = "e")
     )

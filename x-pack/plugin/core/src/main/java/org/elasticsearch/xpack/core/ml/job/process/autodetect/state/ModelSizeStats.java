@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -264,11 +263,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         } else {
             assignmentMemoryBasis = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            outputMemoryAllocatorBytes = in.readOptionalVLong();
-        } else {
-            outputMemoryAllocatorBytes = null;
-        }
+        outputMemoryAllocatorBytes = in.readOptionalVLong();
         categorizedDocCount = in.readVLong();
         totalCategoryCount = in.readVLong();
         frequentCategoryCount = in.readVLong();
@@ -306,9 +301,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalVLong(outputMemoryAllocatorBytes);
-        }
+        out.writeOptionalVLong(outputMemoryAllocatorBytes);
         out.writeVLong(categorizedDocCount);
         out.writeVLong(totalCategoryCount);
         out.writeVLong(frequentCategoryCount);

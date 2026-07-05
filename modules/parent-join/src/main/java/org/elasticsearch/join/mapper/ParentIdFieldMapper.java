@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -44,7 +45,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         private final boolean eagerGlobalOrdinals;
 
         public ParentIdFieldType(String name, boolean eagerGlobalOrdinals) {
-            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(name, IndexType.terms(true, true), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         }
 

@@ -28,6 +28,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
     enum Storage {
         DOC_VALUE,
         STORED_FIELD,
+        RAW_DOC_VALUE,
         EMPTY
     }
 
@@ -62,13 +63,22 @@ public class PatternTextDocValuesTests extends ESTestCase {
         static Message empty() {
             return new Message(Storage.EMPTY, false, null);
         }
+
+        static Message rawDocValue(String message) {
+            return new Message(Storage.RAW_DOC_VALUE, false, message);
+        }
     }
 
-    private static List<Message> makeRandomMessages(int numDocs, boolean includeStored) {
+    /**
+     * @param fallbackStorage indicates whether values that will be stored as raw text should be generated
+     */
+    private static List<Message> makeRandomMessages(int numDocs, Storage fallbackStorage) {
         List<Message> messages = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             // if arg is present, it's at the beginning
-            Storage storage = includeStored ? randomFrom(Storage.values()) : randomFrom(Storage.DOC_VALUE, Storage.EMPTY);
+            Storage storage = fallbackStorage != null
+                ? randomFrom(Storage.DOC_VALUE, Storage.EMPTY, fallbackStorage)
+                : randomFrom(Storage.DOC_VALUE, Storage.EMPTY);
             String message = randomAlphaOfLength(10) + " " + i;
             boolean hasArg = storage == Storage.DOC_VALUE && randomBoolean();
             messages.add(new Message(storage, hasArg, storage == Storage.EMPTY ? null : message));
@@ -76,14 +86,14 @@ public class PatternTextDocValuesTests extends ESTestCase {
         return messages;
     }
 
-    private static BinaryDocValues makeDocValues(List<Message> messages) throws IOException {
+    private static BinaryDocValues makeDocValues(List<Message> messages) {
         var template = new SimpleSortedSetDocValues(messages.stream().map(Message::template).toList().toArray(new String[0]));
-        var args = new SimpleSortedSetDocValues(messages.stream().map(Message::arg).toList().toArray(new String[0]));
+        var args = new SimpleBinaryDocValues(messages.stream().map(Message::arg).toList().toArray(new String[0]));
         var info = new SimpleSortedSetDocValues(messages.stream().map(m -> m.hasArg() ? info(0) : info()).toList().toArray(new String[0]));
         return new PatternTextDocValues(template, args, info);
     }
 
-    private static BinaryDocValues makeCompositeDocValues(List<Message> messages) throws IOException {
+    private static BinaryDocValues makeCompositeDocValues(List<Message> messages, Storage fallbackStorage) throws IOException {
         var patternTextDocValues = makeDocValues(messages);
         var templateId = new SimpleSortedSetDocValues(
             IntStream.range(0, messages.size())
@@ -91,10 +101,21 @@ public class PatternTextDocValuesTests extends ESTestCase {
                 .toList()
                 .toArray(new String[0])
         );
-        String storedFieldName = "message.stored";
-        var storedValues = messages.stream().map(m -> m.storage == Storage.STORED_FIELD ? new BytesRef(m.message) : null).toList();
-        var storedLoader = new SimpleStoredFieldLoader(storedValues, storedFieldName);
-        return new PatternTextCompositeValues(storedLoader, storedFieldName, patternTextDocValues, templateId);
+        if (fallbackStorage == Storage.RAW_DOC_VALUE) {
+            var rawDocValues = messages.stream().map(m -> m.storage == fallbackStorage ? m.message : null).toList().toArray(new String[0]);
+            var rawBinaryDocValues = new SimpleBinaryDocValues(rawDocValues);
+            return new PatternTextFallbackDocValues.BinaryFallback(patternTextDocValues, templateId, rawBinaryDocValues);
+        } else {
+            String storedFieldName = "message.stored";
+            var storedValues = messages.stream().map(m -> m.storage == Storage.STORED_FIELD ? new BytesRef(m.message) : null).toList();
+            var storedLoader = new SimpleStoredFieldLoader(storedValues, storedFieldName);
+            return new PatternTextFallbackDocValues.LegacyStoredFieldFallback(
+                storedLoader,
+                storedFieldName,
+                patternTextDocValues,
+                templateId
+            );
+        }
     }
 
     private static BinaryDocValues makeDocValuesDense() throws IOException {
@@ -108,12 +129,30 @@ public class PatternTextDocValuesTests extends ESTestCase {
     }
 
     private static BinaryDocValues makeCompositeDense() throws IOException {
-        return makeCompositeDocValues(List.of(Message.stored("1 a"), Message.withArg("2 b"), Message.stored("3 c"), Message.noArg("4 d")));
+        Storage fallbackStorage = randomFrom(Storage.STORED_FIELD, Storage.RAW_DOC_VALUE);
+        return makeCompositeDocValues(
+            List.of(
+                fallbackStorage == Storage.STORED_FIELD ? Message.stored("1 a") : Message.rawDocValue("1 a"),
+                Message.withArg("2 b"),
+                fallbackStorage == Storage.STORED_FIELD ? Message.stored("3 c") : Message.rawDocValue("3 c"),
+                Message.noArg("4 d")
+            ),
+            fallbackStorage
+        );
     }
 
     private static BinaryDocValues makeCompositeMissingValues() throws IOException {
+        Storage fallbackStorage = randomFrom(Storage.STORED_FIELD, Storage.RAW_DOC_VALUE);
         return makeCompositeDocValues(
-            List.of(Message.stored("1 a"), Message.empty(), Message.withArg("3 c"), Message.empty(), Message.noArg("5 e"), Message.empty())
+            List.of(
+                fallbackStorage == Storage.STORED_FIELD ? Message.stored("1 a") : Message.rawDocValue("1 a"),
+                Message.empty(),
+                fallbackStorage == Storage.STORED_FIELD ? Message.stored("3 c") : Message.rawDocValue("3 c"),
+                Message.empty(),
+                Message.noArg("5 e"),
+                Message.empty()
+            ),
+            fallbackStorage
         );
     }
 
@@ -150,7 +189,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
     }
 
     public void testRandomMessagesDocValues() throws IOException {
-        List<Message> messages = makeRandomMessages(randomIntBetween(0, 100), false);
+        List<Message> messages = makeRandomMessages(randomIntBetween(0, 100), null);
         BinaryDocValues docValues = makeDocValues(messages);
         for (int i = 0; i < messages.size(); i++) {
             Message message = messages.get(i);
@@ -164,8 +203,9 @@ public class PatternTextDocValuesTests extends ESTestCase {
     }
 
     public void testRandomMessagesComposite() throws IOException {
-        List<Message> messages = makeRandomMessages(randomIntBetween(0, 100), true);
-        BinaryDocValues docValues = makeCompositeDocValues(messages);
+        Storage fallbackStorage = randomFrom(Storage.STORED_FIELD, Storage.RAW_DOC_VALUE);
+        List<Message> messages = makeRandomMessages(randomIntBetween(0, 100), fallbackStorage);
+        BinaryDocValues docValues = makeCompositeDocValues(messages, fallbackStorage);
         for (int i = 0; i < messages.size(); i++) {
             Message message = messages.get(i);
             if (message.storage == Storage.EMPTY) {
@@ -222,12 +262,17 @@ public class PatternTextDocValuesTests extends ESTestCase {
             return ordToValues.size();
         }
 
-        @Override
         public boolean advanceExact(int target) {
-            for (currDoc = target; currDoc < docToOrds.size(); currDoc++) {
-                if (docToOrds.get(currDoc) != null) {
-                    return currDoc == target;
-                }
+            currDoc = target;
+
+            // If there is a value for target, currDoc is set to target, and we return true because target was found.
+            if (docToOrds.get(currDoc) != null) {
+                return true;
+            }
+
+            // Otherwise, we update currDoc to first doc with a value after target and return false.
+            while (currDoc < docToOrds.size() && docToOrds.get(currDoc) == null) {
+                currDoc++;
             }
             return false;
         }
@@ -235,6 +280,58 @@ public class PatternTextDocValuesTests extends ESTestCase {
         @Override
         public int docID() {
             return currDoc >= docToOrds.size() ? NO_MORE_DOCS : currDoc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int advance(int target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long cost() {
+            return 1;
+        }
+    }
+
+    static class SimpleBinaryDocValues extends BinaryDocValues {
+
+        private final List<String> values;
+        private int currDoc = -1;
+
+        // Single value for each docId, null if no value for a docId
+        SimpleBinaryDocValues(String... docIdToValue) {
+            values = Arrays.asList(docIdToValue);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return new BytesRef(values.get(currDoc));
+        }
+
+        @Override
+        public boolean advanceExact(int target) {
+            currDoc = target;
+
+            // If there is a value for target, currDoc is set to target, and we return true because target was found.
+            if (values.get(currDoc) != null) {
+                return true;
+            }
+
+            // Otherwise, we update currDoc to first doc with a value after target and return false.
+            while (currDoc < values.size() && values.get(currDoc) == null) {
+                currDoc++;
+            }
+            return false;
+        }
+
+        @Override
+        public int docID() {
+            return currDoc >= values.size() ? NO_MORE_DOCS : currDoc;
         }
 
         @Override

@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -15,8 +16,9 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -27,19 +29,30 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     @SuppressWarnings("deprecation")
     private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new LegacySemanticMatchQueryRewriteInterceptor();
 
+    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
+
     public InterceptedInferenceMatchQueryBuilder(MatchQueryBuilder originalQuery) {
         super(originalQuery);
+    }
+
+    public InterceptedInferenceMatchQueryBuilder(
+        MatchQueryBuilder originalQuery,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    ) {
+        super(originalQuery, inferenceResultsMap);
     }
 
     public InterceptedInferenceMatchQueryBuilder(StreamInput in) throws IOException {
         super(in);
     }
 
-    InterceptedInferenceMatchQueryBuilder(
-        InterceptedInferenceQueryBuilder<MatchQueryBuilder> other,
-        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    private InterceptedInferenceMatchQueryBuilder(
+        InterceptedInferenceMatchQueryBuilder other,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
+        boolean interceptedCcsRequest
     ) {
-        super(other, inferenceResultsMap);
+        super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override
@@ -48,14 +61,14 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected String getQuery() {
-        return (String) originalQuery.value();
+    protected InferenceStringGroup getInput() {
+        return new InferenceStringGroup(originalQuery.value().toString());
     }
 
     @Override
-    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewritten = this;
-        if (queryRewriteContext.getMinTransportVersion().before(TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+        if (queryRewriteContext.getMinTransportVersion().supports(NEW_SEMANTIC_QUERY_INTERCEPTORS) == false) {
             rewritten = BWC_INTERCEPTOR.interceptAndRewrite(queryRewriteContext, originalQuery);
         }
 
@@ -63,8 +76,12 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
-        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap);
+    protected InterceptedInferenceQueryBuilder<MatchQueryBuilder> copy(
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
+        boolean interceptedCcsRequest
+    ) {
+        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override
@@ -77,9 +94,10 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
         MappedFieldType fieldType = indexMetadataContext.getFieldType(getField());
         if (fieldType == null) {
             rewritten = new MatchNoneQueryBuilder();
-        } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType) {
-            rewritten = new SemanticQueryBuilder(getField(), getQuery(), null, inferenceResultsMap).boost(originalQuery.boost())
-                .queryName(originalQuery.queryName());
+        } else if (fieldType instanceof SemanticFieldMapper.SemanticFieldType) {
+            rewritten = new SemanticQueryBuilder(getField(), originalQuery.value().toString(), null, inferenceResultsMap).boost(
+                originalQuery.boost()
+            ).queryName(originalQuery.queryName());
         } else {
             rewritten = originalQuery;
         }

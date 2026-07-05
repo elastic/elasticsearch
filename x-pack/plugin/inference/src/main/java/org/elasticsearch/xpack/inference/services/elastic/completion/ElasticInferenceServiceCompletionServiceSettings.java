@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,9 +53,7 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new ElasticInferenceServiceCompletionServiceSettings(modelId);
     }
@@ -93,7 +90,7 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

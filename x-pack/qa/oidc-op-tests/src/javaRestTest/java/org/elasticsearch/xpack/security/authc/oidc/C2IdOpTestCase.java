@@ -42,9 +42,9 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.idp.HttpProxyTestContainer;
 import org.elasticsearch.test.fixtures.idp.OidcProviderTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.Junit4NetworkRule;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -192,7 +192,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(network).around(c2id).around(proxy).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(Junit4NetworkRule.from(network)).around(c2id).around(proxy).around(cluster);
 
     @Override
     protected String getTestRestCluster() {
@@ -231,15 +231,13 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
                 requests.add(httpPost);
             }
 
-            SocketAccess.doPrivileged(() -> {
-                for (HttpPost httpPost : requests) {
-                    try (CloseableHttpResponse response = httpClient.execute(httpPost, context)) {
-                        assertBusy(() -> assertThat(response.getStatusLine().getStatusCode(), equalTo(201)), 30, TimeUnit.SECONDS);
-                    } catch (Exception e) {
-                        fail("Encountered exception while registering client: " + e);
-                    }
+            for (HttpPost httpPost : requests) {
+                try (CloseableHttpResponse response = httpClient.execute(httpPost, context)) {
+                    assertBusy(() -> assertThat(response.getStatusLine().getStatusCode(), equalTo(201)), 30, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    fail("Encountered exception while registering client: " + e);
                 }
-            });
+            }
         }
     }
 
@@ -312,7 +310,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         logger.info(
             "Execute HTTP " + request.getMethod() + " " + request.getURI() + " with payload " + EntityUtils.toString(request.getEntity())
         );
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request, context))) {
+        try (CloseableHttpResponse response = client.execute(request, context)) {
             return body.apply(response);
         } catch (Exception e) {
             logger.warn(() -> "HTTP Request [" + request.getURI() + "] failed", e);

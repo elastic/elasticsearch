@@ -43,6 +43,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -64,7 +65,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -87,13 +88,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Lucene {
 
-    public static final String LATEST_CODEC = "Lucene101";
+    public static final String LATEST_CODEC = "Lucene104";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -112,6 +116,8 @@ public class Lucene {
 
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(TOTAL_HITS_EQUAL_TO_ZERO, EMPTY_SCORE_DOCS);
 
+    private static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL = TransportVersion.fromName("search_incremental_top_docs_null");
+
     private Lucene() {}
 
     /**
@@ -124,6 +130,14 @@ public class Lucene {
             list.add(info.files());
         }
         return Iterables.flatten(list);
+    }
+
+    /**
+     * Returns the additional files that the {@param current} index commit introduces compared to the {@param previous} one.
+     */
+    public static Set<String> additionalFileNames(IndexCommit previous, IndexCommit current) throws IOException {
+        final Set<String> previousFiles = previous != null ? new HashSet<>(previous.getFileNames()) : Set.of();
+        return current.getFileNames().stream().filter(f -> previousFiles.contains(f) == false).collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -288,6 +302,16 @@ public class Lucene {
         return false;
     }
 
+    /**
+     * Runs {@link IndexSearcher#search(Query, int)} while bypassing specialized bulk scorers,
+     * forcing the use of the default doc-by-doc scoring path instead. Prefer this over
+     * {@link IndexSearcher#search(Query, int)} when searching small indexes (e.g.
+     * a {@code MemoryIndex}) where the overhead of bulk scorer initialization dominates.
+     */
+    public static TopDocs searchWithoutBulkScorer(IndexSearcher searcher, Query query, int n) throws IOException {
+        return searcher.search(new NoBulkScoringQuery(query), n);
+    }
+
     public static TotalHits readTotalHits(StreamInput in) throws IOException {
         long totalHits = in.readVLong();
         TotalHits.Relation totalHitsRelation = in.readEnum(TotalHits.Relation.class);
@@ -386,8 +410,7 @@ public class Lucene {
      */
     public static void writeTopDocsIncludingShardIndex(StreamOutput out, TopDocs topDocs) throws IOException {
         if (topDocs == null) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19)) {
+            if (out.getTransportVersion().supports(SEARCH_INCREMENTAL_TOP_DOCS_NULL)) {
                 out.writeByte((byte) -1);
                 return;
             } else {
@@ -435,8 +458,7 @@ public class Lucene {
     public static TopDocs readTopDocsIncludingShardIndex(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == -1) {
-            assert in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19);
+            assert in.getTransportVersion().supports(SEARCH_INCREMENTAL_TOP_DOCS_NULL);
             return null;
         } else if (type == 0) {
             TotalHits totalHits = readTotalHits(in);
@@ -625,7 +647,7 @@ public class Lucene {
      * Returns the generic version of the provided {@link SortField} that
      * can be used to merge documents coming from different shards.
      */
-    private static SortField rewriteMergeSortField(SortField sortField) {
+    public static SortField rewriteMergeSortField(SortField sortField) {
         if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
             newSortField.setMissingValue(sortField.getMissingValue());
@@ -634,16 +656,19 @@ public class Lucene {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;
-        } else if (sortField.getClass() == SortedNumericSortField.class) {
-            SortField newSortField = new SortField(
-                sortField.getField(),
-                ((SortedNumericSortField) sortField).getNumericType(),
-                sortField.getReverse()
-            );
+        } else if (sortField instanceof SortedNumericSortField snsf) {
+            SortField newSortField = new SortField(sortField.getField(), snsf.getNumericType(), sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;
         } else if (sortField.getClass() == ShardDocSortField.class) {
             return new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
+        } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource fcs) {
+            SortField newSortField = new SortField(sortField.getField(), fcs.reducedType(), sortField.getReverse());
+            Object missingValue = fcs.missingValue(sortField.getReverse());
+            if (missingValue != null) {
+                newSortField.setMissingValue(missingValue);
+            }
+            return newSortField;
         } else {
             return sortField;
         }
@@ -651,19 +676,9 @@ public class Lucene {
 
     static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
         sortField = rewriteMergeSortField(sortField);
-        if (sortField.getClass() != SortField.class) {
-            throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
-        }
         out.writeOptionalString(sortField.getField());
-        if (sortField.getComparatorSource() != null) {
-            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField
-                .getComparatorSource();
-            writeSortType(out, comparatorSource.reducedType());
-            writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
-        } else {
-            writeSortType(out, sortField.getType());
-            writeMissingValue(out, sortField.getMissingValue());
-        }
+        writeSortType(out, sortField.getType());
+        writeMissingValue(out, sortField.getMissingValue());
         out.writeBoolean(sortField.getReverse());
     }
 
@@ -1039,5 +1054,90 @@ public class Lucene {
     @SuppressForbidden(reason = "NoMergePolicy#INSTANCE is safe to use since we also set NoMergeScheduler#INSTANCE")
     public static IndexWriterConfig indexWriterConfigWithNoMerging(Analyzer analyzer) {
         return new IndexWriterConfig(analyzer).setMergePolicy(NoMergePolicy.INSTANCE).setMergeScheduler(NoMergeScheduler.INSTANCE);
+    }
+
+    /**
+     * Query wrapper that forces the use of the default doc-by-doc bulk scorer, bypassing
+     * specialized bulk scorers that allocate large buffers on the assumption that many
+     * docs will match. The wrapped weight does not override
+     * {@link Weight#bulkScorer}, causing Lucene to fall back to building a simple
+     * {@code DefaultBulkScorer} from the scorer rather than a specialized implementation.
+     */
+    private static final class NoBulkScoringQuery extends Query {
+
+        private final Query inner;
+
+        NoBulkScoringQuery(Query inner) {
+            this.inner = inner;
+        }
+
+        @Override
+        public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+            Query rewritten = inner.rewrite(indexSearcher);
+            if (rewritten != inner) return new NoBulkScoringQuery(rewritten);
+            return super.rewrite(indexSearcher);
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            inner.visit(visitor);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NoBulkScoringQuery that = (NoBulkScoringQuery) o;
+            return Objects.equals(inner, that.inner);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(inner);
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            final Weight innerWeight = inner.createWeight(searcher, scoreMode, boost);
+            return new Weight(this) {
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return innerWeight.isCacheable(ctx);
+                }
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    return innerWeight.explain(context, doc);
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    final ScorerSupplier innerSupplier = innerWeight.scorerSupplier(context);
+                    if (innerSupplier == null) {
+                        return null;
+                    }
+                    // Wrap the inner ScorerSupplier but do NOT override bulkScorer(). The default
+                    // ScorerSupplier.bulkScorer() calls get(Long.MAX_VALUE) and wraps the result in
+                    // DefaultBulkScorer, bypassing any specialized implementation that the inner
+                    // supplier would provide.
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            return innerSupplier.get(leadCost);
+                        }
+
+                        @Override
+                        public long cost() {
+                            return innerSupplier.cost();
+                        }
+                    };
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "NoBulkScoring(" + inner.toString(field) + ")";
+        }
     }
 }

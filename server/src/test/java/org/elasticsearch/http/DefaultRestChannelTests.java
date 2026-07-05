@@ -63,6 +63,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -106,7 +107,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     public void testResponse() {
         final TestHttpResponse response = executeRequest(Settings.EMPTY, "request-host");
-        assertThat(response.content(), equalTo(testRestResponse().content()));
+        assertThat(response.content(), equalBytes(testRestResponse().content()));
     }
 
     public void testCorsEnabledWithoutAllowOrigins() {
@@ -724,15 +725,15 @@ public class DefaultRestChannelTests extends ESTestCase {
         );
 
         var responseBody = new BytesArray(randomUnicodeOfLengthBetween(1, 100).getBytes(StandardCharsets.UTF_8));
-        assertEquals(
-            responseBody,
+        assertThat(
             ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] response body",
                 ReferenceDocs.HTTP_TRACER,
                 () -> channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, responseBody))
-            )
+            ),
+            equalBytes(responseBody)
         );
 
         final var parts = new ArrayList<ChunkedRestResponseBodyPart>();
@@ -787,8 +788,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         final var isClosed = new AtomicBoolean();
         final var firstPart = new TestBodyPart(responseBody, between(0, 3));
         parts.add(firstPart);
-        assertEquals(
-            responseBody,
+        assertThat(
             ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
@@ -801,7 +801,8 @@ public class DefaultRestChannelTests extends ESTestCase {
                         assertEquals("isLastPart " + i, i == parts.size() - 1, parts.get(i).isLastPart());
                     }
                 }))
-            )
+            ),
+            equalBytes(responseBody)
         );
 
         assertTrue(isClosed.get());

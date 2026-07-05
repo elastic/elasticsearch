@@ -69,6 +69,11 @@ public class JsonXContentImpl implements XContent {
     }
 
     @Override
+    public boolean hasBulkSeparator() {
+        return true;
+    }
+
+    @Override
     public byte bulkSeparator() {
         return '\n';
     }

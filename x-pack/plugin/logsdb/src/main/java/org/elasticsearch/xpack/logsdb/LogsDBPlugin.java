@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldType;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +47,18 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
         settings -> Boolean.toString(LOGSDB_PRIOR_LOGS_USAGE.get(settings) == false),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
+    );
+    public static final Setting<Boolean> CLUSTER_LOGSDB_COLUMNAR_ENABLED = Setting.boolSetting(
+        "cluster.logsdb_columnar.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    static final Setting<Boolean> LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE = Setting.boolSetting(
+        "index.logsdb.default_sort_on_message_template",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
     );
 
     private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
@@ -73,6 +84,10 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
             CLUSTER_LOGSDB_ENABLED,
             logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbEnabled
         );
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_LOGSDB_COLUMNAR_ENABLED,
+            logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbColumnarEnabled
+        );
         // Nothing to share here:
         return super.createComponents(services);
     }
@@ -94,11 +109,14 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>(List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED, LOGSDB_PRIOR_LOGS_USAGE));
-        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()) {
-            settings.add(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING);
-        }
-        return Collections.unmodifiableList(settings);
+        return List.of(
+            FALLBACK_SETTING,
+            CLUSTER_LOGSDB_ENABLED,
+            LOGSDB_PRIOR_LOGS_USAGE,
+            PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING,
+            LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE,
+            CLUSTER_LOGSDB_COLUMNAR_ENABLED
+        );
     }
 
     @Override
@@ -111,11 +129,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()) {
-            return singletonMap(PatternTextFieldType.CONTENT_TYPE, PatternTextFieldMapper.PARSER);
-        } else {
-            return Map.of();
-        }
+        return singletonMap(PatternTextFieldType.CONTENT_TYPE, PatternTextFieldMapper.PARSER);
     }
 
     protected XPackLicenseState getLicenseState() {

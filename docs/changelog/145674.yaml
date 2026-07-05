@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 145674
+summary: Add AVX-512 f32 dot product and squared L2 kernels
+type: enhancement

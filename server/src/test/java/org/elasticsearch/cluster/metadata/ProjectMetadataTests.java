@@ -80,6 +80,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -88,6 +89,22 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ProjectMetadataTests extends ESTestCase {
+
+    /**
+     * Preamble for {@code ensureNoNameCollisions}. The enumeration is gated by the ES|QL external data sources
+     * feature flag (snapshot-on, release-off), so assertions must branch on the flag to pass in both states.
+     */
+    private static String collisionPreamble() {
+        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+            ? "index, alias, data stream, view, and dataset names need to be unique"
+            : "index, alias, data stream, and view names need to be unique";
+    }
+
+    /** {@link #collisionPreamble()} followed by " but the following duplicates were found " — trailing space, no open bracket. */
+    private static String collisionPreambleWithOpen() {
+        return collisionPreamble() + ", but the following duplicates were found ";
+    }
+
     public void testFindAliases() {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(
@@ -153,6 +170,46 @@ public class ProjectMetadataTests extends ESTestCase {
             Map<String, List<AliasMetadata>> aliases = project.findAllAliases(Strings.EMPTY_ARRAY);
             assertThat(aliases, anEmptyMap());
         }
+    }
+
+    /**
+     * Datasets are part of the indices lookup ({@code buildIndicesLookup}), so applying a published diff that changes
+     * only the dataset set must rebuild the lookup, exactly as index, data-stream, and view changes do (see
+     * {@link #testReuseIndicesLookup}). {@link ProjectMetadata.ProjectMetadataDiff#apply} previously reused the
+     * already-built, dataset-free lookup in that case, leaving the changed dataset missing from (or stale in) the lookup
+     * on the applying node until a later change rebuilt it. This guards that diff-apply path.
+     */
+    public void testDatasetChangeViaDiffRebuildsIndicesLookup() {
+        ProjectMetadata p0 = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(
+                IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
+            .build();
+        // Prime the cached lookup so diff-apply has a non-null previous lookup it could (incorrectly) reuse.
+        assertThat(p0.getIndicesLookup(), hasKey("index"));
+        assertThat(p0.getIndicesLookup(), not(hasKey("ds")));
+
+        Dataset dataset = new Dataset("ds", new DataSourceReference("source"), "s3://bucket/key", null, Map.of());
+        ProjectMetadata withDataset = ProjectMetadata.builder(p0).datasets(Map.of("ds", dataset)).build();
+
+        // Applying the add-dataset diff mirrors cluster-state publication to another node.
+        ProjectMetadata appliedAdd = withDataset.diff(p0).apply(p0);
+        assertThat("dataset added via diff must appear in the rebuilt indices lookup", appliedAdd.getIndicesLookup(), hasKey("ds"));
+        assertThat(appliedAdd.getIndicesLookup().get("ds"), instanceOf(Dataset.class));
+        assertThat(appliedAdd.getIndicesLookup(), hasKey("index"));
+
+        // Symmetric removal: applying a remove-dataset diff must drop it from the lookup.
+        assertThat(appliedAdd.getIndicesLookup(), hasKey("ds")); // prime cache on the dataset-bearing state
+        ProjectMetadata appliedRemove = p0.diff(appliedAdd).apply(appliedAdd);
+        assertThat(
+            "dataset removed via diff must disappear from the rebuilt indices lookup",
+            appliedRemove.getIndicesLookup(),
+            not(hasKey("ds"))
+        );
+        assertThat(appliedRemove.getIndicesLookup(), hasKey("index"));
     }
 
     public void testFindDataStreamAliases() {
@@ -337,7 +394,7 @@ public class ProjectMetadataTests extends ESTestCase {
         }
 
         Exception e = expectThrows(IllegalStateException.class, projectBuilder::build);
-        assertThat(e.getMessage(), startsWith("index, alias, and data stream names need to be unique"));
+        assertThat(e.getMessage(), startsWith(collisionPreamble()));
     }
 
     public void testValidateAliasWriteOnly() {
@@ -968,12 +1025,7 @@ public class ProjectMetadataTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
             e.getMessage(),
-            containsString(
-                "index, alias, and data stream names need to be unique, but the following duplicates were found [data "
-                    + "stream ["
-                    + dataStreamName
-                    + "] conflicts with index]"
-            )
+            containsString(collisionPreambleWithOpen() + "[data stream [" + dataStreamName + "] conflicts with index]")
         );
     }
 
@@ -988,13 +1040,63 @@ public class ProjectMetadataTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "index, alias, and data stream names need to be unique, but the following duplicates were found ["
+                collisionPreambleWithOpen()
+                    + "["
                     + dataStreamName
                     + " (alias of ["
                     + idx.getIndex().getName()
                     + "]) conflicts with data stream]"
             )
         );
+    }
+
+    public void testBuilderRejectsDatasetThatConflictsWithIndex() {
+        final String conflictingName = "shared_name";
+        IndexMetadata idx = IndexMetadata.builder(conflictingName)
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        Dataset dataset = new Dataset(conflictingName, new DataSourceReference("my-data-source"), "s3://b/p", null, Map.of());
+        ProjectMetadata.Builder b = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(idx, false)
+            .datasets(Map.of(conflictingName, dataset));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(
+            e.getMessage(),
+            containsString(collisionPreambleWithOpen() + "[dataset [" + conflictingName + "] conflicts with index]")
+        );
+    }
+
+    public void testBuilderRejectsAliasThatConflictsWithDataset() {
+        final String conflictingName = "shared_name";
+        IndexMetadata idx = IndexMetadata.builder("some_index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder(conflictingName).build())
+            .build();
+        Dataset dataset = new Dataset(conflictingName, new DataSourceReference("my-data-source"), "s3://b/p", null, Map.of());
+        ProjectMetadata.Builder b = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(idx, false)
+            .datasets(Map.of(conflictingName, dataset));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("alias and dataset have the same name (" + conflictingName + ")"));
+    }
+
+    public void testBuilderRejectsDataStreamThatConflictsWithDataset() {
+        final String conflictingName = "shared_name";
+        IndexMetadata backing = createFirstBackingIndex(conflictingName).build();
+        Dataset dataset = new Dataset(conflictingName, new DataSourceReference("my-data-source"), "s3://b/p", null, Map.of());
+        ProjectMetadata.Builder b = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(backing, false)
+            .put(newInstance(conflictingName, List.of(backing.getIndex())))
+            .datasets(Map.of(conflictingName, dataset));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream [" + conflictingName + "] conflicts with dataset"));
     }
 
     public void testBuilderRejectsAliasThatRefersToDataStreamBackingIndex() {
@@ -1817,7 +1919,6 @@ public class ProjectMetadataTests extends ESTestCase {
 
     public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_7_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
@@ -1867,7 +1968,6 @@ public class ProjectMetadataTests extends ESTestCase {
 
     public void testSystemAliasOldSystemAndNewRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_7_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
@@ -1880,7 +1980,6 @@ public class ProjectMetadataTests extends ESTestCase {
 
     public void testSystemIndexValidationAllRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_7_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
@@ -1894,7 +1993,6 @@ public class ProjectMetadataTests extends ESTestCase {
 
     public void testSystemAliasValidationAllSystemSomeOld() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_7_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
@@ -2161,6 +2259,80 @@ public class ProjectMetadataTests extends ESTestCase {
         }
     }
 
+    public void testRetrieveIndexModeFromTemplateColumnar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // columnar:
+        var columnarTemplate = new Template(Settings.builder().put("index.mode", "columnar").build(), new CompressedXContent("{}"), null);
+        // Settings in component template:
+        {
+            var componentTemplate = new ComponentTemplate(columnarTemplate, null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            ProjectMetadata p = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put("component_template_1", componentTemplate)
+                .put("index_template_1", indexTemplate)
+                .build();
+            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.COLUMNAR));
+        }
+        // Settings in composable index template:
+        {
+            var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(columnarTemplate)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            ProjectMetadata p = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put("component_template_1", componentTemplate)
+                .put("index_template_1", indexTemplate)
+                .build();
+            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.COLUMNAR));
+        }
+    }
+
+    public void testRetrieveIndexModeFromTemplateColumnarLogsdb() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // logsdb_columnar:
+        var columnarLogsdbTemplate = new Template(
+            Settings.builder().put("index.mode", "logsdb_columnar").build(),
+            new CompressedXContent("{}"),
+            null
+        );
+        // Settings in component template:
+        {
+            var componentTemplate = new ComponentTemplate(columnarLogsdbTemplate, null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            ProjectMetadata p = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put("component_template_1", componentTemplate)
+                .put("index_template_1", indexTemplate)
+                .build();
+            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB_COLUMNAR));
+        }
+        // Settings in composable index template:
+        {
+            var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(columnarLogsdbTemplate)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            ProjectMetadata p = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put("component_template_1", componentTemplate)
+                .put("index_template_1", indexTemplate)
+                .build();
+            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB_COLUMNAR));
+        }
+    }
+
     public void testRetrieveIndexModeFromTemplateEmpty() throws IOException {
         // no index mode:
         var emptyTemplate = new Template(Settings.EMPTY, new CompressedXContent("{}"), null);
@@ -2244,6 +2416,7 @@ public class ProjectMetadataTests extends ESTestCase {
                       "indices": {
                         "index-01": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2281,6 +2454,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-02": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2320,6 +2494,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-03": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2361,6 +2536,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000001": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2397,6 +2573,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000002": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2511,6 +2688,7 @@ public class ProjectMetadataTests extends ESTestCase {
                       "indices": {
                         "index-01": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2548,6 +2726,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-02": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2587,6 +2766,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-03": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2628,6 +2808,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000001": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2664,6 +2845,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000002": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,

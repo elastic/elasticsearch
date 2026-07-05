@@ -56,6 +56,87 @@ A standard retriever returns top documents from a traditional [query](/reference
 
 When a retriever tree contains a compound retriever (a retriever with two or more child retrievers) the [search after](/reference/elasticsearch/rest-apis/paginate-search-results.md#search-after) parameter is not supported.
 
+<!--
+```console
+PUT /restaurants
+{
+  "mappings": {
+    "properties": {
+      "region": { "type": "keyword" },
+      "year": { "type": "keyword" },
+      "vector": {
+        "type": "dense_vector",
+        "dims": 3
+      }
+    }
+  }
+}
+
+POST /restaurants/_bulk?refresh
+{"index":{}}
+{"region": "Austria", "year": "2019", "vector": [10, 22, 77]}
+{"index":{}}
+{"region": "France", "year": "2019", "vector": [10, 22, 78]}
+{"index":{}}
+{"region": "Austria", "year": "2020", "vector": [10, 22, 79]}
+{"index":{}}
+{"region": "France", "year": "2020", "vector": [10, 22, 80]}
+
+PUT /movies
+
+PUT /books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "copy_to": "title_semantic"
+      },
+      "description": {
+        "type": "text",
+        "copy_to": "description_semantic"
+      },
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+
+PUT _query_rules/my-ruleset
+{
+    "rules": [
+        {
+            "rule_id": "my-rule1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "values": [ "pugs" ]
+                }
+            ],
+            "actions": {
+                "ids": [
+                    "id1"
+                ]
+            }
+        }
+    ]
+}
+```
+% TESTSETUP
+
+```console
+DELETE /restaurants
+DELETE /movies
+DELETE /books
+```
+% TEARDOWN
+-->
 
 ## Example [standard-retriever-example]
 

@@ -10,7 +10,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -63,7 +63,7 @@ public class AggregationCollectorTests extends AggregatorTestCase {
     private void assertNeedsScores(AggregationBuilder builder, boolean expected) throws IOException {
         withAggregator(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             iw -> {},
             (indexReader, agg) -> assertEquals(expected, agg.scoreMode().needsScores())
         );

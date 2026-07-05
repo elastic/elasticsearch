@@ -10,279 +10,255 @@
 package org.elasticsearch.gradle.internal.test.rerun
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import spock.lang.Ignore
+import org.gradle.testkit.runner.TaskOutcome
 
-@Ignore
 class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
 
-    def "does not rerun on failed tests"() {
-        when:
+    def setup() {
         buildFile.text = """
         plugins {
-          id 'java'
-          id 'elasticsearch.internal-test-rerun'
+            id 'elasticsearch.internal-test-rerun' apply false
         }
-
-        repositories {
-            mavenCentral()
-        }
-
-        dependencies {
-            testImplementation 'junit:junit:4.13.1'
-        }
-
-        tasks.named("test").configure {
-            maxParallelForks = 4
-            testLogging {
-                events "standard_out", "failed"
-                exceptionFormat "short"
-            }
-        }
-
         """
-        createTest("SimpleTest")
-        createTest("SimpleTest2")
-        createTest("SimpleTest3")
-        createTest("SimpleTest4")
-        createTest("SimpleTest5")
-        createFailedTest("SimpleTest6")
-        createFailedTest("SimpleTest7")
-        createFailedTest("SimpleTest8")
-        createTest("SomeOtherTest")
-        createTest("SomeOtherTest1")
-        createTest("SomeOtherTest2")
-        createTest("SomeOtherTest3")
-        createTest("SomeOtherTest4")
-        createTest("SomeOtherTest5")
-        then:
-        def result = gradleRunner("test").buildAndFail()
-        result.output.contains("total executions: 2") == false
-        and: "no jvm system exit tracing provided"
-        result.output.contains("""Test jvm exited unexpectedly.
-Test jvm system exit trace:""") == false
     }
 
-    def "all tests are rerun when test jvm has crashed"() {
+    def "runs all tests by default"() {
+        given:
+        simpleTestSetup()
         when:
-        settingsFile.text = """
-        plugins {
-            id "com.gradle.enterprise" version "3.6.1"
-        }
-        gradleEnterprise {
-            server = 'https://gradle-enterprise.elastic.co/'
-        }
-        """ + settingsFile.text
-
-        buildFile.text = """
-        plugins {
-          id 'java'
-          id 'elasticsearch.internal-test-rerun'
-        }
-
-        repositories {
-            mavenCentral()
-        }
-
-        dependencies {
-            testImplementation 'junit:junit:4.13.1'
-        }
-
-        tasks.named("test").configure {
-            maxParallelForks = 4
-            testLogging {
-                // set options for log level LIFECYCLE
-                events "started", "passed", "standard_out", "failed"
-                exceptionFormat "short"
-            }
-        }
-
-        """
-        createTest("AnotherTest")
-        createTest("AnotherTest2")
-        createTest("AnotherTest3")
-        createTest("AnotherTest4")
-        createTest("AnotherTest5")
-        createSystemExitTest("AnotherTest6")
-        createTest("AnotherTest7")
-        createTest("AnotherTest8")
-        createTest("AnotherTest10")
-        createTest("SimpleTest")
-        createTest("SimpleTest2")
-        createTest("SimpleTest3")
-        createTest("SimpleTest4")
-        createTest("SimpleTest5")
-        createTest("SimpleTest6")
-        createTest("SimpleTest7")
-        createTest("SimpleTest8")
-        createTest("SomeOtherTest")
+        def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
-        def result = gradleRunner("test").build()
-        result.output.contains("AnotherTest6 total executions: 2")
-        // triggered only in the second overall run
-        and: 'Tracing is provided'
-        result.output.contains("""================
-Test jvm exited unexpectedly.
-Test jvm system exit trace (run: 1)
-Gradle Test Executor 1 > AnotherTest6 > someTest
-================""")
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        testExecuted(result.output, "SubProject1TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject1TestClazz1 > someTest2")
+        testExecuted(result.output, "SubProject1TestClazz2 > someTest1")
+        testExecuted(result.output, "SubProject1TestClazz2 > someTest2")
+
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest2")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
     }
 
-    def "rerun build fails due to any test failure"() {
+    def "skips successful tasks and runs everything else"() {
+        given:
+        simpleTestSetup()
+        writeHistory([":subproject1:test"], [:])
         when:
-        buildFile.text = """
-        plugins {
-          id 'java'
-          id 'elasticsearch.internal-test-rerun'
-        }
-
-        repositories {
-            mavenCentral()
-        }
-
-        dependencies {
-            testImplementation 'junit:junit:4.13.1'
-        }
-
-        tasks.named("test").configure {
-            maxParallelForks = 5
-            testLogging {
-                events "started", "passed", "standard_out", "failed"
-                exceptionFormat "short"
-            }
-        }
-
-        """
-        createSystemExitTest("AnotherTest6")
-        createFailedTest("SimpleTest1")
-        createFailedTest("SimpleTest2")
-        createFailedTest("SimpleTest3")
-        createFailedTest("SimpleTest4")
-        createFailedTest("SimpleTest5")
-        createFailedTest("SimpleTest6")
-        createFailedTest("SimpleTest7")
-        createFailedTest("SimpleTest8")
-        createFailedTest("SimpleTest9")
+        def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
-        def result = gradleRunner("test").buildAndFail()
-        result.output.contains("AnotherTest6 total executions: 2")
-        result.output.contains("> There were failing tests. See the report at:")
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+        result.output.contains("succeeded in previous run")
+
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest2")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
     }
 
-    def "reruns tests till max rerun count is reached"() {
+    def "skips all tasks when all are successful"() {
+        given:
+        simpleTestSetup()
+        writeHistory([":subproject1:test", ":subproject2:test"], [:])
         when:
-        buildFile.text = """
-        plugins {
-          id 'java'
-          id 'elasticsearch.internal-test-rerun'
-        }
-
-        repositories {
-            mavenCentral()
-        }
-
-        dependencies {
-            testImplementation 'junit:junit:4.13.1'
-        }
-
-        tasks.named("test").configure {
-            rerun {
-                maxReruns = 4
-            }
-            testLogging {
-                // set options for log level LIFECYCLE
-                events "standard_out", "failed"
-                exceptionFormat "short"
-            }
-        }
-        """
-        createSystemExitTest("JdkKillingTest", 5)
+        def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
-        def result = gradleRunner("test").buildAndFail()
-        result.output.contains("JdkKillingTest total executions: 5")
-        result.output.contains("Max retries(4) hit")
-        and: 'Tracing is provided'
-        result.output.contains("Test jvm system exit trace (run: 1)")
-        result.output.contains("Test jvm system exit trace (run: 2)")
-        result.output.contains("Test jvm system exit trace (run: 3)")
-        result.output.contains("Test jvm system exit trace (run: 4)")
-        result.output.contains("Test jvm system exit trace (run: 5)")
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+        result.task(":subproject2:test").outcome == TaskOutcome.SKIPPED
+        result.output.contains("succeeded in previous run")
     }
 
-    private String testMethodContent(boolean withSystemExit, boolean fail, int timesFailing = 1) {
-        return """
-            int count = countExecutions();
-            System.out.println(getClass().getSimpleName() + " total executions: " + count);
+    def "runs all tests when no tasks are successful and no tests to exclude"() {
+        given:
+        simpleTestSetup()
+        writeHistory([], [:])
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("not confirmed successful in previous run")
+        testExecuted(result.output, "SubProject1TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+    }
 
-            ${withSystemExit ? """
-                    if(count <= ${timesFailing}) {
-                        System.exit(1);
-                    }
-                    """ : ''
+    def "excludes individual successful tests from partially-failed tasks"() {
+        given:
+        simpleTestSetup()
+        writeHistory(
+            [":subproject1:test"],
+            [":subproject2:test": ["org.acme.SubProject2TestClazz1#someTest1", "org.acme.SubProject2TestClazz1#someTest2"]]
+        )
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        // subproject1 fully successful — skip entirely
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+
+        // subproject2 partially failed — exclude the 2 successful tests
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("excluding 0 successful suites and 2 successful tests")
+        testNotExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+        testNotExecuted(result.output, "SubProject2TestClazz1 > someTest2")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
+    }
+
+    def "excludes specific methods while running others in the same class"() {
+        given:
+        simpleTestSetup()
+        writeHistory(
+            [],
+            [":subproject2:test": ["org.acme.SubProject2TestClazz2#someTest1"]]
+        )
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("excluding 0 successful suites and 1 successful tests")
+        testNotExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
+        // Other classes in the same task still run
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest2")
+    }
+
+    def "handles malformed failed-test-history gracefully"() {
+        given:
+        simpleTestSetup()
+        file(".failed-test-history.json") << "{ invalid json"
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").buildAndFail()
+
+        then:
+        result.output.contains("Failed to parse .failed-test-history.json")
+    }
+
+    def "rejects oversized failed-test-history file"() {
+        given:
+        simpleTestSetup()
+        // The size check runs before JSON parsing, so content validity is irrelevant here. Write a file
+        // just over the 100MB cap in 1MB chunks to avoid allocating the whole payload in memory.
+        file(".failed-test-history.json").withOutputStream { out ->
+            byte[] chunk = new byte[1024 * 1024]
+            for (int i = 0; i < 101; i++) {
+                out.write(chunk)
             }
+        }
 
-            ${fail ? """
-                    if(count <= ${timesFailing}) {
-                        try {
-                            Thread.sleep(2000);
-                        } catch(Exception e) {}
-                        Assert.fail();
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").buildAndFail()
+
+        then:
+        result.output.contains("Failed test history file too large")
+    }
+
+    def "ignores unknown fields in history file"() {
+        given:
+        simpleTestSetup()
+        file(".failed-test-history.json") << '''
+{
+  "successfulTasks": [":subproject1:test"],
+  "successfulTests": {},
+  "workUnits": [],
+  "executedTestTasks": [":subproject1:test", ":subproject2:test"],
+  "unknownField": "ignored"
+}'''
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "non-test task paths in successfulTasks are harmless"() {
+        given:
+        simpleTestSetup()
+        file(".failed-test-history.json") << '''
+{
+  "successfulTasks": [":subproject1:compileJava", ":subproject2:assemble"]
+}'''
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "task in successfulTasks takes precedence over successfulTests"() {
+        given:
+        simpleTestSetup()
+        // Task is in both successfulTasks (skip entirely) and successfulTests (exclude tests).
+        // successfulTasks should win — skip the whole task.
+        writeHistory(
+            [":subproject1:test"],
+            [":subproject1:test": ["org.acme.SubProject1TestClazz1#someTest1"]]
+        )
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+    }
+
+    boolean testExecuted(String output, String testReference) {
+        output.contains(testReference + " STARTED")
+    }
+
+    boolean testNotExecuted(String output, String testReference) {
+        output.contains(testReference) == false
+    }
+
+    private File writeHistory(List<String> successfulTasks, Map<String, List<String>> successfulTests) {
+        def tasksJson = successfulTasks.collect { "\"$it\"" }.join(", ")
+        def testsEntries = successfulTests.collect { taskPath, tests ->
+            def testsJson = tests.collect { "\"$it\"" }.join(", ")
+            "\"$taskPath\": [$testsJson]"
+        }.join(", ")
+        file(".failed-test-history.json") << """
+{
+  "successfulTasks": [$tasksJson],
+  "successfulTests": {$testsEntries}
+}
+"""
+    }
+
+    void simpleTestSetup() {
+        buildFile << """
+        allprojects {
+                apply plugin: 'java'
+                apply plugin: 'elasticsearch.internal-test-rerun'
+
+                repositories {
+                    mavenCentral()
+                }
+
+                dependencies {
+                    testImplementation 'junit:junit:4.13.1'
+                }
+
+                tasks.named("test").configure {
+                    testLogging {
+                        events("started", "skipped")
                     }
-                    """ : ''
+                }
             }
-        """
-    }
-
-    private File createSystemExitTest(String clazzName, timesFailing = 1) {
-        createTest(clazzName, testMethodContent(true, false, timesFailing))
-    }
-    private File createFailedTest(String clazzName) {
-        createTest(clazzName, testMethodContent(false, true, 1))
-    }
-
-    private File createTest(String clazzName, String content = testMethodContent(false, false, 1)) {
-        file("src/test/java/org/acme/${clazzName}.java") << """
-            import org.junit.Test;
-            import org.junit.Before;
-            import org.junit.After;
-            import org.junit.Assert;
-            import java.nio.*;
-            import java.nio.file.*;
-            import java.io.IOException;
-
-            public class $clazzName {
-                Path executionLogPath = Paths.get("test-executions" + getClass().getSimpleName() +".log");
-
-                @Before
-                public void beforeTest() {
-                    logExecution();
-                }
-
-                @After
-                public void afterTest() {
-                }
-
-                @Test
-                public void someTest() {
-                    ${content}
-                }
-
-                int countExecutions() {
-                    try {
-                        return Files.readAllLines(executionLogPath).size();
-                    }
-                    catch(IOException e) {
-                        return 0;
-                    }
-                }
-
-                void logExecution() {
-                    try {
-                        Files.write(executionLogPath, "Test executed\\n".getBytes(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-                    } catch (IOException e) {
-                        // exception handling
-                    }
-                }
-            }
-        """
+            """
+        subProject(":subproject1") {
+            createTest("SubProject1TestClazz1")
+            createTest("SubProject1TestClazz2")
+        }
+        subProject(":subproject2") {
+            createTest("SubProject2TestClazz1")
+            createTest("SubProject2TestClazz2")
+        }
     }
 }

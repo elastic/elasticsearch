@@ -12,14 +12,13 @@ package org.elasticsearch.search.aggregations.support;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -40,7 +39,7 @@ public class MissingValuesTests extends ESTestCase {
             }
             Arrays.sort(values[i]);
         }
-        SortedBinaryDocValues asBinaryValues = new SortedBinaryDocValues() {
+        SortedBinaryDocValues asBinaryValues = new SortedBinaryDocValues(null) {
 
             int doc = -1;
             int i;
@@ -254,7 +253,7 @@ public class MissingValuesTests extends ESTestCase {
             }
             Arrays.sort(values[i]);
         }
-        SortedNumericDocValues asNumericValues = new AbstractSortedNumericDocValues() {
+        SortedNumericLongValues asNumericValues = new SortedNumericLongValues(null) {
 
             int doc = -1;
             int i;
@@ -277,7 +276,7 @@ public class MissingValuesTests extends ESTestCase {
             }
         };
         final long missing = randomInt();
-        SortedNumericDocValues withMissingReplaced = MissingValues.replaceMissing(asNumericValues, missing);
+        SortedNumericLongValues withMissingReplaced = MissingValues.replaceMissing(asNumericValues, missing);
         for (int i = 0; i < numDocs; ++i) {
             assertTrue(withMissingReplaced.advanceExact(i));
             if (values[i].length > 0) {
@@ -302,7 +301,7 @@ public class MissingValuesTests extends ESTestCase {
             }
             Arrays.sort(values[i]);
         }
-        SortedNumericDoubleValues asNumericValues = new SortedNumericDoubleValues() {
+        SortedNumericDoubleValues asNumericValues = new SortedNumericDoubleValues(null) {
 
             int doc = -1;
             int i;

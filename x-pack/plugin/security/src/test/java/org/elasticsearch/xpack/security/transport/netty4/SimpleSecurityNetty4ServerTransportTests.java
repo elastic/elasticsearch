@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -62,7 +63,6 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
@@ -175,13 +175,14 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
     }
 
     public void testConnectException() throws UnknownHostException {
+        final InetAddress loopback = InetAddress.getLoopbackAddress();
         final ConnectTransportException e = connectToNodeExpectFailure(
             serviceA,
-            DiscoveryNodeUtils.create("C", new TransportAddress(InetAddress.getByName("localhost"), 9876), emptyMap(), emptySet()),
+            DiscoveryNodeUtils.create("C", new TransportAddress(loopback, 9876), emptyMap(), emptySet()),
             null
         );
         assertThat(e.getMessage(), containsString("connect_exception"));
-        assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
+        assertThat(e.getMessage(), containsString("[" + NetworkAddress.format(loopback, 9876) + "]"));
         Throwable cause = ExceptionsHelper.unwrap(e, IOException.class);
         assertThat(cause, instanceOf(IOException.class));
     }
@@ -217,7 +218,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         final SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
         final SocketFactory factory = sslProfile.socketFactory();
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
-            SocketAccess.doPrivileged(() -> socket.connect(serviceA.boundAddress().publishAddress().address()));
+            socket.connect(serviceA.boundAddress().publishAddress().address());
 
             CountDownLatch handshakeLatch = new CountDownLatch(1);
             HandshakeCompletedListener firstListener = event -> handshakeLatch.countDown();
@@ -288,11 +289,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             }));
             sslServerSocket.setSSLParameters(sslParameters);
 
-            SocketAccess.doPrivileged(() -> sslServerSocket.bind(getLocalEphemeral()));
+            sslServerSocket.bind(getLocalEphemeral());
 
             new Thread(() -> {
                 try {
-                    SSLSocket acceptedSocket = (SSLSocket) SocketAccess.doPrivileged(sslServerSocket::accept);
+                    SSLSocket acceptedSocket = (SSLSocket) sslServerSocket.accept();
 
                     // A read call will execute the handshake
                     int byteRead = acceptedSocket.getInputStream().read();
@@ -304,7 +305,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 }
             }).start();
 
-            InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
+            InetSocketAddress serverAddress = (InetSocketAddress) sslServerSocket.getLocalSocketAddress();
 
             Settings settings = Settings.builder().put("xpack.security.transport.ssl.verification_mode", "none").build();
             try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, settings)) {
@@ -337,18 +338,18 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         final String sniIp = "invalid_hostname";
 
         try (SSLServerSocket sslServerSocket = (SSLServerSocket) serverSocketFactory.createServerSocket()) {
-            SocketAccess.doPrivileged(() -> sslServerSocket.bind(getLocalEphemeral()));
+            sslServerSocket.bind(getLocalEphemeral());
 
             new Thread(() -> {
                 try {
-                    SocketAccess.doPrivileged(sslServerSocket::accept);
+                    sslServerSocket.accept();
                 } catch (IOException e) {
                     // We except an IOException from the `accept` call because the server socket will be
                     // closed before the call returns.
                 }
             }).start();
 
-            InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
+            InetSocketAddress serverAddress = (InetSocketAddress) sslServerSocket.getLocalSocketAddress();
 
             Settings settings = Settings.builder().put("xpack.security.transport.ssl.verification_mode", "none").build();
             try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, settings)) {
@@ -869,7 +870,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             new Thread(() -> {
                 SSLSocket acceptedSocket = null;
                 try {
-                    acceptedSocket = (SSLSocket) SocketAccess.doPrivileged(socket::accept);
+                    acceptedSocket = (SSLSocket) socket.accept();
                     // A read call will execute the ssl handshake
                     int byteRead = acceptedSocket.getInputStream().read();
                     assertEquals('E', byteRead);
@@ -1007,7 +1008,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 .version(version0)
                 .build();
             Thread t = new Thread(() -> {
-                try (Socket accept = SocketAccess.doPrivileged(socket::accept)) {
+                try (Socket accept = socket.accept()) {
                     // A read call will execute the ssl handshake
                     int byteRead = accept.getInputStream().read();
                     assertEquals('E', byteRead);

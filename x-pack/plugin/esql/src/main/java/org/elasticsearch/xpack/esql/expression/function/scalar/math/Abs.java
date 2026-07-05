@@ -10,25 +10,46 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
 
 public class Abs extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Abs", Abs::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Abs.class)
+        .unary(Abs::new)
+        .capabilities(
+            // Produce a {@code warning} and {@code null} when you run {@code ABS} on {@code Long.MIN_VALUE}.
+            "min_warning"
+        )
+        .name("abs");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(Abs::new)
+        .description("Returns the input vector with all sample values converted to their absolute value.")
+        .example("abs(rate(http_requests_total[5m]))")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(
+            "For the minimum `integer` or `long` value, whose absolute value cannot be represented, {{es}} returns "
+                + "`null` and emits a warning. Prometheus, which operates on floating-point values, returns the "
+                + "absolute value instead."
+        )
+        .name("abs");
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Returns the absolute value of a number.",
         description = "Returns the absolute value.",
         examples = { @Example(file = "math", tag = "abs"), @Example(file = "math", tag = "abs-employees") }
     )
@@ -57,12 +78,12 @@ public class Abs extends UnaryScalarFunction {
         return Math.abs(fieldVal);
     }
 
-    @Evaluator(extraName = "Long")
+    @Evaluator(extraName = "Long", warnExceptions = { ArithmeticException.class })
     static long process(long fieldVal) {
         return Math.absExact(fieldVal);
     }
 
-    @Evaluator(extraName = "Int")
+    @Evaluator(extraName = "Int", warnExceptions = { ArithmeticException.class })
     static int process(int fieldVal) {
         return Math.absExact(fieldVal);
     }

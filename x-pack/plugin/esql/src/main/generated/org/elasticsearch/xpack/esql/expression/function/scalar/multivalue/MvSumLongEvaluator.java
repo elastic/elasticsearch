@@ -10,13 +10,13 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSum}.
+ * {@link ExpressionEvaluator} implementation for {@link MvSum}.
  * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvSumLongEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
@@ -26,8 +26,7 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
 
   private Warnings warnings;
 
-  public MvSumLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      DriverContext driverContext) {
+  public MvSumLongEvaluator(Source source, ExpressionEvaluator field, DriverContext driverContext) {
     super(driverContext, field);
     this.source = source;
   }
@@ -72,12 +71,7 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
@@ -87,12 +81,12 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
     return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+    public Factory(Source source, ExpressionEvaluator.Factory field) {
       this.source = source;
       this.field = field;
     }

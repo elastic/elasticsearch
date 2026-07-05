@@ -62,7 +62,7 @@ public class ECSJsonLayout {
                 new KeyValuePair("elasticsearch.cluster.uuid", "%cluster_id"),
                 new KeyValuePair("elasticsearch.node.id", "%node_id"),
                 new KeyValuePair("elasticsearch.node.name", "%ESnode_name"),
-                new KeyValuePair("elasticsearch.cluster.name", "${sys:es.logs.cluster_name}"), };
+                new KeyValuePair("elasticsearch.cluster.name", "%EScluster_name"), };
         }
 
         public String getDataset() {

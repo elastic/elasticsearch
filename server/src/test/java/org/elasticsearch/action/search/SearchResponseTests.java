@@ -21,6 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -32,6 +34,7 @@ import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -230,7 +233,6 @@ public class SearchResponseTests extends ESTestCase {
                 failedShards = 5;
                 failed--;
             } else {
-                failedShards = 0;
                 throw new IllegalStateException("Test setup coding error - should not get here");
             }
             String clusterAlias = "";
@@ -261,10 +263,12 @@ public class SearchResponseTests extends ESTestCase {
      */
     public void testFromXContent() throws IOException {
         var response = createTestItem();
+        Suggest suggestForRelease = response.getSuggest();
         try {
             doFromXContentTestWithRandomFields(response, false);
         } finally {
             response.decRef();
+            SuggestTests.decRefCompletionOptionTestFactoryRefs(suggestForRelease);
         }
     }
 
@@ -329,12 +333,14 @@ public class SearchResponseTests extends ESTestCase {
         }
         BytesReference originalBytes;
         SearchResponse response = createTestItem(failures);
+        Suggest suggestForRelease = response.getSuggest();
         XContentType xcontentType = randomFrom(XContentType.values());
         try {
             final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
             originalBytes = toShuffledXContent(ChunkedToXContent.wrapAsToXContent(response), xcontentType, params, randomBoolean());
         } finally {
             response.decRef();
+            SuggestTests.decRefCompletionOptionTestFactoryRefs(suggestForRelease);
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
@@ -406,7 +412,7 @@ public class SearchResponseTests extends ESTestCase {
                         "hits": [ { "_id": "id1", "_score": 2.0 } ]
                       }
                     }""");
-                assertEquals(expectedString, Strings.toString(response));
+                assertEquals(expectedString, Strings.toTruncatedString(response));
             } finally {
                 response.decRef();
             }
@@ -456,7 +462,7 @@ public class SearchResponseTests extends ESTestCase {
                         "hits": [ { "_id": "id1", "_score": 2.0 } ]
                       }
                     }""");
-                assertEquals(expectedString, Strings.toString(response));
+                assertEquals(expectedString, Strings.toTruncatedString(response));
             } finally {
                 response.decRef();
             }
@@ -600,7 +606,7 @@ public class SearchResponseTests extends ESTestCase {
                         ]
                       }
                     }""");
-                assertEquals(expectedString, Strings.toString(response));
+                assertEquals(expectedString, Strings.toTruncatedString(response));
             } finally {
                 response.decRef();
             }
@@ -610,6 +616,7 @@ public class SearchResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         SearchResponse searchResponse = createTestItem(false);
+        Suggest suggestForRelease = searchResponse.getSuggest();
         try {
             SearchResponse deserialized = copyWriteable(
                 searchResponse,
@@ -635,7 +642,60 @@ public class SearchResponseTests extends ESTestCase {
             }
         } finally {
             searchResponse.decRef();
+            SuggestTests.decRefCompletionOptionTestFactoryRefs(suggestForRelease);
         }
+    }
+
+    public void testDirectoryMetricsSerializationRoundTrip() throws IOException {
+        long bytesRead = randomNonNegativeLong();
+        SearchResponse searchResponse = createMinimalTestItem();
+        searchResponse.setDirectoryMetrics(storeMetrics(bytesRead));
+        try {
+            SearchResponse deserialized = copyWriteable(
+                searchResponse,
+                metricsAwareRegistry(),
+                SearchResponse::new,
+                TransportVersion.current()
+            );
+            try {
+                assertEquals(
+                    bytesRead,
+                    deserialized.getDirectoryMetrics().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead()
+                );
+            } finally {
+                deserialized.decRef();
+            }
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    public void testDirectoryMetricsDroppedForOlderTransportVersion() throws IOException {
+        SearchResponse searchResponse = createMinimalTestItem();
+        searchResponse.setDirectoryMetrics(storeMetrics(randomNonNegativeLong()));
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(SearchResponse.SEARCH_DIRECTORY_METRICS);
+        try {
+            SearchResponse deserialized = copyWriteable(searchResponse, metricsAwareRegistry(), SearchResponse::new, oldVersion);
+            try {
+                assertTrue(deserialized.getDirectoryMetrics().isEmpty());
+            } finally {
+                deserialized.decRef();
+            }
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    private static DirectoryMetrics storeMetrics(long bytesRead) {
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(StoreMetrics.NAME, new StoreMetrics(bytesRead));
+        return builder.build();
+    }
+
+    private NamedWriteableRegistry metricsAwareRegistry() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+        entries.add(new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, StoreMetrics.NAME, StoreMetrics::new));
+        return new NamedWriteableRegistry(entries);
     }
 
     public void testToXContentEmptyClusters() throws IOException {

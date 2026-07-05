@@ -45,17 +45,17 @@ public final class SSLConfigurationReloader {
         }
     };
 
-    public SSLConfigurationReloader(ResourceWatcherService resourceWatcherService, Collection<SslConfiguration> sslConfigurations) {
-        startWatching(reloadConsumer(sslServiceFuture), resourceWatcherService, sslConfigurations);
+    public SSLConfigurationReloader(ResourceWatcherService resourceWatcherService, SSLService.LoadedSslConfigurations sslConfiguration) {
+        startWatching(reloadConsumer(sslServiceFuture), resourceWatcherService, sslConfiguration);
     }
 
     // for testing
     SSLConfigurationReloader(
         Consumer<SslConfiguration> reloadConsumer,
         ResourceWatcherService resourceWatcherService,
-        Collection<SslConfiguration> sslConfigurations
+        SSLService.LoadedSslConfigurations sslConfiguration
     ) {
-        startWatching(reloadConsumer, resourceWatcherService, sslConfigurations);
+        startWatching(reloadConsumer, resourceWatcherService, sslConfiguration);
     }
 
     public void setSSLService(SSLService sslService) {
@@ -84,10 +84,10 @@ public final class SSLConfigurationReloader {
     private static void startWatching(
         Consumer<SslConfiguration> reloadConsumer,
         ResourceWatcherService resourceWatcherService,
-        Collection<SslConfiguration> sslConfigurations
+        SSLService.LoadedSslConfigurations sslConfigurations
     ) {
         Map<Path, List<SslConfiguration>> pathToConfigurationsMap = new HashMap<>();
-        for (SslConfiguration sslConfiguration : sslConfigurations) {
+        for (SslConfiguration sslConfiguration : sslConfigurations.configurations()) {
             final Collection<Path> filesToMonitor = sslConfiguration.getDependentFiles();
             for (Path file : filesToMonitor) {
                 pathToConfigurationsMap.compute(file, (path, list) -> {

@@ -42,95 +42,95 @@ import static org.elasticsearch.entitlement.qa.test.FileCheckActions.readWriteFi
 @SuppressWarnings({ "unused" /* called via reflection */ })
 class NioFilesActions {
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void filesGetOwner() throws IOException {
         Files.getOwner(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void filesProbeContentType() throws IOException {
         Files.probeContentType(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void filesSetOwner() throws IOException {
         UserPrincipal owner = EntitledActions.getFileOwner(readWriteFile());
         Files.setOwner(readWriteFile(), owner); // set to existing owner, just trying to execute the method
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewInputStream() throws IOException {
         Files.newInputStream(readFile()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewOutputStream() throws IOException {
         Files.newOutputStream(readWriteFile()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewByteChannelRead() throws IOException {
         Files.newByteChannel(readFile(), Set.of(StandardOpenOption.READ)).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewByteChannelWrite() throws IOException {
         Files.newByteChannel(readWriteFile(), Set.of(StandardOpenOption.WRITE)).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewByteChannelReadVarargs() throws IOException {
         Files.newByteChannel(readFile(), StandardOpenOption.READ).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewByteChannelWriteVarargs() throws IOException {
         Files.newByteChannel(readWriteFile(), StandardOpenOption.WRITE).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewDirectoryStream() throws IOException {
         Files.newDirectoryStream(FileCheckActions.readDir()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewDirectoryStreamGlob() throws IOException {
         Files.newDirectoryStream(FileCheckActions.readDir(), "*").close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewDirectoryStreamFilter() throws IOException {
         Files.newDirectoryStream(FileCheckActions.readDir(), entry -> false).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCreateFile() throws IOException {
         Files.createFile(readWriteDir().resolve("file.txt"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCreateDirectory() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         Files.createDirectory(directory.resolve("subdir"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCreateDirectories() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         Files.createDirectories(directory.resolve("subdir").resolve("subsubdir"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCreateTempFileInDir() throws IOException {
         Files.createTempFile(readWriteDir(), "prefix", "suffix");
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCreateTempDirectoryInDir() throws IOException {
         Files.createTempDirectory(readWriteDir(), "prefix");
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCreateSymbolicLink() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         try {
@@ -140,7 +140,7 @@ class NioFilesActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCreateRelativeSymbolicLink() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         try {
@@ -150,7 +150,7 @@ class NioFilesActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCreateLink() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         try {
@@ -160,7 +160,7 @@ class NioFilesActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCreateRelativeLink() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         var target = directory.resolve("target");
@@ -171,75 +171,75 @@ class NioFilesActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesDelete() throws IOException {
         var file = EntitledActions.createTempFileForWrite();
         Files.delete(file);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesDeleteIfExists() throws IOException {
         var file = EntitledActions.createTempFileForWrite();
         Files.deleteIfExists(file);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesReadSymbolicLink() throws IOException {
         var link = EntitledActions.createTempSymbolicLink();
         Files.readSymbolicLink(link);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCopy() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         Files.copy(readFile(), directory.resolve("copied"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesMove() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         var file = EntitledActions.createTempFileForWrite();
         Files.move(file, directory.resolve("moved"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesIsSameFile() throws IOException {
         Files.isSameFile(readWriteFile(), readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesMismatch() throws IOException {
         Files.mismatch(readWriteFile(), readFile());
     }
 
     @SuppressForbidden(reason = "testing entitlements on this API specifically")
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesIsHidden() throws IOException {
         Files.isHidden(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesGetFileStore() throws IOException {
         var file = EntitledActions.createTempFileForRead();
         Files.getFileStore(file);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void checkFilesGetFileAttributeView() {
-        Files.getFileAttributeView(readFile(), FileOwnerAttributeView.class);
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedDefaultNull = true)
+    static FileOwnerAttributeView checkFilesGetFileAttributeView() {
+        return Files.getFileAttributeView(readFile(), FileOwnerAttributeView.class);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesReadAttributesWithClass() throws IOException {
         Files.readAttributes(readFile(), BasicFileAttributes.class);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesReadAttributesWithString() throws IOException {
         Files.readAttributes(readFile(), "*");
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesGetAttribute() throws IOException {
         try {
             Files.getAttribute(readFile(), "dos:hidden");
@@ -248,7 +248,7 @@ class NioFilesActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesSetAttribute() throws IOException {
         var file = EntitledActions.createTempFileForWrite();
         try {
@@ -258,7 +258,7 @@ class NioFilesActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesGetPosixFilePermissions() throws IOException {
         try {
             Files.getPosixFilePermissions(readFile());
@@ -267,7 +267,7 @@ class NioFilesActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesSetPosixFilePermissions() throws IOException {
         var file = EntitledActions.createTempFileForWrite();
         try {
@@ -277,68 +277,68 @@ class NioFilesActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkFilesIsSymbolicLink() {
-        Files.isSymbolicLink(readFile());
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsSymbolicLink() {
+        return Files.isSymbolicLink(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkFilesIsDirectory() {
-        Files.isDirectory(readFile());
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsDirectory() {
+        return Files.isDirectory(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkFilesIsRegularFile() {
-        Files.isRegularFile(readFile());
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsRegularFile() {
+        return Files.isRegularFile(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesGetLastModifiedTime() throws IOException {
         Files.getLastModifiedTime(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesSetLastModifiedTime() throws IOException {
         var file = EntitledActions.createTempFileForWrite();
         Files.setLastModifiedTime(file, FileTime.from(Instant.now()));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesSize() throws IOException {
         Files.size(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkFilesExists() {
-        Files.exists(readFile());
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesExists() {
+        return Files.exists(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkFilesNotExists() {
-        Files.notExists(readFile());
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesNotExists() {
+        return Files.notExists(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkFilesIsReadable() {
-        Files.isReadable(readFile());
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsReadable() {
+        return Files.isReadable(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkFilesIsWriteable() {
-        Files.isWritable(readFile());
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsWritable() {
+        return Files.isWritable(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkFilesIsExecutable() {
-        Files.isExecutable(readFile());
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsExecutable() {
+        return Files.isExecutable(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesWalkFileTree() throws IOException {
         Files.walkFileTree(readDir(), dummyVisitor());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesWalkFileTreeWithOptions() throws IOException {
         Files.walkFileTree(readDir(), Set.of(FileVisitOption.FOLLOW_LINKS), 2, dummyVisitor());
     }
@@ -367,112 +367,112 @@ class NioFilesActions {
         };
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewBufferedReader() throws IOException {
         Files.newBufferedReader(readFile()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewBufferedReaderWithCharset() throws IOException {
         Files.newBufferedReader(readFile(), Charset.defaultCharset()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewBufferedWriter() throws IOException {
         Files.newBufferedWriter(readWriteFile(), StandardOpenOption.WRITE).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesNewBufferedWriterWithCharset() throws IOException {
         Files.newBufferedWriter(readWriteFile(), Charset.defaultCharset(), StandardOpenOption.WRITE).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCopyInputStream() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         Files.copy(new ByteArrayInputStream("foo".getBytes(StandardCharsets.UTF_8)), directory.resolve("copied"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesCopyOutputStream() throws IOException {
         Files.copy(readFile(), new ByteArrayOutputStream());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesReadAllBytes() throws IOException {
         Files.readAllBytes(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesReadString() throws IOException {
         Files.readString(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesReadStringWithCharset() throws IOException {
         Files.readString(readFile(), Charset.defaultCharset());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesReadAllLines() throws IOException {
         Files.readAllLines(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesReadAllLinesWithCharset() throws IOException {
         Files.readAllLines(readFile(), Charset.defaultCharset());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesWrite() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         Files.writeString(directory.resolve("file"), "foo");
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesWriteLines() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         Files.write(directory.resolve("file"), List.of("foo"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesWriteString() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         Files.writeString(directory.resolve("file"), "foo");
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesWriteStringWithCharset() throws IOException {
         var directory = EntitledActions.createTempDirectoryForWrite();
         Files.writeString(directory.resolve("file"), "foo", Charset.defaultCharset());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesList() throws IOException {
         Files.list(readDir()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesWalk() throws IOException {
         Files.walk(readDir()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesWalkWithDepth() throws IOException {
         Files.walk(readDir(), 2).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesFind() throws IOException {
         Files.find(readDir(), 2, (path, basicFileAttributes) -> false).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesLines() throws IOException {
         Files.lines(readFile()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkFilesLinesWithCharset() throws IOException {
         Files.lines(readFile(), Charset.defaultCharset()).close();
     }

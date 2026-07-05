@@ -21,7 +21,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -45,7 +44,7 @@ public class FullClusterRestartArchivedSettingsIT extends ParameterizedFullClust
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(Version.fromString(OLD_CLUSTER_VERSION))
+        .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
         .nodes(2)
         .setting("path.repo", () -> repoDirectory.getRoot().getPath())
         .setting("xpack.security.enabled", "false")
@@ -67,7 +66,7 @@ public class FullClusterRestartArchivedSettingsIT extends ParameterizedFullClust
         return cluster;
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // this test is just about v8->v9 upgrades, remove it in v10
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // this test is just about v8->v9 upgrades, remove it in v10
     public void testBalancedShardsAllocatorThreshold() throws Exception {
         assumeTrue("test only applies for v8->v9 upgrades", getOldClusterTestVersion().getMajor() == 8);
 

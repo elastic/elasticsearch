@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -855,6 +856,32 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
                 new AliasAction.Add("test2", "alias", null, null, null, null, isHidden2)
             )
         );
+    }
+
+    public void testCreateAliasWithDatasetNameThrows() {
+        // The alias-creation lookup must see datasets alongside indices, data streams, and views. Without the
+        // dataset branch, an alias whose name collides with a dataset bypasses the clean InvalidAliasNameException
+        // and either silently succeeds or fails with a generic IllegalStateException from ensureNoNameCollisions.
+        String datasetName = "collides-with-alias";
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .datasets(
+                        Map.of(datasetName, new Dataset(datasetName, new DataSourceReference("my-ds"), "path/to/resource", null, Map.of()))
+                    )
+                    .build()
+            )
+            .build();
+        before = createIndex(before, "some-index");
+        ClusterState withState = before;
+        InvalidAliasNameException ex = expectThrows(
+            InvalidAliasNameException.class,
+            () -> service.applyAliasActions(
+                withState.projectState(projectId),
+                singletonList(new AliasAction.Add("some-index", datasetName, null, null, null, null, null))
+            )
+        );
+        assertThat(ex.getMessage(), containsString(datasetName));
     }
 
     private ClusterState createIndex(ClusterState state, String index) {

@@ -13,7 +13,9 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.ReferenceDocs;
 
 /**
  * This {@link AllocationDecider} prevents shards that have failed to be
@@ -49,15 +51,34 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
                 return allocation.decision(Decision.YES, NAME, "shard is currently being restored");
             }
         }
-        return allocation.decision(
-            Decision.NO,
-            NAME,
-            "shard has failed to be restored from the snapshot [%s] - manually close or delete the index [%s] in order to retry "
-                + "to restore the snapshot again or use the reroute API to force the allocation of an empty primary shard. Details: [%s]",
-            source.snapshot(),
-            shardRouting.getIndexName(),
-            shardRouting.unassignedInfo().details()
-        );
+
+        /**
+         * POST: the RestoreInProgress.Entry is non-existent. This section differentiates between a restore that failed
+         * because of a indexing fault (see {@link AllocationService.applyFailedShards}) or because of an allocation
+         * failure.
+         */
+        UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+        if (unassignedInfo.failedAllocations() > 0) {
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "shard has failed to be restored from the snapshot [%s] - manually close or delete the index [%s] in order to retry "
+                    + "to restore the snapshot again or use the reroute API to force the allocation of an empty primary shard. Check the "
+                    + "logs for more information about the failure. Details: [%s]",
+                source.snapshot(),
+                shardRouting.getIndexName(),
+                unassignedInfo.details()
+            );
+        } else {
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "Restore from snapshot failed because the configured constraints prevented allocation on any of the available nodes. "
+                    + "Please check constraints applied in index and cluster settings, then retry the restore. "
+                    + "See [%s] for more details on using the allocation explain API.",
+                ReferenceDocs.ALLOCATION_EXPLAIN_API
+            );
+        }
     }
 
     @Override

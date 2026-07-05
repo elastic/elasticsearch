@@ -8,30 +8,33 @@
 package org.elasticsearch.xpack.inference.services.huggingface.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 
-public class HuggingFaceRerankTaskSettings implements TaskSettings {
+public class HuggingFaceRerankTaskSettings implements TaskSettings, TopNProvider {
 
     public static final String NAME = "hugging_face_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
     public static final String TOP_N_DOCS_ONLY = "top_n";
 
     static final HuggingFaceRerankTaskSettings EMPTY_SETTINGS = new HuggingFaceRerankTaskSettings(null, null);
+
+    private static final TransportVersion ML_INFERENCE_HUGGING_FACE_RERANK_ADDED = TransportVersion.fromName(
+        "ml_inference_hugging_face_rerank_added"
+    );
 
     public static HuggingFaceRerankTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -48,9 +51,7 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return of(topNDocumentsOnly, returnDocuments);
     }
@@ -119,13 +120,12 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED;
+        return ML_INFERENCE_HUGGING_FACE_RERANK_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED)
-            || version.isPatchFrom(TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED_8_19);
+        return version.supports(ML_INFERENCE_HUGGING_FACE_RERANK_ADDED);
     }
 
     @Override
@@ -151,13 +151,18 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
         return topNDocumentsOnly;
     }
 
+    @Override
+    public Integer getTopN() {
+        return getTopNDocumentsOnly();
+    }
+
     public Boolean getReturnDocuments() {
         return returnDocuments;
     }
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        HuggingFaceRerankTaskSettings updatedSettings = HuggingFaceRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        HuggingFaceRerankTaskSettings updatedSettings = HuggingFaceRerankTaskSettings.fromMap(newSettings);
         return HuggingFaceRerankTaskSettings.of(this, updatedSettings);
     }
 }

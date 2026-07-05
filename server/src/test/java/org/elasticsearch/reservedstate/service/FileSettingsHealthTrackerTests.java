@@ -10,13 +10,12 @@
 package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
+import org.elasticsearch.health.node.FileSettingsHealthInfo;
+import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker.DESCRIPTION_LENGTH_LIMIT_KEY;
-import static org.elasticsearch.reservedstate.service.FileSettingsServiceTests.NOOP_PUBLISHER;
+import static org.elasticsearch.health.node.tracker.FileSettingsHealthTracker.DESCRIPTION_LENGTH_LIMIT_KEY;
 
 /**
  * Here, we test {@link FileSettingsHealthTracker} in isolation;
@@ -28,7 +27,7 @@ public class FileSettingsHealthTrackerTests extends ESTestCase {
 
     @Before
     public void initialize() {
-        healthTracker = new FileSettingsHealthTracker(Settings.EMPTY, NOOP_PUBLISHER);
+        healthTracker = new FileSettingsHealthTracker(Settings.EMPTY);
     }
 
     public void testStartAndStop() {
@@ -64,10 +63,7 @@ public class FileSettingsHealthTrackerTests extends ESTestCase {
     }
 
     private void checkTruncatedDescription(int lengthLimit, String description, String expectedTruncatedDescription) {
-        var tracker = new FileSettingsHealthTracker(
-            Settings.builder().put(DESCRIPTION_LENGTH_LIMIT_KEY, lengthLimit).build(),
-            NOOP_PUBLISHER
-        );
+        var tracker = new FileSettingsHealthTracker(Settings.builder().put(DESCRIPTION_LENGTH_LIMIT_KEY, lengthLimit).build());
         tracker.startOccurred();
         tracker.changeOccurred();
         tracker.failureOccurred(description);

@@ -6,16 +6,11 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter;
@@ -41,34 +36,6 @@ public class CursorTests extends ESTestCase {
         cursor.clear(clientMock, future);
         assertFalse(future.actionGet());
         verifyNoMoreInteractions(clientMock);
-    }
-
-    public void testHistoricVersionHandling() {
-        Cursor cursor = randomSearchHitCursor();
-        assertEquals(cursor, decodeFromString(encodeToString(cursor, randomZone())));
-
-        // encoded with a different but compatible version
-        assertEquals(
-            cursor,
-            decodeFromString(encodeToString(cursor, TransportVersion.fromId(TransportVersion.current().id() + 1), randomZone()))
-        );
-
-        TransportVersion otherVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersionUtils.getFirstVersion(),
-            TransportVersions.V_8_7_0
-        );
-
-        String encodedWithWrongVersion = encodeToString(cursor, otherVersion, randomZone());
-        SqlIllegalArgumentException exception = expectThrows(
-            SqlIllegalArgumentException.class,
-            () -> decodeFromString(encodedWithWrongVersion)
-        );
-
-        assertEquals(
-            LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", otherVersion, TransportVersion.current()),
-            exception.getMessage()
-        );
     }
 
     private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(Cursors.getNamedWriteables());
@@ -118,23 +85,6 @@ public class CursorTests extends ESTestCase {
         assertEquals(cursor, decoded.v1());
         assertNull(decoded.v2());
         assertNull(Cursors.decodeFormatter(withFormatter));
-    }
-
-    public void testAttachingFormatterToCursorFromOtherVersion() {
-        Cursor cursor = randomSearchHitCursor();
-        ZoneId zone = randomZone();
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersionUtils.getFirstVersion(),
-            TransportVersions.V_8_7_0
-        );
-        String encoded = encodeToString(cursor, version, zone);
-
-        BasicFormatter formatter = randomFormatter();
-        String withFormatter = attachFormatter(encoded, formatter);
-
-        assertEquals(formatter, Cursors.decodeFormatter(withFormatter));
-        expectThrows(SqlIllegalArgumentException.class, () -> Cursors.decodeFromStringWithZone(withFormatter, WRITEABLE_REGISTRY));
     }
 
     private BasicFormatter randomFormatter() {

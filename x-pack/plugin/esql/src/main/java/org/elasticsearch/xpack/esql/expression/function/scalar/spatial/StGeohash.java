@@ -13,10 +13,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -48,6 +50,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         "StGeohash",
         StGeohash::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StGeohash.class).ternary(StGeohash::new).name("st_geohash");
 
     /**
      * When checking grid cells with bounds, we need to check if the cell is valid (intersects with the bounds).
@@ -114,16 +117,22 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     @FunctionInfo(
         returnType = "geohash",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        briefSummary = "Calculates the geohash of the supplied geo_point at the specified precision.",
         description = """
             Calculates the `geohash` of the supplied geo_point at the specified precision.
-            The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
-            [TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](#esql-to_geoshape) to calculate
-            the `geo_shape` bounding geometry.
+            The result is long encoded.
+            Use [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md)
+            to convert the result to a string,
+            [`TO_LONG`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_long.md)
+            to convert it to a `long`, or
+            [`TO_GEOSHAPE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape.md)
+            to calculate the `geo_shape` bounding geometry.
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
             and the [`geohash_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md).""",
-        examples = @Example(file = "spatial-grid", tag = "st_geohash-grid")
+        examples = @Example(file = "spatial-grid", tag = "st_geohash-grid"),
+        depthOffset = 1  // So this appears as a subsection of spatial grid functions
     )
     public StGeohash(
         Source source,
@@ -132,12 +141,13 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             type = { "geo_point" },
             description = "Expression of type `geo_point`. If `null`, the function returns `null`."
         ) Expression field,
-        @Param(name = "precision", type = { "integer" }, description = """
+        @Param(name = "precision", type = { "integer" }, hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT), description = """
             Expression of type `integer`. If `null`, the function returns `null`.
             Valid values are between [1 and 12](https://en.wikipedia.org/wiki/Geohash).""") Expression precision,
-        @Param(name = "bounds", type = { "geo_shape" }, description = """
-            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`.
-            Use [`ST_ENVELOPE`](#esql-st_envelope) if the `geo_shape` is of any other type.""", optional = true) Expression bounds
+        @Param(name = "bounds", type = { "geo_shape" }, hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT), description = """
+            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use
+            [`ST_ENVELOPE`](/reference/query-languages/esql/functions-operators/spatial-functions/st_envelope.md)
+            if the `geo_shape` is of any other type.""", optional = true) Expression bounds
     ) {
         this(source, field, precision, bounds, false);
     }
@@ -153,7 +163,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     @Override
     public SpatialGridFunction withDocValues(boolean useDocValues) {
         // Only update the docValues flags if the field is found in the attributes
-        boolean docValues = this.spatialDocsValues || useDocValues;
+        boolean docValues = this.spatialDocValues || useDocValues;
         return new StGeohash(source(), spatialField, parameter, bounds, docValues);
     }
 
@@ -178,7 +188,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (parameter().foldable() == false) {
             throw new IllegalArgumentException("precision must be foldable");
         }
@@ -189,7 +199,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoHashBoundedGrid.Factory bounds = new GeoHashBoundedGrid.Factory(precision, bbox);
-            return spatialDocsValues
+            return spatialDocValues
                 ? new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                     source(),
                     toEvaluator.apply(spatialField()),
@@ -198,7 +208,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
                 : new StGeohashFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
         } else {
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
-            return spatialDocsValues
+            return spatialDocValues
                 ? new StGeohashFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                 : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
         }
@@ -219,19 +229,19 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "FromFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock wkbBlock, @Fixed int precision) {
+    static void fromFieldAndLiteral(LongBlock.Builder results, @Position int p, BytesRefBlock wkbBlock, @Fixed int precision) {
         fromWKB(results, p, wkbBlock, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldDocValuesAndLiteral(LongBlock.Builder results, int p, LongBlock encoded, @Fixed int precision) {
+    static void fromFieldDocValuesAndLiteral(LongBlock.Builder results, @Position int p, LongBlock encoded, @Fixed int precision) {
         fromEncodedLong(results, p, encoded, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndLiteralAndLiteral(
         LongBlock.Builder results,
-        int p,
+        @Position int p,
         BytesRefBlock in,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoHashBoundedGrid bounds
     ) {
@@ -241,7 +251,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     @Evaluator(extraName = "FromFieldDocValuesAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndLiteralAndLiteral(
         LongBlock.Builder results,
-        int p,
+        @Position int p,
         LongBlock encoded,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoHashBoundedGrid bounds
     ) {

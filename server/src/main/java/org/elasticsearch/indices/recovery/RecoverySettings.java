@@ -26,6 +26,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -315,12 +316,14 @@ public class RecoverySettings {
      * recoveries that don't show any activity for more then this interval will be failed.
      * defaults to `indices.recovery.internal_action_long_timeout`
      */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer used
     public static final Setting<TimeValue> INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING = Setting.timeSetting(
         "indices.recovery.recovery_activity_timeout",
         INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING::get,
-        TimeValue.timeValueSeconds(0),
+        TimeValue.ZERO,
         Property.Dynamic,
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
 
     /**
@@ -413,7 +416,6 @@ public class RecoverySettings {
     private volatile SimpleRateLimiter rateLimiter;
     private volatile TimeValue retryDelayStateSync;
     private volatile TimeValue retryDelayNetwork;
-    private volatile TimeValue activityTimeout;
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
@@ -443,7 +445,6 @@ public class RecoverySettings {
         this.internalActionTimeout = INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.get(settings);
         this.internalActionRetryTimeout = INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING.get(settings);
         this.internalActionLongTimeout = INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.get(settings);
-        this.activityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
         this.useSnapshotsDuringRecovery = INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.get(settings);
         this.maxConcurrentSnapshotFileDownloads = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.get(settings);
         this.maxConcurrentSnapshotFileDownloadsPerNode = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.get(settings);
@@ -488,7 +489,6 @@ public class RecoverySettings {
             INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING,
             this::setInternalActionRetryTimeout
         );
-        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING, this::setUseSnapshotsDuringRecovery);
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS,
@@ -587,10 +587,6 @@ public class RecoverySettings {
         return retryDelayStateSync;
     }
 
-    public TimeValue activityTimeout() {
-        return activityTimeout;
-    }
-
     public TimeValue internalActionTimeout() {
         return internalActionTimeout;
     }
@@ -620,10 +616,6 @@ public class RecoverySettings {
 
     public void setRetryDelayNetwork(TimeValue retryDelayNetwork) {
         this.retryDelayNetwork = retryDelayNetwork;
-    }
-
-    public void setActivityTimeout(TimeValue activityTimeout) {
-        this.activityTimeout = activityTimeout;
     }
 
     public void setInternalActionTimeout(TimeValue internalActionTimeout) {

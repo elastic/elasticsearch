@@ -1,7 +1,7 @@
 {
   "esql.list_queries": {
     "documentation": {
-      "url": null,
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-list-queries",
       "description": "Get running ES|QL queries information"
     },
     "stability": "experimental",

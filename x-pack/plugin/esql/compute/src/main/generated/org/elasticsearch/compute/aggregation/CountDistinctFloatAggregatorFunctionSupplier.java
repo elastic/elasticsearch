@@ -34,13 +34,13 @@ public final class CountDistinctFloatAggregatorFunctionSupplier implements Aggre
   @Override
   public CountDistinctFloatAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return CountDistinctFloatAggregatorFunction.create(driverContext, channels, precision);
+    return new CountDistinctFloatAggregatorFunction(driverContext, channels, precision);
   }
 
   @Override
   public CountDistinctFloatGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return CountDistinctFloatGroupingAggregatorFunction.create(channels, driverContext, precision);
+    return new CountDistinctFloatGroupingAggregatorFunction(channels, driverContext, precision);
   }
 
   @Override

@@ -317,7 +317,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
 
         @Override
         public int hashCode() {
-            return Objects.hash(rounding, Arrays.hashCode(innerIntervals), dateTimeUnit);
+            return Objects.hash(rounding, Arrays.hashCode(innerIntervals), dateTimeUnit, roughEstimateDurationMillis, unitAbbreviation);
         }
 
         @Override
@@ -331,7 +331,9 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             RoundingInfo other = (RoundingInfo) obj;
             return Objects.equals(rounding, other.rounding)
                 && Objects.deepEquals(innerIntervals, other.innerIntervals)
-                && Objects.equals(dateTimeUnit, other.dateTimeUnit);
+                && Objects.equals(dateTimeUnit, other.dateTimeUnit)
+                && roughEstimateDurationMillis == other.roughEstimateDurationMillis
+                && Objects.equals(unitAbbreviation, other.unitAbbreviation);
         }
 
         @Override

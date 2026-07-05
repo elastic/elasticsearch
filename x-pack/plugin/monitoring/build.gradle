@@ -7,6 +7,7 @@ esplugin {
   description = 'Elasticsearch Expanded Pack Plugin - Monitoring'
   classname ='org.elasticsearch.xpack.monitoring.Monitoring'
   extendedPlugins = ['x-pack-core']
+  deploymentTarget = 'STATEFUL_ONLY'
 }
 base {
   archivesName = 'x-pack-monitoring'

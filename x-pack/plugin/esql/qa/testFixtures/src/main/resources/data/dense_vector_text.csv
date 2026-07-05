@@ -1,0 +1,4 @@
+_id:keyword,text_field:semantic_text,text_embedding_field:dense_vector
+1,live long and prosper,[50.0, 57.0, 56.0]
+2,all we have to decide is what to do with the time that is given to us, [45.0, 49.0, 57.0]
+3,be excellent to each other,[45.0, 55.0, 54.0]

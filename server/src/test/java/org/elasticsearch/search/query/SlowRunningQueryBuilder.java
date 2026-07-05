@@ -18,7 +18,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -34,7 +34,7 @@ import java.io.IOException;
  * The sleep can be specified to happen on all indices or only on a specified index.
  * After sleeping (if at all), it performs a MatchAll query.
  */
-public class SlowRunningQueryBuilder extends AbstractQueryBuilder<SlowRunningQueryBuilder> {
+public class SlowRunningQueryBuilder extends LeafQueryBuilder<SlowRunningQueryBuilder> {
 
     public static final String NAME = "slow";
 
@@ -95,7 +95,7 @@ public class SlowRunningQueryBuilder extends AbstractQueryBuilder<SlowRunningQue
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        final Query delegate = Queries.newMatchAllQuery();
+        final Query delegate = Queries.ALL_DOCS_INSTANCE;
         return new Query() {
             @Override
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {

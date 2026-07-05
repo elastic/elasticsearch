@@ -32,7 +32,8 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-ValueByTimestampAggregator.java.st` instead.
  */
 @Aggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "timestamps", type = "LONG"),
         @IntermediateState(name = "values", type = "BYTES_REF"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
@@ -171,7 +172,6 @@ public class LastBytesRefByTimestampAggregator {
             Releasables.close(timestamps, values, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());

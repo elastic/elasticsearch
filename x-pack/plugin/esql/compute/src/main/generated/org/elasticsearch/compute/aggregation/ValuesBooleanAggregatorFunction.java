@@ -30,16 +30,10 @@ public final class ValuesBooleanAggregatorFunction implements AggregatorFunction
 
   private final List<Integer> channels;
 
-  public ValuesBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesBooleanAggregator.SingleState state) {
+  ValuesBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesBooleanAggregatorFunction(driverContext, channels, ValuesBooleanAggregator.initSingle());
+    this.state = ValuesBooleanAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -66,6 +60,18 @@ public final class ValuesBooleanAggregatorFunction implements AggregatorFunction
     BooleanBlock vBlock = page.getBlock(channels.get(0));
     BooleanVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -76,6 +82,18 @@ public final class ValuesBooleanAggregatorFunction implements AggregatorFunction
     BooleanBlock vBlock = page.getBlock(channels.get(0));
     BooleanVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -101,11 +119,12 @@ public final class ValuesBooleanAggregatorFunction implements AggregatorFunction
 
   private void addRawBlock(BooleanBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
         ValuesBooleanAggregator.combine(state, vValue);
@@ -118,11 +137,12 @@ public final class ValuesBooleanAggregatorFunction implements AggregatorFunction
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
         ValuesBooleanAggregator.combine(state, vValue);
@@ -136,6 +156,15 @@ public final class ValuesBooleanAggregatorFunction implements AggregatorFunction
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block valuesUncast = page.getBlock(channels.get(0));
     if (valuesUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanBlock values = (BooleanBlock) valuesUncast;

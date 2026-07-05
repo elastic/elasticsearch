@@ -6,6 +6,10 @@ mapped_pages:
 
 # Leverage document-level security from connectors in Search Applications [es-dls-e2e-guide]
 
+:::{important}
+This page pertains to a specific implementation of DLS for Elastic content connectors.
+Refer to [controlling-access-at-document-field-level](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md) to learn about the {{es}} DLS feature.
+:::
 
 This guide explains how to ensure document-level security (DLS) for documents ingested by [Elastic connectors](/reference/search-connectors/index.md), when building a search application.
 
@@ -104,7 +108,7 @@ The access control index will contain documents similar to this example:
               },
               {
                 "terms": {
-                  "_allow_access_control.enum": {{#toJson}}access_control{{/toJson}}
+                  "_allow_access_control.keyword": {{#toJson}}access_control{{/toJson}}
                 }
               }
             ]
@@ -116,6 +120,11 @@ The access control index will contain documents similar to this example:
   }
 }
 ```
+% NOTCONSOLE
+
+::::{note}
+These examples use `_allow_access_control.keyword`, which is the default sub-field created by Elasticsearch's dynamic mapping for text fields. If you have defined a custom mapping for `_allow_access_control` (for example, mapping it directly as `keyword`), adjust the field name in the `terms` query accordingly.
+::::
 
 This document contains the Elasticsearch query that describes which documents the user `john@example.com` has access to. The access control information is stored in the `access_control` field. In this case the user has access only to documents that contain `"john@example.co"` or `"Engineering Members"` in the `_allow_access_control` field.
 
@@ -161,7 +170,7 @@ POST /_security/api_key
                     },
                     {
                       "terms": {
-                        "_allow_access_control.enum": {{#toJson}}access_control{{/toJson}}
+                        "_allow_access_control.keyword": {{#toJson}}access_control{{/toJson}}
                       }
                     }
                   ]
@@ -181,6 +190,7 @@ POST /_security/api_key
   }
 }
 ```
+% TEST[skip:TODO]
 
 The response will look like this:
 
@@ -193,6 +203,7 @@ The response will look like this:
   "encoded": "Qk05dy1JZ0JhRDNyNGpLQ3MwUmk6elRzdGU5QjZUY21SSWdkMldnQ1RMZw=="
 }
 ```
+% NOTCONSOLE
 
 The `api_key` field contains the API key that can be used to query the Search Application with the appropriate DLS restrictions.
 
@@ -225,6 +236,7 @@ GET .search-acl-filter-source1
     }
 }
 ```
+% NOTCONSOLE
 
 ```js
 GET .search-acl-filter-source2
@@ -246,6 +258,7 @@ GET .search-acl-filter-source2
     }
 }
 ```
+% NOTCONSOLE
 
 `.search-acl-filter-source1` and `.search-acl-filter-source2` define the access control identities for `source1` and `source2`.
 
@@ -352,6 +365,7 @@ createApiKey({
   },
 }).then((encodedKey) => console.log(encodedKey));
 ```
+% NOTCONSOLE
 
 ::::{note}
 The example combines multiple identities into a single role descriptor. This is because an Elasticsearch API key can use role restrictions only if it has a **single role descriptor**.
@@ -371,6 +385,7 @@ If you’re building a frontend application, use the `encoded` field to pass the
     ```js
     const client = SearchApplicationClient(applicationName, endpoint, apiKey, params);
     ```
+    % NOTCONSOLE
 
 
 Here’s what this workflow looks like in a sequence diagram:
@@ -414,4 +429,5 @@ Learn how to use the Search Application client to query your Search Application.
 * [Elastic connectors](/reference/search-connectors/index.md)
 * [Document level security (DLS)](/reference/search-connectors/document-level-security.md)
 * [Search Applications](docs-content://solutions/search/search-applications.md)
+* [{{es}} DLS](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md) to learn about the {{es}}
 

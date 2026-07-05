@@ -21,7 +21,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
@@ -55,7 +54,6 @@ import static org.elasticsearch.xpack.deprecation.DeprecationSettings.TEST_DEPRE
 import static org.elasticsearch.xpack.deprecation.DeprecationSettings.TEST_NOT_DEPRECATED_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
@@ -174,46 +172,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
         final Request request = new Request("PUT", "_cluster/settings");
         request.setJsonEntity(Strings.toString(builder));
         return performScopedRequest(request, xOpaqueId() + "-cleanup");
-    }
-
-    /**
-     * Attempts to do a scatter/gather request that expects unique responses per sub-request.
-     */
-    public void testUniqueDeprecationResponsesMergedTogether() throws IOException {
-        final String[] indices = new String[randomIntBetween(2, 5)];
-
-        // add at least one document for each index
-        for (int i = 0; i < indices.length; ++i) {
-            indices[i] = "test" + i;
-
-            // create indices with a single shard to reduce noise; the query only deprecates uniquely by index anyway
-            createIndex(indices[i], Settings.builder().put("number_of_shards", 1).build());
-
-            int randomDocCount = randomIntBetween(1, 2);
-
-            for (int j = 0; j < randomDocCount; j++) {
-                final Request request = new Request("PUT", indices[i] + "/" + j);
-                request.setJsonEntity("{ \"field\": " + j + " }");
-                performScopedRequest(request);
-            }
-        }
-
-        final String commaSeparatedIndices = String.join(",", indices);
-
-        performScopedRequest(new Request("POST", commaSeparatedIndices + "/_refresh"));
-        // trigger all index deprecations
-        Request request = new Request("GET", "/" + commaSeparatedIndices + "/_search");
-        request.setJsonEntity("{ \"query\": { \"bool\": { \"filter\": [ { \"deprecated\": {} } ] } } }");
-        Response response = performScopedRequest(request);
-
-        final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
-        final List<Matcher<? super String>> headerMatchers = new ArrayList<>();
-
-        for (String index : indices) {
-            headerMatchers.add(containsString(LoggerMessageFormat.format("[{}] index", (Object) index)));
-        }
-
-        assertThat(deprecatedWarnings, containsInAnyOrder(headerMatchers));
     }
 
     public void testDeprecationWarningsAppearInHeaders() throws Exception {

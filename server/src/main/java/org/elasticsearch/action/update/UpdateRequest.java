@@ -10,7 +10,6 @@
 package org.elasticsearch.action.update;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -28,7 +27,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -102,6 +100,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private String id;
     @Nullable
     private String routing;
+    private boolean routingFromSlice;
 
     @Nullable
     Script script;
@@ -135,10 +134,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public UpdateRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String type = in.readString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
-        }
         id = in.readString();
         routing = in.readOptionalString();
         if (in.readBoolean()) {
@@ -245,6 +240,23 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public String routing() {
         return this.routing;
+    }
+
+    /**
+     * Marks whether the effective routing value was provided via the {@code _slice} API parameter.
+     */
+    @Override
+    public UpdateRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    /**
+     * Returns {@code true} when this request routing came from the {@code _slice} API parameter.
+     */
+    @Override
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 
     public ShardId getShardId() {
@@ -688,6 +700,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return indexRouting.updateShard(id, routing);
     }
 
+    @Override
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
+        return indexRouting.updateShard(id, routing);
+    }
+
     public UpdateRequest setRequireAlias(boolean requireAlias) {
         this.requireAlias = requireAlias;
         return this;
@@ -707,9 +724,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private void doWrite(StreamOutput out, boolean thin) throws IOException {
         waitForActiveShards.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeOptionalString(routing);
 

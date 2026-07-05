@@ -7,6 +7,7 @@ esplugin {
   description = 'A plugin that enables snapshot based recoveries'
   classname ='org.elasticsearch.xpack.snapshotbasedrecoveries.SnapshotBasedRecoveriesPlugin'
   extendedPlugins = ['x-pack-core']
+  deploymentTarget = 'STATEFUL_ONLY'
 }
 base {
   archivesName = 'x-pack-snapshot-based-recoveries'

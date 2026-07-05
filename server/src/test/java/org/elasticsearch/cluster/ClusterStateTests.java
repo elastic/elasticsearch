@@ -202,8 +202,8 @@ public class ClusterStateTests extends ESTestCase {
             meta data version: 86
                coordination_metadata:
                   term: 22
-                  last_committed_config: VotingConfiguration{node01}
-                  last_accepted_config: VotingConfiguration{}
+                  last_committed_config: VotingConfiguration[node01]
+                  last_accepted_config: VotingConfiguration[]
                   voting tombstones: []
             """));
 
@@ -213,6 +213,8 @@ public class ClusterStateTests extends ESTestCase {
                _global_:
                   6,cluster read-only (api), blocks WRITE,METADATA_WRITE
                3LftaL7hgfXAsF60Gm6jcD:
+                  _project_global_:
+                     16,project is under creation, blocks READ,WRITE,METADATA_READ,METADATA_WRITE
                   another-index:
                      5,index read-only (api), blocks WRITE,METADATA_WRITE
                WHyuJ0uqBYOPgHX9kYUXlZ:
@@ -319,6 +321,13 @@ public class ClusterStateTests extends ESTestCase {
                       },
                       {
                         "id": "3LftaL7hgfXAsF60Gm6jcD",
+                        "project_globals": {
+                          "16": {
+                            "retryable": true,
+                            "description": "project is under creation",
+                            "levels": [ "read", "write", "metadata_read", "metadata_write"]
+                          }
+                        },
                         "indices": {
                           "another-index": {
                             "5": {
@@ -497,6 +506,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices": {
                           "common-index": {
                             "version": 2,
+                            "transport_version" : "0",
                             "mapping_version": 1,
                             "settings_version": 1,
                             "aliases_version": 1,
@@ -529,6 +539,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices": {
                           "another-index": {
                             "version": 2,
+                            "transport_version" : "0",
                             "mapping_version": 1,
                             "settings_version": 1,
                             "aliases_version": 1,
@@ -554,6 +565,7 @@ public class ClusterStateTests extends ESTestCase {
                           },
                           "common-index": {
                             "version": 2,
+                            "transport_version" : "0",
                             "mapping_version": 1,
                             "settings_version": 1,
                             "aliases_version": 1,
@@ -961,6 +973,7 @@ public class ClusterStateTests extends ESTestCase {
                     .addIndexBlock(projectId2, "common-index", IndexMetadata.INDEX_METADATA_BLOCK)
                     .addIndexBlock(projectId1, "another-index", IndexMetadata.INDEX_READ_ONLY_BLOCK)
                     .addProjectGlobalBlock(ProjectId.fromId("WHyuJ0uqBYOPgHX9kYUXlZ"), ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)
+                    .addProjectGlobalBlock(ProjectId.fromId("3LftaL7hgfXAsF60Gm6jcD"), ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
             )
             .build();
     }
@@ -1077,7 +1090,7 @@ public class ClusterStateTests extends ESTestCase {
                               ],
                               "voting_config_exclusions": [
                                 {
-                                  "node_id": "exlucdedNodeId",
+                                  "node_id": "excludedNodeId",
                                   "node_name": "excludedNodeName"
                                 }
                               ]
@@ -1105,6 +1118,7 @@ public class ClusterStateTests extends ESTestCase {
                             "indices": {
                               "index": {
                                 "version": 1,
+                                "transport_version" : "0",
                                 "mapping_version": 1,
                                 "settings_version": 1,
                                 "aliases_version": 1,
@@ -1357,7 +1371,7 @@ public class ClusterStateTests extends ESTestCase {
                           ],
                           "voting_config_exclusions" : [
                             {
-                              "node_id" : "exlucdedNodeId",
+                              "node_id" : "excludedNodeId",
                               "node_name" : "excludedNodeName"
                             }
                           ]
@@ -1381,6 +1395,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices" : {
                           "index" : {
                             "version" : 1,
+                            "transport_version" : "0",
                             "mapping_version" : 1,
                             "settings_version" : 1,
                             "aliases_version" : 1,
@@ -1637,7 +1652,7 @@ public class ClusterStateTests extends ESTestCase {
                           ],
                           "voting_config_exclusions" : [
                             {
-                              "node_id" : "exlucdedNodeId",
+                              "node_id" : "excludedNodeId",
                               "node_name" : "excludedNodeName"
                             }
                           ]
@@ -1663,6 +1678,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices" : {
                           "index" : {
                             "version" : 1,
+                            "transport_version" : "0",
                             "mapping_version" : 1,
                             "settings_version" : 1,
                             "aliases_version" : 1,
@@ -1854,6 +1870,7 @@ public class ClusterStateTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,
@@ -2009,7 +2026,7 @@ public class ClusterStateTests extends ESTestCase {
                             .term(1)
                             .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("commitedConfigurationNodeId")))
                             .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("acceptedConfigurationNodeId")))
-                            .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
+                            .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("excludedNodeId", "excludedNodeName"))
                             .build()
                     )
                     .persistentSettings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())

@@ -1,5 +1,0 @@
-pr: 130947
-summary: "[main]Prepare Index Like fix for backport to 9.1 and 8.19"
-area: ES|QL
-type: bug
-issues: []

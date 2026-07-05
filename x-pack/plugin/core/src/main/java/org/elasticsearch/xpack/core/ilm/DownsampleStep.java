@@ -34,17 +34,20 @@ public class DownsampleStep extends AsyncActionStep {
 
     private final DateHistogramInterval fixedInterval;
     private final TimeValue waitTimeout;
+    private final DownsampleConfig.SamplingMethod samplingMethod;
 
     public DownsampleStep(
         final StepKey key,
         final StepKey nextStepKey,
-        final Client client,
         final DateHistogramInterval fixedInterval,
-        final TimeValue waitTimeout
+        final TimeValue waitTimeout,
+        final DownsampleConfig.SamplingMethod samplingMethod,
+        final Client client
     ) {
         super(key, nextStepKey, client);
         this.fixedInterval = fixedInterval;
         this.waitTimeout = waitTimeout;
+        this.samplingMethod = samplingMethod;
     }
 
     @Override
@@ -95,7 +98,7 @@ public class DownsampleStep extends AsyncActionStep {
     }
 
     void performDownsampleIndex(ProjectId projectId, String indexName, String downsampleIndexName, ActionListener<Void> listener) {
-        DownsampleConfig config = new DownsampleConfig(fixedInterval);
+        DownsampleConfig config = new DownsampleConfig(fixedInterval, samplingMethod);
         DownsampleAction.Request request = new DownsampleAction.Request(
             TimeValue.MAX_VALUE,
             indexName,
@@ -119,9 +122,13 @@ public class DownsampleStep extends AsyncActionStep {
         return waitTimeout;
     }
 
+    public DownsampleConfig.SamplingMethod getSamplingMethod() {
+        return samplingMethod;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fixedInterval, waitTimeout);
+        return Objects.hash(super.hashCode(), fixedInterval, waitTimeout, samplingMethod);
     }
 
     @Override
@@ -136,7 +143,10 @@ public class DownsampleStep extends AsyncActionStep {
             return false;
         }
         DownsampleStep other = (DownsampleStep) obj;
-        return super.equals(obj) && Objects.equals(fixedInterval, other.fixedInterval) && Objects.equals(waitTimeout, other.waitTimeout);
+        return super.equals(obj)
+            && Objects.equals(fixedInterval, other.fixedInterval)
+            && Objects.equals(waitTimeout, other.waitTimeout)
+            && Objects.equals(samplingMethod, other.samplingMethod);
     }
 
 }

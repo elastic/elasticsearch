@@ -17,11 +17,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
@@ -50,25 +50,13 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-
-        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg;
-
-        if (aggregation instanceof InternalMultiBucketAggregation multiBucketAggregation) {
-            originalAgg = multiBucketAggregation;
-        } else {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "Expected a multi bucket aggregation but got [%s] for aggregation [%s]",
-                    aggregation.getClass().getSimpleName(),
-                    name()
-                )
-            );
-        }
+        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
+            asMultiBucketAggregation(aggregation);
 
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
         BucketAggregationScript.Factory factory = reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
+        Runnable cancellationCheck = () -> { if (reduceContext.isCanceled().get()) throw new TaskCancelledException("Cancelled"); };
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -89,7 +77,9 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             if (skipBucket) {
                 newBuckets.add(bucket);
             } else {
-                Number returned = factory.newInstance(vars).execute();
+                BucketAggregationScript scriptInstance = factory.newInstance(vars);
+                scriptInstance._setCancellationCheck(cancellationCheck);
+                Number returned = scriptInstance.execute();
                 if (returned == null) {
                     newBuckets.add(bucket);
                 } else {

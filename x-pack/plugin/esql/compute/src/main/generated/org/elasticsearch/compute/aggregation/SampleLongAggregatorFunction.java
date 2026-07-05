@@ -13,10 +13,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -35,17 +38,11 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
 
   private final int limit;
 
-  public SampleLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SampleLongAggregator.SingleState state, int limit) {
+  SampleLongAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit) {
+    this.limit = limit;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.limit = limit;
-  }
-
-  public static SampleLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit) {
-    return new SampleLongAggregatorFunction(driverContext, channels, SampleLongAggregator.initSingle(driverContext.bigArrays(), limit), limit);
+    this.state = SampleLongAggregator.initSingle(driverContext.bigArrays(), limit);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -72,6 +69,18 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
     LongBlock valueBlock = page.getBlock(channels.get(0));
     LongVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valueBlock, mask);
       return;
     }
@@ -82,6 +91,18 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
     LongBlock valueBlock = page.getBlock(channels.get(0));
     LongVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valueBlock);
       return;
     }
@@ -89,6 +110,30 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector valueVector) {
+    if (valueVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long valueValue = specialized.getLong(valuesPosition);
+        SampleLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long valueValue = specialized.getLong(valuesPosition);
+        SampleLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long valueValue = specialized.getLong(valuesPosition);
+        SampleLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       long valueValue = valueVector.getLong(valuesPosition);
       SampleLongAggregator.combine(state, valueValue);
@@ -96,6 +141,39 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector valueVector, BooleanVector mask) {
+    if (valueVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long valueValue = specialized.getLong(valuesPosition);
+        SampleLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long valueValue = specialized.getLong(valuesPosition);
+        SampleLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long valueValue = specialized.getLong(valuesPosition);
+        SampleLongAggregator.combine(state, valueValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;
@@ -107,11 +185,12 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(LongBlock valueBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         long valueValue = valueBlock.getLong(valueOffset);
         SampleLongAggregator.combine(state, valueValue);
@@ -124,11 +203,12 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         long valueValue = valueBlock.getLong(valueOffset);
         SampleLongAggregator.combine(state, valueValue);
@@ -142,11 +222,20 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block sampleUncast = page.getBlock(channels.get(0));
     if (sampleUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
     assert sample.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     SampleLongAggregator.combineIntermediate(state, sample);
   }
 

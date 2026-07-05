@@ -13,11 +13,13 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
@@ -26,9 +28,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.convertToDocValuesQuery;
-
 public class IpFieldTypeTests extends FieldTypeTestCase {
+
+    private static Query convertToDocValuesQuery(Query query) {
+        return IpFieldMapper.IpFieldType.convertToDocValuesQuery(query, false, false, MOCK_CONTEXT);
+    }
+
+    private static Query convertToIndexOrDocValuesQuery(Query query) {
+        return IpFieldMapper.IpFieldType.convertToIndexOrDocValuesQuery(query, false, false, MOCK_CONTEXT);
+    }
 
     public void testValueFormat() throws Exception {
         MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
@@ -53,60 +61,80 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
-
-        String ip = "2001:db8::2:1";
-        assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, MOCK_CONTEXT));
-
-        ip = "192.168.1.7";
-        assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, MOCK_CONTEXT));
-
-        ip = "2001:db8::2:1";
-        String prefix = ip + "/64";
-        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64), ft.termQuery(prefix, MOCK_CONTEXT));
-
-        ip = "192.168.1.7";
-        prefix = ip + "/16";
-        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, MOCK_CONTEXT));
-
-        ft = new IpFieldMapper.IpFieldType("field", false);
-
-        ip = "2001:db8::2:1";
-        assertEquals(
-            convertToDocValuesQuery(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip))),
-            ft.termQuery(ip, MOCK_CONTEXT)
-        );
-
-        ip = "192.168.1.7";
-        assertEquals(
-            convertToDocValuesQuery(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip))),
-            ft.termQuery(ip, MOCK_CONTEXT)
-        );
-
-        ip = "2001:db8::2:1";
-        prefix = ip + "/64";
-        assertEquals(
-            convertToDocValuesQuery(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64)),
-            ft.termQuery(prefix, MOCK_CONTEXT)
-        );
-
-        ip = "192.168.1.7";
-        prefix = ip + "/16";
-        assertEquals(
-            convertToDocValuesQuery(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16)),
-            ft.termQuery(prefix, MOCK_CONTEXT)
-        );
-
-        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
+        MappedFieldType ftIndexAndDocValues = new IpFieldMapper.IpFieldType("field", true, true);
+        MappedFieldType ftOnlyIndex = new IpFieldMapper.IpFieldType("field", true, false);
+        MappedFieldType ftOnlyDocValues = new IpFieldMapper.IpFieldType("field", false, true);
+        MappedFieldType ftOnlyBinaryDocValues = new IpFieldMapper.IpFieldType(
             "field",
-            false,
-            false,
+            IndexType.points(false, true),
             false,
             null,
             null,
             Collections.emptyMap(),
             false,
-            false
+            false,
+            true,
+            false,
+            false,
+            IndexVersion.current(),
+            null
+        );
+
+        String ip = "2001:db8::2:1";
+        InetAddress inetIp = InetAddresses.forString(ip);
+        Query query = InetAddressPoint.newExactQuery("field", inetIp);
+        assertEquals(convertToIndexOrDocValuesQuery(query), ftIndexAndDocValues.termQuery(ip, MOCK_CONTEXT));
+        assertEquals(query, ftOnlyIndex.termQuery(ip, MOCK_CONTEXT));
+        assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(ip, MOCK_CONTEXT));
+        BytesRef encodedIp = new BytesRef(InetAddressPoint.encode(inetIp));
+        assertEquals(
+            new ScanningBinaryDocValuesRangeQuery("field", encodedIp, encodedIp, false),
+            ftOnlyBinaryDocValues.termQuery(ip, MOCK_CONTEXT)
+        );
+
+        ip = "192.168.1.7";
+        inetIp = InetAddresses.forString(ip);
+        query = InetAddressPoint.newExactQuery("field", inetIp);
+        assertEquals(convertToIndexOrDocValuesQuery(query), ftIndexAndDocValues.termQuery(ip, MOCK_CONTEXT));
+        assertEquals(query, ftOnlyIndex.termQuery(ip, MOCK_CONTEXT));
+        assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(ip, MOCK_CONTEXT));
+        encodedIp = new BytesRef(InetAddressPoint.encode(inetIp));
+        assertEquals(
+            new ScanningBinaryDocValuesRangeQuery("field", encodedIp, encodedIp, false),
+            ftOnlyBinaryDocValues.termQuery(ip, MOCK_CONTEXT)
+        );
+
+        ip = "2001:db8::2:1";
+        String prefix = ip + "/64";
+        inetIp = InetAddresses.forString(ip);
+        query = InetAddressPoint.newPrefixQuery("field", inetIp, 64);
+        assertEquals(convertToIndexOrDocValuesQuery(query), ftIndexAndDocValues.termQuery(prefix, MOCK_CONTEXT));
+        assertEquals(query, ftOnlyIndex.termQuery(prefix, MOCK_CONTEXT));
+        assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(prefix, MOCK_CONTEXT));
+        assertEquals(
+            new ScanningBinaryDocValuesRangeQuery(
+                "field",
+                new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                false
+            ),
+            ftOnlyBinaryDocValues.termQuery(prefix, MOCK_CONTEXT)
+        );
+
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
+            "field",
+            IndexType.NONE,
+            false,
+            null,
+            null,
+            Collections.emptyMap(),
+            false,
+            false,
+            false,
+            false,
+            false,
+            IndexVersion.current(),
+            null
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
@@ -188,11 +216,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         );
 
         // Upper bound is the min IP and is not inclusive
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("::", "::", true, false, null, null, null, MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("::", "::", true, false, null, null, null, MOCK_CONTEXT));
 
         // Lower bound is the max IP and is not inclusive
         assertEquals(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             ft.rangeQuery(
                 "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
                 "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
@@ -291,11 +319,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         );
 
         // Upper bound is the min IP and is not inclusive
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("::", "::", true, false, null, null, null, MOCK_CONTEXT));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("::", "::", true, false, null, null, null, MOCK_CONTEXT));
 
         // Lower bound is the max IP and is not inclusive
         assertEquals(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             ft.rangeQuery(
                 "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
                 "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
@@ -334,14 +362,18 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
             "field",
-            false,
-            false,
+            IndexType.NONE,
             false,
             null,
             null,
             Collections.emptyMap(),
             false,
-            false
+            false,
+            false,
+            false,
+            false,
+            IndexVersion.current(),
+            null
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -351,24 +383,16 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new IpFieldMapper.Builder(
-            "field",
-            ScriptCompiler.NONE,
-            true,
-            IndexVersion.current(),
-            Mapper.SourceKeepMode.NONE
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType mapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, defaultIndexSettings()).build(
+            MapperBuilderContext.root(false, false)
+        ).fieldType();
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
         assertEquals(List.of("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));
 
-        MappedFieldType nullValueMapper = new IpFieldMapper.Builder(
-            "field",
-            ScriptCompiler.NONE,
-            true,
-            IndexVersion.current(),
-            Mapper.SourceKeepMode.NONE
-        ).nullValue("2001:db8:0:0:0:0:2:7").build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, defaultIndexSettings()).nullValue(
+            "2001:db8:0:0:0:0:2:7"
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
     }
 }

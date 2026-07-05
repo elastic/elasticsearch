@@ -6,19 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ssl.cert;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -27,9 +18,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 public class CertificateInfoTests extends ESTestCase {
 
@@ -86,24 +75,6 @@ public class CertificateInfoTests extends ESTestCase {
         );
         assertNotEquals(certificate.getSubjectX500Principal().toString(), certificateInfo.issuer());
         assertEquals("CN=root-ca, OU=test, O=elasticsearch, C=US", certificateInfo.issuer());
-    }
-
-    public void testMissingIssuer() throws Exception {
-        // only possible in mixed versions if object is serialized from an old version
-        final CertificateInfo certInfo = new CertificateInfo("/path/to/cert", "jks", "a", true, readSampleCertificate(selfSignedCertPath));
-        // send from old
-        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setTransportVersion(TransportVersions.V_8_3_0);
-        certInfo.writeTo(out);
-        // receive from old
-        ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-        StreamInput in = new InputStreamStreamInput(inBuffer);
-        in.setTransportVersion(TransportVersions.V_8_3_0);
-        CertificateInfo certInfoFromOld = new CertificateInfo(in);
-        // convert to a JSON string
-        String toXContentString = Strings.toString(certInfoFromOld.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
-        assertThat(toXContentString, not(containsString("issuer")));
     }
 
     private X509Certificate readSampleCertificate(String dataPath) throws CertificateException, IOException {

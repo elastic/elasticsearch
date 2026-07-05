@@ -42,7 +42,7 @@ public class SageMakerModel extends Model {
     private final SageMakerTaskSettings taskSettings;
     private final AwsSecretSettings awsSecretSettings;
 
-    SageMakerModel(
+    public SageMakerModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
         SageMakerServiceSettings serviceSettings,

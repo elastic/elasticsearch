@@ -9,7 +9,7 @@ mapped_pages:
 
 Keeps only tokens contained in a specified word list.
 
-This filter uses Lucene’s [KeepWordFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/KeepWordFilter.md).
+This filter uses Lucene’s [KeepWordFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/KeepWordFilter.html).
 
 ::::{note}
 To remove a list of words from a token stream, use the [`stop`](/reference/text-analysis/analysis-stop-tokenfilter.md) filter.
@@ -51,7 +51,7 @@ Either this parameter or `keep_words_path` must be specified.
 
 
 `keep_words_path`
-:   (Required*, array of strings) Path to a file that contains a list of words to keep. Only tokens that match words in this list are included in the output.
+:   (Required*, string) Path to a file that contains a list of words to keep. Only tokens that match words in this list are included in the output.
 
 This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each word in the file must be separated by a line break.
 

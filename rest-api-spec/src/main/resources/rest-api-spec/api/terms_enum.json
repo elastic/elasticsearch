@@ -31,9 +31,9 @@
         }
       ]
     },
-    "params": {},
     "body": {
-      "description": "field name, string which is the prefix expected in matching terms, timeout and size for max number of results"
+      "description": "field name, string which is the prefix expected in matching terms, timeout and size for max number of results",
+      "required": true
     }
   }
 }

@@ -42,7 +42,6 @@ public class SharedSignificantTermsTestMethods {
         String settings = "{\"index.number_of_shards\": 7, \"index.number_of_routing_shards\": 7, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings, testCase);
         testCase.ensureGreen();
-        testCase.logClusterState();
         checkSignificantTermsAggregationCorrect(testCase);
     }
 

@@ -16,7 +16,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -24,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -65,7 +65,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     private static final String FIELD_SCRIPT_NAME = "field_script";
 
     public void testNoDocs() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, count -> {
             assertEquals(0L, count.value(), 0d);
@@ -74,7 +74,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
         }, count -> {
@@ -84,7 +84,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNumericDocValues() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 2)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
@@ -134,7 +134,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     public void testStringField() throws IOException {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
             testAggregation(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 iw -> { iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1")))); },
                 count -> {
                     assertEquals(0L, count.value(), 0d);
@@ -181,7 +181,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     private void verifySummationOfDoubles(double[] values, double expected, double delta) throws IOException {
-        testAggregation(sum("_name").field(FIELD_NAME), new MatchAllDocsQuery(), iw -> {
+        testAggregation(sum("_name").field(FIELD_NAME), Queries.ALL_DOCS_INSTANCE, iw -> {
             /*
              * The sum agg uses a Kahan sumation on the shard to limit
              * floating point errors. But it doesn't ship the sums to the
@@ -277,7 +277,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
         testAggregation(
             sum("_name").field(aggField.name()).missing(missingValue),
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             writer -> writer.addDocuments(docs),
             internalSum -> {
                 assertEquals(finalSum, internalSum.value(), 0d);
@@ -320,7 +320,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
         testAggregation(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             writer -> writer.addDocuments(docs),
             internalSum -> verify.apply(finalSum, docs, internalSum),
             fieldType

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -128,6 +128,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), AGE_IN_MILLIS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_CLONE_INDEX_NAME);
     }
+
+    private static final TransportVersion ILM_ADD_SKIP_SETTING = TransportVersion.fromName("ilm_add_skip_setting");
 
     private final String index;
     private final Long indexCreationDate;
@@ -344,18 +346,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             repositoryName = in.readOptionalString();
             snapshotName = in.readOptionalString();
             shrinkIndexName = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                indexCreationDate = in.readOptionalLong();
-            } else {
-                indexCreationDate = null;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                previousStepInfo = in.readOptionalBytesReference();
-            } else {
-                previousStepInfo = null;
-            }
-            if (in.getTransportVersion().isPatchFrom(TransportVersions.ILM_ADD_SKIP_SETTING_8_19)
-                || in.getTransportVersion().onOrAfter(TransportVersions.ILM_ADD_SKIP_SETTING)) {
+            indexCreationDate = in.readOptionalLong();
+            previousStepInfo = in.readOptionalBytesReference();
+            if (in.getTransportVersion().supports(ILM_ADD_SKIP_SETTING)) {
                 skip = in.readBoolean();
             } else {
                 skip = false;
@@ -407,14 +400,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalString(repositoryName);
             out.writeOptionalString(snapshotName);
             out.writeOptionalString(shrinkIndexName);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                out.writeOptionalLong(indexCreationDate);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeOptionalBytesReference(previousStepInfo);
-            }
-            if (out.getTransportVersion().isPatchFrom(TransportVersions.ILM_ADD_SKIP_SETTING_8_19)
-                || out.getTransportVersion().onOrAfter(TransportVersions.ILM_ADD_SKIP_SETTING)) {
+            out.writeOptionalLong(indexCreationDate);
+            out.writeOptionalBytesReference(previousStepInfo);
+            if (out.getTransportVersion().supports(ILM_ADD_SKIP_SETTING)) {
                 out.writeBoolean(skip);
             }
             // No need for serialization from this point onwards as this action only runs on the local node.

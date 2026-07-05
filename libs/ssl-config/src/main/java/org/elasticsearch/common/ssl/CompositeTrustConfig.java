@@ -43,6 +43,11 @@ public class CompositeTrustConfig implements SslTrustConfig {
     }
 
     @Override
+    public boolean hasExplicitConfig() {
+        return configs.stream().allMatch(SslTrustConfig::hasExplicitConfig);
+    }
+
+    @Override
     public X509ExtendedTrustManager createTrustManager() {
         try {
             Collection<Certificate> trustedIssuers = configs.stream()

@@ -110,6 +110,16 @@ public interface ExponentialHistogram extends Accountable {
     long valueCount();
 
     /**
+     * Returns whether this histogram is empty, i.e. contains no values.
+     * Implementations may override this in case {@link #valueCount()} is expensive.
+     *
+     * @return true if this histogram contains no values
+     */
+    default boolean isEmpty() {
+        return valueCount() == 0;
+    }
+
+    /**
      * Returns minimum of all values represented by this histogram.
      *
      * @return the minimum, NaN for empty histograms
@@ -131,6 +141,8 @@ public interface ExponentialHistogram extends Accountable {
         /**
          * @return a {@link BucketIterator} for the populated buckets of this bucket range.
          * The {@link BucketIterator#scale()} of the returned iterator must be the same as {@link #scale()}.
+         * The iterator iterates on the buckets from lowest bucket index to highest bucket index,
+         * i.e. from the bucket closest to zero to the bucket closest to infinity.
          */
         CopyableBucketIterator iterator();
 
@@ -143,6 +155,45 @@ public interface ExponentialHistogram extends Accountable {
          * @return the sum of the counts across all buckets of this range
          */
         long valueCount();
+
+        /**
+         * Returns the number of buckets. Note that this operation might require iterating over all buckets, and therefore is not cheap.
+         * @return the number of buckets
+         */
+        default int bucketCount() {
+            int count = 0;
+            BucketIterator it = iterator();
+            while (it.hasNext()) {
+                count++;
+                it.advance();
+            }
+            return count;
+        }
+
+        /**
+         * Returns an iterator iterating over all buckets in the opposite direction of {@link #iterator()}.
+         * So the iterator iterates the buckets from the highest bucket index to the lowest,
+         * i.e. from the bucket closest to zero to the bucket closest to infinity.
+         * The {@link BucketIterator#scale()} of the returned iterator must be the same as {@link #scale()}.
+         * <br>
+         * Note that depending on how the buckets are stored, this method might be expensive.
+         * It might involve copying all buckets first.
+         */
+        default BucketIterator reverseIterator() {
+            int bucketCount = bucketCount();
+            long[] indices = new long[bucketCount];
+            long[] counts = new long[bucketCount];
+            BucketIterator ascendingIt = iterator();
+            int scale = ascendingIt.scale();
+            for (int i = 0; i < bucketCount; i++) {
+                assert ascendingIt.hasNext() : "bucketCount() must be consistent with the number of buckets returned by iterator()";
+                indices[i] = ascendingIt.peekIndex();
+                counts[i] = ascendingIt.peekCount();
+                ascendingIt.advance();
+            }
+            assert ascendingIt.hasNext() == false : "bucketCount() must be consistent with the number of buckets returned by iterator()";
+            return BucketArrayIterator.createReversed(scale, counts, indices, 0, bucketCount);
+        }
 
     }
 
@@ -256,7 +307,7 @@ public interface ExponentialHistogram extends Accountable {
     static ReleasableExponentialHistogram merge(
         int maxBucketCount,
         ExponentialHistogramCircuitBreaker breaker,
-        Iterator<ExponentialHistogram> histograms
+        Iterator<? extends ExponentialHistogram> histograms
     ) {
         try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(maxBucketCount, breaker)) {
             while (histograms.hasNext()) {

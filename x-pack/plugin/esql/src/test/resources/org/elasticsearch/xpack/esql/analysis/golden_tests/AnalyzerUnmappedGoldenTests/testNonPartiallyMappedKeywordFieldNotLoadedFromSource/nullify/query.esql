@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees, employees_no_names
+| KEEP first_name, gender

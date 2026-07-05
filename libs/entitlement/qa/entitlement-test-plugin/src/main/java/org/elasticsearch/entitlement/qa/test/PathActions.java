@@ -27,7 +27,7 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 @SuppressWarnings({ "unused" /* called via reflection */, "rawtypes" })
 class PathActions {
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkToRealPath() throws IOException {
         FileCheckActions.readFile().toRealPath();
     }
@@ -45,17 +45,17 @@ class PathActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkToRealPathWithK8sLikeMount() throws IOException, Exception {
         EntitledActions.createK8sLikeMount().toRealPath();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkToRealPathNoFollow() throws IOException {
         FileCheckActions.readFile().toRealPath(LinkOption.NOFOLLOW_LINKS);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkRegister() throws IOException {
         try (var watchService = FileSystems.getDefault().newWatchService()) {
             FileCheckActions.readFile().register(watchService, new WatchEvent.Kind[0]);
@@ -64,7 +64,7 @@ class PathActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkRegisterWithModifiers() throws IOException {
         try (var watchService = FileSystems.getDefault().newWatchService()) {
             FileCheckActions.readFile().register(watchService, new WatchEvent.Kind[0], new WatchEvent.Modifier[0]);

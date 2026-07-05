@@ -338,4 +338,13 @@ public final class LimitedRole implements Role {
     public boolean checkRunAs(String runAs) {
         return baseRole.checkRunAs(runAs) && limitedByRole.checkRunAs(runAs);
     }
+
+    public Role getBaseRole() {
+        return baseRole;
+    }
+
+    public Role getLimitedByRole() {
+        return limitedByRole;
+    }
+
 }

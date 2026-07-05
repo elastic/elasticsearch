@@ -11,13 +11,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -33,12 +34,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
 
 public class Pow extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Pow", Pow::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Pow.class).binary(Pow::new).name("pow");
 
     private final Expression base;
     private final Expression exponent;
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns a value raised to the power of an exponent.",
         description = "Returns the value of `base` raised to the power of `exponent`.",
         note = "It is still possible to overflow a double result here; in that case, null will be returned.",
         examples = { @Example(file = "math", tag = "powDI"), @Example(file = "math", tag = "powID-sqrt", description = """

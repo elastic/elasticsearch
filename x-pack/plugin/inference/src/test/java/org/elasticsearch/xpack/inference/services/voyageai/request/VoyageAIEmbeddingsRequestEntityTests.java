@@ -8,163 +8,163 @@
 package org.elasticsearch.xpack.inference.services.voyageai.request;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.is;
 
 public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
-    public void testXContent_WritesAllFields_ServiceSettingsDefined() throws IOException {
-        var entity = new VoyageAIEmbeddingsRequestEntity(
-            List.of("abc"),
+
+    private static final String TEST_INPUT = "some input";
+    private static final String TEST_MODEL_ID = "some-model-id";
+    private static final int TEST_RATE_LIMIT = 10;
+    private static final int TEST_DIMENSIONS = 2048;
+    private static final int TEST_MAX_INPUT_TOKENS = 1024;
+
+    public void testXContent_WritesAllFields_Float() throws IOException {
+        var embeddingType = VoyageAIEmbeddingType.FLOAT;
+        assertToXContent_WritesAllFields(
             InputType.INTERNAL_SEARCH,
-            VoyageAIEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.URL,
-                        "https://www.abc.com",
-                        ServiceFields.SIMILARITY,
-                        SimilarityMeasure.DOT_PRODUCT.toString(),
-                        ServiceFields.DIMENSIONS,
-                        2048,
-                        ServiceFields.MAX_INPUT_TOKENS,
-                        512,
-                        VoyageAIServiceSettings.MODEL_ID,
-                        "model",
-                        VoyageAIEmbeddingsServiceSettings.EMBEDDING_TYPE,
-                        "float"
-                    )
-                ),
-                ConfigurationParseContext.PERSISTENT
+            new VoyageAIEmbeddingsServiceSettings(
+                TEST_MODEL_ID,
+                new RateLimitSettings(TEST_RATE_LIMIT),
+                embeddingType,
+                SimilarityMeasure.DOT_PRODUCT,
+                VoyageAIEmbeddingsRequestEntityTests.TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                false
             ),
             new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
-            "model"
+            Strings.format("""
+                {
+                    "input": ["%s"],
+                    "model": "%s",
+                    "input_type": "query",
+                    "output_dimension": %d,
+                    "output_dtype": "%s"
+                }
+                """, TEST_INPUT, TEST_MODEL_ID, TEST_DIMENSIONS, embeddingType.toString())
         );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","input_type":"query","output_dimension":2048,"output_dtype":"float"}"""));
     }
 
-    public void testXContent_WritesAllFields_ServiceSettingsDefined_Int8() throws IOException {
-        var entity = new VoyageAIEmbeddingsRequestEntity(
-            List.of("abc"),
+    public void testXContent_WritesAllFields_Int8() throws IOException {
+        var embeddingType = VoyageAIEmbeddingType.INT8;
+        assertToXContent_WritesAllFields(
             InputType.INGEST,
-            VoyageAIEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.URL,
-                        "https://www.abc.com",
-                        ServiceFields.SIMILARITY,
-                        SimilarityMeasure.DOT_PRODUCT.toString(),
-                        ServiceFields.DIMENSIONS,
-                        2048,
-                        ServiceFields.MAX_INPUT_TOKENS,
-                        512,
-                        VoyageAIServiceSettings.MODEL_ID,
-                        "model",
-                        VoyageAIEmbeddingsServiceSettings.EMBEDDING_TYPE,
-                        "int8"
-                    )
-                ),
-                ConfigurationParseContext.PERSISTENT
+            new VoyageAIEmbeddingsServiceSettings(
+                TEST_MODEL_ID,
+                new RateLimitSettings(TEST_RATE_LIMIT),
+                embeddingType,
+                SimilarityMeasure.DOT_PRODUCT,
+                VoyageAIEmbeddingsRequestEntityTests.TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                false
             ),
             new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
-            "model"
+            Strings.format("""
+                {
+                    "input": ["%s"],
+                    "model": "%s",
+                    "input_type": "document",
+                    "output_dimension": %d,
+                    "output_dtype": "%s"
+                }
+                """, TEST_INPUT, TEST_MODEL_ID, TEST_DIMENSIONS, embeddingType.toString())
         );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","input_type":"document","output_dimension":2048,"output_dtype":"int8"}"""));
     }
 
-    public void testXContent_WritesAllFields_ServiceSettingsDefined_Binary() throws IOException {
-        var entity = new VoyageAIEmbeddingsRequestEntity(
-            List.of("abc"),
+    public void testXContent_WritesAllFields_Binary() throws IOException {
+        var embeddingType = VoyageAIEmbeddingType.BINARY;
+        assertToXContent_WritesAllFields(
             InputType.INTERNAL_SEARCH,
-            VoyageAIEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.URL,
-                        "https://www.abc.com",
-                        ServiceFields.SIMILARITY,
-                        SimilarityMeasure.DOT_PRODUCT.toString(),
-                        ServiceFields.DIMENSIONS,
-                        2048,
-                        ServiceFields.MAX_INPUT_TOKENS,
-                        512,
-                        VoyageAIServiceSettings.MODEL_ID,
-                        "model",
-                        VoyageAIEmbeddingsServiceSettings.EMBEDDING_TYPE,
-                        "binary"
-                    )
-                ),
-                ConfigurationParseContext.PERSISTENT
+            new VoyageAIEmbeddingsServiceSettings(
+                TEST_MODEL_ID,
+                new RateLimitSettings(TEST_RATE_LIMIT),
+                embeddingType,
+                SimilarityMeasure.DOT_PRODUCT,
+                VoyageAIEmbeddingsRequestEntityTests.TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                false
             ),
             new VoyageAIEmbeddingsTaskSettings(null, null),
-            "model"
+            Strings.format("""
+                {
+                    "input": ["%s"],
+                    "model": "%s",
+                    "input_type": "query",
+                    "output_dimension": %d,
+                    "output_dtype": "%s"
+                }
+                """, TEST_INPUT, TEST_MODEL_ID, TEST_DIMENSIONS, embeddingType.toString())
         );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","input_type":"query","output_dimension":2048,"output_dtype":"binary"}"""));
     }
 
-    public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
-        var entity = new VoyageAIEmbeddingsRequestEntity(
-            List.of("abc"),
+    public void testXContent_FallsBackToTaskSettingsInputType_WhenRootInputTypeIsNull() throws IOException {
+        var embeddingType = VoyageAIEmbeddingType.FLOAT;
+        assertToXContent_WritesAllFields(
             null,
-            VoyageAIEmbeddingsServiceSettings.EMPTY_SETTINGS,
+            new VoyageAIEmbeddingsServiceSettings(
+                TEST_MODEL_ID,
+                new RateLimitSettings(TEST_RATE_LIMIT),
+                embeddingType,
+                SimilarityMeasure.DOT_PRODUCT,
+                VoyageAIEmbeddingsRequestEntityTests.TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                false
+            ),
             new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
-            "model"
+            Strings.format("""
+                {
+                    "input": ["%s"],
+                    "model": "%s",
+                    "input_type": "document",
+                    "output_dimension": %d,
+                    "output_dtype": "%s"
+                }
+                """, TEST_INPUT, TEST_MODEL_ID, TEST_DIMENSIONS, embeddingType.toString())
         );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","input_type":"document"}"""));
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
-        var entity = new VoyageAIEmbeddingsRequestEntity(
-            List.of("abc"),
+        var embeddingType = VoyageAIEmbeddingType.FLOAT;
+        assertToXContent_WritesAllFields(
             null,
-            VoyageAIEmbeddingsServiceSettings.EMPTY_SETTINGS,
+            new VoyageAIEmbeddingsServiceSettings(TEST_MODEL_ID, null, embeddingType, null, null, null, false),
             VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-            "model"
+            Strings.format("""
+                {
+                    "input": ["%s"],
+                    "model": "%s",
+                    "output_dtype": "%s"
+                }
+                """, TEST_INPUT, TEST_MODEL_ID, embeddingType.toString())
         );
+    }
+
+    private static void assertToXContent_WritesAllFields(
+        InputType inputType,
+        VoyageAIEmbeddingsServiceSettings serviceSettings,
+        VoyageAIEmbeddingsTaskSettings taskSettings,
+        String expectedResult
+    ) throws IOException {
+        var entity = new VoyageAIEmbeddingsRequestEntity(List.of(TEST_INPUT), inputType, serviceSettings, taskSettings);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model"}"""));
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(expectedResult)));
     }
 }

@@ -14,25 +14,25 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Repeat}.
+ * {@link ExpressionEvaluator} implementation for {@link Repeat}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RepeatConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RepeatConstantEvaluator.class);
 
   private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
 
-  private final EvalOperator.ExpressionEvaluator str;
+  private final ExpressionEvaluator str;
 
   private final int number;
 
@@ -41,7 +41,7 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
   private Warnings warnings;
 
   public RepeatConstantEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      EvalOperator.ExpressionEvaluator str, int number, DriverContext driverContext) {
+      ExpressionEvaluator str, int number, DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
     this.str = str;
@@ -71,16 +71,16 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (strBlock.getValueCount(p) != 1) {
-          if (strBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (strBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
         try {
@@ -122,27 +122,22 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
-    private final EvalOperator.ExpressionEvaluator.Factory str;
+    private final ExpressionEvaluator.Factory str;
 
     private final int number;
 
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        EvalOperator.ExpressionEvaluator.Factory str, int number) {
+        ExpressionEvaluator.Factory str, int number) {
       this.source = source;
       this.scratch = scratch;
       this.str = str;

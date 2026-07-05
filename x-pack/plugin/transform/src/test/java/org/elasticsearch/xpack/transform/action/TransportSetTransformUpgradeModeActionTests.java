@@ -14,6 +14,8 @@ import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -80,13 +82,14 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
             mock(),
             persistentTasksClusterService,
             persistentTasksService,
-            client
+            client,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
     }
 
     public void testUpgradeMode() {
-        assertTrue(action.upgradeMode(state(true)));
-        assertFalse(action.upgradeMode(state(false)));
+        assertTrue(action.isUpgradeMode(state(true).metadata().getDefaultProject()));
+        assertFalse(action.isUpgradeMode(state(false).metadata().getDefaultProject()));
     }
 
     private ClusterState state(boolean upgradeMode) {
@@ -96,19 +99,34 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
                     .copyAndUpdate(
                         b -> b.putCustom(
                             TransformMetadata.TYPE,
-                            TransformMetadata.getTransformMetadata(ClusterState.EMPTY_STATE).builder().upgradeMode(upgradeMode).build()
+                            TransformMetadata.transformMetadata(ClusterState.EMPTY_STATE.metadata().getDefaultProject())
+                                .builder()
+                                .upgradeMode(upgradeMode)
+                                .build()
                         )
                     )
             )
         );
     }
 
-    public void testCreateUpdatedState() {
-        var updatedState = action.createUpdatedState(new SetUpgradeModeActionRequest(true), state(false));
-        assertTrue(TransformMetadata.upgradeMode(updatedState));
+    public void testCreateProjectUpdate() {
+        var input = state(false);
+        var project = input.metadata().getDefaultProject();
+        var update = action.createProjectUpdate(new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true), project);
+        var updatedProject = applyUpdate(project, update);
+        assertTrue(TransformMetadata.isUpgradeMode(updatedProject));
 
-        updatedState = action.createUpdatedState(new SetUpgradeModeActionRequest(false), state(true));
-        assertFalse(TransformMetadata.upgradeMode(updatedState));
+        input = state(true);
+        project = input.metadata().getDefaultProject();
+        update = action.createProjectUpdate(new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, false), project);
+        updatedProject = applyUpdate(project, update);
+        assertFalse(TransformMetadata.isUpgradeMode(updatedProject));
+    }
+
+    private static ProjectMetadata applyUpdate(ProjectMetadata project, java.util.function.Consumer<ProjectMetadata.Builder> update) {
+        var builder = ProjectMetadata.builder(project);
+        update.accept(builder);
+        return builder.build();
     }
 
     public void testUpgradeModeWithNoMetadata() throws InterruptedException {
@@ -150,7 +168,11 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
 
     private void upgradeModeSuccessfullyChanged(ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws InterruptedException {
-        upgradeModeSuccessfullyChanged(new SetUpgradeModeActionRequest(true), state, listener);
+        upgradeModeSuccessfullyChanged(
+            new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true),
+            state.metadata().getDefaultProject(),
+            listener
+        );
     }
 
     private void upgradeModeSuccessfullyChanged(
@@ -158,8 +180,16 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws InterruptedException {
+        upgradeModeSuccessfullyChanged(request, state.metadata().getDefaultProject(), listener);
+    }
+
+    private void upgradeModeSuccessfullyChanged(
+        SetUpgradeModeActionRequest request,
+        ProjectMetadata project,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
-        action.upgradeModeSuccessfullyChanged(mock(), request, state, ActionListener.runAfter(listener, latch::countDown));
+        action.upgradeModeSuccessfullyChanged(mock(), request, project, ActionListener.runAfter(listener, latch::countDown));
         assertTrue("Failed to finish test after 10s", latch.await(10, TimeUnit.SECONDS));
     }
 
@@ -197,9 +227,13 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
             listener.onResponse(true);
             return null;
         }).when(persistentTasksService).waitForPersistentTasksCondition(any(), any(), any(), any());
-        upgradeModeSuccessfullyChanged(new SetUpgradeModeActionRequest(false), stateWithTransformTask(), assertNoFailureListener(r -> {
-            assertThat(r, is(AcknowledgedResponse.TRUE));
-            verify(clusterService, never()).submitUnbatchedStateUpdateTask(eq("unassign persistent task from any node"), any());
-        }));
+        upgradeModeSuccessfullyChanged(
+            new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, false),
+            stateWithTransformTask(),
+            assertNoFailureListener(r -> {
+                assertThat(r, is(AcknowledgedResponse.TRUE));
+                verify(clusterService, never()).submitUnbatchedStateUpdateTask(eq("unassign persistent task from any node"), any());
+            })
+        );
     }
 }

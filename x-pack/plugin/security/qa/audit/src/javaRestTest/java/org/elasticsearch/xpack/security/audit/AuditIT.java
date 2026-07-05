@@ -11,6 +11,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
@@ -42,10 +43,12 @@ import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class AuditIT extends ESRestTestCase {
 
@@ -125,6 +128,27 @@ public class AuditIT extends ESRestTestCase {
                 )
             )
         );
+    }
+
+    public void testFilteringOfCloneApiKeyRequestBody() throws Exception {
+        final Request createRequest = new Request("POST", "/_security/api_key");
+        createRequest.setJsonEntity("{\"name\":\"source-key\"}");
+        final Response createResponse = client().performRequest(createRequest);
+        final Map<String, Object> createResponseMap = responseAsMap(createResponse);
+        final String encodedCredential = (String) createResponseMap.get("encoded");
+        assertThat(encodedCredential, notNullValue());
+
+        final Request cloneRequest = new Request("POST", "/_security/api_key/clone");
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject().field("api_key", encodedCredential).field("name", "cloned-key").endObject();
+            cloneRequest.setJsonEntity(Strings.toString(builder));
+        }
+        executeAndVerifyAudit(cloneRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get("request.body"));
+            assertThat(body, equalTo("{\"name\":\"cloned-key\"}"));
+            final String eventJson = toJson(event);
+            assertThat(eventJson, not(containsString(encodedCredential)));
+        });
     }
 
     private void executeAndVerifyAudit(Request request, AuditLevel eventType, CheckedConsumer<Map<String, Object>, Exception> assertions)

@@ -13,31 +13,31 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Pow}.
+ * {@link ExpressionEvaluator} implementation for {@link Pow}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class PowEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(PowEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator base;
+  private final ExpressionEvaluator base;
 
-  private final EvalOperator.ExpressionEvaluator exponent;
+  private final ExpressionEvaluator exponent;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public PowEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
-      EvalOperator.ExpressionEvaluator exponent, DriverContext driverContext) {
+  public PowEvaluator(Source source, ExpressionEvaluator base, ExpressionEvaluator exponent,
+      DriverContext driverContext) {
     this.source = source;
     this.base = base;
     this.exponent = exponent;
@@ -72,27 +72,27 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (baseBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (baseBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (baseBlock.getValueCount(p) != 1) {
-          if (baseBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (exponentBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (exponentBlock.getValueCount(p) != 1) {
-          if (exponentBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (exponentBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         double base = baseBlock.getDouble(baseBlock.getFirstValueIndex(p));
         double exponent = exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p));
@@ -135,25 +135,20 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory base;
+    private final ExpressionEvaluator.Factory base;
 
-    private final EvalOperator.ExpressionEvaluator.Factory exponent;
+    private final ExpressionEvaluator.Factory exponent;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory base,
-        EvalOperator.ExpressionEvaluator.Factory exponent) {
+    public Factory(Source source, ExpressionEvaluator.Factory base,
+        ExpressionEvaluator.Factory exponent) {
       this.source = source;
       this.base = base;
       this.exponent = exponent;

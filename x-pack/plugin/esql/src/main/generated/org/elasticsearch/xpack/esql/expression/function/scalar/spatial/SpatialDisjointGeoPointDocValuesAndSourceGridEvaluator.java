@@ -13,25 +13,25 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialDisjoint}.
+ * {@link ExpressionEvaluator} implementation for {@link SpatialDisjoint}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator encodedPoints;
+  private final ExpressionEvaluator encodedPoints;
 
-  private final EvalOperator.ExpressionEvaluator gridIds;
+  private final ExpressionEvaluator gridIds;
 
   private final DataType gridType;
 
@@ -40,8 +40,8 @@ public final class SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator implem
   private Warnings warnings;
 
   public SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encodedPoints, EvalOperator.ExpressionEvaluator gridIds,
-      DataType gridType, DriverContext driverContext) {
+      ExpressionEvaluator encodedPoints, ExpressionEvaluator gridIds, DataType gridType,
+      DriverContext driverContext) {
     this.source = source;
     this.encodedPoints = encodedPoints;
     this.gridIds = gridIds;
@@ -104,27 +104,22 @@ public final class SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator implem
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory encodedPoints;
+    private final ExpressionEvaluator.Factory encodedPoints;
 
-    private final EvalOperator.ExpressionEvaluator.Factory gridIds;
+    private final ExpressionEvaluator.Factory gridIds;
 
     private final DataType gridType;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedPoints,
-        EvalOperator.ExpressionEvaluator.Factory gridIds, DataType gridType) {
+    public Factory(Source source, ExpressionEvaluator.Factory encodedPoints,
+        ExpressionEvaluator.Factory gridIds, DataType gridType) {
       this.source = source;
       this.encodedPoints = encodedPoints;
       this.gridIds = gridIds;

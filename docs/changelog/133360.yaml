@@ -1,5 +1,0 @@
-pr: 133360
-summary: Add recover_failure_document processor to remediate failurestore docs
-area: Ingest Node
-type: feature
-issues: []

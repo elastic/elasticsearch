@@ -11,7 +11,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.inference.WeightedTokensUtils;
@@ -38,7 +38,7 @@ import java.util.Set;
  * @deprecated Replaced by sparse_vector query
  */
 @Deprecated
-public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
+public class WeightedTokensQueryBuilder extends LeafQueryBuilder<WeightedTokensQueryBuilder> {
 
     public static final String NAME = "weighted_tokens";
 
@@ -151,7 +151,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_13_0;
+        return TransportVersion.minimumCompatible();
     }
 
     private static float parseWeight(String token, Object weight) {

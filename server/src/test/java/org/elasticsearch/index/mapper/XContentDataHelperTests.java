@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 
 public class XContentDataHelperTests extends ESTestCase {
@@ -143,7 +144,7 @@ public class XContentDataHelperTests extends ESTestCase {
         XContentDataHelper.decodeAndWrite(decoded, encoded);
         var decodedBytes = BytesReference.bytes(builder);
 
-        assertEquals(originalBytes, decodedBytes);
+        assertThat(decodedBytes, equalBytes(originalBytes));
     }
 
     public void testObject() throws IOException {

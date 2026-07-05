@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -166,7 +167,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         response.get();
         logger.info("total shards: {}, ", response.get().getTotalShards());
         // we expect no failures here because UnavailableShardsException does not count as failed
-        assertBroadcastResponse(2, 0, 0, response.get(), null);
+        assertBroadcastResponse(2, 0, 0, 2, response.get(), null);
     }
 
     public void testStartedPrimary() throws InterruptedException, ExecutionException {
@@ -193,23 +194,28 @@ public class BroadcastReplicationTests extends ESTestCase {
         ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest().indices(index), response);
         int succeeded = 0;
         int failed = 0;
+        int unavailable = 0;
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             if (randomBoolean()) {
                 ReplicationResponse.ShardInfo.Failure[] failures = new ReplicationResponse.ShardInfo.Failure[0];
                 int shardsSucceeded = randomInt(1) + 1;
                 succeeded += shardsSucceeded;
                 ReplicationResponse replicationResponse = new ReplicationResponse();
-                if (shardsSucceeded == 1 && randomBoolean()) {
-                    // sometimes add failure (no failure means shard unavailable)
-                    failures = new ReplicationResponse.ShardInfo.Failure[1];
-                    failures[0] = new ReplicationResponse.ShardInfo.Failure(
-                        shardRequests.v1(),
-                        null,
-                        new Exception("pretend shard failed"),
-                        RestStatus.GATEWAY_TIMEOUT,
-                        false
-                    );
-                    failed++;
+                if (shardsSucceeded == 1) {
+                    if (randomBoolean()) {
+                        // sometimes add failure (no failure means shard unavailable)
+                        failures = new ReplicationResponse.ShardInfo.Failure[1];
+                        failures[0] = new ReplicationResponse.ShardInfo.Failure(
+                            shardRequests.v1(),
+                            null,
+                            new Exception("pretend shard failed"),
+                            RestStatus.GATEWAY_TIMEOUT,
+                            false
+                        );
+                        failed++;
+                    } else {
+                        unavailable++;
+                    }
                 }
                 replicationResponse.setShardInfo(ReplicationResponse.ShardInfo.of(2, shardsSucceeded, failures));
                 shardRequests.v2().onResponse(replicationResponse);
@@ -220,7 +226,7 @@ public class BroadcastReplicationTests extends ESTestCase {
                 shardRequests.v2().onFailure(new Exception("pretend shard failed"));
             }
         }
-        assertBroadcastResponse(2 * numShards, succeeded, failed, response.get(), Exception.class);
+        assertBroadcastResponse(2 * numShards, succeeded, failed, unavailable, response.get(), Exception.class);
     }
 
     public void testNoShards() throws InterruptedException, ExecutionException, IOException {
@@ -246,12 +252,12 @@ public class BroadcastReplicationTests extends ESTestCase {
             index
         );
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        List<ShardId> shards = broadcastReplicationAction.shards(
+        List<TransportBroadcastReplicationAction.ShardRecord> shards = broadcastReplicationAction.shards(
             new DummyBroadcastRequest().indices(shardId.getIndexName()),
             clusterState.projectState(projectId)
         );
         assertThat(shards.size(), equalTo(1));
-        assertThat(shards.get(0), equalTo(shardId));
+        assertThat(shards.get(0).shardId(), equalTo(shardId));
     }
 
     private class TestBroadcastReplicationAction extends TransportBroadcastReplicationAction<
@@ -285,7 +291,11 @@ public class BroadcastReplicationTests extends ESTestCase {
         }
 
         @Override
-        protected BasicReplicationRequest newShardRequest(DummyBroadcastRequest request, ShardId shardId) {
+        protected BasicReplicationRequest newShardRequest(
+            DummyBroadcastRequest request,
+            ShardId shardId,
+            SplitShardCountSummary shardCountSummary
+        ) {
             return new BasicReplicationRequest(shardId);
         }
 
@@ -304,6 +314,7 @@ public class BroadcastReplicationTests extends ESTestCase {
             Task task,
             DummyBroadcastRequest request,
             ShardId shardId,
+            SplitShardCountSummary shardCountSummary,
             ActionListener<ReplicationResponse> shardActionListener
         ) {
             capturedShardRequests.add(new Tuple<>(shardId, shardActionListener));
@@ -332,13 +343,25 @@ public class BroadcastReplicationTests extends ESTestCase {
         return response.actionGet(5, TimeUnit.SECONDS);
     }
 
-    private void assertBroadcastResponse(int total, int successful, int failed, BaseBroadcastResponse response, Class<?> exceptionClass) {
+    private void assertBroadcastResponse(
+        int total,
+        int successful,
+        int failed,
+        int unavailable,
+        BaseBroadcastResponse response,
+        Class<?> exceptionClass
+    ) {
         assertThat(response.getSuccessfulShards(), equalTo(successful));
         assertThat(response.getTotalShards(), equalTo(total));
         assertThat(response.getFailedShards(), equalTo(failed));
+        assertThat(response.getUnavailableShards(), equalTo(unavailable));
         for (int i = 0; i < failed; i++) {
             assertThat(response.getShardFailures()[0].getCause().getCause(), instanceOf(exceptionClass));
         }
+    }
+
+    private void assertBroadcastResponse(int total, int successful, int failed, BaseBroadcastResponse response, Class<?> exceptionClass) {
+        assertBroadcastResponse(total, successful, failed, 0, response, exceptionClass);
     }
 
     /**

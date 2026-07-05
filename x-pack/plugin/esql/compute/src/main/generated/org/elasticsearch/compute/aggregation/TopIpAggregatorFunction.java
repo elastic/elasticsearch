@@ -36,18 +36,13 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
 
   private final boolean ascending;
 
-  public TopIpAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      TopIpAggregator.SingleState state, int limit, boolean ascending) {
-    this.driverContext = driverContext;
-    this.channels = channels;
-    this.state = state;
+  TopIpAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit,
+      boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopIpAggregatorFunction create(DriverContext driverContext, List<Integer> channels,
-      int limit, boolean ascending) {
-    return new TopIpAggregatorFunction(driverContext, channels, TopIpAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
+    this.driverContext = driverContext;
+    this.channels = channels;
+    this.state = TopIpAggregator.initSingle(driverContext.bigArrays(), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -74,6 +69,18 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
     BytesRefBlock vBlock = page.getBlock(channels.get(0));
     BytesRefVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -84,6 +91,18 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
     BytesRefBlock vBlock = page.getBlock(channels.get(0));
     BytesRefVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -112,11 +131,12 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
   private void addRawBlock(BytesRefBlock vBlock) {
     BytesRef vScratch = new BytesRef();
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
         TopIpAggregator.combine(state, vValue);
@@ -130,11 +150,12 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
         TopIpAggregator.combine(state, vValue);
@@ -148,11 +169,20 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block topUncast = page.getBlock(channels.get(0));
     if (topUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
     assert top.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     TopIpAggregator.combineIntermediate(state, top);
   }
 

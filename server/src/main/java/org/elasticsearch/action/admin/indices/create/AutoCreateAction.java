@@ -33,13 +33,16 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RerouteBehavior;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -71,6 +74,22 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
     public static final AutoCreateAction INSTANCE = new AutoCreateAction();
     public static final String NAME = "indices:admin/auto_create";
 
+    // Deliberately not registered so it can only be set in tests/plugins.
+    public static final Setting<Priority> AUTO_CREATE_INDEX_PRIORITY_SETTING = Setting.enumSetting(
+        Priority.class,
+        "cluster.service.auto_create_index.priority",
+        Priority.URGENT,
+        Setting.Property.NodeScope
+    );
+
+    // Deliberately not registered so it can only be set in tests/plugins.
+    public static final Setting<TimeValue> AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.service.auto_create_index.max_timeout",
+        TimeValue.MINUS_ONE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private AutoCreateAction() {
         super(NAME);
     }
@@ -84,6 +103,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         private final SystemIndices systemIndices;
 
         private final MasterServiceTaskQueue<CreateIndexTask> taskQueue;
+        private volatile TimeValue maxMasterNodeTimeout;
 
         @Inject
         public TransportAction(
@@ -113,7 +133,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
             this.projectResolver = projectResolver;
-            this.taskQueue = clusterService.createTaskQueue("auto-create", Priority.URGENT, batchExecutionContext -> {
+            final var priority = AUTO_CREATE_INDEX_PRIORITY_SETTING.get(clusterService.getSettings());
+            this.taskQueue = clusterService.createTaskQueue("auto-create", priority, batchExecutionContext -> {
                 final var listener = new AllocationActionMultiListener<CreateIndexResponse>(threadPool.getThreadContext());
                 final var taskContexts = batchExecutionContext.taskContexts();
                 final var successfulRequests = Maps.<CreateIndexRequest, List<String>>newMapWithExpectedSize(taskContexts.size());
@@ -136,6 +157,10 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 }
                 return state;
             });
+
+            // setting only registered in some tests today
+            clusterService.getClusterSettings()
+                .initializeAndWatchIfRegistered(AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
         }
 
         @Override
@@ -148,7 +173,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             taskQueue.submitTask(
                 "auto create [" + request.index() + "]",
                 new CreateIndexTask(request, projectResolver.getProjectId(), listener),
-                request.masterNodeTimeout()
+                MasterService.maybeLimitMasterNodeTimeout(request.masterNodeTimeout(), maxMasterNodeTimeout)
             );
         }
 
@@ -261,14 +286,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.index(),
                         dataStreamDescriptor,
                         request.masterNodeTimeout(),
-                        request.ackTimeout(),
-                        false
+                        request.ackTimeout()
                     );
-                    assert createRequest.performReroute() == false
-                        : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
                     ClusterState clusterState = metadataCreateDataStreamService.createDataStream(
                         createRequest,
                         currentState,
+                        RerouteBehavior.SKIP_REROUTE,
                         rerouteCompletionIsNotRequired(),
                         request.isInitializeFailureStore()
                     );
@@ -330,6 +353,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest = buildSystemIndexUpdateRequest(projectId, indexName, descriptor);
                     } else if (isSystemIndex) {
                         updateRequest = buildUpdateRequest(projectId, indexName);
+                        updateRequest.systemIndexDescriptor(mainDescriptor);
 
                         if (Objects.isNull(request.settings())) {
                             updateRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
@@ -344,12 +368,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest = buildUpdateRequest(projectId, indexName);
                     }
 
-                    assert updateRequest.performReroute() == false
-                        : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
                     final var clusterState = createIndexService.applyCreateIndexRequest(
                         currentState,
                         updateRequest,
                         false,
+                        RerouteBehavior.SKIP_REROUTE,
                         rerouteCompletionIsNotRequired()
                     );
                     taskContext.success(getAckListener(indexName, allocationActionMultiListener));
@@ -364,7 +387,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     projectId,
                     indexName,
                     request.index()
-                ).performReroute(false);
+                );
                 logger.debug("Auto-creating index {}", indexName);
                 return updateRequest;
             }
@@ -386,7 +409,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     projectId,
                     concreteIndexName,
                     request.index()
-                ).performReroute(false);
+                ).systemIndexDescriptor(descriptor);
 
                 updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 

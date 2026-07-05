@@ -92,6 +92,13 @@ public final class HttpTransportSettings {
         ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         Property.NodeScope
     );
+    public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH = Setting.byteSizeSetting(
+        "http.max_protobuf_content_length",
+        ByteSizeValue.of(8, ByteSizeUnit.MB),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        Property.NodeScope
+    );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CHUNK_SIZE = Setting.byteSizeSetting(
         "http.max_chunk_size",
         ByteSizeValue.of(8, ByteSizeUnit.KB),

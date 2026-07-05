@@ -109,12 +109,16 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         public void query(QueryRequest r, ActionListener<SearchResponse> l) {
             int ordinal = r.searchSource().terminateAfter();
-            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
-            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(searchHits));
+            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+            try {
+                ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(searchHits));
+            } finally {
+                searchHits.decRef();
+            }
         }
 
         @Override
@@ -123,12 +127,113 @@ public class CircuitBreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(SearchHit.unpooled(-1, hitRef.id()));
+                    hits.add(new SearchHit(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }
             listener.onResponse(searchHits);
         }
+    }
+
+    /**
+     * Reproduces the multi-valued join-key OOM vulnerability: a single document whose join-key fields are
+     * all multi-valued causes {@code extractJoinKeys} in {@code TumblingWindow} to build a Cartesian product
+     * of all value combinations before any circuit-breaker check can fire. With 8 fields × 12 values the
+     * product is 12^8 ≈ 430 million key arrays, which exhausts heap.
+     *
+     * The fix probes the circuit breaker incrementally during expansion so that a {@link CircuitBreakingException}
+     * is raised instead of an {@link OutOfMemoryError}. The breaker must also be left at zero used bytes after
+     * the exception, confirming the probe leaves no permanent footprint.
+     */
+    public void testCircuitBreakerOnMultiValuedJoinKeyExpansion() {
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            Collections.singletonList(
+                new BreakerSettings(
+                    CIRCUIT_BREAKER_NAME,
+                    256 * 1024,
+                    CIRCUIT_BREAKER_OVERHEAD,
+                    CircuitBreaker.Type.MEMORY,
+                    CircuitBreaker.Durability.TRANSIENT
+                )
+            ),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        CircuitBreaker breaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
+
+        Exception thrown = runMultiValuedJoinKeyExpansion(breaker);
+
+        assertNotNull("Expected CircuitBreakingException from multi-valued join key Cartesian product expansion", thrown);
+        assertEquals(CircuitBreakingException.class, thrown.getClass());
+        assertEquals(0, breaker.getUsed());
+    }
+
+    private Exception runMultiValuedJoinKeyExpansion(CircuitBreaker breaker) {
+        // 8 key fields, each returning 12 distinct values → 12^8 ≈ 430 million combinations per hit.
+        int numKeyFields = 8;
+        int valuesPerField = 12;
+
+        List<String> fieldValues = new ArrayList<>(valuesPerField);
+        for (int i = 0; i < valuesPerField; i++) {
+            fieldValues.add("v" + i);
+        }
+
+        List<HitExtractor> multiValuedExtractors = new ArrayList<>(numKeyFields);
+        for (int i = 0; i < numKeyFields; i++) {
+            multiValuedExtractors.add(new MultiValueKeyExtractor(fieldValues));
+        }
+
+        int sequenceStages = 2;
+        List<SequenceCriterion> criteria = new ArrayList<>(sequenceStages);
+        for (int i = 0; i < sequenceStages; i++) {
+            final int stageIdx = i;
+            criteria.add(
+                new SequenceCriterion(
+                    stageIdx,
+                    new BoxedQueryRequest(
+                        () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(stageIdx),
+                        "@timestamp",
+                        emptyList(),
+                        emptySet()
+                    ),
+                    multiValuedExtractors,
+                    tsExtractor,
+                    null,
+                    implicitTbExtractor,
+                    false,
+                    false
+                )
+            );
+        }
+
+        SequenceMatcher matcher = new SequenceMatcher(
+            sequenceStages,
+            false,
+            TimeValue.MINUS_ONE,
+            null,
+            booleanArrayOf(sequenceStages, false),
+            breaker
+        );
+
+        TumblingWindow window = new TumblingWindow(
+            new TestQueryClient(),
+            criteria,
+            null,
+            matcher,
+            Collections.emptyList(),
+            randomBoolean(),
+            randomBoolean()
+        );
+
+        Holder<Exception> thrownException = new Holder<>();
+        window.execute(
+            wrap(
+                p -> fail("Expected CircuitBreakingException from multi-valued join key Cartesian product expansion"),
+                thrownException::set
+            )
+        );
+        return thrownException.get();
     }
 
     public void testCircuitBreakerTumblingWindow() {
@@ -295,7 +400,7 @@ public class CircuitBreakerTests extends ESTestCase {
             );
             window.execute(wrap(p -> fail(), ex -> assertTrue(ex instanceof CircuitBreakingException)));
         }
-        assertCriticalWarnings("[indices.breaker.total.limit] setting of [0%] is below the recommended minimum of 50.0% of the heap");
+        assertWarnings("[indices.breaker.total.limit] setting of [0%] is below the recommended minimum of 50.0% of the heap");
     }
 
     private List<BreakerSettings> breakerSettings() {
@@ -352,6 +457,7 @@ public class CircuitBreakerTests extends ESTestCase {
             1,
             randomBoolean(),
             randomBoolean(),
+            null,
             "",
             new TaskId("test", 123),
             new EqlSearchTask(
@@ -412,7 +518,7 @@ public class CircuitBreakerTests extends ESTestCase {
         ) {
             if (request instanceof OpenPointInTimeRequest) {
                 pitContextCounter.incrementAndGet();
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0, SearchResponse.Clusters.EMPTY);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest) {
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);
@@ -448,12 +554,12 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             int ordinal = searchRequest.source().terminateAfter();
-            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
 
-            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
             SearchResponse response = new SearchResponse(
                 searchHits,
                 null,
@@ -469,7 +575,9 @@ public class CircuitBreakerTests extends ESTestCase {
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
-                searchRequest.pointInTimeBuilder().getEncodedId()
+                searchRequest.pointInTimeBuilder().getEncodedId(),
+                null,
+                null
             );
 
             if (searchRequestsRemainingCount() == 1) {
@@ -478,7 +586,11 @@ public class CircuitBreakerTests extends ESTestCase {
                 assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
             }
 
-            ActionListener.respondAndRelease(listener, (Response) response);
+            try {
+                ActionListener.respondAndRelease(listener, (Response) response);
+            } finally {
+                searchHits.decRef();
+            }
         }
     }
 
@@ -500,31 +612,37 @@ public class CircuitBreakerTests extends ESTestCase {
                 assertEquals(0, circuitBreaker.getUsed());
 
                 int ordinal = searchRequest.source().terminateAfter();
-                SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
+                SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
                 searchHit.sortValues(
                     new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
                 );
-                SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-                ActionListener.respondAndRelease(
-                    listener,
-                    (Response) new SearchResponse(
-                        searchHits,
-                        null,
-                        null,
-                        false,
-                        false,
-                        null,
-                        0,
-                        null,
-                        2,
-                        0,
-                        0,
-                        0,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY,
-                        searchRequest.pointInTimeBuilder().getEncodedId()
-                    )
-                );
+                SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+                try {
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
+                            searchHits,
+                            null,
+                            null,
+                            false,
+                            false,
+                            null,
+                            0,
+                            null,
+                            2,
+                            0,
+                            0,
+                            0,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY,
+                            searchRequest.pointInTimeBuilder().getEncodedId(),
+                            null,
+                            null
+                        )
+                    );
+                } finally {
+                    searchHits.decRef();
+                }
             } else {
                 assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
                 ShardSearchFailure[] failures = new ShardSearchFailure[] {
@@ -539,30 +657,37 @@ public class CircuitBreakerTests extends ESTestCase {
                 } else {
                     // or a partial shard failure
                     // this should still be caught and the exception handled properly and circuit breaker cleared
-                    ActionListener.respondAndRelease(
-                        listener,
-                        (Response) new SearchResponse(
-                            SearchHits.unpooled(
-                                new SearchHit[] { SearchHit.unpooled(1) },
-                                new TotalHits(1L, TotalHits.Relation.EQUAL_TO),
-                                1.0f
-                            ),
-                            null,
-                            new Suggest(Collections.emptyList()),
-                            false,
-                            false,
-                            new SearchProfileResults(Collections.emptyMap()),
-                            1,
-                            null,
-                            2,
-                            1,
-                            0,
-                            0,
-                            failures,
-                            SearchResponse.Clusters.EMPTY,
-                            searchRequest.pointInTimeBuilder().getEncodedId()
-                        )
+                    SearchHits failureHits = new SearchHits(
+                        new SearchHit[] { new SearchHit(1) },
+                        new TotalHits(1L, TotalHits.Relation.EQUAL_TO),
+                        1.0f
                     );
+                    try {
+                        ActionListener.respondAndRelease(
+                            listener,
+                            (Response) new SearchResponse(
+                                failureHits,
+                                null,
+                                new Suggest(Collections.emptyList()),
+                                false,
+                                false,
+                                new SearchProfileResults(Collections.emptyMap()),
+                                1,
+                                null,
+                                2,
+                                1,
+                                0,
+                                0,
+                                failures,
+                                SearchResponse.Clusters.EMPTY,
+                                searchRequest.pointInTimeBuilder().getEncodedId(),
+                                null,
+                                null
+                            )
+                        );
+                    } finally {
+                        failureHits.decRef();
+                    }
                 }
             }
         }
@@ -590,6 +715,38 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         public void addWithoutBreaking(long bytes) {
             ramBytesUsed += bytes;
+        }
+    }
+
+    /**
+     * Returns a fixed list of strings for every hit, simulating a multi-valued join-key field.
+     * {@code TumblingWindow.extractJoinKeys} treats any {@link java.util.List} value as multi-valued
+     * and expands all combinations into a Cartesian product.
+     */
+    private static class MultiValueKeyExtractor implements HitExtractor {
+
+        private final List<String> values;
+
+        MultiValueKeyExtractor(List<String> values) {
+            this.values = values;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public String hitName() {
+            return null;
+        }
+
+        @Override
+        public Object extract(SearchHit hit) {
+            return values;
         }
     }
 

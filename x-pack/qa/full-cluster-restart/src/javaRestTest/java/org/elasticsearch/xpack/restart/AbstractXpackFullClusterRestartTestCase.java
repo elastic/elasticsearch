@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.restart;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
@@ -21,7 +20,7 @@ public abstract class AbstractXpackFullClusterRestartTestCase extends Parameteri
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(Version.fromString(OLD_CLUSTER_VERSION))
+        .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
         .nodes(2)
         // some tests rely on the translog not being flushed
         .setting("indices.memory.shard_inactive_time", "60m")

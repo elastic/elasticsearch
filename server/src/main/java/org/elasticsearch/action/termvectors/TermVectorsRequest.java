@@ -10,12 +10,15 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.RealtimeRequest;
+import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,6 +27,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,13 +51,13 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  * <p>
  * Note, the {@link #index()} and {@link #id(String)} are required.
  */
-// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
-@SuppressWarnings("unchecked")
-public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
+public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RetryableSplitAwareRequest {
+    public static TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("term_vectors_split_shard_count_summary");
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
+    private static final ParseField SLICE = new ParseField(SliceIndexing.PARAM_NAME);
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
     private static final ParseField FIELDS = new ParseField("fields");
@@ -72,6 +76,11 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
 
     private String routing;
 
+    // Whether routing was supplied via the _slice parameter. Like GetRequest, this is provenance used only for
+    // coordinating-node validation and is intentionally not serialized: the shard only needs the routing value itself
+    // to build the slice-scoped identity term.
+    private boolean routingFromSlice;
+
     private VersionType versionType = VersionType.INTERNAL;
 
     private long version = Versions.MATCH_ANY;
@@ -88,6 +97,8 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
     private Map<String, String> perFieldAnalyzer;
 
     private FilterSettings filterSettings;
+
+    private SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.UNSET;
 
     public static final class FilterSettings {
         public Integer maxNumTerms;
@@ -125,10 +136,6 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
 
     TermVectorsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types no longer relevant so ignore
-            in.readString();
-        }
         id = in.readString();
 
         if (in.readBoolean()) {
@@ -162,6 +169,11 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         realtime = in.readBoolean();
         versionType = VersionType.fromValue(in.readByte());
         version = in.readLong();
+        if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary = new SplitShardCountSummary(in);
+        } else {
+            splitShardCountSummary = SplitShardCountSummary.UNSET;
+        }
     }
 
     /**
@@ -189,6 +201,7 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
         this.routing = other.routing();
+        this.routingFromSlice = other.routingFromSlice;
         if (other.selectedFields != null) {
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
@@ -199,6 +212,7 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         this.version = other.version();
         this.versionType = VersionType.fromValue(other.versionType().getValue());
         this.filterSettings = other.filterSettings();
+        this.splitShardCountSummary = other.getSplitShardCountSummary();
     }
 
     public TermVectorsRequest(MultiGetRequest.Item item) {
@@ -206,6 +220,7 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         this.id = item.id();
         this.selectedFields(item.storedFields());
         this.routing(item.routing());
+        this.routingFromSlice = item.isRoutingFromSlice();
     }
 
     public EnumSet<Flag> getFlags() {
@@ -277,6 +292,16 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
     public TermVectorsRequest routing(String routing) {
         this.routing = routing;
         return this;
+    }
+
+    /** Mark whether {@link #routing()} was supplied via the {@code _slice} parameter. */
+    public TermVectorsRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 
     public String preference() {
@@ -399,7 +424,6 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         return this.realtime;
     }
 
-    @Override
     public TermVectorsRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;
@@ -463,6 +487,19 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
     }
 
     @Override
+    public SplitShardCountSummary getSplitShardCountSummary() {
+        return splitShardCountSummary;
+    }
+
+    @Override
+    public void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index) {
+        final var indexMetadata = projectMetadata.index(index);
+        final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        final var shardId = indexRouting.getShard(id(), routing());
+        this.splitShardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId);
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
         if (id == null && doc == null) {
@@ -474,10 +511,6 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types not supported so send an empty array to previous versions
-            out.writeString("_doc");
-        }
         out.writeString(id);
 
         out.writeBoolean(doc != null);
@@ -508,6 +541,9 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         out.writeBoolean(realtime);
         out.writeByte(versionType.getValue());
         out.writeLong(version);
+        if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary.writeTo(out);
+        }
     }
 
     public enum Flag {
@@ -574,7 +610,21 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
                     }
                     termVectorsRequest.doc(jsonBuilder().copyCurrentStructure(parser));
                 } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (termVectorsRequest.routingFromSlice) {
+                        throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+                    }
                     termVectorsRequest.routing = parser.text();
+                } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+                        throw new ElasticsearchParseException("request does not support [" + SliceIndexing.PARAM_NAME + "]");
+                    }
+                    if (termVectorsRequest.routingFromSlice == false && termVectorsRequest.routing != null) {
+                        throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+                    }
+                    final String slice = parser.text();
+                    SliceIndexing.validateUserSliceValue(slice);
+                    termVectorsRequest.routing = slice;
+                    termVectorsRequest.routingFromSlice = true;
                 } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.version = parser.longValue();
                 } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {

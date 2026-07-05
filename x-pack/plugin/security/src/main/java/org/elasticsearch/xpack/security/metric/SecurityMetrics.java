@@ -12,6 +12,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
 /**
@@ -69,22 +70,22 @@ public final class SecurityMetrics<C> {
      * Records a single failed execution.
      *
      * @param context       The context object which is used to attach additional attributes to failed metric.
-     * @param failureReason The optional failure reason which is stored as an attributed with recorded failure metric.
      */
-    public void recordFailure(final C context, final String failureReason) {
-        this.failuresCounter.incrementBy(1L, attributesBuilder.build(context, failureReason));
+    public void recordFailure(final C context) {
+        this.failuresCounter.incrementBy(1L, attributesBuilder.build(context));
     }
 
     /**
-     * Records a time in nanoseconds. This method should be called after the execution with provided start time.
-     * The {@link #relativeTimeInNanos()} should be used to record the start time.
+     * Records the elapsed execution time in milliseconds.
+     * The start time is captured in nanoseconds (via {@link #relativeTimeInNanos()}) for precision,
+     * but the recorded value is converted to milliseconds so that it falls within the finite bucket range.
      *
      * @param context       The context object which is used to attach additional attributes to collected metric.
      * @param startTimeNano The start time (in nanoseconds) before the execution.
      */
     public void recordTime(final C context, final long startTimeNano) {
-        final long timeInNanos = relativeTimeInNanos() - startTimeNano;
-        this.timeHistogram.record(timeInNanos, this.attributesBuilder.build(context));
+        final long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanos() - startTimeNano);
+        this.timeHistogram.record(elapsedMillis, this.attributesBuilder.build(context));
     }
 
 }

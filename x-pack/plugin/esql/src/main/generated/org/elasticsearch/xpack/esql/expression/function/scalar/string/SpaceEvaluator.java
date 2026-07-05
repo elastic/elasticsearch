@@ -14,32 +14,32 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Space}.
+ * {@link ExpressionEvaluator} implementation for {@link Space}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class SpaceEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SpaceEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SpaceEvaluator.class);
 
   private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
 
-  private final EvalOperator.ExpressionEvaluator number;
+  private final ExpressionEvaluator number;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public SpaceEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      EvalOperator.ExpressionEvaluator number, DriverContext driverContext) {
+  public SpaceEvaluator(Source source, BreakingBytesRefBuilder scratch, ExpressionEvaluator number,
+      DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
     this.number = number;
@@ -67,16 +67,16 @@ public final class SpaceEvaluator implements EvalOperator.ExpressionEvaluator {
   public BytesRefBlock eval(int positionCount, IntBlock numberBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (numberBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (numberBlock.getValueCount(p) != 1) {
-          if (numberBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (numberBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         int number = numberBlock.getInt(numberBlock.getFirstValueIndex(p));
         try {
@@ -117,25 +117,20 @@ public final class SpaceEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
-    private final EvalOperator.ExpressionEvaluator.Factory number;
+    private final ExpressionEvaluator.Factory number;
 
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        EvalOperator.ExpressionEvaluator.Factory number) {
+        ExpressionEvaluator.Factory number) {
       this.source = source;
       this.scratch = scratch;
       this.number = number;

@@ -9,10 +9,10 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -24,22 +24,35 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.io.IOException;
-
-public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDVLeafFieldData> {
+public class StringBinaryIndexFieldData implements IndexFieldData<MultiValuedBinaryDVLeafFieldData> {
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+    protected final IndexVersion indexVersion;
+    protected final boolean arrayOrder;
 
     public StringBinaryIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        IndexVersion indexVersion
+    ) {
+        this(fieldName, valuesSourceType, toScriptFieldFactory, indexVersion, false);
+    }
+
+    public StringBinaryIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        IndexVersion indexVersion,
+        boolean arrayOrder
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexVersion = indexVersion;
+        this.arrayOrder = arrayOrder;
     }
 
     @Override
@@ -59,12 +72,8 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
     }
 
     @Override
-    public StringBinaryDVLeafFieldData load(LeafReaderContext context) {
-        try {
-            return new StringBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName), toScriptFieldFactory);
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot load doc values", e);
-        }
+    public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
+        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory, indexVersion, arrayOrder);
     }
 
     @Override
@@ -82,7 +91,7 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
     }
 
     @Override
-    public StringBinaryDVLeafFieldData loadDirect(LeafReaderContext context) {
+    public MultiValuedBinaryDVLeafFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 }

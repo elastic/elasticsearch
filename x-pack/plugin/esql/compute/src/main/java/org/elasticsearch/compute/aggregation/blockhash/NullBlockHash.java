@@ -55,13 +55,18 @@ final class NullBlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
+    public Block[] getKeys(IntVector selected) {
         return new Block[] { blockFactory.newConstantNullBlock(seenNull ? 1 : 0) };
     }
 
     @Override
     public IntVector nonEmpty() {
         return blockFactory.newConstantIntVector(0, seenNull ? 1 : 0);
+    }
+
+    @Override
+    public int numKeys() {
+        return seenNull ? 1 : 0;
     }
 
     @Override

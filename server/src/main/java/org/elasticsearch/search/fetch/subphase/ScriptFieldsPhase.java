@@ -31,6 +31,8 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
             return null;
         }
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();
+        var searcher = context.searcher();
+        Runnable cancellationCheck = searcher != null ? searcher::checkCancelled : null;
         return new FetchSubPhaseProcessor() {
 
             FieldScript[] leafScripts = null;
@@ -38,6 +40,9 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
                 leafScripts = createLeafScripts(readerContext, scriptFields);
+                for (FieldScript leafScript : leafScripts) {
+                    leafScript._setCancellationCheck(cancellationCheck);
+                }
             }
 
             @Override

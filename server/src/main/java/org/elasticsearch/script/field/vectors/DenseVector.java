@@ -10,7 +10,7 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.List;
 
@@ -35,7 +35,7 @@ public interface DenseVector {
 
     float getMagnitude();
 
-    int dotProduct(byte[] queryVector);
+    double dotProduct(byte[] queryVector);
 
     double dotProduct(float[] queryVector);
 
@@ -176,7 +176,7 @@ public interface DenseVector {
     int size();
 
     static float getMagnitude(byte[] vector) {
-        return (float) Math.sqrt(VectorUtil.dotProduct(vector, vector));
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(vector, vector));
     }
 
     static float getMagnitude(byte[] vector, int dims) {
@@ -205,7 +205,7 @@ public interface DenseVector {
     }
 
     static float getMagnitude(float[] vector) {
-        return (float) Math.sqrt(VectorUtil.dotProduct(vector, vector));
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(vector, vector));
     }
 
     static float getMagnitude(List<Number> vector) {
@@ -239,7 +239,7 @@ public interface DenseVector {
         }
 
         @Override
-        public int dotProduct(byte[] queryVector) {
+        public double dotProduct(byte[] queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

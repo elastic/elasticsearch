@@ -33,7 +33,7 @@
         "description": "Get events for the job. When this option is used calendar_id must be '_all'"
       },
       "start": {
-        "type": "string",
+        "type": "date",
         "description": "Get events after this time"
       },
       "end": {
@@ -42,10 +42,12 @@
       },
       "from": {
         "type": "int",
+        "default": 0,
         "description": "Skips a number of events"
       },
       "size": {
         "type": "int",
+        "default": 100,
         "description": "Specifies a max number of events to get"
       }
     }

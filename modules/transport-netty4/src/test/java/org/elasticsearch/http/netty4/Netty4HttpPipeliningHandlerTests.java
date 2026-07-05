@@ -72,6 +72,7 @@ import java.util.stream.IntStream;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -548,7 +549,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private static void assertContentAtIndexEquals(List<Object> messagesSeen, int index, BytesReference single) {
-        assertEquals(Netty4Utils.toBytesReference(((ByteBufHolder) messagesSeen.get(index)).content()), single);
+        assertThat(single, equalBytes(Netty4Utils.toBytesReference(((ByteBufHolder) messagesSeen.get(index)).content())));
     }
 
     private static void assertDoneWithClosedChannel(ChannelPromise chunkedWritePromise) {

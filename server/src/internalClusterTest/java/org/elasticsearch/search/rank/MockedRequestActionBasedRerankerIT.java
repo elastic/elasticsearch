@@ -14,12 +14,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -142,7 +141,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         }
     }
 
-    public static class TestRerankingActionRequest extends LegacyActionRequest {
+    public static class TestRerankingActionRequest extends UntypedActionRequest {
 
         private final List<String> docFeatures;
 
@@ -419,7 +418,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_15_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 

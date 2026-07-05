@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -80,14 +81,9 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
             instance.indicesOptions(
                 IndicesOptions.builder()
                     .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
-                    .wildcardOptions(
-                        new IndicesOptions.WildcardOptions(
-                            randomBoolean(),
-                            randomBoolean(),
-                            randomBoolean(),
-                            instance.indicesOptions().ignoreAliases() == false,
-                            randomBoolean()
-                        )
+                    .wildcardOptions(new IndicesOptions.WildcardOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))
+                    .indexAbstractionOptions(
+                        new IndicesOptions.IndexAbstractionOptions(instance.indicesOptions().ignoreAliases() == false, false, false)
                     )
                     .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true).build())
                     .build()
@@ -174,6 +170,17 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
     public void testToStringWillIncludeSkipOperatorOnlyState() {
         RestoreSnapshotRequest original = createTestInstance();
         assertThat(original.toString(), containsString("skipOperatorOnlyState"));
+    }
+
+    public void testRenameReplacementNameTooLong() {
+        RestoreSnapshotRequest request = createTestInstance();
+        request.indices("b".repeat(255));
+        request.renamePattern("b");
+        request.renameReplacement("1".repeat(randomIntBetween(266, 10_000)));
+
+        ActionRequestValidationException validation = request.validate();
+        assertNotNull(validation);
+        assertThat(validation.getMessage(), containsString("rename_replacement"));
     }
 
     private Map<String, Object> convertRequestToMap(RestoreSnapshotRequest request) throws IOException {

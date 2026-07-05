@@ -52,7 +52,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -76,12 +75,14 @@ import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 
 import java.time.Instant;
 import java.time.InstantSource;
@@ -100,7 +101,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -110,7 +110,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.core.UpdateForV10.Owner.DATA_MANAGEMENT;
 
 /**
  * Holder class for several ingest related services.
@@ -154,7 +153,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private volatile ClusterState state;
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
-    private final SamplingService samplingService;
     private final Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
@@ -175,15 +173,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public static MatcherWatchdog createGrokThreadWatchdog(Environment env, ThreadPool threadPool) {
         final Settings settings = env.settings();
-        final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler = createScheduler(threadPool);
-        long intervalMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
-        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
-        return MatcherWatchdog.newInstance(
-            intervalMillis,
-            maxExecutionTimeMillis,
-            threadPool.relativeTimeInMillisSupplier(),
-            scheduler::apply
-        );
+        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).getMillis();
+        return MatcherWatchdog.newInstance(maxExecutionTimeMillis);
     }
 
     /**
@@ -253,10 +244,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService,
-        SamplingService samplingService,
         Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
     ) {
         this.clusterService = clusterService;
@@ -273,7 +265,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 this,
                 client,
                 threadPool.generic()::execute,
-                matcherWatchdog
+                matcherWatchdog,
+                userAgentParserRegistry,
+                ipLocationService
             )
         );
         this.threadPool = threadPool;
@@ -281,7 +275,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.failureStoreMetrics = failureStoreMetrics;
         this.projectResolver = projectResolver;
         this.featureService = featureService;
-        this.samplingService = samplingService;
         this.nodeInfoListener = nodeInfoListener;
     }
 
@@ -294,10 +287,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
-        FeatureService featureService,
-        SamplingService samplingService
+        FeatureService featureService
     ) {
         this(
             clusterService,
@@ -308,10 +302,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             ingestPlugins,
             client,
             matcherWatchdog,
+            userAgentParserRegistry,
+            ipLocationService,
             failureStoreMetrics,
             projectResolver,
             featureService,
-            samplingService,
             createNodeInfoListener(client)
         );
     }
@@ -332,7 +327,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.failureStoreMetrics = ingestService.failureStoreMetrics;
         this.projectResolver = ingestService.projectResolver;
         this.featureService = ingestService.featureService;
-        this.samplingService = ingestService.samplingService;
         this.nodeInfoListener = ingestService.nodeInfoListener;
     }
 
@@ -842,7 +836,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    @UpdateForV10(owner = DATA_MANAGEMENT) // Change deprecation log for special characters in name to a failure
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Change deprecation log for special characters in name to a failure
     void validatePipeline(
         Map<DiscoveryNode, IngestInfo> ingestInfos,
         ProjectId projectId,
@@ -916,6 +910,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             null,
             IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
         );
+
         private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
             return new IngestPipelinesExecutionResult(false, true, e, index, IndexDocFailureStoreStatus.USED);
         }
@@ -980,7 +975,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         Pipeline firstPipeline = pipelines.peekFirst();
                         if (pipelines.hasNext() == false) {
                             i++;
-                            samplingService.maybeSample(state.metadata().projects().get(pipelines.projectId()), indexRequest);
                             continue;
                         }
 
@@ -992,7 +986,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
-                        final IngestDocument ingestDocument = newIngestDocument(indexRequest);
+                        final IngestDocument ingestDocument;
+                        try {
+                            ingestDocument = newIngestDocument(indexRequest);
+                        } catch (Exception e) {
+                            // Document parsing failed (e.g. invalid JSON). Handle this gracefully
+                            // by marking this document as failed and continuing with other documents.
+                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                            totalMetrics.postIngest(ingestTimeInNanos);
+                            totalMetrics.ingestFailed();
+                            ref.close();
+                            i++;
+                            onFailure.apply(slot, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                            continue;
+                        }
                         final Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
@@ -1040,14 +1047,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             }
                         );
 
-                        executePipelines(
-                            pipelines,
-                            indexRequest,
-                            ingestDocument,
-                            adaptedResolveFailureStore,
-                            documentListener,
-                            originalDocumentMetadata
-                        );
+                        executePipelines(pipelines, indexRequest, ingestDocument, adaptedResolveFailureStore, documentListener);
                         assert actionRequest.index() != null;
 
                         i++;
@@ -1166,8 +1166,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
         final Function<String, Boolean> resolveFailureStore,
-        final ActionListener<IngestPipelinesExecutionResult> listener,
-        final Metadata originalDocumentMetadata
+        final ActionListener<IngestPipelinesExecutionResult> listener
     ) {
         assert pipelines.hasNext();
         PipelineSlot slot = pipelines.next();
@@ -1198,7 +1197,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 listener.onFailure(e);
             }
         };
-        AtomicBoolean haveAttemptedSampling = new AtomicBoolean(false);
         final var project = state.metadata().projects().get(pipelines.projectId());
         try {
             if (pipeline == null) {
@@ -1295,27 +1293,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
-                    for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(project)) {
-                        if (streamType.matchesStreamPrefix(newIndex)
-                            && ingestDocument.getIndexHistory().contains(streamType.getStreamName()) == false) {
-                            exceptionHandler.accept(
-                                new IngestPipelineException(
-                                    pipelineId,
-                                    new IllegalArgumentException(
-                                        format(
-                                            "Pipeline [%s] can't change the target index (from [%s] to [%s] child stream [%s]) "
-                                                + "History: [%s]",
-                                            pipelineId,
-                                            originalIndex,
-                                            streamType.getStreamName(),
-                                            newIndex,
-                                            String.join(", ", ingestDocument.getIndexHistory())
-                                        )
+                    final StreamType subStream = StreamType.enabledParentStreamOf(project, newIndex);
+                    if (subStream != null && ingestDocument.getIndexHistory().contains(subStream.getStreamName()) == false) {
+                        exceptionHandler.accept(
+                            new IngestPipelineException(
+                                pipelineId,
+                                new IllegalArgumentException(
+                                    format(
+                                        "Pipeline [%s] can't change the target index (from [%s] to [%s] child stream [%s]) "
+                                            + "History: [%s]",
+                                        pipelineId,
+                                        originalIndex,
+                                        subStream.getStreamName(),
+                                        newIndex,
+                                        String.join(", ", ingestDocument.getIndexHistory())
                                     )
                                 )
-                            );
-                            return; // document failed!
-                        }
+                            )
+                        );
+                        return; // document failed!
                     }
 
                     // add the index to the document's index history, and check for cycles in the visited indices
@@ -1353,80 +1349,24 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
-                    executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, listener, originalDocumentMetadata);
+                    executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, listener);
                 } else {
                     /*
                      * At this point, all pipelines have been executed, and we are about to overwrite ingestDocument with the results.
                      * This is our chance to sample with both the original document and all changes.
                      */
-                    haveAttemptedSampling.set(true);
-                    attemptToSampleData(project, indexRequest, ingestDocument, originalDocumentMetadata);
                     updateIndexRequestSource(indexRequest, ingestDocument);
                     cacheRawTimestamp(indexRequest, ingestDocument);
                     listener.onResponse(IngestPipelinesExecutionResult.SUCCESSFUL_RESULT); // document succeeded!
                 }
             });
         } catch (Exception e) {
-            if (haveAttemptedSampling.get() == false) {
-                // It is possible that an exception happened after we sampled. We do not want to sample the same document twice.
-                attemptToSampleData(project, indexRequest, ingestDocument, originalDocumentMetadata);
-            }
             logger.debug(
                 () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e
             );
             exceptionHandler.accept(e); // document failed
         }
-    }
-
-    private void attemptToSampleData(
-        ProjectMetadata projectMetadata,
-        IndexRequest indexRequest,
-        IngestDocument ingestDocument,
-        Metadata originalDocumentMetadata
-    ) {
-        if (samplingService != null && samplingService.atLeastOneSampleConfigured()) {
-            /*
-             * We need both the original document and the fully updated document for sampling, so we make a copy of the original
-             * before overwriting it here. We can discard it after sampling.
-             */
-            samplingService.maybeSample(projectMetadata, indexRequest.index(), () -> {
-                IndexRequest original = copyIndexRequestForSampling(indexRequest);
-                updateIndexRequestMetadata(original, originalDocumentMetadata);
-                return original;
-            }, ingestDocument);
-
-        }
-    }
-
-    /**
-     * Creates a copy of an IndexRequest to be used by random sampling.
-     * @param original The IndexRequest to be copied
-     * @return A copy of the IndexRequest
-     */
-    private IndexRequest copyIndexRequestForSampling(IndexRequest original) {
-        IndexRequest clonedRequest = new IndexRequest(original.index());
-        clonedRequest.id(original.id());
-        clonedRequest.routing(original.routing());
-        clonedRequest.version(original.version());
-        clonedRequest.versionType(original.versionType());
-        clonedRequest.setPipeline(original.getPipeline());
-        clonedRequest.setFinalPipeline(original.getFinalPipeline());
-        clonedRequest.setIfSeqNo(original.ifSeqNo());
-        clonedRequest.setIfPrimaryTerm(original.ifPrimaryTerm());
-        clonedRequest.setRefreshPolicy(original.getRefreshPolicy());
-        clonedRequest.waitForActiveShards(original.waitForActiveShards());
-        clonedRequest.timeout(original.timeout());
-        clonedRequest.opType(original.opType());
-        clonedRequest.setParentTask(original.getParentTask());
-        clonedRequest.setRequireDataStream(original.isRequireDataStream());
-        clonedRequest.setRequireAlias(original.isRequireAlias());
-        clonedRequest.setIncludeSourceOnError(original.getIncludeSourceOnError());
-        BytesReference source = original.source();
-        if (source != null) {
-            clonedRequest.source(source, original.getContentType());
-        }
-        return clonedRequest;
     }
 
     private static void executePipeline(
@@ -1743,7 +1683,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return processors;
     }
 
-    public <P extends Processor> Collection<String> getPipelineWithProcessorType(
+    /**
+     * Finds the ids of the pipelines in the given project that contain at least one processor of {@code clazz}
+     * matching {@code predicate}.
+     * This is {@code synchronized} on the same monitor as {@link #innerUpdatePipelines} and {@link #reloadPipeline}
+     * so that callers always observe a fully published view of {@link #pipelines}.
+     */
+    public synchronized <P extends Processor> Collection<String> getPipelineWithProcessorType(
         ProjectId projectId,
         Class<P> clazz,
         Predicate<P> predicate

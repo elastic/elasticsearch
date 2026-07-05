@@ -44,4 +44,28 @@ public class PointInTimeIT extends HttpSmokeTestCase {
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
         }
     }
+
+    public void testProjectRoutingInNonCrossProjectEnv() {
+        // With project_routing as query param in non-CPS env
+        {
+            Request request = new Request("POST", "_pit?project_routing=_alias:_origin");
+            request.addParameter("keep_alive", "1m");
+            ResponseException error = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertThat(error.getMessage(), containsString("request [_pit] contains unrecognized parameter: [project_routing]"));
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        }
+        // With project_routing in body in non-CPS env
+        {
+            Request request = new Request("POST", "logs-*/_pit");
+            request.addParameter("keep_alive", "1m");
+            request.setJsonEntity("""
+                {
+                    "project_routing": "_alias:_origin"
+                }
+                """);
+            ResponseException error = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertThat(error.getMessage(), containsString("Unknown key for a VALUE_STRING in [project_routing]"));
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        }
+    }
 }

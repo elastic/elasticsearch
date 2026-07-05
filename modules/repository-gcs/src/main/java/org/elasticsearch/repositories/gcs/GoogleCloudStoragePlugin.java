@@ -93,7 +93,11 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
             GoogleCloudStorageClientSettings.TOKEN_URI_SETTING,
             GoogleCloudStorageClientSettings.PROXY_TYPE_SETTING,
             GoogleCloudStorageClientSettings.PROXY_HOST_SETTING,
-            GoogleCloudStorageClientSettings.PROXY_PORT_SETTING
+            GoogleCloudStorageClientSettings.PROXY_PORT_SETTING,
+            GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING,
+            GoogleCloudStorageClientSettings.MEGABYTES_COPIED_PER_CHUNK_SETTING,
+            GoogleCloudStorageClientSettings.GCS_TENACIOUS_RETRIES_ENABLED_SETTING,
+            GoogleCloudStorageClientSettings.RESUMABLE_WRITE_BUFFER_SIZE_SETTING
         );
     }
 

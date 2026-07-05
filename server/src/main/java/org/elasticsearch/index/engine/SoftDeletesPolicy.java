@@ -36,6 +36,10 @@ final class SoftDeletesPolicy {
     private long minRetainedSeqNo;
     // provides the retention leases used to calculate the minimum sequence number to retain
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
+    // When true, the policy retains operations needed for peer recovery: it considers the local checkpoint of the safe commit,
+    // retention leases, and the retention operations setting. When false, the min retained sequence number is based solely on
+    // the global checkpoint, allowing soft-deleted documents to be reclaimed as aggressively as possible.
+    private final boolean retainForPeerRecovery;
 
     SoftDeletesPolicy(
         final LongSupplier globalCheckpointSupplier,
@@ -43,12 +47,23 @@ final class SoftDeletesPolicy {
         final long retentionOperations,
         final Supplier<RetentionLeases> retentionLeasesSupplier
     ) {
+        this(globalCheckpointSupplier, minRetainedSeqNo, retentionOperations, retentionLeasesSupplier, true);
+    }
+
+    SoftDeletesPolicy(
+        final LongSupplier globalCheckpointSupplier,
+        final long minRetainedSeqNo,
+        final long retentionOperations,
+        final Supplier<RetentionLeases> retentionLeasesSupplier,
+        final boolean retainForPeerRecovery
+    ) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionOperations = retentionOperations;
         this.minRetainedSeqNo = minRetainedSeqNo;
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
         this.retentionLockCount = 0;
+        this.retainForPeerRecovery = retainForPeerRecovery;
     }
 
     /**
@@ -106,32 +121,42 @@ final class SoftDeletesPolicy {
         // do not advance if the retention lock is held
         if (retentionLockCount == 0) {
             /*
-             * This policy retains operations for two purposes: peer-recovery and querying changes history.
-             *  - Peer-recovery is driven by the local checkpoint of the safe commit. In peer-recovery, the primary transfers a safe commit,
-             *    then sends operations after the local checkpoint of that commit. This requires keeping all ops after
-             *    localCheckpointOfSafeCommit.
-             *  - Changes APIs are driven by a combination of the global checkpoint, retention operations, and retention leases. Here we
+             * When retainForPeerRecovery is true, this policy retains operations for two purposes:
+             *  - Peer-recovery: driven by the local checkpoint of the safe commit. In peer-recovery, the primary transfers a safe
+             *    commit, then sends operations after the local checkpoint of that commit. This requires keeping all ops after
+             *    localCheckpointOfSafeCommit. Retention leases (synced periodically, see RETENTION_LEASE_SYNC_INTERVAL_SETTING)
+             *    further constrain the minimum retained sequence number.
+             *  - Changes APIs: driven by a combination of the global checkpoint, retention operations, and retention leases. Here we
              *    prefer using the global checkpoint instead of the maximum sequence number because only operations up to the global
              *    checkpoint are exposed in the changes APIs.
+             *
+             * When retainForPeerRecovery is false, the policy only retains operations above the global checkpoint. This is the most
+             * aggressive reclamation strategy: retention leases, retention operations, and the local checkpoint of the safe commit are
+             * all ignored.
              */
 
-            // calculate the minimum sequence number to retain based on retention leases
-            final long minimumRetainingSequenceNumber = retentionLeases.leases()
-                .stream()
-                .mapToLong(RetentionLease::retainingSequenceNumber)
-                .min()
-                .orElse(Long.MAX_VALUE);
-            /*
-             * The minimum sequence number to retain is the minimum of the minimum based on retention leases, and the number of operations
-             * below the global checkpoint to retain (index.soft_deletes.retention.operations). The additional increments on the global
-             * checkpoint and the local checkpoint of the safe commit are due to the fact that we want to retain all operations above
-             * those checkpoints.
-             */
-            final long minSeqNoForQueryingChanges = Math.min(
-                1 + globalCheckpointSupplier.getAsLong() - retentionOperations,
-                minimumRetainingSequenceNumber
-            );
-            final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit);
+            final long minSeqNoToRetain;
+            if (retainForPeerRecovery) {
+                // calculate the minimum sequence number to retain based on retention leases
+                final long minimumRetainingSequenceNumber = retentionLeases.leases()
+                    .stream()
+                    .mapToLong(RetentionLease::retainingSequenceNumber)
+                    .min()
+                    .orElse(Long.MAX_VALUE);
+                /*
+                 * The minimum sequence number to retain is the minimum of the minimum based on retention leases, and the number of
+                 * operations below the global checkpoint to retain (index.soft_deletes.retention.operations). The additional increments
+                 * on the global checkpoint and the local checkpoint of the safe commit are due to the fact that we want to retain all
+                 * operations above those checkpoints.
+                 */
+                final long minSeqNoForQueryingChanges = Math.min(
+                    1 + globalCheckpointSupplier.getAsLong() - retentionOperations,
+                    minimumRetainingSequenceNumber
+                );
+                minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit);
+            } else {
+                minSeqNoToRetain = 1 + globalCheckpointSupplier.getAsLong();
+            }
 
             /*
              * We take the maximum as minSeqNoToRetain can go backward as the retention operations value can be changed in settings, or from

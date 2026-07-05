@@ -26,22 +26,20 @@ import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.ssl.TrustEverythingConfig;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
+import org.elasticsearch.xpack.core.ssl.extension.SslProfileExtension;
 import org.junit.Before;
 
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.Principal;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.security.cert.Certificate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -53,6 +51,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -70,12 +69,14 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.instanceOf;
@@ -786,18 +787,18 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.alias(), equalTo("testnode_rsa"));
         assertThat(cert.path(), equalTo(jksPath.toString()));
         assertThat(cert.format(), equalTo("jks"));
-        assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
+        assertThat(cert.serialNumber(), equalTo("8bb52d5233d860a0"));
         assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
-        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:57.000Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2053-09-07T06:38:08Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
         cert = iterator.next();
         assertThat(cert.alias(), equalTo("testnode_rsa"));
         assertThat(cert.path(), equalTo(p12Path.toString()));
         assertThat(cert.format(), equalTo("PKCS12"));
-        assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
+        assertThat(cert.serialNumber(), equalTo("8bb52d5233d860a0"));
         assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
-        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:57.000Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2053-09-07T06:38:08Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
         cert = iterator.next();
@@ -872,7 +873,7 @@ public class SSLServiceTests extends ESTestCase {
                 // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
                 // This will result in an SSLHandshakeException if the SSLContext does not trust the CA, but the default
                 // truststore trusts all common public CAs so the handshake will succeed
-                privilegedConnect(() -> client.execute(new HttpGet("https://www.elastic.co/")).close());
+                client.execute(new HttpGet("https://www.elastic.co/")).close();
             }
         }
     }
@@ -890,7 +891,7 @@ public class SSLServiceTests extends ESTestCase {
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA which will succeed because the JDK
             // certs are trusted by default
-            privilegedConnect(() -> client.execute(new HttpGet("https://www.elastic.co/")).close());
+            client.execute(new HttpGet("https://www.elastic.co/")).close();
         }
     }
 
@@ -972,27 +973,72 @@ public class SSLServiceTests extends ESTestCase {
         }
     }
 
-    private CloseableHttpAsyncClient getAsyncHttpClient(SSLIOSessionStrategy sslStrategy) throws Exception {
-        try {
-            return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> HttpAsyncClientBuilder.create()
-                    .setSSLStrategy(sslStrategy)
-                    .build()
+    public void testLoadProfilesFromExtensions() {
+        final Map<SslProfileExtension, Map<String, SslProfile>> appliedProfiles = new HashMap<>();
+        final Map<String, Tuple<SslClientAuthenticationMode, SslVerificationMode>> allExtensionsPrefixes = new HashMap<>();
+
+        final Settings.Builder settings = Settings.builder().put(env.settings()).put("xpack.http.ssl.verification_mode", "certificate");
+
+        final List<SslProfileExtension> extensions = randomList(1, 3, () -> {
+            final Set<String> prefixes = randomSet(
+                1,
+                3,
+                () -> randomValueOtherThanMany(
+                    allExtensionsPrefixes::containsKey,
+                    () -> randomAlphaOfLengthBetween(3, 8) + "." + randomAlphaOfLengthBetween(5, 10) + ".ssl"
+                )
             );
-        } catch (PrivilegedActionException e) {
-            throw (Exception) e.getCause();
+            for (var prefix : prefixes) {
+                final SslClientAuthenticationMode clientAuthMode = randomFrom(SslClientAuthenticationMode.values());
+                final SslVerificationMode verificationMode = randomFrom(SslVerificationMode.values());
+                settings.put(prefix + ".client_authentication", clientAuthMode.name().toLowerCase(Locale.ROOT));
+                settings.put(prefix + ".verification_mode", verificationMode.name().toLowerCase(Locale.ROOT));
+                allExtensionsPrefixes.put(prefix, new Tuple<>(clientAuthMode, verificationMode));
+            }
+            return new SslProfileExtension() {
+
+                @Override
+                public Set<String> getSettingPrefixes() {
+                    return prefixes;
+                }
+
+                @Override
+                public void applyProfile(String name, SslProfile profile) {
+                    appliedProfiles.computeIfAbsent(this, ignore -> new HashMap<>()).put(name, profile);
+                }
+            };
+        });
+
+        env = newEnvironment(settings.build());
+        final SSLService.LoadedSslConfigurations loadedConfiguration = SSLService.getSSLConfigurations(env, extensions);
+
+        assertThat(loadedConfiguration.extensions().keySet(), equalTo(allExtensionsPrefixes.keySet()));
+        for (var ext : extensions) {
+            for (var ctx : ext.getSettingPrefixes()) {
+                assertThat(loadedConfiguration.extensions(), hasEntry(ctx, ext));
+                final SslConfiguration cfg = loadedConfiguration.configuration(ctx);
+                assertThat(cfg, notNullValue());
+                assertThat(cfg.clientAuth(), equalTo(allExtensionsPrefixes.get(ctx).v1()));
+                assertThat(cfg.verificationMode(), equalTo(allExtensionsPrefixes.get(ctx).v2()));
+            }
+        }
+        assertThat(appliedProfiles, aMapWithSize(0));
+
+        final SSLService service = new SSLService(env, loadedConfiguration);
+
+        assertThat(appliedProfiles.keySet(), equalTo(Set.copyOf(extensions)));
+        for (var ext : extensions) {
+            for (var ctx : ext.getSettingPrefixes()) {
+                var profile = appliedProfiles.get(ext).get(ctx);
+                assertThat(profile, notNullValue());
+                assertThat(profile.configuration(), equalTo(loadedConfiguration.configuration(ctx)));
+                assertThat(service.profile(ctx), sameInstance(profile));
+            }
         }
     }
 
-    private static void privilegedConnect(CheckedRunnable<Exception> runnable) throws Exception {
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                runnable.run();
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
-            throw (Exception) e.getCause();
-        }
+    private CloseableHttpAsyncClient getAsyncHttpClient(SSLIOSessionStrategy sslStrategy) throws Exception {
+        return HttpAsyncClientBuilder.create().setSSLStrategy(sslStrategy).build();
     }
 
     private static final class MockSSLSession implements SSLSession {

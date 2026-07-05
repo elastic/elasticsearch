@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googleaistudio.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,8 +18,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -39,7 +37,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
 public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
-        GoogleAiStudioRateLimitServiceSettings {
+        GoogleAiStudioServiceSettings {
 
     public static final String NAME = "google_ai_studio_embeddings_service_settings";
 
@@ -50,37 +48,29 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(360);
 
     public static GoogleAiStudioEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = extractOptionalPositiveInteger(
+        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        SimilarityMeasure similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            GoogleAiStudioService.NAME,
-            context
-        );
+        var similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
-        return new GoogleAiStudioEmbeddingsServiceSettings(model, maxInputTokens, dims, similarityMeasure, rateLimitSettings);
+        return new GoogleAiStudioEmbeddingsServiceSettings(modelId, maxInputTokens, dimensions, similarityMeasure, rateLimitSettings);
     }
 
     private final String modelId;
 
     private final RateLimitSettings rateLimitSettings;
 
-    private final Integer dims;
+    private final Integer dimensions;
 
     private final Integer maxInputTokens;
 
@@ -89,13 +79,13 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
     public GoogleAiStudioEmbeddingsServiceSettings(
         String modelId,
         @Nullable Integer maxInputTokens,
-        @Nullable Integer dims,
+        @Nullable Integer dimensions,
         @Nullable SimilarityMeasure similarity,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.modelId = modelId;
         this.maxInputTokens = maxInputTokens;
-        this.dims = dims;
+        this.dimensions = dimensions;
         this.similarity = similarity;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
@@ -103,9 +93,37 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
     public GoogleAiStudioEmbeddingsServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.maxInputTokens = in.readOptionalVInt();
-        this.dims = in.readOptionalVInt();
+        this.dimensions = in.readOptionalVInt();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.rateLimitSettings = new RateLimitSettings(in);
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new GoogleAiStudioEmbeddingsServiceSettings(
+            this.modelId,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            this.dimensions,
+            this.similarity,
+            extractedRateLimitSettings
+        );
     }
 
     @Override
@@ -124,7 +142,7 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
 
     @Override
     public Integer dimensions() {
-        return dims;
+        return dimensions;
     }
 
     @Override
@@ -154,14 +172,14 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
         out.writeOptionalVInt(maxInputTokens);
-        out.writeOptionalVInt(dims);
+        out.writeOptionalVInt(dimensions);
         out.writeOptionalEnum(similarity);
         rateLimitSettings.writeTo(out);
     }
@@ -174,8 +192,8 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
 
-        if (dims != null) {
-            builder.field(DIMENSIONS, dims);
+        if (dimensions != null) {
+            builder.field(DIMENSIONS, dimensions);
         }
 
         if (similarity != null) {
@@ -193,13 +211,13 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
         GoogleAiStudioEmbeddingsServiceSettings that = (GoogleAiStudioEmbeddingsServiceSettings) object;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings)
-            && Objects.equals(dims, that.dims)
+            && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && similarity == that.similarity;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, rateLimitSettings, dims, maxInputTokens, similarity);
+        return Objects.hash(modelId, rateLimitSettings, dimensions, maxInputTokens, similarity);
     }
 }

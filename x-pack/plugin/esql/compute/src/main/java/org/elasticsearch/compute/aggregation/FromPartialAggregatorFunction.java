@@ -69,7 +69,8 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
         final Block[] partialBlocks = new Block[groupingAggregator.intermediateBlockCount()];
         boolean success = false;
         try (IntVector selected = outputPositions()) {
-            groupingAggregator.evaluateIntermediate(partialBlocks, 0, selected);
+            groupingAggregator.prepareEvaluateIntermediate(selected, new GroupingAggregatorEvaluationContext(driverContext))
+                .evaluate(partialBlocks, 0, selected);
             blocks[offset] = new CompositeBlock(partialBlocks);
             success = true;
         } finally {
@@ -82,7 +83,8 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
     @Override
     public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
         try (IntVector selected = outputPositions()) {
-            groupingAggregator.evaluateFinal(blocks, offset, selected, new GroupingAggregatorEvaluationContext(driverContext));
+            groupingAggregator.prepareEvaluateFinal(selected, new GroupingAggregatorEvaluationContext(driverContext))
+                .evaluate(blocks, offset, selected);
         }
     }
 

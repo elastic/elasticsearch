@@ -21,7 +21,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.HttpResponse.HttpResponseBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -37,9 +36,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
 import java.security.MessageDigest;
-import java.security.PrivilegedExceptionAction;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -135,7 +132,7 @@ public class CommandLineHttpClient {
         return execute(method, url, authorizationHeaderValue, requestBodySupplier, responseHandler);
     }
 
-    @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
+    @SuppressForbidden(reason = "connect() and getInputStream() on URLConnection are needed for command-line HTTP client")
     private HttpResponse execute(
         String method,
         URL url,
@@ -148,24 +145,18 @@ public class CommandLineHttpClient {
         if ("https".equalsIgnoreCase(url.getProtocol())) {
             final SSLService sslService = new SSLService(env);
             final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                if (pinnedCaCertFingerprint != null) {
-                    final SSLContext sslContext = SSLContext.getInstance("TLS");
-                    sslContext.init(null, new TrustManager[] { fingerprintTrustingTrustManager(pinnedCaCertFingerprint) }, null);
-                    httpsConn.setSSLSocketFactory(sslContext.getSocketFactory());
-                } else {
-                    final SslProfile sslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
-                    // Requires permission java.lang.RuntimePermission "setFactory";
-                    httpsConn.setSSLSocketFactory(sslProfile.socketFactory());
-                    final boolean isHostnameVerificationEnabled = sslProfile.configuration()
-                        .verificationMode()
-                        .isHostnameVerificationEnabled();
-                    if (isHostnameVerificationEnabled == false) {
-                        httpsConn.setHostnameVerifier((hostname, session) -> true);
-                    }
+            if (pinnedCaCertFingerprint != null) {
+                final SSLContext sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(null, new TrustManager[] { fingerprintTrustingTrustManager(pinnedCaCertFingerprint) }, null);
+                httpsConn.setSSLSocketFactory(sslContext.getSocketFactory());
+            } else {
+                final SslProfile sslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
+                httpsConn.setSSLSocketFactory(sslProfile.socketFactory());
+                final boolean isHostnameVerificationEnabled = sslProfile.configuration().verificationMode().isHostnameVerificationEnabled();
+                if (isHostnameVerificationEnabled == false) {
+                    httpsConn.setHostnameVerifier((hostname, session) -> true);
                 }
-                return null;
-            });
+            }
             conn = httpsConn;
         } else {
             conn = (HttpURLConnection) url.openConnection();
@@ -177,7 +168,7 @@ public class CommandLineHttpClient {
         conn.setRequestProperty("Content-Type", XContentType.JSON.mediaType());
         String bodyString = requestBodySupplier.get();
         conn.setDoOutput(bodyString != null); // set true if we are sending a body
-        SocketAccess.doPrivileged(conn::connect);
+        conn.connect();
         if (bodyString != null) {
             try (OutputStream out = conn.getOutputStream()) {
                 out.write(bodyString.getBytes(StandardCharsets.UTF_8));

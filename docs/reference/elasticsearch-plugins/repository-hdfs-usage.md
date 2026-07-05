@@ -5,7 +5,7 @@ mapped_pages:
 
 # Getting started with HDFS [repository-hdfs-usage]
 
-The HDFS snapshot/restore plugin is built against the latest Apache Hadoop 2.x (currently 2.7.1). If the distro you are using is not protocol compatible with Apache Hadoop, consider replacing the Hadoop libraries inside the plugin folder with your own (you might have to adjust the security permissions required).
+The `repository-hdfs` snapshot/restore plugin uses the Apache Hadoop client libraries, version 3.4.1. Your HDFS implementation must be protocol-compatible with Apache Hadoop to use it with this plugin.
 
 Even if Hadoop is already installed on the Elasticsearch nodes, for security reasons, the required libraries need to be placed under the plugin folder. Note that in most cases, if the distro is compatible, one simply needs to configure the repository with the appropriate Hadoop configuration files (see below).
 

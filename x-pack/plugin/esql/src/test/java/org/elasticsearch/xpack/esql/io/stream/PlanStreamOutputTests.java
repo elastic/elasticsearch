@@ -18,18 +18,16 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.MetadataAttributeTests;
-import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttributeTests;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,6 +36,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
+import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomEsField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -49,11 +50,11 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testTransportVersion() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        TransportVersion v1 = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion v1 = TransportVersionUtils.randomCompatibleVersion();
         out.setTransportVersion(v1);
         PlanStreamOutput planOut = new PlanStreamOutput(out, randomBoolean() ? null : randomConfiguration());
         assertThat(planOut.getTransportVersion(), equalTo(v1));
-        TransportVersion v2 = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion v2 = TransportVersionUtils.randomCompatibleVersion();
         planOut.setTransportVersion(v2);
         assertThat(planOut.getTransportVersion(), equalTo(v2));
         assertThat(out.getTransportVersion(), equalTo(v2));
@@ -143,7 +144,14 @@ public class PlanStreamOutputTests extends ESTestCase {
                 }
             }
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
+            try (
+                PlanStreamInput in = new PlanStreamInput(
+                    out.bytes().streamInput(),
+                    REGISTRY,
+                    configuration,
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
                 List<Attribute> readAttrs = new ArrayList<>();
                 for (int i = 0; i < occurrences; i++) {
                     readAttrs.add(in.readNamedWriteable(Attribute.class));
@@ -181,7 +189,14 @@ public class PlanStreamOutputTests extends ESTestCase {
             planStream.writeNamedWriteable(one);
             planStream.writeNamedWriteable(two);
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
+            try (
+                PlanStreamInput in = new PlanStreamInput(
+                    out.bytes().streamInput(),
+                    REGISTRY,
+                    configuration,
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
                 Attribute oneCopy = in.readNamedWriteable(Attribute.class);
                 Attribute twoCopy = in.readNamedWriteable(Attribute.class);
 
@@ -203,7 +218,14 @@ public class PlanStreamOutputTests extends ESTestCase {
             planStream.writeNamedWriteable(one);
             planStream.writeNamedWriteable(two);
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
+            try (
+                PlanStreamInput in = new PlanStreamInput(
+                    out.bytes().streamInput(),
+                    REGISTRY,
+                    configuration,
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
                 Attribute oneCopy = in.readNamedWriteable(Attribute.class);
                 Attribute twoCopy = in.readNamedWriteable(Attribute.class);
 
@@ -222,7 +244,7 @@ public class PlanStreamOutputTests extends ESTestCase {
             List<EsField> fields = new ArrayList<>();
             int occurrences = randomIntBetween(2, 300);
             for (int i = 0; i < occurrences; i++) {
-                fields.add(EsFieldTests.randomEsField(4));
+                fields.add(randomEsField(4));
             }
 
             // send all the EsFields, three times
@@ -251,8 +273,8 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     private static Attribute randomAttribute() {
         return switch (randomInt(3)) {
-            case 0 -> FieldAttributeTests.createFieldAttribute(0, false);
-            case 1 -> ReferenceAttributeTests.randomReferenceAttribute(false);
+            case 0 -> createFieldAttribute(0, false);
+            case 1 -> randomReferenceAttribute(false);
             case 2 -> UnsupportedAttributeTests.randomUnsupportedAttribute();
             case 3 -> MetadataAttributeTests.randomMetadataAttribute();
             default -> throw new IllegalArgumentException();
@@ -271,10 +293,9 @@ public class PlanStreamOutputTests extends ESTestCase {
         }
     }
 
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop-esql-breaker"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     private static final NamedWriteableRegistry REGISTRY;
 

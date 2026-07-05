@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -39,6 +38,8 @@ import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -56,7 +57,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.test.OperatorTestCase.runDriver;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -313,7 +313,9 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     fail("hashes should not close AddInput");
                 }
             });
-            intermediatePage1 = new Page(rawHash1.getKeys()[0]);
+            try (IntVector nonEmpty = rawHash1.nonEmpty()) {
+                intermediatePage1 = new Page(rawHash1.getKeys(nonEmpty)[0]);
+            }
 
             rawHash2.add(page2, new GroupingAggregatorFunction.AddInput() {
                 private void addBlock(int positionOffset, IntBlock groupIds) {
@@ -345,7 +347,9 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     fail("hashes should not close AddInput");
                 }
             });
-            intermediatePage2 = new Page(rawHash2.getKeys()[0]);
+            try (IntVector nonEmpty = rawHash2.nonEmpty()) {
+                intermediatePage2 = new Page(rawHash2.getKeys(nonEmpty)[0]);
+            }
         } finally {
             page1.releaseBlocks();
             page2.releaseBlocks();
@@ -449,8 +453,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         BlockHash.GroupSpec groupSpec = new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorizeDef);
 
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
 
         LocalSourceOperator.BlockSupplier input1 = () -> {
             try (
@@ -505,39 +508,51 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(groupSpec),
-                    AggregatorMode.INITIAL,
-                    List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
-                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
-                    ),
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder().groups(List.of(groupSpec))
+                    .mode(AggregatorMode.INITIAL)
+                    .aggregators(
+                        List.of(
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.INITIAL,
+                                List.of(1)
+                            ),
+                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
+                        )
+                    )
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         driver = TestDriverFactory.create(
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(groupSpec),
-                    AggregatorMode.INITIAL,
-                    List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
-                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
-                    ),
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder().groups(List.of(groupSpec))
+                    .mode(AggregatorMode.INITIAL)
+                    .aggregators(
+                        List.of(
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.INITIAL,
+                                List.of(1)
+                            ),
+                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
+                        )
+                    )
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         List<Page> finalOutput = new ArrayList<>();
 
@@ -545,20 +560,27 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(groupSpec),
-                    AggregatorMode.FINAL,
-                    List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2)),
-                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(3, 4))
-                    ),
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder().groups(List.of(groupSpec))
+                    .mode(AggregatorMode.FINAL)
+                    .aggregators(
+                        List.of(
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.FINAL,
+                                List.of(1, 2, 3)
+                            ),
+                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(4, 5))
+                        )
+                    )
+                    .partialEmit(randomIntBetween(1, 1000), randomDoubleBetween(0.1, 1.0, true))
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
             new PageConsumerOperator(finalOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         assertThat(finalOutput, hasSize(1));
         assertThat(finalOutput.get(0).getBlockCount(), equalTo(3));
@@ -634,8 +656,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     private void assertHashState(CategorizeBlockHash hash, boolean withNull, String... expectedKeys) {
         // Check the keys
         Block[] blocks = null;
-        try {
-            blocks = hash.getKeys();
+        try (IntVector nonEmpty = hash.nonEmpty()) {
+            blocks = hash.getKeys(nonEmpty);
             assertThat(blocks, arrayWithSize(1));
 
             var keysBlock = (BytesRefBlock) blocks[0];

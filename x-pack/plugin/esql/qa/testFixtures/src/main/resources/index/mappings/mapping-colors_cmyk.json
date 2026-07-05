@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "color_name": {
+      "type": "text"
+    },
+    "cmyk_vector": {
+      "type": "dense_vector",
+      "similarity": "l2_norm",
+      "element_type": "byte",
+      "index_options": {
+        "type": "hnsw"
+      }
+    }
+  }
+}

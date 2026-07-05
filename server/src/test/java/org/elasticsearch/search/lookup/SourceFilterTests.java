@@ -156,4 +156,75 @@ public class SourceFilterTests extends ESTestCase {
         Source filteredBytes = fromBytes.filter(new SourceFilter(new String[] { "myObject" }, new String[] { "myObject.myField" }));
         assertEquals(filteredBytes.source(), Map.of("myObject", Map.of("other", "otherValue")));
     }
+
+    public void testIsExplicitlyIncluded() {
+        var filter = new SourceFilter(null, null);
+        assertFalse(filter.isExplicitlyIncluded("foo"));
+
+        filter = new SourceFilter(new String[] {}, null);
+        assertFalse(filter.isExplicitlyIncluded("foo"));
+
+        filter = new SourceFilter(new String[] { "foo", "bar.*" }, null);
+        assertTrue(filter.isExplicitlyIncluded("foo"));
+        assertTrue(filter.isExplicitlyIncluded("bar.field"));
+        assertFalse(filter.isExplicitlyIncluded("baz"));
+        assertFalse(filter.isExplicitlyIncluded("bar"));
+    }
+
+    public void testIsPathFilteredWithExcludes() {
+        var filter = new SourceFilter(null, new String[] { "foo", "bar.field" });
+        assertTrue(filter.isPathFiltered("foo", true));
+        assertTrue(filter.isPathFiltered("foo", false));
+
+        assertTrue(filter.isPathFiltered("bar.field", false));
+        assertFalse(filter.isPathFiltered("baz", false));
+        assertFalse(filter.isPathFiltered("bar", false));
+        assertFalse(filter.isPathFiltered("bar", true));
+    }
+
+    public void testIsPathFilteredWithIncludes() {
+        var filter = new SourceFilter(new String[] { "foo", "bar.field" }, null);
+        assertFalse(filter.isPathFiltered("foo", true));
+        assertFalse(filter.isPathFiltered("foo", false));
+
+        assertFalse(filter.isPathFiltered("bar.field", false));
+        assertTrue(filter.isPathFiltered("baz", false));
+        assertTrue(filter.isPathFiltered("bar", false));
+        assertFalse(filter.isPathFiltered("bar", true));
+    }
+
+    public void testIsPathFilteredWithIncludesAndExcludes() {
+        var filter = new SourceFilter(new String[] { "foo", "bar.*", "nested.field" }, new String[] { "foo", "bar.field" });
+        assertTrue(filter.isPathFiltered("foo", true));
+        assertTrue(filter.isPathFiltered("foo", false));
+
+        assertTrue(filter.isPathFiltered("bar.field", false));
+        assertTrue(filter.isPathFiltered("baz", false));
+        assertTrue(filter.isPathFiltered("bar", false));
+        assertFalse(filter.isPathFiltered("bar", true));
+
+        assertFalse(filter.isPathFiltered("nested.field", false));
+        assertTrue(filter.isPathFiltered("nested.another", false));
+    }
+
+    public void testNonBmpFieldNames() {
+        final String x = "\uD835\uDD4F"; // U+1D54F MATHEMATICAL DOUBLE-STRUCK CAPITAL X (a surrogate pair)
+        final String y = "\uD835\uDD50"; // U+1D550 MATHEMATICAL DOUBLE-STRUCK CAPITAL Y
+
+        // map filter path: include keeps only the requested supplementary-character field
+        Source included = Source.fromMap(Map.of(x, 1, y, 2), XContentType.JSON)
+            .filter(new SourceFilter(new String[] { x }, new String[] {}));
+        assertEquals(Map.of(x, 1), included.source());
+
+        // map filter path: exclude drops the excluded supplementary-character field
+        Source excluded = Source.fromMap(Map.of(x, 1, y, 2), XContentType.JSON)
+            .filter(new SourceFilter(new String[] {}, new String[] { x }));
+        assertEquals(Map.of(y, 2), excluded.source());
+
+        // path-level checks used by synthetic source / field selection (drive SourceFilter#step directly)
+        assertTrue(new SourceFilter(new String[] { x }, null).isExplicitlyIncluded(x));
+        assertFalse(new SourceFilter(new String[] { x }, null).isExplicitlyIncluded(y));
+        assertTrue(new SourceFilter(null, new String[] { x }).isPathFiltered(x, false));
+        assertFalse(new SourceFilter(null, new String[] { x }).isPathFiltered(y, false));
+    }
 }

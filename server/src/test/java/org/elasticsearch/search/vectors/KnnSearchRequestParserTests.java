@@ -37,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -112,7 +111,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands);
-        if (IVF_FORMAT.isEnabled() && knnSearch.visitPercentage != null) {
+        if (knnSearch.visitPercentage != null) {
             builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage);
         }
         builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector);
@@ -141,7 +140,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands);
-        if (IVF_FORMAT.isEnabled() && knnSearch.visitPercentage != null) {
+        if (knnSearch.visitPercentage != null) {
             builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage);
         }
         builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector);
@@ -177,10 +176,8 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 100)
-            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 80);
-        if (IVF_FORMAT.isEnabled()) {
-            builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f);
-        }
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 80)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f);
         builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f }).endObject().endObject();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
@@ -194,10 +191,8 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 100)
-            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 10002);
-        if (IVF_FORMAT.isEnabled()) {
-            builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f);
-        }
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 10002)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f);
         builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f }).endObject().endObject();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
@@ -205,7 +200,6 @@ public class KnnSearchRequestParserTests extends ESTestCase {
     }
 
     public void testVisitPercnetageLessThan0() throws IOException {
-        assumeTrue("visit_percentage is only supported if IVF format is enabled", IVF_FORMAT.isEnabled());
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())
             .startObject()
@@ -223,7 +217,6 @@ public class KnnSearchRequestParserTests extends ESTestCase {
     }
 
     public void testVisitPercentageGreaterThan100() throws IOException {
-        assumeTrue("visit_percentage is only supported if IVF format is enabled", IVF_FORMAT.isEnabled());
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())
             .startObject()
@@ -247,10 +240,8 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
             .field(KnnSearch.K_FIELD.getPreferredName(), 0)
-            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 10);
-        if (IVF_FORMAT.isEnabled()) {
-            builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f);
-        }
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 10)
+            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), 100.0f);
         builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f }).endObject().endObject();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
@@ -284,7 +275,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
 
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k, 1000);
-        Float visitPercentage = IVF_FORMAT.isEnabled() == false ? null : randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
+        Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         return new KnnSearch(field, vector, k, numCands, visitPercentage);
     }
 
@@ -308,7 +299,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands);
-        if (IVF_FORMAT.isEnabled() && knnSearch.visitPercentage != null) {
+        if (knnSearch.visitPercentage != null) {
             builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage);
         }
         builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector);

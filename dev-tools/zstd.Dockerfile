@@ -1,4 +1,4 @@
-FROM centos:7
+FROM redhat/ubi8
 ARG ZSTD_VERSION
 
 RUN yum install -y git gcc gcc-c++ make

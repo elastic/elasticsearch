@@ -39,7 +39,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -90,6 +92,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     public void testDefaultMetaFields() {
         var searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
+        when(searchExecutionContext.getIndexSettings()).thenReturn(ESTestCase.defaultIndexSettings());
 
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(
             id -> searchExecutionContext,
@@ -102,7 +105,8 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
                     new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
-                    DocumentPermissions.allowAll()
+                    DocumentPermissions.allowAll(),
+                    false
                 );
                 return new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
             }
@@ -128,9 +132,47 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     public void testWrapReaderWhenFeatureDisabled() {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
-        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService);
+        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
+            @Override
+            protected IndicesAccessControl getIndicesAccessControl() {
+                IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
+                    new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
+                    DocumentPermissions.allowAll(),
+                    false
+                );
+                return new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
+            }
+        };
         DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
         assertThat(reader, sameInstance(esIn));
+    }
+
+    public void testWrapReaderWhenFeatureDisabledButDlsFlsIsImplicit() {
+        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
+        var searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
+        when(searchExecutionContext.getIndexSettings()).thenReturn(ESTestCase.defaultIndexSettings());
+
+        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(
+            id -> searchExecutionContext,
+            null,
+            securityContext,
+            licenseState,
+            scriptService
+        ) {
+            @Override
+            protected IndicesAccessControl getIndicesAccessControl() {
+                IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
+                    new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
+                    DocumentPermissions.allowAll(),
+                    true
+                );
+                return new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
+            }
+        };
+        DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
+        assertThat(reader, not(sameInstance(esIn)));
+        assertThat(reader, instanceOf(FieldSubsetReader.FieldSubsetDirectoryReader.class));
     }
 
     public void testWildcards() {

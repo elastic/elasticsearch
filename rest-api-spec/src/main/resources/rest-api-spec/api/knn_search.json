@@ -9,7 +9,7 @@
       "version": "8.4.0",
       "description": "The kNN search API has been replaced by the `knn` option in the search API."
     },
-    "visibility": "public",
+    "visibility": "private",
     "headers": {
       "accept": [
         "application/json"
@@ -42,7 +42,8 @@
       }
     },
     "body": {
-      "description": "The search definition"
+      "description": "The search definition",
+      "required": true
     }
   }
 }

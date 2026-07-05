@@ -15,10 +15,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
@@ -37,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
 
-    private static String TEST_INDEX_NAME = "test-index-name";
+    private static final String TEST_INDEX_NAME = "test-index-name";
 
     @Override
     protected boolean addMockInternalEngine() {
@@ -103,16 +105,26 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
                 @Override
                 public IndexResult index(Index index) throws IOException {
                     IndexResult result = super.index(index);
+                    reportDocumentSize(index.parsedDoc());
+                    return result;
+                }
 
+                @Override
+                public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
+                    List<IndexResult> results = super.indexBatch(operations, batch);
+                    for (Index op : operations) {
+                        reportDocumentSize(op.parsedDoc());
+                    }
+                    return results;
+                }
+
+                private void reportDocumentSize(ParsedDocument parsedDocument) {
                     DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
                         shardId.getIndex(),
                         config().getMapperService(),
                         DocumentSizeAccumulator.EMPTY_INSTANCE
                     );
-                    ParsedDocument parsedDocument = index.parsedDoc();
                     documentParsingReporter.onIndexingCompleted(parsedDocument);
-
-                    return result;
                 }
             });
         }
@@ -168,7 +180,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         }
 
         @Override
-        public XContentParser decorate(XContentParser xContentParser) {
+        public XContentParser decorate(XContentParser xContentParser, Mapping mapping) {
             hasWrappedParser = true;
             return new FilterXContentParserWrapper(xContentParser) {
 

@@ -24,11 +24,14 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -36,6 +39,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
@@ -149,6 +153,18 @@ public class SystemIndices {
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
             .collect(Collectors.toMap(SystemIndexDescriptor::getIndexPattern, SystemIndexDescriptor::getMappingsVersion));
 
+    public static final String NUMBER_OF_REPLICAS_SETTING_NAME = "cluster.system_indices.number_of_replicas";
+    public static final Setting<Integer> NUMBER_OF_REPLICAS_SETTING = Setting.intSetting(
+        NUMBER_OF_REPLICAS_SETTING_NAME,
+        IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final String AUTO_EXPAND_REPLICAS_SETTING_NAME = "cluster.system_indices.auto_expand_replicas";
+    public static final Setting<AutoExpandReplicas> AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SYSTEM_INDICES_SETTING;
+
     /**
      * The node's full list of system features is stored here. The map is keyed
      * on the value of {@link Feature#getName()}, and is used for fast lookup of
@@ -160,6 +176,7 @@ public class SystemIndices {
     private final CharacterRunAutomaton netNewSystemIndexAutomaton;
     private final CharacterRunAutomaton systemNameRunAutomaton;
     private final CharacterRunAutomaton systemIndexRunAutomaton;
+    private final CharacterRunAutomaton systemAssociatedIndicesAutomaton;
     private final CharacterRunAutomaton systemDataStreamIndicesRunAutomaton;
     private final Predicate<String> systemDataStreamPredicate;
     private final SystemIndexDescriptor[] indexDescriptors;
@@ -189,6 +206,7 @@ public class SystemIndices {
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
         Automaton systemIndexAutomata = buildIndexAutomaton(featureDescriptors);
         this.systemIndexRunAutomaton = new CharacterRunAutomaton(systemIndexAutomata);
+        this.systemAssociatedIndicesAutomaton = buildAssociatedIndicesAutomaton(featureDescriptors);
         Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
         this.systemDataStreamIndicesRunAutomaton = new CharacterRunAutomaton(systemDataStreamIndicesAutomata);
         this.systemDataStreamPredicate = buildDataStreamNamePredicate(featureDescriptors);
@@ -443,6 +461,25 @@ public class SystemIndices {
             .map(SystemIndices::featureToIndexAutomaton)
             .reduce(Operations::union);
         return Operations.determinize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    }
+
+    /**
+     * Builds a single automaton that matches any index name that fits the patterns of the features' associated index descriptors.
+     * @return determinized automaton matching any of the descriptors' patterns, or an empty automaton if the collection is empty
+     */
+    private static CharacterRunAutomaton buildAssociatedIndicesAutomaton(Map<String, Feature> featureDescriptors) {
+        List<Automaton> automata = featureDescriptors.values()
+            .stream()
+            .map(SystemIndices.Feature::getAssociatedIndexDescriptors)
+            .flatMap(Collection::stream)
+            .map(AssociatedIndexDescriptor::getIndexPatternAutomaton)
+            .toList();
+
+        if (automata.isEmpty()) {
+            return new CharacterRunAutomaton(EMPTY);
+        }
+
+        return new CharacterRunAutomaton(Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
     private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
@@ -744,6 +781,10 @@ public class SystemIndices {
         }
     }
 
+    public boolean isFeatureAssociatedIndex(String name) {
+        return this.systemAssociatedIndicesAutomaton.run(name);
+    }
+
     /**
      * Describes an Elasticsearch system feature that keeps state in protected indices and data streams.
      *
@@ -751,7 +792,7 @@ public class SystemIndices {
      * details about what constitutes a system feature.
      *
      * <p>This class has a static
-     * {@link #cleanUpFeature(Collection, Collection, String, ClusterService, ProjectResolver, Client, ActionListener)} method
+     * {@link #cleanUpFeature(Collection, Collection, String, ClusterService, ProjectResolver, Client, TimeValue, ActionListener)} method
      * that is the default implementation for resetting feature state.
      */
     public static class Feature {
@@ -808,13 +849,14 @@ public class SystemIndices {
                 indexDescriptors,
                 Collections.emptyList(),
                 Collections.emptyList(),
-                (clusterService, projectResolver, client, listener) -> cleanUpFeature(
+                (clusterService, projectResolver, client, masterNodeTimeout, listener) -> cleanUpFeature(
                     indexDescriptors,
                     Collections.emptyList(),
                     name,
                     clusterService,
                     projectResolver,
                     client,
+                    masterNodeTimeout,
                     listener
                 ),
                 Feature::noopPreMigrationFunction,
@@ -841,13 +883,14 @@ public class SystemIndices {
                 indexDescriptors,
                 dataStreamDescriptors,
                 Collections.emptyList(),
-                (clusterService, projectResolver, client, listener) -> cleanUpFeature(
+                (clusterService, projectResolver, client, masterNodeTimeout, listener) -> cleanUpFeature(
                     indexDescriptors,
                     Collections.emptyList(),
                     name,
                     clusterService,
                     projectResolver,
                     client,
+                    masterNodeTimeout,
                     listener
                 ),
                 Feature::noopPreMigrationFunction,
@@ -918,10 +961,12 @@ public class SystemIndices {
             String name,
             Client client,
             String[] indexNames,
+            TimeValue masterNodeTimeout,
             final ActionListener<ResetFeatureStateStatus> listener
         ) {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
             deleteIndexRequest.indices(indexNames);
+            deleteIndexRequest.masterNodeTimeout(masterNodeTimeout);
             client.execute(TransportDeleteIndexAction.TYPE, deleteIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -944,6 +989,7 @@ public class SystemIndices {
          * @param clusterService A clusterService, for retrieving cluster metadata
          * @param projectResolver The project resolver
          * @param client A client, for issuing delete requests
+         * @param masterNodeTimeout Timeout for tasks enqueued on the master node
          * @param listener A listener to return success or failure of cleanup
          */
         public static void cleanUpFeature(
@@ -953,6 +999,7 @@ public class SystemIndices {
             ClusterService clusterService,
             ProjectResolver projectResolver,
             Client client,
+            TimeValue masterNodeTimeout,
             final ActionListener<ResetFeatureStateStatus> listener
         ) {
             final ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
@@ -985,7 +1032,7 @@ public class SystemIndices {
                     .flatMap(descriptor -> descriptor.getMatchingIndices(project).stream())
                     .toArray(String[]::new);
                 if (associatedIndices.length > 0) {
-                    cleanUpFeatureForIndices(name, client, associatedIndices, listeners.acquire(handleResponse));
+                    cleanUpFeatureForIndices(name, client, associatedIndices, masterNodeTimeout, listeners.acquire(handleResponse));
                 }
 
                 // One descriptor at a time, create an originating client and clean up the feature
@@ -1000,6 +1047,7 @@ public class SystemIndices {
                             name,
                             clientWithOrigin,
                             matchingIndices.toArray(Strings.EMPTY_ARRAY),
+                            masterNodeTimeout,
                             listeners.acquire(handleResponse)
                         );
                     }
@@ -1044,6 +1092,7 @@ public class SystemIndices {
                 ClusterService clusterService,
                 ProjectResolver projectResolver,
                 Client client,
+                TimeValue masterNodeTimeout,
                 ActionListener<ResetFeatureStateStatus> listener
             );
         }

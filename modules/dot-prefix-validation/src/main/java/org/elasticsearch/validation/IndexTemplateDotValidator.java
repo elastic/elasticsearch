@@ -12,14 +12,15 @@ package org.elasticsearch.validation;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.SystemIndices;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
 public class IndexTemplateDotValidator extends DotPrefixValidator<TransportPutComposableIndexTemplateAction.Request> {
-    public IndexTemplateDotValidator(ThreadContext threadContext, ClusterService clusterService) {
-        super(threadContext, clusterService);
+    public IndexTemplateDotValidator(ThreadContext threadContext, ClusterService clusterService, SystemIndices systemIndices) {
+        super(threadContext, clusterService, systemIndices);
     }
 
     @Override

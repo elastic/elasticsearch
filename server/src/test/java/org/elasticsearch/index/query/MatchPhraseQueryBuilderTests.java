@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -106,6 +107,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
                 .or(instanceOf(PointRangeQuery.class))
                 .or(instanceOf(IndexOrDocValuesQuery.class))
                 .or(instanceOf(MatchNoDocsQuery.class))
+                .or(instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class))
         );
     }
 

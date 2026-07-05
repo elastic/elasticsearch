@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<TopNOperatorStatus> {
     public static TopNOperatorStatus simple() {
-        return new TopNOperatorStatus(100, 40, 10, 2000, 123, 123, 111, 222);
+        return new TopNOperatorStatus(100, 40, 10, 2000, 123, 123, 111, 222, 3);
     }
 
     public static String simpleToJson() {
@@ -32,7 +32,8 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
               "pages_received" : 123,
               "pages_emitted" : 123,
               "rows_received" : 111,
-              "rows_emitted" : 222
+              "rows_emitted" : 222,
+              "min_competitive_updates" : 3
             }""";
     }
 
@@ -55,7 +56,8 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomBoolean() ? null : randomInt()
         );
     }
 
@@ -69,7 +71,8 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
         int pagesEmitted = instance.pagesEmitted();
         long rowsReceived = instance.rowsReceived();
         long rowsEmitted = instance.rowsEmitted();
-        switch (between(0, 7)) {
+        Integer minCompetitiveUpdates = instance.minCompetitiveUpdateCount();
+        switch (between(0, 8)) {
             case 0:
                 receiveNanos = randomValueOtherThan(receiveNanos, ESTestCase::randomNonNegativeLong);
                 break;
@@ -94,6 +97,9 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
             case 7:
                 rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
                 break;
+            case 8:
+                minCompetitiveUpdates = randomValueOtherThan(minCompetitiveUpdates, () -> randomBoolean() ? null : randomInt());
+                break;
             default:
                 throw new IllegalArgumentException();
         }
@@ -105,7 +111,8 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
             pagesReceived,
             pagesEmitted,
             rowsReceived,
-            rowsEmitted
+            rowsEmitted,
+            minCompetitiveUpdates
         );
     }
 }

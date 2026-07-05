@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MultiTermQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -34,7 +34,7 @@ import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
  * It allows for serialization of the expression and generate an AutomatonQuery on the data node
  * as Automaton does not support serialization.
  */
-public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQueryBuilder> implements MultiTermQueryBuilder {
+public class ExpressionQueryBuilder extends LeafQueryBuilder<ExpressionQueryBuilder> implements MultiTermQueryBuilder {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         QueryBuilder.class,
         "expressionQueryBuilder",

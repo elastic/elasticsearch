@@ -70,6 +70,7 @@ The response for the above aggregation:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 The `cartesian_centroid` aggregation is more interesting when combined as a sub-aggregation to other bucket aggregations.
 
@@ -90,6 +91,7 @@ POST /museums/_search?size=0
   }
 }
 ```
+% TEST[continued]
 
 The above example uses `cartesian_centroid` as a sub-aggregation to a [terms](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md) bucket aggregation for finding the central location for museums in each city.
 
@@ -141,11 +143,11 @@ The response for the above aggregation:
   }
 }
 ```
-
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 ## Cartesian Centroid Aggregation on `shape` fields [cartesian-centroid-aggregation-geo-shape]
 
-The centroid metric for shapes is more nuanced than for points. The centroid of a specific aggregation bucket containing shapes is the centroid of the highest-dimensionality shape type in the bucket. For example, if a bucket contains shapes consisting of polygons and lines, then the lines do not contribute to the centroid metric. Each type of shape’s centroid is calculated differently. Envelopes and circles ingested via the [Circle](/reference/enrich-processor/ingest-circle-processor.md) are treated as polygons.
+The centroid metric for shapes is more nuanced than for points. The centroid of a specific aggregation bucket containing shapes is the centroid of the highest-dimensionality shape type in the bucket. For example, if a bucket contains shapes consisting of polygons and lines, then the lines do not contribute to the centroid metric. Each type of shape’s centroid is calculated differently. Envelopes and circles ingested through the [Circle](/reference/ingest-processor/ingest-circle-processor.md) are treated as polygons.
 
 | Geometry Type | Centroid Calculation |
 | --- | --- |
@@ -185,6 +187,7 @@ POST /places/_search?size=0
   }
 }
 ```
+% TEST
 
 ```console-result
 {
@@ -200,4 +203,4 @@ POST /places/_search?size=0
   }
 }
 ```
-
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]

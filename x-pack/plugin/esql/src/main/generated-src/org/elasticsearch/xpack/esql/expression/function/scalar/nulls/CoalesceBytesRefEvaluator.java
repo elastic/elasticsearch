@@ -13,9 +13,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -26,11 +25,11 @@ import java.util.stream.IntStream;
 // end generated imports
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.
+ * {@link ExpressionEvaluator} implementation for {@link Coalesce}.
  * This class is generated. Edit {@code X-CoalesceEvaluator.java.st} instead.
  */
-abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.ExpressionEvaluator permits
-    CoalesceBytesRefEvaluator.CoalesceBytesRefEagerEvaluator, //
+abstract sealed class CoalesceBytesRefEvaluator implements ExpressionEvaluator permits // checkstyle hack
+    CoalesceBytesRefEvaluator.CoalesceBytesRefEagerEvaluator, // checkstyle hack
     CoalesceBytesRefEvaluator.CoalesceBytesRefLazyEvaluator {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoalesceBytesRefEvaluator.class);
@@ -41,7 +40,11 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceBytesRefEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new CoalesceBytesRefEagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -53,7 +56,11 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceBytesRefLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new CoalesceBytesRefLazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -64,9 +71,9 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
     }
 
     protected final DriverContext driverContext;
-    protected final List<EvalOperator.ExpressionEvaluator> evaluators;
+    protected final List<ExpressionEvaluator> evaluators;
 
-    protected CoalesceBytesRefEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+    protected CoalesceBytesRefEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
         this.driverContext = driverContext;
         this.evaluators = evaluators;
     }
@@ -81,8 +88,8 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
      * {@link #perPosition} evaluation.
      * <p>
      * Entire Block evaluation is the "normal" way to run the compute engine,
-     * just calling {@link EvalOperator.ExpressionEvaluator#eval}. It's much faster so we try
-     * that first. For each evaluator, we {@linkplain EvalOperator.ExpressionEvaluator#eval} and:
+     * just calling {@link ExpressionEvaluator#eval}. It's much faster so we try
+     * that first. For each evaluator, we {@linkplain ExpressionEvaluator#eval} and:
      * </p>
      * <ul>
      *     <li>If the {@linkplain Block} doesn't have any nulls we return it. COALESCE done.</li>
@@ -158,7 +165,7 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
      * in a lazy environment.
      */
     static final class CoalesceBytesRefEagerEvaluator extends CoalesceBytesRefEvaluator {
-        CoalesceBytesRefEagerEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+        CoalesceBytesRefEagerEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
@@ -172,7 +179,10 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = (BytesRefBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try (BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+                try (
+                    BytesRefBlock.Builder result = driverContext.blockFactory() //
+                        .newBytesRefBlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for (BytesRefBlock f : flatten) {
                             if (false == f.isNull(p)) {
@@ -202,7 +212,7 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
      * </ul>
      */
     static final class CoalesceBytesRefLazyEvaluator extends CoalesceBytesRefEvaluator {
-        CoalesceBytesRefLazyEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+        CoalesceBytesRefLazyEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
@@ -210,7 +220,10 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
         protected BytesRefBlock perPosition(Page page, BytesRefBlock lastFullBlock, int firstToEvaluate) {
             BytesRef scratch = new BytesRef();
             int positionCount = page.getPositionCount();
-            try (BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+            try (
+                BytesRefBlock.Builder result = driverContext.blockFactory() //
+                    .newBytesRefBlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);
@@ -219,7 +232,9 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
                     int[] positions = new int[] { p };
                     Page limited = new Page(
                         1,
-                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                        IntStream.range(0, page.getBlockCount())
+                            .mapToObj(b -> page.getBlock(b).filter(false, positions))
+                            .toArray(Block[]::new)
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (int e = firstToEvaluate; e < evaluators.size(); e++) {

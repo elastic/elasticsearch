@@ -48,13 +48,18 @@ public final class TransportUpdateCrossClusterApiKeyAction extends TransportBase
         final Authentication authentication,
         final ActionListener<UpdateApiKeyResponse> listener
     ) {
+        if (request.getCertificateIdentity() != null) {
+            apiKeyService.ensureCertificateIdentityFeatureIsEnabled();
+        }
+
         apiKeyService.updateApiKeys(
             authentication,
             new BaseBulkUpdateApiKeyRequest(
                 List.of(request.getId()),
                 request.getRoleDescriptors(),
                 request.getMetadata(),
-                request.getExpiration()
+                request.getExpiration(),
+                request.getCertificateIdentity()
             ) {
                 @Override
                 public ApiKey.Type getType() {

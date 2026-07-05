@@ -54,7 +54,6 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
         // Before 7.3 we return ngrams of length 1 only
         {
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
             );
@@ -68,7 +67,6 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
         // Check deprecated name as well
         {
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
             );
@@ -91,7 +89,6 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
         // Check deprecated name as well, needs version before 8.0 because throws IAE after that
         {
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.V_7_3_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
             );

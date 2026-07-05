@@ -33,6 +33,8 @@ avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword 
 ;
 
 whereWithEvalGeneratedValue_DropHeight
+skip_flattened_rewrite: field_extract_multivalue_null
+request_stored: skip
 from employees | sort emp_no | eval x = salary / 2 | where x > 37000 | drop height*;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean | x:integer
@@ -49,48 +51,105 @@ b:integer | x:integer
 ;
 
 dropAllColumns
-from employees | keep height | drop height | eval x = 1;
+required_capability: fix_no_columns
+from employees | limit 4 | keep height | drop height | eval x = 1;
 
 x:integer
+1
+1
+1
+1
 ;
 
+dropEvalKeep
+required_capability: fix_no_columns
+from employees | drop salary | eval salary = 1 | keep salary | limit 4;
+
+salary:integer
+1
+1
+1
+1
+;
+
+
+dropEvalStats
+required_capability: fix_no_columns
+from mv_sample* | drop `client_ip`, message | eval  `event_duration` = "foo", @timestamp = 1 | stats max(@timestamp) by event_duration;
+
+max(@timestamp):integer | event_duration:keyword
+1                       | foo
+; 
+
+
+
+dropAllColumnsIndexPattern
+required_capability: fix_no_columns
+from emp* | drop languages | eval languages = 123 | keep languages | limit 4;
+
+languages:integer
+123
+123
+123
+123
+;
+
+
+dropAllColumnsWithMetadata
+required_capability: fix_no_columns
+from employees metadata _index | drop languages | eval languages = 123 | keep languages | limit 4;
+
+languages:integer
+123
+123
+123
+123
+;
+
+
 dropAllColumns_WithLimit
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | limit 3;
 
 x:integer
+1
+1
+1
 ;
 
 dropAllColumns_WithCount
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | stats c=count(x);
 
 c:long
-0
+100
 ;
 
 dropAllColumns_WithStats
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
 
-c:l|mi:i|s:l
-0  |null|null
+c:l  | mi:i | s:l
+100  | 1    | 100
 ;
 
 
 // see https://github.com/elastic/elasticsearch/issues/102121
-dropGrouping#[skip:-8.11.99, reason:planning bug fixed in v8.12]
+dropGrouping
 row a = 1 | rename a AS foo | stats bar = count(*) by foo | drop foo;
 
 bar:long
 1
 ;
 
-dropGroupingMulti#[skip:-8.11.99]
+dropGroupingMulti
 row a = 1, b = 2 | rename a AS foo, b as bar | stats baz = count(*) by foo, bar | drop foo;
 
 baz:long  | bar:integer
 1         | 2
 ;
 
-dropGroupingMulti2#[skip:-8.11.99]
+dropGroupingMulti2
 row a = 1, b = 2 | rename a AS foo, b as bar | stats baz = count(*) by foo, bar | drop foo, bar;
 
 baz:long
@@ -98,7 +157,7 @@ baz:long
 ;
 
 
-dropGroupingMultirow#[skip:-8.11.99]
+dropGroupingMultirow
 from employees | rename gender AS foo | stats bar = count(*) by foo | drop foo | sort bar;
 
 bar:long
@@ -107,7 +166,7 @@ bar:long
 57
 ;
 
-dropColumnWithQuotedWildcard#[skip:-8.12.99]
+dropColumnWithQuotedWildcard
 FROM employees | STATS ROUND(AVG(height * 1.5)), COUNT(*), MIN(salary  * 10) | DROP `MIN(salary  * 10)`
 ;
 
@@ -115,7 +174,7 @@ ROUND(AVG(height * 1.5)):d | COUNT(*):l
 3.0                        | 100
 ;
 
-dropColumnWithQuotedWildcardBasic#[skip:-8.12.99]
+dropColumnWithQuotedWildcardBasic
 FROM employees | STATS COUNT(*), MIN(salary  * 10), MAX(languages)| DROP `COUNT(*)`
 ;
 

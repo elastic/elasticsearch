@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM employees
+| FORK (WHERE does_not_exist::LONG > 0)
+       (WHERE emp_no > 0)

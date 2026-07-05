@@ -32,10 +32,13 @@ public interface GrokCaptureExtracter {
      * is mutable and should be discarded after collecting a single result.
      */
     class MapExtracter implements GrokCaptureExtracter {
+
+        // a 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get
+        private static final Object NOT_FOUND = new Object();
+
         private final Map<String, Object> result;
         private final List<GrokCaptureExtracter> fieldExtracters;
 
-        @SuppressWarnings("unchecked")
         MapExtracter(
             List<GrokCaptureConfig> captureConfig,
             Function<GrokCaptureConfig, Function<Consumer<Object>, GrokCaptureExtracter>> getExtracter
@@ -52,12 +55,15 @@ public interface GrokCaptureExtracter {
                     // pattern = `%{SINGLEDIGIT:name}(%{SINGLEDIGIT:name})?`
                     // - GROK(pattern, "1") => { name: 1 }
                     // - GROK(pattern, "12") => { name: [1, 2] }
-                    if (result.containsKey(key)) {
-                        if (result.get(key) instanceof List<?> values) {
-                            ((ArrayList<Object>) values).add(value);
+                    final Object existingValue = result.getOrDefault(key, NOT_FOUND);
+                    if (existingValue != NOT_FOUND) {
+                        if (existingValue instanceof List<?> values) {
+                            @SuppressWarnings("unchecked")
+                            var typedValues = (List<Object>) values;
+                            typedValues.add(value);
                         } else {
                             var values = new ArrayList<>();
-                            values.add(result.get(key));
+                            values.add(existingValue);
                             values.add(value);
                             result.put(key, values);
                         }

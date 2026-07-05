@@ -9,10 +9,8 @@ package org.elasticsearch.example.realm;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.example.SpiExtensionRestTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -25,17 +23,9 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Integration test to test authentication with the custom role-mapping realm
  */
-public class CustomRoleMappingRealmIT extends ESRestTestCase {
+public class CustomRoleMappingRealmIT extends SpiExtensionRestTestCase {
 
     private String expectedRole;
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealmIT.USERNAME)
-            .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealmIT.PASSWORD)
-            .build();
-    }
 
     @Before
     public void setupRoleMapping() throws Exception {
@@ -58,8 +48,8 @@ public class CustomRoleMappingRealmIT extends ESRestTestCase {
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         // Authenticate as the custom realm superuser
-        options.addHeader(CustomRealm.USER_HEADER, CustomRealmIT.USERNAME);
-        options.addHeader(CustomRealm.PW_HEADER, CustomRealmIT.PASSWORD);
+        options.addHeader(CustomRealm.USER_HEADER, REALM_USERNAME);
+        options.addHeader(CustomRealm.PW_HEADER, REALM_PASSWORD);
         // But "run-as" the role mapped user
         options.addHeader("es-security-runas-user", CustomRoleMappingRealm.USERNAME);
         request.setOptions(options);

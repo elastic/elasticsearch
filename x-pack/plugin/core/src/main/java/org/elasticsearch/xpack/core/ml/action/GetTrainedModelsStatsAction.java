@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -110,19 +109,11 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
 
             public TrainedModelStats(StreamInput in) throws IOException {
                 modelId = in.readString();
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                    modelSizeStats = in.readOptionalWriteable(TrainedModelSizeStats::new);
-                } else {
-                    modelSizeStats = null;
-                }
+                modelSizeStats = in.readOptionalWriteable(TrainedModelSizeStats::new);
                 ingestStats = IngestStats.read(in);
                 pipelineCount = in.readVInt();
                 inferenceStats = in.readOptionalWriteable(InferenceStats::new);
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                    this.deploymentStats = in.readOptionalWriteable(AssignmentStats::new);
-                } else {
-                    this.deploymentStats = null;
-                }
+                this.deploymentStats = in.readOptionalWriteable(AssignmentStats::new);
             }
 
             public String getModelId() {
@@ -174,15 +165,11 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(modelId);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                    out.writeOptionalWriteable(modelSizeStats);
-                }
+                out.writeOptionalWriteable(modelSizeStats);
                 ingestStats.writeTo(out);
                 out.writeVInt(pipelineCount);
                 out.writeOptionalWriteable(inferenceStats);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                    out.writeOptionalWriteable(deploymentStats);
-                }
+                out.writeOptionalWriteable(deploymentStats);
             }
 
             @Override
@@ -284,6 +271,15 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 if (inferenceStatsMap == null) {
                     inferenceStatsMap = Collections.emptyMap();
                 }
+                if (modelSizeStatsMap == null) {
+                    modelSizeStatsMap = Collections.emptyMap();
+                }
+                if (assignmentStatsMap == null) {
+                    assignmentStatsMap = Collections.emptyMap();
+                }
+                if (ingestStatsMap == null) {
+                    ingestStatsMap = Collections.emptyMap();
+                }
 
                 List<TrainedModelStats> trainedModelStats = new ArrayList<>(numResponses);
                 expandedModelIdsWithAliases.keySet().forEach(modelId -> {
@@ -313,7 +309,12 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                                 // look up by model id
                                 ingestStats = ingestStatsMap.get(modelId);
                             }
-                            TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(modelId);
+                            // First try deployment ID (for deployed PyTorch models with per-deployment stats),
+                            // then fall back to model ID (for undeployed or non-PyTorch models)
+                            TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(deploymentId);
+                            if (modelSizeStats == null) {
+                                modelSizeStats = modelSizeStatsMap.get(modelId);
+                            }
                             trainedModelStats.add(
                                 new TrainedModelStats(
                                     modelId,
@@ -337,7 +338,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                             : modelStats1.getDeploymentStats().getDeploymentId();
                         var deploymentId2 = modelStats2.getDeploymentStats() == null
                             ? null
-                            : modelStats1.getDeploymentStats().getDeploymentId();
+                            : modelStats2.getDeploymentStats().getDeploymentId();
 
                         assert deploymentId1 != null && deploymentId2 != null
                             : "2 results for model " + modelStats1.getModelId() + " both should have deployment stats";

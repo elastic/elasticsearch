@@ -60,7 +60,7 @@ public class RecoveryTargetTests extends ESTestCase {
         final Version streamVersion;
 
         Streamer(AtomicBoolean shouldStop, T source) {
-            this(shouldStop, source, randomVersion(random()));
+            this(shouldStop, source, randomVersion());
         }
 
         Streamer(AtomicBoolean shouldStop, T source, Version streamVersion) {

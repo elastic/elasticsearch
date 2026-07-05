@@ -52,10 +52,9 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
     find . -type d -exec chmod 0555 {} + && \\
 # keep default elasticsearch log4j config
     mv config/log4j2.properties config/log4j2.file.properties && \\
-# Reset permissions on all files
-    find . -type f -exec chmod 0444 {} + && \\
-# Make CLI tools executable
-    chmod 0555 bin/* jdk/bin/* jdk/lib/jspawnhelper modules/x-pack-ml/platform/linux-*/bin/* && \\
+# Reset permissions on all files, preserving the execute bit from the archive
+    find . -type f -perm /111 -exec chmod 0555 {} + && \\
+    find . -type f ! -perm /111 -exec chmod 0444 {} + && \\
 # Make some directories writable. `bin` must be writable because
 # plugins can install their own CLI utilities.
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\

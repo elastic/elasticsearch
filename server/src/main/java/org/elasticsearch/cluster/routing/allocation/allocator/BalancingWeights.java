@@ -42,4 +42,9 @@ public interface BalancingWeights {
      * @return a {@link NodeSorters} instance
      */
     NodeSorters createNodeSorters(BalancedShardsAllocator.ModelNode[] modelNodes, BalancedShardsAllocator.Balancer balancer);
+
+    /**
+     * Returns true if disk usage is ignored for the purposes of weight calculations
+     */
+    boolean diskUsageIgnored();
 }

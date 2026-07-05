@@ -14,18 +14,18 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Hash}.
+ * {@link ExpressionEvaluator} implementation for {@link Hash}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class HashConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class HashConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(HashConstantEvaluator.class);
 
   private final Source source;
@@ -34,15 +34,14 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
 
   private final Hash.HashFunction algorithm;
 
-  private final EvalOperator.ExpressionEvaluator input;
+  private final ExpressionEvaluator input;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public HashConstantEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      Hash.HashFunction algorithm, EvalOperator.ExpressionEvaluator input,
-      DriverContext driverContext) {
+      Hash.HashFunction algorithm, ExpressionEvaluator input, DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
     this.algorithm = algorithm;
@@ -72,16 +71,16 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (inputBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (inputBlock.getValueCount(p) != 1) {
-          if (inputBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (inputBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         BytesRef input = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch);
         result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, input));
@@ -113,28 +112,22 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
     private final Function<DriverContext, Hash.HashFunction> algorithm;
 
-    private final EvalOperator.ExpressionEvaluator.Factory input;
+    private final ExpressionEvaluator.Factory input;
 
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        Function<DriverContext, Hash.HashFunction> algorithm,
-        EvalOperator.ExpressionEvaluator.Factory input) {
+        Function<DriverContext, Hash.HashFunction> algorithm, ExpressionEvaluator.Factory input) {
       this.source = source;
       this.scratch = scratch;
       this.algorithm = algorithm;

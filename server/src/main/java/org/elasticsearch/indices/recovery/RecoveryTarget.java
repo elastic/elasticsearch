@@ -48,7 +48,6 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.isReadOnlyVerified;
@@ -75,7 +74,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private volatile MultiFileWriter multiFileWriter;
     private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
     private final Store store;
-    private final PeerRecoveryTargetService.RecoveryListener listener;
+    private final RecoveryListener listener;
 
     private final AtomicBoolean finished = new AtomicBoolean();
 
@@ -83,8 +82,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
-
-    private final AtomicInteger recoveryMonitorBlocks = new AtomicInteger();
 
     @Nullable // if we're not downloading files from snapshots in this recovery
     private volatile Releasable snapshotFileDownloadsPermit;
@@ -113,7 +110,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         long clusterStateVersion,
         SnapshotFilesProvider snapshotFilesProvider,
         @Nullable Releasable snapshotFileDownloadsPermit,
-        PeerRecoveryTargetService.RecoveryListener listener
+        RecoveryListener listener
     ) {
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
@@ -128,8 +125,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.store = indexShard.store();
         this.multiFileWriter = createMultiFileWriter();
         // make sure the store is not released until we are done.
-        store.incRef();
-        indexShard.recoveryStats().incCurrentAsTarget();
+        store.mustIncRef();
     }
 
     private void recreateMultiFileWriter() {
@@ -207,34 +203,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         return snapshotFileDownloadsPermit != null;
     }
 
-    /** return the last time this RecoveryStatus was used (based on System.nanoTime() */
-    public long lastAccessTime() {
-        if (recoveryMonitorBlocks.get() == 0) {
-            return lastAccessTime;
-        }
-        return System.nanoTime();
-    }
-
-    /** sets the lasAccessTime flag to now */
-    public void setLastAccessTime() {
-        lastAccessTime = System.nanoTime();
-    }
-
-    /**
-     * Set flag to signal to {@link org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryMonitor} that it must not cancel this
-     * recovery temporarily. This is used by the recovery clean files step to avoid recovery failure in case a long running condition was
-     * added to the shard via {@link IndexShard#addCleanFilesDependency()}.
-     *
-     * @return releasable that once closed will re-enable liveness checks by the recovery monitor
-     */
-    public Releasable disableRecoveryMonitor() {
-        recoveryMonitorBlocks.incrementAndGet();
-        return Releasables.releaseOnce(() -> {
-            setLastAccessTime();
-            recoveryMonitorBlocks.decrementAndGet();
-        });
-    }
-
     public Store store() {
         assert hasReferences();
         return store;
@@ -289,6 +257,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             try {
                 logger.debug("recovery canceled (reason: [{}])", reason);
                 cancellableThreads.cancel(reason);
+                listener.onRecoveryAborted();
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();
@@ -305,7 +274,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void fail(RecoveryFailedException e, boolean sendShardFailure) {
         if (finished.compareAndSet(false, true)) {
             try {
-                notifyListener(e, sendShardFailure);
+                listener.onRecoveryFailure(e, sendShardFailure);
             } finally {
                 try {
                     cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.stackTrace(e) + "]");
@@ -315,10 +284,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 }
             }
         }
-    }
-
-    public void notifyListener(RecoveryFailedException e, boolean sendShardFailure) {
-        listener.onRecoveryFailure(e, sendShardFailure);
     }
 
     /** mark the current recovery as done */
@@ -334,7 +299,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("recovery failed after being marked as done", e);
-                    notifyListener(new RecoveryFailedException(state(), "Recovery failed on post recovery step", e), true);
+                    listener.onRecoveryFailure(new RecoveryFailedException(state(), "Recovery failed on post recovery step", e), true);
                 }
             }, this::decRef));
         }
@@ -342,13 +307,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     @Override
     protected void closeInternal() {
-        assert recoveryMonitorBlocks.get() == 0;
         try {
             multiFileWriter.close();
         } finally {
             // free store. increment happens in constructor
             store.decRef();
-            indexShard.recoveryStats().decCurrentAsTarget();
             closedLatch.countDown();
             releaseSnapshotFileDownloadsPermit();
         }

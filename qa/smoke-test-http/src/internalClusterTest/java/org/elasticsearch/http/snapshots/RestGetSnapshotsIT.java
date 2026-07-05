@@ -12,6 +12,7 @@ package org.elasticsearch.http.snapshots;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.After;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
@@ -386,7 +387,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                 final GetSnapshotsResponse getSnapshotsResponse = sortedWithLimit(
                     repoName,
                     sort,
-                    sort.encodeAfterQueryParam(after),
+                    After.fromSnapshotInfo(after, sort).toQueryParam(),
                     i,
                     order,
                     includeIndexNames

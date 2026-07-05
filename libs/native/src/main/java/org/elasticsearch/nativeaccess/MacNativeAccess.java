@@ -11,17 +11,21 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 
-class MacNativeAccess extends PosixNativeAccess {
+public class MacNativeAccess extends PosixNativeAccess {
 
     private static final int F_PREALLOCATE = 42;
     private static final int F_ALLOCATECONTIG = 0x2; // allocate contiguous space
@@ -112,14 +116,15 @@ class MacNativeAccess extends PosixNativeAccess {
             throw new UncheckedIOException(e);
         }
 
-        try {
-            var errorRef = macLibc.newErrorReference();
-            int ret = macLibc.sandbox_init(rules.toAbsolutePath().toString(), SANDBOX_NAMED, errorRef);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment errorBuf = arena.allocate(ValueLayout.ADDRESS);
+            int ret = macLibc.sandbox_init(rules.toAbsolutePath().toString(), SANDBOX_NAMED, errorBuf);
             // if sandbox_init() fails, add the message from the OS (e.g. syntax error) and free the buffer
             if (ret != 0) {
-                RuntimeException e = new UnsupportedOperationException("sandbox_init(): " + errorRef.toString());
-                macLibc.sandbox_free_error(errorRef);
-                throw e;
+                MemorySegment errorPtr = errorBuf.get(ValueLayout.ADDRESS, 0);
+                String message = MemorySegmentAdapter.getString(errorPtr.reinterpret(Long.MAX_VALUE), 0);
+                macLibc.sandbox_free_error(errorPtr);
+                throw new UnsupportedOperationException("sandbox_init(): " + message);
             }
             logger.debug("OS X seatbelt initialization successful");
         } finally {

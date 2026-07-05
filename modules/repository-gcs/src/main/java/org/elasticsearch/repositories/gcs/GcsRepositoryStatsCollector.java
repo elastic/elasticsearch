@@ -139,13 +139,35 @@ public class GcsRepositoryStatsCollector {
     }
 
     /**
-     * Continue collecting metrics with given OperationStats. Useful for readers and writers.
+     * Continue collecting metrics for an IOSupplier with given OperationStats. Useful for readers and writers.
      */
-    public <T> T continueWithStats(OperationStats stats, IOSupplier<T> blobFn) throws IOException {
+    public <T> T continueWithIOSupplier(OperationStats stats, IOSupplier<T> blobFn) throws IOException {
         setThreadLocal(stats);
         var t = timer.absoluteTimeInMillis();
         try {
             return blobFn.get();
+        } finally {
+            stats.totalDuration += timer.absoluteTimeInMillis() - t;
+            clearThreadLocal();
+        }
+    }
+
+    public <T> T continueWithSupplier(OperationStats stats, Supplier<T> blobFn) {
+        setThreadLocal(stats);
+        var t = timer.absoluteTimeInMillis();
+        try {
+            return blobFn.get();
+        } finally {
+            stats.totalDuration += timer.absoluteTimeInMillis() - t;
+            clearThreadLocal();
+        }
+    }
+
+    public void continueWithRunnable(OperationStats stats, Runnable runnable) {
+        setThreadLocal(stats);
+        var t = timer.absoluteTimeInMillis();
+        try {
+            runnable.run();
         } finally {
             stats.totalDuration += timer.absoluteTimeInMillis() - t;
             clearThreadLocal();
@@ -190,6 +212,18 @@ public class GcsRepositoryStatsCollector {
         }
     }
 
+    /**
+     * Tracks stats, but does not add them to collector. For example DELETE operations are not tracked. It might change in the future.
+     */
+    public void skipCollectRunnable(OperationPurpose purpose, StorageOperation operation, Runnable runnable) {
+        initAndGetThreadLocal(purpose, operation);
+        try {
+            runnable.run();
+        } finally {
+            clearThreadLocal();
+        }
+    }
+
     public <T> T collectIOSupplier(OperationPurpose purpose, StorageOperation operation, IOSupplier<T> blobFn) throws IOException {
         var t = timer.absoluteTimeInMillis();
         var stats = initAndGetThreadLocal(purpose, operation);
@@ -214,7 +248,7 @@ public class GcsRepositoryStatsCollector {
         }
     }
 
-    private void collect(OperationStats stats) {
+    public void collect(OperationStats stats) {
         if (stats.requestAttempts == 0) {
             return; // nothing happened
         }
@@ -267,6 +301,10 @@ public class GcsRepositoryStatsCollector {
             }
         }
         return out;
+    }
+
+    public RepositoriesMetrics getRepositoriesMetrics() {
+        return telemetry;
     }
 
     record Collector(LongAdder operations, LongAdder requests) {}

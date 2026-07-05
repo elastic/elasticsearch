@@ -9,7 +9,7 @@ mapped_pages:
 
 The `synonym_graph` token filter allows to easily handle [synonyms](docs-content://solutions/search/full-text/search-with-synonyms.md), including multi-word synonyms correctly during the analysis process.
 
-In order to properly handle multi-word synonyms this token filter creates a [graph token stream](docs-content://manage-data/data-store/text-analysis/token-graphs.md) during processing. For more information on this topic and its various complexities, please read the [Lucene’s TokenStreams are actually graphs](http://blog.mikemccandless.com/2012/04/lucenes-tokenstreams-are-actually.md) blog post.
+In order to properly handle multi-word synonyms this token filter creates a [graph token stream](docs-content://manage-data/data-store/text-analysis/token-graphs.md) during processing. For more information, refer to [Synonym token filter](/reference/text-analysis/analysis-synonym-tokenfilter.md).
 
 ::::{note}
 :name: synonym-graph-index-note
@@ -70,7 +70,7 @@ s(100000002,3,'approach',v,1,0).""";
 
 Synonyms can be configured using the [synonyms API](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-api), a [synonyms file](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-file), or directly [inlined](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-inline) in the token filter configuration. See [store your synonyms set](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms) for more details on each option.
 
-Use `synonyms_set` configuration option to provide a synonym set created via Synonyms Management APIs:
+Use `synonyms_set` configuration option to provide one or more synonym sets created through the [Synonyms Management APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-synonyms):
 
 ```JSON
   "filter": {
@@ -81,6 +81,29 @@ Use `synonyms_set` configuration option to provide a synonym set created via Syn
     }
   }
 ```
+
+{applies_to}`stack: ga 9.5+` To combine rules from multiple synonym sets, provide them as an array:
+
+```JSON
+  "filter": {
+    "synonyms_filter": {
+      "type": "synonym_graph",
+      "synonyms_set": ["my-synonym-set", "my-other-synonym-set"],
+      "updateable": true
+    }
+  }
+```
+
+A maximum of 100 synonym sets may be specified per filter.
+
+::::{tip}
+Use multiple synonym sets in a single filter instead of chaining multiple `synonym_graph` filters. Chaining can produce indeterminate search-time behavior.
+::::
+
+::::{note}
+:applies_to: stack: ga 9.5+
+Synonym sets are limited to 100,000 rules per set by default. This limit is configurable using the `synonyms.max_synonym_rules` cluster setting.
+::::
 
 ::::{warning}
 Synonyms sets must exist before they can be added to indices. If an index is created referencing a nonexistent synonyms set, the index will remain in a partially created and inoperable state. The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.
@@ -233,3 +256,19 @@ For example, a synonym rule like `foo, bar => baz` and a stop filter that remove
 
 If the stop filter removed `foo` instead, then searching for `foo` would get expanded to `baz`, which is not removed by the stop filter thus potentially providing matches for `baz`.
 
+
+## Memory circuit breaker [synonym-graph-tokenizer-circuit-breaker]
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+When building the synonyms map, {{es}} checks available heap memory using a circuit breaker to prevent synonym graph token filters from causing out-of-memory errors when processing large numbers of synonym rules. By default, the circuit breaker trips when more than 95% of heap memory is in use.
+
+The threshold is configurable using the [`indices.breaker.total.limit` parent circuit breaker setting](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#parent-circuit-breaker). {applies_to}`serverless: unavailable`
+
+When the circuit breaker trips, the behavior is determined by the `lenient` parameter:
+
+* If `lenient` is `true`, an empty synonyms map is used and the event is logged in the {{es}} logs.
+* If `lenient` is `false`, the affected index enters a red state.

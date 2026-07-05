@@ -34,13 +34,13 @@ public final class PercentileLongAggregatorFunctionSupplier implements Aggregato
   @Override
   public PercentileLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return PercentileLongAggregatorFunction.create(driverContext, channels, percentile);
+    return new PercentileLongAggregatorFunction(driverContext, channels, percentile);
   }
 
   @Override
   public PercentileLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return PercentileLongGroupingAggregatorFunction.create(channels, driverContext, percentile);
+    return new PercentileLongGroupingAggregatorFunction(channels, driverContext, percentile);
   }
 
   @Override

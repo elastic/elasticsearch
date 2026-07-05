@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: [ "rrf_retriever.multi_fields_query_format_support" ]
+      cluster_features: [ "rrf_retriever.multi_fields_query_format_support", "semantic_text.index_options" ]
       reason: "RRF retriever multi-fields query format support"
       test_runner_features: [ "contains" ]
 
@@ -77,6 +77,9 @@ setup:
               dense_inference:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: int8_hnsw
               sparse_inference:
                 type: semantic_text
                 inference_id: sparse-inference-id
@@ -119,7 +122,7 @@ setup:
             "keyword": "keyword match 2",
             "dense_inference": "ElasticSearch is an open source",
             "sparse_inference": "distributed, RESTful, search engine",
-            "text_1": "bar match 3",
+            "text_1": "bar match match match 3",
             "text_2": "y match 4",
             "timestamp": "2010-02-08",
             "dense_vector": [2],
@@ -132,7 +135,7 @@ setup:
             "keyword": "keyword match 3",
             "dense_inference": "which is built on top of Lucene internally",
             "sparse_inference": "and enjoys all the features it provides",
-            "text_1": "baz match 5",
+            "text_1": "baz match match 5",
             "text_2": "z match 6",
             "timestamp": "2024-08-08",
             "dense_vector": [3],
@@ -151,12 +154,18 @@ setup:
               dense_inference:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: int8_hnsw
               sparse_inference:
                 type: semantic_text
                 inference_id: sparse-inference-another-id
               text_1:
                 type: semantic_text
                 inference_id: dense-inference-another-id
+                index_options:
+                  dense_vector:
+                    type: int8_hnsw
               text_2:
                 type: text
               sparse_vector:
@@ -213,9 +222,11 @@ setup:
 
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.2._id: "3" }
+  # Document ordering is non-deterministic because all results are equally good lexical matches and a mock inference
+  # service that generates fake embeddings is used for semantic matches
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
 
 ---
 "Lexical match per-field boosting using the simplified format":
@@ -341,9 +352,11 @@ setup:
 
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.2._id: "1" }
+  # Document ordering is non-deterministic because a mock inference service that generates fake embeddings is used for
+  # semantic matches
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
 
 ---
 "Can query keyword fields":
@@ -527,9 +540,9 @@ setup:
 
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.2._id: "3" }
+  - set: { hits.hits.0._id: expected_hit_0 }
+  - set: { hits.hits.1._id: expected_hit_1 }
+  - set: { hits.hits.2._id: expected_hit_2 }
 
   - do:
       search:
@@ -559,15 +572,16 @@ setup:
 
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.0._id: $expected_hit_0 }
+  - match: { hits.hits.1._id: $expected_hit_1 }
+  - match: { hits.hits.2._id: $expected_hit_2 }
 
 ---
 "Queries multiple indices using default_field":
   - requires:
       cluster_features: [ "rrf_retriever.multi_index_simplified_format_support" ]
       reason: "Support for querying multiple indices in simplified RRF retriever"
+
   - do:
       search:
         index: test-index,test-another-index
@@ -578,18 +592,21 @@ setup:
 
   - match: { hits.total.value: 6 }
   - length: { hits.hits: 6 }
-  - match: { hits.hits.0._id: "4" }
-  - match: { hits.hits.1._id: "6" }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.3._id: "2" }
-  - match: { hits.hits.4._id: "3" }
-  - match: { hits.hits.5._id: "5" }
+  # Document ordering is non-deterministic because all results are equally good lexical matches and a mock inference
+  # service that generates fake embeddings is used for semantic matches
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+  - contains: { hits.hits: { _id: "4" } }
+  - contains: { hits.hits: { _id: "5" } }
+  - contains: { hits.hits: { _id: "6" } }
 
 ---
 "Queries multiple indices with a list of fields":
   - requires:
       cluster_features: [ "rrf_retriever.multi_index_simplified_format_support" ]
       reason: "Support for querying multiple indices in simplified RRF retriever"
+
   - do:
       search:
         index: test-index,test-another-index
@@ -601,9 +618,18 @@ setup:
 
   - match: { hits.total.value: 6 }
   - length: { hits.hits: 6 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
-  - match: { hits.hits.3._id: "6" }
-  - match: { hits.hits.4._id: "4" }
-  - match: { hits.hits.5._id: "5" }
+  # Top 3 results are docs 1, 2, 3 (from test-index) in any order
+  - match: { hits.hits.0._index: "test-index" }
+  - match: { hits.hits.1._index: "test-index" }
+  - match: { hits.hits.2._index: "test-index" }
+  # Bottom 3 results are docs 4, 5, 6 (from test-another-index) in any order
+  - match: { hits.hits.3._index: "test-another-index" }
+  - match: { hits.hits.4._index: "test-another-index" }
+  - match: { hits.hits.5._index: "test-another-index" }
+  # Verify all expected docs are present
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+  - contains: { hits.hits: { _id: "4" } }
+  - contains: { hits.hits: { _id: "5" } }
+  - contains: { hits.hits: { _id: "6" } }

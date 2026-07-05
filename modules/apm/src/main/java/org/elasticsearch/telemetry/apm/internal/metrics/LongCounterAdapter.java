@@ -39,7 +39,7 @@ public class LongCounterAdapter extends AbstractInstrument<LongCounter> implemen
     @Override
     public void incrementBy(long inc, Map<String, Object> attributes) {
         assert inc >= 0;
-        getInstrument().add(inc, OtelHelper.fromMap(attributes));
+        getInstrument().add(inc, OtelHelper.fromMap(getName(), attributes));
     }
 
     private static class Builder extends AbstractInstrument.Builder<LongCounter> {

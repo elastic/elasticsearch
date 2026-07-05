@@ -748,7 +748,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testManyDocsLin() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("_doc")

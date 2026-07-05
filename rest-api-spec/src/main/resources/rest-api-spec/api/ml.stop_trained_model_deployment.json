@@ -24,8 +24,7 @@
           "parts": {
             "model_id": {
               "type": "string",
-              "description": "The unique identifier of the trained model.",
-              "required": true
+              "description": "The unique identifier of the trained model."
             }
           }
         }
@@ -34,15 +33,18 @@
     "params": {
       "allow_no_match": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard expression matches no deployments. (This includes `_all` string or when no deployments have been specified)"
       },
       "force": {
         "type": "boolean",
+        "default": false,
         "description": "True if the deployment should be forcefully stopped"
       }
     },
     "body": {
-      "description": "The stop deployment parameters"
+      "description": "The stop deployment parameters",
+      "required": false
     }
   }
 }

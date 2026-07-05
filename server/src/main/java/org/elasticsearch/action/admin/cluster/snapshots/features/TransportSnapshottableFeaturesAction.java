@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.features;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,6 +28,7 @@ public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAct
     GetSnapshottableFeaturesRequest,
     GetSnapshottableFeaturesResponse> {
 
+    public static final ActionType<GetSnapshottableFeaturesResponse> TYPE = new ActionType<>("cluster:admin/features/get");
     private final SystemIndices systemIndices;
 
     @Inject
@@ -38,7 +40,7 @@ public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAct
         SystemIndices systemIndices
     ) {
         super(
-            SnapshottableFeaturesAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

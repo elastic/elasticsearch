@@ -15,15 +15,20 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
+import org.elasticsearch.action.support.replication.BroadcastRequestSplitHelper;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -32,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 public class TransportShardRefreshAction extends TransportReplicationAction<
@@ -46,6 +52,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     public static final String SOURCE_API = "api";
 
     private final Executor refreshExecutor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportShardRefreshAction(
@@ -55,7 +62,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         IndicesService indicesService,
         ThreadPool threadPool,
         ShardStateAction shardStateAction,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             settings,
@@ -73,6 +81,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             PrimaryActionExecution.RejectOnOverload,
             ReplicaActionExecution.SubjectToCircuitBreaker
         );
+        this.projectResolver = projectResolver;
         // registers the unpromotable version of shard refresh action
         new TransportUnpromotableShardRefreshAction(
             clusterService,
@@ -102,6 +111,33 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             logger.trace("{} refresh request executed on primary", primary.shardId());
             return new PrimaryResult<>(replicaRequest, new ReplicationResponse());
         }));
+    }
+
+    /**
+     * We are here because there was mismatch between the SplitShardCountSummary in the request
+     * and that on the primary shard node. In other words, the primary shard has moved ahead due to a split reshard
+     * operation after the request was created by the coordinator.
+     * We can assume that the request is exactly 1 reshard split behind the current state of the primary shard.
+     * This is because requests that are more than 1 reshard operation behind are rejected in
+     * {@link org.elasticsearch.action.support.replication.ReplicationSplitHelper
+     * #needsSplitCoordination(org.apache.logging.log4j.Logger, ReplicationRequest, IndexMetadata)}
+     */
+    @Override
+    protected Map<ShardId, BasicReplicationRequest> splitRequestOnPrimary(BasicReplicationRequest request, ProjectMetadata project) {
+        return BroadcastRequestSplitHelper.splitRequest(
+            request,
+            project,
+            (targetShard, shardCountSummary) -> new BasicReplicationRequest(targetShard, shardCountSummary)
+        );
+    }
+
+    @Override
+    protected Tuple<ReplicationResponse, Exception> combineSplitResponses(
+        BasicReplicationRequest originalRequest,
+        Map<ShardId, BasicReplicationRequest> splitRequests,
+        Map<ShardId, Tuple<ReplicationResponse, Exception>> responses
+    ) {
+        return BroadcastRequestSplitHelper.combineSplitResponses(originalRequest, splitRequests, responses);
     }
 
     @Override

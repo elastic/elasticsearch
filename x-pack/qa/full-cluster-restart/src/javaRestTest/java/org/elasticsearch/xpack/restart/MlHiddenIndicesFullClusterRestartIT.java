@@ -45,8 +45,8 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullCluste
         Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-read"),
         Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-write"),
         Tuple.tuple(List.of(".ml-state", ".ml-state-000001"), ".ml-state-write"),
-        Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-" + JOB_ID),
-        Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-.write-" + JOB_ID)
+        Tuple.tuple(List.of(".ml-anomalies-shared-000001"), ".ml-anomalies-" + JOB_ID),
+        Tuple.tuple(List.of(".ml-anomalies-shared-000001"), ".ml-anomalies-.write-" + JOB_ID)
     );
 
     public MlHiddenIndicesFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -147,8 +147,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullCluste
                 "analysis_config": {
                     "bucket_span": "10m",
                     "detectors": [{
-                        "function": "metric",
-                        "field_name": "responsetime"
+                        "function": "count"
                     }]
                 },
                 "data_description": {}

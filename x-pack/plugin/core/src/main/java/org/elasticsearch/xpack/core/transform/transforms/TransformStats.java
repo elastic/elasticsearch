@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -89,12 +88,8 @@ public class TransformStats implements Writeable, ToXContentObject {
         this.indexerStats = new TransformIndexerStats(in);
         this.checkpointingInfo = new TransformCheckpointingInfo(in);
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            if (in.readBoolean()) {
-                this.health = new TransformHealth(in);
-            } else {
-                this.health = null;
-            }
+        if (in.readBoolean()) {
+            this.health = new TransformHealth(in);
         } else {
             this.health = null;
         }
@@ -133,13 +128,11 @@ public class TransformStats implements Writeable, ToXContentObject {
         }
         indexerStats.writeTo(out);
         checkpointingInfo.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            if (health != null) {
-                out.writeBoolean(true);
-                health.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (health != null) {
+            out.writeBoolean(true);
+            health.writeTo(out);
+        } else {
+            out.writeBoolean(false);
         }
     }
 

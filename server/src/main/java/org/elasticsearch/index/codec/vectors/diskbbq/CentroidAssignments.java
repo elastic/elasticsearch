@@ -9,11 +9,27 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-record CentroidAssignments(int numCentroids, float[][] centroids, int[] assignments, int[] overspillAssignments) {
+import java.util.Arrays;
 
-    CentroidAssignments(float[][] centroids, int[] assignments, int[] overspillAssignments) {
-        this(centroids.length, centroids, assignments, overspillAssignments);
-        assert assignments.length == overspillAssignments.length || overspillAssignments.length == 0
+public record CentroidAssignments(
+    int numCentroids,
+    int[] assignments,
+    OverspillAssignments overspillAssignments,
+    float[] globalCentroid,
+    CentroidSlices centroidSlices
+) {
+
+    public CentroidAssignments(int numCentroids, int[] assignments, OverspillAssignments overspillAssignments, float[] globalCentroid) {
+        this(numCentroids, assignments, overspillAssignments, globalCentroid, null);
+        assert assignments.length == overspillAssignments.size() || overspillAssignments.size() == 0
             : "assignments and overspillAssignments must have the same length";
+
+    }
+
+    public CentroidAssignments {
+        assert assignments.length == overspillAssignments.size() || overspillAssignments.size() == 0
+            : "assignments and overspillAssignments must have the same length";
+        assert centroidSlices == null || Arrays.stream(centroidSlices.sliceNumVectors()).sum() == assignments.length;
+        assert centroidSlices == null || CentroidSlices.assertSliceOffsets(centroidSlices.sliceOffsets(), numCentroids);
     }
 }

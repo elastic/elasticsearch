@@ -13,6 +13,7 @@ import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.core.Booleans;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -37,6 +38,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 
 /**
  * Parses JVM options from a file and prints a single line with all JVM options to standard output.
@@ -143,11 +147,37 @@ public final class JvmOptionsParser {
 
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo());
-        substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(args.nodeSettings(), memoryInfo, substitutedJvmOptions));
-        final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions, args.nodeSettings());
+        final Map<String, JvmOption> parsedJvmOptions = JvmOption.findFinalOptions(substitutedJvmOptions);
+        final List<String> heapSettings = machineDependentHeap.determineHeapSettings(
+            args.nodeSettings(),
+            memoryInfo,
+            parsedJvmOptions,
+            substitutedJvmOptions
+        );
+        substitutedJvmOptions.addAll(heapSettings);
+        final long effectiveHeapSize = heapSettings.isEmpty()
+            ? JvmOption.extractMaxHeapSize(parsedJvmOptions)
+            : parseHeapSizeFromOptions(heapSettings);
+        final List<String> ergonomicJvmOptions = JvmErgonomics.choose(parsedJvmOptions, effectiveHeapSize, args.nodeSettings());
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops);
 
-        final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.secrets(), args.logsDir(), tmpDir);
+        // The OTel SDK enablement switches are -D flags destined for the server JVM, so they are read from the assembled options
+        // rather than this launcher process's own system properties.
+        final Map<String, String> assembledSystemProperties = JvmErgonomics.extractSystemProperties(substitutedJvmOptions);
+        final boolean otelMetricsEnabled = Booleans.parseBoolean(
+            assembledSystemProperties.getOrDefault(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")
+        );
+        final boolean otelTracesEnabled = Booleans.parseBoolean(
+            assembledSystemProperties.getOrDefault(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY, "false")
+        );
+        final List<String> apmOptions = APMJvmOptions.apmJvmOptions(
+            args.nodeSettings(),
+            args.secrets(),
+            args.logsDir(),
+            tmpDir,
+            otelMetricsEnabled,
+            otelTracesEnabled
+        );
 
         final List<String> finalJvmOptions = new ArrayList<>(
             systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + apmOptions.size()
@@ -353,6 +383,23 @@ public final class JvmOptionsParser {
                 invalidLineConsumer.accept(lineNumber, line);
             }
         }
+    }
+
+    /**
+     * Parses the max heap size in bytes from heap options produced by {@link MachineDependentHeap}.
+     * Expects the format {@code -Xmx<N>m}.
+     */
+    static long parseHeapSizeFromOptions(List<String> heapSettings) {
+        for (String option : heapSettings) {
+            if (option.startsWith("-Xmx")) {
+                String value = option.substring(4);
+                if (value.endsWith("m") == false) {
+                    throw new IllegalStateException("Expected heap option in megabytes: " + option);
+                }
+                return Long.parseLong(value.substring(0, value.length() - 1)) * 1024 * 1024;
+            }
+        }
+        throw new IllegalStateException("Heap settings did not contain -Xmx option: " + heapSettings);
     }
 
 }

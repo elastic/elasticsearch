@@ -156,7 +156,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")
     protected static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder, String... names) {
-        Check.isTrue(names.length > 0, "At least one name must be provided for the function");
+        Check.isTrueInternal(names.length > 0, "At least one name must be provided for the function");
         String primaryName = names[0];
         List<String> aliases = Arrays.asList(names).subList(1, names.length);
         FunctionDefinition.Builder realBuilder = (uf, cfg, extras) -> {

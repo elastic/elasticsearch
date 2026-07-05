@@ -39,16 +39,11 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
 
   private final DriverContext driverContext;
 
-  public SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction(List<Integer> channels,
-      SpatialExtentGroupingState state, DriverContext driverContext) {
+  SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction(List<Integer> channels,
+      DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = SpatialExtentCartesianShapeDocValuesAggregator.initGrouping();
     this.driverContext = driverContext;
-  }
-
-  public static SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction create(
-      List<Integer> channels, DriverContext driverContext) {
-    return new SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction(channels, SpatialExtentCartesianShapeDocValuesAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -64,44 +59,30 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
-    IntVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      maybeEnableGroupIdTracking(seenGroupIds, valuesBlock);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
-        }
-
-        @Override
-        public void close() {
-        }
-      };
+    if (valuesBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+      return null;
     }
+    maybeEnableGroupIdTracking(seenGroupIds, valuesBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
       @Override
@@ -116,26 +97,13 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
         continue;
       }
       int valuesPosition = groupPosition + positionOffset;
-      if (valuesBlock.isNull(valuesPosition)) {
-        continue;
-      }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        int valuesStart = valuesBlock.getFirstValueIndex(valuesPosition);
-        int valuesEnd = valuesStart + valuesBlock.getValueCount(valuesPosition);
-        int[] valuesArray = new int[valuesEnd - valuesStart];
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          valuesArray[v-valuesStart] = valuesBlock.getInt(v);
-        }
-        SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesArray);
+        SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
       }
     }
-  }
-
-  private void addRawInput(int positionOffset, IntArrayBlock groups, IntVector valuesVector) {
-    // This type does not support vectors because all values are multi-valued
   }
 
   @Override
@@ -144,21 +112,57 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
     assert channels.size() == intermediateBlockCount();
     Block minXUncast = page.getBlock(channels.get(0));
     if (minXUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector minX = ((IntBlock) minXUncast).asVector();
     Block maxXUncast = page.getBlock(channels.get(1));
     if (maxXUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector maxX = ((IntBlock) maxXUncast).asVector();
     Block maxYUncast = page.getBlock(channels.get(2));
     if (maxYUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector maxY = ((IntBlock) maxYUncast).asVector();
     Block minYUncast = page.getBlock(channels.get(3));
     if (minYUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector minY = ((IntBlock) minYUncast).asVector();
@@ -183,26 +187,13 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
         continue;
       }
       int valuesPosition = groupPosition + positionOffset;
-      if (valuesBlock.isNull(valuesPosition)) {
-        continue;
-      }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        int valuesStart = valuesBlock.getFirstValueIndex(valuesPosition);
-        int valuesEnd = valuesStart + valuesBlock.getValueCount(valuesPosition);
-        int[] valuesArray = new int[valuesEnd - valuesStart];
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          valuesArray[v-valuesStart] = valuesBlock.getInt(v);
-        }
-        SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesArray);
+        SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
       }
     }
-  }
-
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntVector valuesVector) {
-    // This type does not support vectors because all values are multi-valued
   }
 
   @Override
@@ -211,21 +202,57 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
     assert channels.size() == intermediateBlockCount();
     Block minXUncast = page.getBlock(channels.get(0));
     if (minXUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector minX = ((IntBlock) minXUncast).asVector();
     Block maxXUncast = page.getBlock(channels.get(1));
     if (maxXUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector maxX = ((IntBlock) maxXUncast).asVector();
     Block maxYUncast = page.getBlock(channels.get(2));
     if (maxYUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector maxY = ((IntBlock) maxYUncast).asVector();
     Block minYUncast = page.getBlock(channels.get(3));
     if (minYUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector minY = ((IntBlock) minYUncast).asVector();
@@ -247,22 +274,9 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
   private void addRawInput(int positionOffset, IntVector groups, IntBlock valuesBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
-      if (valuesBlock.isNull(valuesPosition)) {
-        continue;
-      }
       int groupId = groups.getInt(groupPosition);
-      int valuesStart = valuesBlock.getFirstValueIndex(valuesPosition);
-      int valuesEnd = valuesStart + valuesBlock.getValueCount(valuesPosition);
-      int[] valuesArray = new int[valuesEnd - valuesStart];
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        valuesArray[v-valuesStart] = valuesBlock.getInt(v);
-      }
-      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesArray);
+      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
     }
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, IntVector valuesVector) {
-    // This type does not support vectors because all values are multi-valued
   }
 
   @Override
@@ -271,21 +285,57 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
     assert channels.size() == intermediateBlockCount();
     Block minXUncast = page.getBlock(channels.get(0));
     if (minXUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector minX = ((IntBlock) minXUncast).asVector();
     Block maxXUncast = page.getBlock(channels.get(1));
     if (maxXUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector maxX = ((IntBlock) maxXUncast).asVector();
     Block maxYUncast = page.getBlock(channels.get(2));
     if (maxYUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector maxY = ((IntBlock) maxYUncast).asVector();
     Block minYUncast = page.getBlock(channels.get(3));
     if (minYUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector minY = ((IntBlock) minYUncast).asVector();
@@ -299,6 +349,11 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock valuesBlock) {
     if (valuesBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }
@@ -309,14 +364,24 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = SpatialExtentCartesianShapeDocValuesAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SpatialExtentCartesianShapeDocValuesAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

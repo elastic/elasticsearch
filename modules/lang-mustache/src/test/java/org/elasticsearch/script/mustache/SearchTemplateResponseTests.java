@@ -13,11 +13,12 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -29,12 +30,12 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.chunkedXContentTester;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class SearchTemplateResponseTests extends AbstractXContentTestCase<SearchTemplateResponse> {
+public class SearchTemplateResponseTests extends ESTestCase {
 
-    @Override
-    protected SearchTemplateResponse createTestInstance() {
+    private SearchTemplateResponse createTestInstance() {
         SearchTemplateResponse response = new SearchTemplateResponse();
         if (randomBoolean()) {
             response.setResponse(createSearchResponse());
@@ -44,7 +45,6 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         return response;
     }
 
-    @Override
     protected SearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
         SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
         Map<String, Object> contentAsMap = parser.map();
@@ -107,8 +107,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         }
     }
 
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
+    private Predicate<String> getRandomFieldsExcludeFilter() {
         String templateOutputField = SearchTemplateResponse.TEMPLATE_OUTPUT_FIELD.getPreferredName();
         return field -> field.equals(templateOutputField) || field.startsWith(templateOutputField + ".");
     }
@@ -118,8 +117,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
      * currently implement equals and hashCode. Instead, we compare the template outputs for equality,
      * and perform some sanity checks on the search response instances.
      */
-    @Override
-    protected void assertEqualInstances(SearchTemplateResponse expectedInstance, SearchTemplateResponse newInstance) {
+    public void assertEqualInstances(SearchTemplateResponse expectedInstance, SearchTemplateResponse newInstance) {
         assertNotSame(newInstance, expectedInstance);
 
         BytesReference expectedSource = expectedInstance.getSource();
@@ -143,9 +141,14 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         }
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
+    public final void testFromXContent() throws IOException {
+        chunkedXContentTester(this::createParser, t -> createTestInstance(), ToXContent.EMPTY_PARAMS, this::doParseInstance)
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+            .numberOfTestRuns(20)
+            .supportsUnknownFields(true)
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(SearchTemplateResponse::decRef)
+            .test();
     }
 
     public void testSourceToXContent() throws IOException {
@@ -174,7 +177,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
                 .endObject();
 
             XContentBuilder actualResponse = XContentFactory.contentBuilder(contentType);
-            response.toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
 
             assertToXContentEquivalent(BytesReference.bytes(expectedResponse), BytesReference.bytes(actualResponse), contentType);
         } finally {
@@ -183,12 +186,13 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
     }
 
     public void testSearchResponseToXContent() throws IOException {
-        SearchHit hit = SearchHit.unpooled(1, "id");
+        SearchHit hit = new SearchHit(1, "id");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
 
+        SearchHits sHits = new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f);
         SearchResponse searchResponse = new SearchResponse(
-            SearchHits.unpooled(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+            sHits,
             null,
             null,
             false,
@@ -203,6 +207,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
+        sHits.decRef(); // transfer ownership to searchResponse
 
         SearchTemplateResponse response = new SearchTemplateResponse();
         try {
@@ -235,16 +240,11 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
                 .endObject();
 
             XContentBuilder actualResponse = XContentFactory.contentBuilder(contentType);
-            response.toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
 
             assertToXContentEquivalent(BytesReference.bytes(expectedResponse), BytesReference.bytes(actualResponse), contentType);
         } finally {
             response.decRef();
         }
-    }
-
-    @Override
-    protected void dispose(SearchTemplateResponse instance) {
-        instance.decRef();
     }
 }

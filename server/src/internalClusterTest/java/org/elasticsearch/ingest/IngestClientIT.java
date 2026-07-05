@@ -378,6 +378,92 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(inserted.get("readme"), equalTo("pipeline with id [3] is a bad pipeline"));
     }
 
+    public void testBulkRequestWithInvalidJsonAndPipeline() throws Exception {
+        // Test that when a document with invalid JSON is in a bulk request with a pipeline,
+        // the invalid document fails gracefully without causing the entire bulk request to fail.
+        // This tests the fix for https://github.com/elastic/elasticsearch/issues/138445
+
+        createIndex("test_index");
+
+        putJsonPipeline(
+            "test-pipeline",
+            (builder, params) -> builder.field("description", "test pipeline")
+                .startArray("processors")
+                .startObject()
+                .startObject("test")
+                .endObject()
+                .endObject()
+                .endArray()
+        );
+
+        // Create a bulk request with valid and invalid documents
+        BulkRequest bulkRequest = new BulkRequest();
+
+        // Valid document
+        IndexRequest validRequest = new IndexRequest("test_index").id("valid_doc");
+        validRequest.source("{\"valid\":\"test\"}", XContentType.JSON);
+        validRequest.setPipeline("test-pipeline");
+        bulkRequest.add(validRequest);
+
+        // Invalid document with missing closing brace
+        IndexRequest invalidRequest = new IndexRequest("test_index").id("invalid_doc");
+        invalidRequest.source("{\"invalid\":\"json\"", XContentType.JSON);
+        invalidRequest.setPipeline("test-pipeline");
+        bulkRequest.add(invalidRequest);
+
+        // Invalid document with duplicate fields
+        IndexRequest invalidRequest2 = new IndexRequest("test_index").id("invalid_doc2");
+        invalidRequest2.source("{\"invalid\":\"json\", \"invalid\":\"json\"}", XContentType.JSON);
+        invalidRequest2.setPipeline("test-pipeline");
+        bulkRequest.add(invalidRequest2);
+
+        // Another valid document
+        IndexRequest validRequest2 = new IndexRequest("test_index").id("valid_doc2");
+        validRequest2.source("{\"valid\":\"test2\"}", XContentType.JSON);
+        validRequest2.setPipeline("test-pipeline");
+        bulkRequest.add(validRequest2);
+
+        BulkResponse response = client().bulk(bulkRequest).actionGet();
+
+        // The bulk request should succeed
+        assertThat(response.hasFailures(), is(true));
+        assertThat(response.getItems().length, equalTo(4));
+
+        // First document should succeed
+        BulkItemResponse item0 = response.getItems()[0];
+        assertThat(item0.isFailed(), is(false));
+        assertThat(item0.getResponse().getId(), equalTo("valid_doc"));
+        assertThat(item0.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+
+        // Second document should fail
+        BulkItemResponse item1 = response.getItems()[1];
+        assertThat(item1.isFailed(), is(true));
+        assertThat(item1.getFailure().getStatus(), equalTo(org.elasticsearch.rest.RestStatus.BAD_REQUEST));
+        assertThat(item1.getFailure().getCause(), instanceOf(IllegalArgumentException.class));
+
+        // Third document should fail
+        BulkItemResponse item2 = response.getItems()[2];
+        assertThat(item2.isFailed(), is(true));
+        assertThat(item2.getFailure().getStatus(), equalTo(org.elasticsearch.rest.RestStatus.BAD_REQUEST));
+        assertThat(item2.getFailure().getCause(), instanceOf(IllegalArgumentException.class));
+
+        // Fourth document should succeed
+        BulkItemResponse item3 = response.getItems()[3];
+        assertThat(item3.isFailed(), is(false));
+        assertThat(item3.getResponse().getId(), equalTo("valid_doc2"));
+        assertThat(item3.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+
+        // Verify that the valid documents were indexed
+        assertThat(client().prepareGet("test_index", "valid_doc").get().isExists(), is(true));
+        assertThat(client().prepareGet("test_index", "valid_doc2").get().isExists(), is(true));
+        // Verify that the invalid documents were not indexed
+        assertThat(client().prepareGet("test_index", "invalid_doc").get().isExists(), is(false));
+        assertThat(client().prepareGet("test_index", "invalid_doc2").get().isExists(), is(false));
+
+        // cleanup
+        deletePipeline("test-pipeline");
+    }
+
     public static class ExtendedIngestTestPlugin extends IngestTestPlugin {
 
         @Override

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.block;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -44,6 +45,10 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     private static final ClusterBlock[] EMPTY_BLOCKS_ARRAY = new ClusterBlock[0];
 
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(Set.of(), Map.of());
+
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
+    private static final TransportVersion PROJECT_DELETION_GLOBAL_BLOCK = TransportVersion.fromName("project_deletion_global_block");
+    static final TransportVersion PROJECT_CREATION_GLOBAL_BLOCK = TransportVersion.fromName("project_creation_global_block");
 
     private final Set<ClusterBlock> global;
 
@@ -393,9 +398,15 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (out.getTransportVersion().supports(MULTI_PROJECT)) {
             writeBlockSet(global, out);
-            out.writeMap(projectBlocksMap, (o, projectId) -> projectId.writeTo(o), (o, projectBlocks) -> projectBlocks.writeTo(out));
+            // To skip writing the project_under_creation block to older versions, we need to do the check here before iterating
+            // the map and write it out, since after filtering out the new block, we might end up with a project entry in
+            // projectBlocksMap that has no blocks at all, which is not allowed by the constructor.
+            final var projectBlocksToWrite = out.getTransportVersion().supports(PROJECT_CREATION_GLOBAL_BLOCK)
+                ? projectBlocksMap
+                : projectBlocksWithoutUnderCreationBlock();
+            out.writeMap(projectBlocksToWrite, (o, projectId) -> projectId.writeTo(o), (o, projectBlocks) -> projectBlocks.writeTo(out));
         } else {
             if (noProjectOrDefaultProjectOnly()) {
                 writeToSingleProjectNode(out);
@@ -468,7 +479,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            if (out.getTransportVersion().supports(MULTI_PROJECT)) {
                 out.writeBoolean(true);
                 part.writeTo(out);
             } else {
@@ -484,12 +495,42 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         }
     }
 
+    /**
+     * Returns {@link #projectBlocksMap} adjusted for serialization to a version that predates
+     * {@link #PROJECT_CREATION_GLOBAL_BLOCK}: the under-creation block is removed from every project's project-global
+     * blocks, and any project left with no blocks at all is dropped (an empty {@link ProjectBlocks} would otherwise
+     * violate the no-empty-projects invariant checked in the {@link ClusterBlocks} constructor on read). Only called on
+     * those older versions; this method and its call site can be removed once that version is no longer a BWC boundary.
+     */
+    private Map<ProjectId, ProjectBlocks> projectBlocksWithoutUnderCreationBlock() {
+        Map<ProjectId, ProjectBlocks> filteredCopy = null;
+        for (Map.Entry<ProjectId, ProjectBlocks> entry : projectBlocksMap.entrySet()) {
+            final ProjectBlocks projectBlocks = entry.getValue();
+            if (projectBlocks.projectGlobals().contains(ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK) == false) {
+                continue;
+            }
+            if (filteredCopy == null) {
+                // take a copy of the whole thing (would include entries skipped above too).
+                filteredCopy = new HashMap<>(projectBlocksMap);
+            }
+            final Set<ClusterBlock> remainingGlobals = new HashSet<>(projectBlocks.projectGlobals());
+            remainingGlobals.remove(ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK);
+            if (projectBlocks.indices().isEmpty() && remainingGlobals.isEmpty()) {
+                filteredCopy.remove(entry.getKey());
+            } else {
+                filteredCopy.put(entry.getKey(), new ProjectBlocks(projectBlocks.indices(), Set.copyOf(remainingGlobals)));
+            }
+        }
+        /// if there were no {@link ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK}, return the same map.
+        return filteredCopy == null ? projectBlocksMap : filteredCopy;
+    }
+
     private static void writeBlockSet(Set<ClusterBlock> blocks, StreamOutput out) throws IOException {
         out.writeCollection(blocks);
     }
 
     public static ClusterBlocks readFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (in.getTransportVersion().supports(MULTI_PROJECT)) {
             final Set<ClusterBlock> global = readBlockSet(in);
             final Map<ProjectId, ProjectBlocks> projectBlocksMap = in.readImmutableMap(ProjectId::readFrom, ProjectBlocks::readFrom);
             if (global.isEmpty()
@@ -521,7 +562,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     public static Diff<ClusterBlocks> readDiffFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            if (in.getTransportVersion().supports(MULTI_PROJECT)) {
                 return new ClusterBlocksDiff(ClusterBlocks.readFrom(in), false);
             } else {
                 return new ClusterBlocksDiff(ClusterBlocks.readFromSingleProjectNode(in), true);
@@ -567,7 +608,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         static ProjectBlocks readFrom(StreamInput in) throws IOException {
             Map<String, Set<ClusterBlock>> indices = in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
             Set<ClusterBlock> projectGlobal;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
+            if (in.getTransportVersion().supports(PROJECT_DELETION_GLOBAL_BLOCK)) {
                 projectGlobal = ClusterBlocks.readBlockSet(in);
             } else {
                 projectGlobal = Set.of();
@@ -578,7 +619,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(indices, (o, s) -> writeBlockSet(s, o));
-            if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
+            if (out.getTransportVersion().supports(PROJECT_DELETION_GLOBAL_BLOCK)) {
                 writeBlockSet(projectGlobal, out);
             } else {
                 assert projectGlobal.isEmpty() : "Any MP-enabled cluster must be past TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK";

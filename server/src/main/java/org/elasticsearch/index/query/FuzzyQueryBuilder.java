@@ -30,7 +30,7 @@ import java.util.Objects;
 /**
  * A Query that does fuzzy matching for a specific value.
  */
-public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> implements MultiTermQueryBuilder {
+public class FuzzyQueryBuilder extends LeafQueryBuilder<FuzzyQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "fuzzy";
 
     /** Default maximum edit distance. Defaults to AUTO. */

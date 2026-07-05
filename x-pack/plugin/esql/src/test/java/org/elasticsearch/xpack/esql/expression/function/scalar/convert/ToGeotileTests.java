@@ -40,7 +40,7 @@ public class ToGeotileTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.KEYWORD, DataType.GEOTILE, ToGeotileTests::valueOf, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.TEXT, DataType.GEOTILE, ToGeotileTests::valueOf, List.of());
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static long valueOf(Object gridAddress) {

@@ -240,6 +240,108 @@ public class TransformSchedulerTests extends ESTestCase {
         transformScheduler.stop();
     }
 
+    public void testScheduleWithDelayWithDefer() {
+        String transformId = "test-schedule-now-with-defer";
+        TimeValue frequency = TimeValue.timeValueHours(1);
+        TimeValue deferDuration = TimeValue.timeValueSeconds(30);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
+        FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
+        CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
+        TransformScheduler.Listener listener = events::add;
+
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        transformScheduler.registerTransform(transformTaskParams, listener);
+        assertThat(events, hasSize(1));
+
+        clock.advanceTimeBy(Duration.ofMinutes(10));
+
+        // Schedule with a defer duration; the task should not be triggered immediately
+        transformScheduler.scheduleWithDelay(transformId, deferDuration);
+        assertThat(events, hasSize(1));
+        long expectedNextTime = 10 * 60 * 1000L + deferDuration.millis();
+        assertThat(
+            transformScheduler.getTransformScheduledTasks(),
+            contains(new TransformScheduledTask(transformId, frequency, 0L, 0, expectedNextTime, listener))
+        );
+
+        // Advance time just short of the defer duration; task still not triggered
+        clock.advanceTimeBy(Duration.ofSeconds(29));
+        transformScheduler.processScheduledTasks();
+        assertThat(events, hasSize(1));
+
+        // Advance past the defer duration; task should now be triggered
+        clock.advanceTimeBy(Duration.ofSeconds(2));
+        transformScheduler.processScheduledTasks();
+        assertThat(events, hasSize(2));
+        assertThat(events.get(1).transformId(), is(equalTo(transformId)));
+        assertThat(events.get(1).scheduledTime(), is(equalTo(expectedNextTime)));
+
+        transformScheduler.deregisterTransform(transformId);
+        transformScheduler.stop();
+    }
+
+    public void testUpdateFrequencyWithChanges() throws Exception {
+        var transformId = "test-update-frequency-with-changes";
+        var startingFrequency = TimeValue.timeValueHours(1);
+        var updatingFrequency = TimeValue.timeValueSeconds(1);
+
+        var transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, startingFrequency, false);
+        var clock = new FakeClock(Instant.ofEpochMilli(0));
+        var events = new CopyOnWriteArrayList<TransformScheduler.Event>();
+        TransformScheduler.Listener listener = events::add;
+
+        var transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        transformScheduler.registerTransform(transformTaskParams, listener);
+        assertThat(events, hasSize(1));
+
+        // Update the frequency
+        transformScheduler.updateFrequency(transformId, updatingFrequency);
+        clock.advanceTimeBy(Duration.ofMinutes(2));
+        transformScheduler.processScheduledTasks();
+
+        assertBusy(() -> assertThat(events, hasSize(greaterThanOrEqualTo(2))), 10, TimeUnit.SECONDS);
+
+        var actualTask = transformScheduler.getTransformScheduledTasks()
+            .stream()
+            .filter(task -> task.getTransformId().equals(transformId))
+            .findAny()
+            .orElseThrow();
+        assertThat(actualTask.getFrequency(), equalTo(updatingFrequency));
+
+        transformScheduler.deregisterTransform(transformId);
+        transformScheduler.stop();
+    }
+
+    public void testUpdateFrequencyWithNoChanges() throws Exception {
+        var transformId = "test-update-frequency-with-changes";
+        var startingFrequency = TimeValue.timeValueHours(1);
+
+        var transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, startingFrequency, false);
+        var clock = new FakeClock(Instant.ofEpochMilli(0));
+        var events = new CopyOnWriteArrayList<TransformScheduler.Event>();
+        TransformScheduler.Listener listener = events::add;
+
+        var transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        transformScheduler.registerTransform(transformTaskParams, listener);
+        assertThat(events, hasSize(1));
+
+        // Update the frequency
+        transformScheduler.updateFrequency(transformId, startingFrequency);
+        clock.advanceTimeBy(Duration.ofMinutes(2));
+        transformScheduler.processScheduledTasks();
+        assertThat(events, hasSize(1));
+
+        var actualTask = transformScheduler.getTransformScheduledTasks()
+            .stream()
+            .filter(task -> task.getTransformId().equals(transformId))
+            .findAny()
+            .orElseThrow();
+        assertThat(actualTask.getFrequency(), equalTo(startingFrequency));
+
+        transformScheduler.deregisterTransform(transformId);
+        transformScheduler.stop();
+    }
+
     public void testConcurrentProcessing() throws Exception {
         String transformId = "test-with-fake-clock-concurrent";
         int frequencySeconds = 5;

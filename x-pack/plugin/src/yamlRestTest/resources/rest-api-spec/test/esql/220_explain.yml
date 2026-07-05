@@ -6,8 +6,8 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [explain, no_brackets_in_unquoted_index_names]
-      reason: "new EXPLAIN command"
+          capabilities: [explain, no_brackets_in_unquoted_index_names, explain_with_remote_plans]
+      reason: "EXPLAIN with remote plans"
   - do:
       indices.create:
         index: test
@@ -46,20 +46,24 @@ explainRow:
         body:
           query: 'EXPLAIN (row a = 1)'
 
-  - length: { columns: 3 }
-  - match: {columns.0.name: "role"}
+  - length: { columns: 5 }
+  - match: {columns.0.name: "cluster"}
   - match: {columns.0.type: "keyword"}
-  - match: {columns.1.name: "type"}
+  - match: {columns.1.name: "node"}
   - match: {columns.1.type: "keyword"}
-  - match: {columns.2.name: "plan"}
+  - match: {columns.2.name: "role"}
   - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "type"}
+  - match: {columns.3.type: "keyword"}
+  - match: {columns.4.name: "plan"}
+  - match: {columns.4.type: "keyword"}
   - length: { values: 3 }
-  - match: { values.0.0: "coordinator" }
-  - match: { values.0.1: "parsedPlan" }
-  - match: { values.1.0: "coordinator" }
-  - match: { values.1.1: "optimizedLogicalPlan" }
-  - match: { values.2.0: "coordinator" }
-  - match: { values.2.1: "optimizedPhysicalPlan" }
+  - match: { values.0.2: "coordinator" }
+  - match: { values.0.3: "parsedPlan" }
+  - match: { values.1.2: "coordinator" }
+  - match: { values.1.3: "optimizedLogicalPlan" }
+  - match: { values.2.2: "coordinator" }
+  - match: { values.2.3: "optimizedPhysicalPlan" }
 
 
 ---
@@ -71,20 +75,24 @@ explainQuery:
         body:
           query: 'EXPLAIN (from test | where color == "red" | eval b = 20)'
 
-  - length: { columns: 3 }
-  - match: {columns.0.name: "role"}
+  - length: { columns: 5 }
+  - match: {columns.0.name: "cluster"}
   - match: {columns.0.type: "keyword"}
-  - match: {columns.1.name: "type"}
+  - match: {columns.1.name: "node"}
   - match: {columns.1.type: "keyword"}
-  - match: {columns.2.name: "plan"}
+  - match: {columns.2.name: "role"}
   - match: {columns.2.type: "keyword"}
-  - length: { values: 3 }
-  - match: { values.0.0: "coordinator" }
-  - match: { values.0.1: "parsedPlan" }
-  - match: { values.1.0: "coordinator" }
-  - match: { values.1.1: "optimizedLogicalPlan" }
-  - match: { values.2.0: "coordinator" }
-  - match: { values.2.1: "optimizedPhysicalPlan" }
+  - match: {columns.3.name: "type"}
+  - match: {columns.3.type: "keyword"}
+  - match: {columns.4.name: "plan"}
+  - match: {columns.4.type: "keyword"}
+  # Verify coordinator plans (first 3 rows); data node plans may follow
+  - match: { values.0.2: "coordinator" }
+  - match: { values.0.3: "parsedPlan" }
+  - match: { values.1.2: "coordinator" }
+  - match: { values.1.3: "optimizedLogicalPlan" }
+  - match: { values.2.2: "coordinator" }
+  - match: { values.2.3: "optimizedPhysicalPlan" }
 
 ---
 explainFrom:
@@ -95,20 +103,24 @@ explainFrom:
         body:
           query: 'EXPLAIN (from test)'
 
-  - length: { columns: 3 }
-  - match: {columns.0.name: "role"}
+  - length: { columns: 5 }
+  - match: {columns.0.name: "cluster"}
   - match: {columns.0.type: "keyword"}
-  - match: {columns.1.name: "type"}
+  - match: {columns.1.name: "node"}
   - match: {columns.1.type: "keyword"}
-  - match: {columns.2.name: "plan"}
+  - match: {columns.2.name: "role"}
   - match: {columns.2.type: "keyword"}
-  - length: { values: 3 }
-  - match: { values.0.0: "coordinator" }
-  - match: { values.0.1: "parsedPlan" }
-  - match: { values.1.0: "coordinator" }
-  - match: { values.1.1: "optimizedLogicalPlan" }
-  - match: { values.2.0: "coordinator" }
-  - match: { values.2.1: "optimizedPhysicalPlan" }
+  - match: {columns.3.name: "type"}
+  - match: {columns.3.type: "keyword"}
+  - match: {columns.4.name: "plan"}
+  - match: {columns.4.type: "keyword"}
+  # Verify coordinator plans (first 3 rows); data node plans may follow
+  - match: { values.0.2: "coordinator" }
+  - match: { values.0.3: "parsedPlan" }
+  - match: { values.1.2: "coordinator" }
+  - match: { values.1.3: "optimizedLogicalPlan" }
+  - match: { values.2.2: "coordinator" }
+  - match: { values.2.3: "optimizedPhysicalPlan" }
 
 ---
 explainDownstream:

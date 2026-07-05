@@ -13,8 +13,11 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
@@ -24,23 +27,24 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServiceRequest {
+public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServiceRequest implements OutboundRerankRequest {
 
-    private final String query;
-    private final List<String> documents;
+    private final InferenceString query;
+    private final List<InferenceString> documents;
     private final Integer topN;
     private final TraceContextHandler traceContextHandler;
     private final ElasticInferenceServiceRerankModel model;
 
     public ElasticInferenceServiceRerankRequest(
-        String query,
-        List<String> documents,
+        InferenceString query,
+        List<InferenceString> documents,
         Integer topN,
         ElasticInferenceServiceRerankModel model,
         TraceContext traceContext,
-        ElasticInferenceServiceRequestMetadata metadata
+        ElasticInferenceServiceRequestMetadata metadata,
+        CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata);
+        super(metadata, authApplier);
         this.query = query;
         this.documents = documents;
         this.topN = topN;
@@ -79,7 +83,7 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // no truncation
         return this;
     }

@@ -19,6 +19,7 @@ final class SingletonSortedBinaryDocValues extends SortedBinaryDocValues {
     private final BinaryDocValues in;
 
     SingletonSortedBinaryDocValues(BinaryDocValues in) {
+        super(in);
         this.in = in;
     }
 
@@ -35,6 +36,11 @@ final class SingletonSortedBinaryDocValues extends SortedBinaryDocValues {
     @Override
     public BytesRef nextValue() throws IOException {
         return in.binaryValue();
+    }
+
+    @Override
+    public ValueMode getValueMode() {
+        return ValueMode.SINGLE_VALUED;
     }
 
     public BinaryDocValues getBinaryDocValues() {

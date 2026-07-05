@@ -11,6 +11,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 
@@ -43,6 +44,13 @@ public interface ByteArray extends BigArray, Writeable {
      * @return <code>true</code> when a byte[] was materialized, <code>false</code> otherwise.
      */
     boolean get(long index, int len, BytesRef ref);
+
+    /**
+     * Get a reference to a slice via a {@link PagedBytesCursor}. Well-behaved implementations
+     * will position the cursor directly over their backing pages. Well-behaved implementations
+     * will not copy any bytes.
+     */
+    PagedBytesCursor get(long index, int len, PagedBytesCursor scratch);
 
     /**
      * Bulk set.

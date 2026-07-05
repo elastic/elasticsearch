@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,9 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.V_8_11_X;
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -64,24 +61,14 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<KnnSearchBuilder.Builder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
         // TODO optimize parsing for when BYTE values are provided
-        if (IVF_FORMAT.isEnabled()) {
-            return new Builder().field((String) args[0])
-                .queryVector((VectorData) args[1])
-                .queryVectorBuilder((QueryVectorBuilder) args[5])
-                .k((Integer) args[2])
-                .numCandidates((Integer) args[3])
-                .visitPercentage((Float) args[4])
-                .similarity((Float) args[6])
-                .rescoreVectorBuilder((RescoreVectorBuilder) args[7]);
-        } else {
-            return new Builder().field((String) args[0])
-                .queryVector((VectorData) args[1])
-                .queryVectorBuilder((QueryVectorBuilder) args[4])
-                .k((Integer) args[2])
-                .numCandidates((Integer) args[3])
-                .similarity((Float) args[5])
-                .rescoreVectorBuilder((RescoreVectorBuilder) args[6]);
-        }
+        return new Builder().field((String) args[0])
+            .queryVector((VectorData) args[1])
+            .queryVectorBuilder((QueryVectorBuilder) args[5])
+            .k((Integer) args[2])
+            .numCandidates((Integer) args[3])
+            .visitPercentage((Float) args[4])
+            .similarity((Float) args[6])
+            .rescoreVectorBuilder((RescoreVectorBuilder) args[7]);
     });
 
     static {
@@ -94,9 +81,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         );
         PARSER.declareInt(optionalConstructorArg(), K_FIELD);
         PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
-        if (IVF_FORMAT.isEnabled()) {
-            PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
-        }
+        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         PARSER.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, c),
@@ -345,37 +330,15 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         } else {
             this.visitPercentage = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.queryVector = in.readOptionalWriteable(VectorData::new);
-        } else {
-            this.queryVector = VectorData.fromFloats(in.readFloatArray());
-        }
+        this.queryVector = in.readOptionalWriteable(VectorData::new);
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.queryName = in.readOptionalString();
-        } else {
-            this.queryName = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
-        } else {
-            this.queryVectorBuilder = null;
-        }
+        this.queryName = in.readOptionalString();
+        this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         this.querySupplier = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.similarity = in.readOptionalFloat();
-        } else {
-            this.similarity = null;
-        }
-        if (in.getTransportVersion().onOrAfter(V_8_11_X)) {
-            this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_QUERY_RESCORE_OVERSAMPLE)) {
-            this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
-        } else {
-            this.rescoreVectorBuilder = null;
-        }
+        this.similarity = in.readOptionalFloat();
+        this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
+        this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
     }
 
     public int k() {
@@ -511,9 +474,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(
-            boost
-        ).queryName(queryName).addFilterQueries(filterQueries);
+        return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(boost)
+            .queryName(queryName)
+            .addFilterQueries(filterQueries);
     }
 
     public Float getSimilarity() {
@@ -565,7 +528,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         builder.field(K_FIELD.getPreferredName(), k);
         builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
 
-        if (IVF_FORMAT.isEnabled() && visitPercentage != null) {
+        if (visitPercentage != null) {
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
         }
 
@@ -616,37 +579,14 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalWriteable(queryVector);
-        } else {
-            out.writeFloatArray(queryVector.asFloatVector());
-        }
+        out.writeOptionalWriteable(queryVector);
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalString(queryName);
-        }
-        if (out.getTransportVersion().before(TransportVersions.V_8_7_0) && queryVectorBuilder != null) {
-            throw new IllegalArgumentException(
-                format(
-                    "cannot serialize [%s] to older node of version [%s]",
-                    QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                    out.getTransportVersion()
-                )
-            );
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeOptionalNamedWriteable(queryVectorBuilder);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalFloat(similarity);
-        }
-        if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
-            out.writeOptionalWriteable(innerHitBuilder);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_QUERY_RESCORE_OVERSAMPLE)) {
-            out.writeOptionalWriteable(rescoreVectorBuilder);
-        }
+        out.writeOptionalString(queryName);
+        out.writeOptionalNamedWriteable(queryVectorBuilder);
+        out.writeOptionalFloat(similarity);
+        out.writeOptionalWriteable(innerHitBuilder);
+        out.writeOptionalWriteable(rescoreVectorBuilder);
     }
 
     public static class Builder {

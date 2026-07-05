@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,8 +17,6 @@ import org.elasticsearch.test.AbstractWireTestCase;
 
 import java.io.IOException;
 import java.util.List;
-
-import static org.hamcrest.Matchers.containsString;
 
 public abstract class ShapeValuesGenericWriteableTests<T extends ShapeValues.ShapeValue> extends AbstractWireTestCase<
     ShapeValuesGenericWriteableTests.GenericWriteableWrapper> {
@@ -65,16 +61,4 @@ public abstract class ShapeValuesGenericWriteableTests<T extends ShapeValues.Sha
     }
 
     protected abstract String shapeValueName();
-
-    public void testSerializationFailsWithOlderVersion() {
-        TransportVersion older = TransportVersions.V_8_11_X;
-        final var testInstance = createTestInstance().shapeValue();
-        try (var output = new BytesStreamOutput()) {
-            output.setTransportVersion(older);
-            assertThat(
-                expectThrows(Throwable.class, () -> output.writeGenericValue(testInstance)).getMessage(),
-                containsString("[" + shapeValueName() + "] doesn't support serialization with transport version")
-            );
-        }
-    }
 }

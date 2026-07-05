@@ -74,9 +74,7 @@ public record AzureAiStudioChatCompletionRequestTaskSettings(
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioChatCompletionRequestTaskSettings(temperature, topP, doSample, maxNewTokens);
     }

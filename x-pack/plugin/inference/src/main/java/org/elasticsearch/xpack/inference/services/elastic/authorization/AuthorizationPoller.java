@@ -1,0 +1,248 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.elastic.authorization;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
+
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+
+public class AuthorizationPoller extends AllocatedPersistentTask {
+
+    public static final String TASK_NAME = "eis-authorization-poller";
+
+    private static final Logger logger = LogManager.getLogger(AuthorizationPoller.class);
+
+    private final ServiceComponents serviceComponents;
+    private final Runnable callback;
+    private final AtomicReference<Scheduler.ScheduledCancellable> lastAuthTask = new AtomicReference<>(null);
+    private final AtomicBoolean shutdown = new AtomicBoolean(false);
+    private final ElasticInferenceServiceSettings elasticInferenceServiceSettings;
+    private final AtomicBoolean initialized = new AtomicBoolean(false);
+    private final Client client;
+    private final CountDownLatch receivedFirstAuthResponseLatch = new CountDownLatch(1);
+    private final CCMFeature ccmFeature;
+    private final CCMService ccmService;
+
+    public record TaskFields(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {}
+
+    public record Parameters(
+        ServiceComponents serviceComponents,
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
+        Client client,
+        CCMFeature ccmFeature,
+        CCMService ccmService
+    ) {}
+
+    public static AuthorizationPoller create(TaskFields taskFields, Parameters parameters) {
+        return new AuthorizationPoller(Objects.requireNonNull(taskFields), Objects.requireNonNull(parameters));
+    }
+
+    private AuthorizationPoller(TaskFields taskFields, Parameters parameters) {
+        this(
+            taskFields,
+            parameters.serviceComponents,
+            parameters.elasticInferenceServiceSettings,
+            parameters.client,
+            parameters.ccmFeature,
+            parameters.ccmService,
+            null
+        );
+    }
+
+    // default for testing
+    AuthorizationPoller(
+        TaskFields taskFields,
+        ServiceComponents serviceComponents,
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
+        Client client,
+        CCMFeature ccmFeature,
+        CCMService ccmService,
+        // this is a hack to facilitate testing
+        Runnable callback
+    ) {
+        super(taskFields.id, taskFields.type, taskFields.action, taskFields.description, taskFields.parentTask, taskFields.headers);
+        this.serviceComponents = Objects.requireNonNull(serviceComponents);
+        this.elasticInferenceServiceSettings = Objects.requireNonNull(elasticInferenceServiceSettings);
+        this.client = new OriginSettingClient(Objects.requireNonNull(client), ClientHelper.INFERENCE_ORIGIN);
+        this.ccmFeature = Objects.requireNonNull(ccmFeature);
+        this.ccmService = Objects.requireNonNull(ccmService);
+        this.callback = callback;
+    }
+
+    public void start() {
+        if (initialized.compareAndSet(false, true)) {
+            logger.debug("Initializing EIS authorization logic");
+            serviceComponents.threadPool().executor(UTILITY_THREAD_POOL_NAME).execute(this::scheduleAndSendAuthorizationRequest);
+        }
+    }
+
+    /**
+     * This should only be used for testing to wait for the first authorization response to be received.
+     */
+    public void waitForAuthorizationToComplete(TimeValue waitTime) {
+        try {
+            if (receivedFirstAuthResponseLatch.await(waitTime.getSeconds(), TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException("The wait time has expired for first authorization response to be received.");
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException("Waiting for first authorization response to complete was interrupted");
+        }
+    }
+
+    // Overriding so tests in the same package can access
+    @Override
+    protected void init(
+        PersistentTasksService persistentTasksService,
+        TaskManager taskManager,
+        String persistentTaskId,
+        long allocationId
+    ) {
+        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
+    }
+
+    @Override
+    protected void onCancelled() {
+        shutdownInternal(this::markAsCompleted);
+    }
+
+    private void shutdownAndMarkTaskAsFailed(Exception e) {
+        shutdownInternal(() -> markAsFailed(e));
+    }
+
+    // default for testing
+    void shutdown() {
+        shutdownInternal(() -> {});
+    }
+
+    private void shutdownInternal(Runnable completionRunnable) {
+        if (shutdown.compareAndSet(false, true)) {
+            // Marking a task as completed and then failed (or vice versa) results in an exception,
+            // so we need to ensure only one is called.
+            completionRunnable.run();
+        }
+
+        var authTask = lastAuthTask.get();
+        if (authTask != null) {
+            authTask.cancel();
+        }
+    }
+
+    // default for testing
+    boolean isShutdown() {
+        return shutdown.get();
+    }
+
+    private void scheduleAuthorizationRequest() {
+        try {
+            if (elasticInferenceServiceSettings.isPeriodicAuthorizationEnabled() == false) {
+                return;
+            }
+
+            // this call has to be on the individual thread otherwise we get an exception
+            var random = Randomness.get();
+            var jitter = (long) (elasticInferenceServiceSettings.getMaxAuthorizationRequestJitter().millis() * random.nextDouble());
+            var waitTime = TimeValue.timeValueMillis(elasticInferenceServiceSettings.getAuthRequestInterval().millis() + jitter);
+
+            logger.debug(
+                () -> Strings.format(
+                    "Scheduling the next authorization call with request interval: %s ms, jitter: %d ms",
+                    elasticInferenceServiceSettings.getAuthRequestInterval().millis(),
+                    jitter
+                )
+            );
+            logger.debug(() -> Strings.format("Next authorization call in %d minutes", waitTime.getMinutes()));
+
+            lastAuthTask.set(
+                serviceComponents.threadPool()
+                    .schedule(
+                        this::scheduleAndSendAuthorizationRequest,
+                        waitTime,
+                        serviceComponents.threadPool().executor(UTILITY_THREAD_POOL_NAME)
+                    )
+            );
+        } catch (Exception e) {
+            logger.warn("Failed scheduling authorization request", e);
+            // Shutdown and complete the task so it will be restarted
+            shutdownAndMarkTaskAsFailed(e);
+        }
+    }
+
+    // default for testing
+    void scheduleAndSendAuthorizationRequest() {
+        if (shutdown.get()) {
+            return;
+        }
+
+        if (ccmFeature.isCcmSupportedEnvironment() == false) {
+            scheduleNextAndSend();
+            return;
+        }
+
+        ccmService.isEnabled(ActionListener.wrap(enabled -> {
+            if (enabled == null || enabled == false) {
+                logger.info("Skipping sending authorization request and completing task, because CCM is not enabled");
+                shutdownInternal(this::markAsCompleted);
+                return;
+            }
+            scheduleNextAndSend();
+        }, e -> {
+            logger.atWarn().withThrowable(e).log("Failed to determine whether CCM is enabled");
+            // keep polling: skip this cycle's send but schedule the next attempt
+            scheduleAuthorizationRequest();
+        }));
+    }
+
+    private void scheduleNextAndSend() {
+        scheduleAuthorizationRequest();
+        sendAuthorizationRequest();
+    }
+
+    // default for testing
+    void sendAuthorizationRequest() {
+        var finalListener = ActionListener.runAfter(
+            ActionListener.<ActionResponse.Empty>wrap(
+                ignored -> {},
+                e -> logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints")
+            ),
+            () -> {
+                if (callback != null) {
+                    callback.run();
+                }
+                receivedFirstAuthResponseLatch.countDown();
+            }
+        );
+
+        client.execute(RefreshAuthorizedEndpointsAction.INSTANCE, new RefreshAuthorizedEndpointsAction.Request(), finalListener);
+    }
+}

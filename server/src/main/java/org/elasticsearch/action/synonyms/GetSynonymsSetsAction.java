@@ -61,6 +61,12 @@ public class GetSynonymsSetsAction extends AbstractSynonymsPagedResultAction<Get
         protected IntFunction<SynonymSetSummary[]> arraySupplier() {
             return SynonymSetSummary[]::new;
         }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        PagedResult<SynonymSetSummary> getResults() {
+            return (PagedResult<SynonymSetSummary>) super.getResults();
+        }
     }
 
 }

@@ -28,8 +28,14 @@ import static java.util.Collections.emptyList;
 public abstract class SpatialAggregateFunction extends AggregateFunction implements LicenseAware {
     protected final FieldExtractPreference fieldExtractPreference;
 
-    protected SpatialAggregateFunction(Source source, Expression field, Expression filter, FieldExtractPreference fieldExtractPreference) {
-        super(source, field, filter, emptyList());
+    protected SpatialAggregateFunction(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        FieldExtractPreference fieldExtractPreference
+    ) {
+        super(source, field, filter, window, emptyList());
         this.fieldExtractPreference = fieldExtractPreference;
     }
 

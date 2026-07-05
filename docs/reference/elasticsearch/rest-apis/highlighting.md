@@ -8,7 +8,7 @@ applies_to:
 
 # Highlighting [highlighting]
 
-Highlighters enable you to retrieve the best-matching highlighted snippets from one or more fields in your search results so you can show users where the query matches are. When you request highlights, the response contains an additional `highlight` element for each search hit that includes the highlighted fields and the highlighted fragments.
+You can use the Search API's [`highlight` parameter](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-body-application-json-highlight)￼to retrieve the best-matching highlighted snippets from one or more fields in your search results so you can show users where the query matches are. When you request highlights, the response contains an additional `highlight` element for each search hit that includes the highlighted fields and the highlighted fragments. For the most up-to-date API details, refer to [search APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-search).
 
 ::::{note}
 Highlighters don’t reflect the boolean logic of a query when extracting terms to highlight. Thus, for some complex boolean queries (e.g nested boolean queries, queries using `minimum_should_match` etc.), parts of documents may be highlighted that don’t correspond to query matches.
@@ -32,6 +32,7 @@ GET /_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 ## Highlighting types [highlighting-types]
 

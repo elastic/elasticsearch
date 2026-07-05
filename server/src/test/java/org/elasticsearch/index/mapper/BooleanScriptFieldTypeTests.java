@@ -13,12 +13,10 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
@@ -29,12 +27,21 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.blockloader.script.BooleanScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
@@ -44,6 +51,7 @@ import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.field.BooleanDocValuesField;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -52,16 +60,22 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
+    private static final Boolean MALFORMED_BOOLEAN = null;
+    private static final Boolean EMPTY_STR_BOOLEAN = false;
 
     @Override
     protected ScriptFactory parseFromSource() {
@@ -83,7 +97,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 IndexSearcher searcher = newSearcher(reader);
                 BooleanScriptFieldType ft = simpleMappedFieldType();
                 BooleanScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
-                searcher.search(new MatchAllDocsQuery(), new Collector() {
+                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -91,7 +105,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        SortedNumericDocValues dv = ifd.load(context).getLongValues();
+                        SortedNumericLongValues dv = ifd.load(context).getLongValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}
@@ -121,7 +135,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 IndexSearcher searcher = newSearcher(reader);
                 BooleanScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
-                TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
+                TopFieldDocs docs = searcher.search(Queries.ALL_DOCS_INSTANCE, 3, new Sort(sf));
                 StoredFields storedFields = reader.storedFields();
                 assertThat(
                     storedFields.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(),
@@ -145,7 +159,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 {
                     SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                     assertThat(
-                        searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
+                        searcher.count(new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, new Script("test"), new ScoreScript.LeafFactory() {
                             @Override
                             public boolean needs_score() {
                                 return false;
@@ -173,7 +187,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 {
                     SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                     assertThat(
-                        searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
+                        searcher.count(new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, new Script("test"), new ScoreScript.LeafFactory() {
+
                             @Override
                             public boolean needs_score() {
                                 return false;
@@ -194,6 +209,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                                     }
                                 };
                             }
+
                         }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())),
                         equalTo(1)
                     );
@@ -362,7 +378,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     public void testDualingQueries() throws IOException {
-        BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo", ScriptCompiler.NONE, false, IndexVersion.current(), null).build(
+        BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo", ScriptCompiler.NONE, defaultIndexSettings()).build(
             MapperBuilderContext.root(false, false)
         );
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -433,6 +449,44 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     public void testBlockLoader() throws IOException {
+        testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), f -> f);
+    }
+
+    public void testWithCrankyBreaker() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, r -> r);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    public void testWithCrankyFactory() throws IOException {
+        try {
+            testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), CrankyLeafFactory::new);
+            logger.info("Cranky factory didn't break.");
+        } catch (IllegalStateException e) {
+            logger.info("Cranky factory broke", e);
+        }
+    }
+
+    public void testWithCrankyBreakerAndFactory() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, CrankyLeafFactory::new);
+            logger.info("Cranky breaker nor reader didn't break. This should be rare, but possible randomly.");
+        } catch (IllegalStateException | CircuitBreakingException e) {
+            logger.info("Cranky breaker or reader broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void testBlockLoader(
+        CircuitBreaker breaker,
+        Function<BooleanFieldScript.LeafFactory, BooleanFieldScript.LeafFactory> leafFactoryWrapper
+    ) throws IOException {
         try (
             Directory directory = newDirectory();
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
@@ -444,13 +498,143 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 )
             );
             try (DirectoryReader reader = iw.getReader()) {
-                BooleanScriptFieldType fieldType = build("xor_param", Map.of("param", false), OnScriptError.FAIL);
+                BooleanScriptFieldType fieldType = buildWrapped("xor_param", Map.of("param", false), leafFactoryWrapper);
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
                 List<Boolean> expected = List.of(false, true);
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(expected));
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(expected.subList(1, 2)));
-                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(expected));
             }
         }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeField() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            // given
+            // try multiple variations of boolean as they're all encoded slightly differently
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [false]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [true]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [\"false\"]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [\"true\"]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [\"\"]}"))),
+                    // ensure a malformed value doesn't crash
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [\"potato\"]}")))
+                )
+            );
+            BooleanScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+            List<Boolean> expected = Arrays.asList(false, true, false, true, EMPTY_STR_BOOLEAN, MALFORMED_BOOLEAN);
+
+            try (DirectoryReader reader = iw.getReader()) {
+                // when
+                BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
+
+                // then
+
+                // assert loader is of expected instance type
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
+                assertThat(loader, instanceOf(BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader.class));
+
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+
+                try (BlockLoader.RowStrideReader rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(rowStrideReader, instanceOf(BooleanScriptBlockDocValuesReader.class));
+                }
+
+                // assert values
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(expected));
+            }
+        }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeFieldWithSyntheticSource() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            // given
+            // try multiple variations of boolean as they're all encoded slightly differently
+            iw.addDocuments(
+                List.of(
+                    createDocumentWithIgnoredSource("false"),
+                    createDocumentWithIgnoredSource("true"),
+                    createDocumentWithIgnoredSource("[false]"),
+                    createDocumentWithIgnoredSource("[true]"),
+                    createDocumentWithIgnoredSource("[\"false\"]"),
+                    createDocumentWithIgnoredSource("[\"true\"]"),
+                    createDocumentWithIgnoredSource("[\"\"]"),
+                    // ensure a malformed value doesn't crash
+                    createDocumentWithIgnoredSource("[\"potato\"]")
+                )
+            );
+
+            Settings settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+            BooleanScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+            List<Boolean> expected = Arrays.asList(false, true, false, true, false, true, EMPTY_STR_BOOLEAN, MALFORMED_BOOLEAN);
+
+            try (DirectoryReader reader = iw.getReader()) {
+                // when
+                BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
+
+                // then
+
+                // assert loader is of expected instance type
+                assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+
+                // ignored source doesn't support column at a time loading:
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                assertThat(loader.columnAtATimeReader(reader.leaves().getFirst()), nullValue());
+
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(
+                        rowStrideReader.getClass().getName(),
+                        equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                    );
+                }
+
+                // assert values
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, settings, reader, fieldType, true), equalTo(expected));
+            }
+        }
+    }
+
+    /**
+     * Returns a source only mapped field type. This is useful, since the available build() function doesn't override isParsedFromSource()
+     */
+    private BooleanScriptFieldType simpleSourceOnlyMappedFieldType() {
+        Script script = new Script(ScriptType.INLINE, "test", "", emptyMap());
+        BooleanFieldScript.Factory factory = new BooleanFieldScript.Factory() {
+            @Override
+            public BooleanFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
+                return ctx -> new BooleanFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    public void execute() {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object foo : (List<?>) source.get("test")) {
+                            try {
+                                emit(Booleans.parseBoolean(foo.toString(), false));
+                            } catch (Exception e) {
+                                // skip
+                            }
+                        }
+                    }
+                };
+            }
+
+            @Override
+            public boolean isParsedFromSource() {
+                return true;
+            }
+        };
+        return new BooleanScriptFieldType("test", factory, script, emptyMap(), OnScriptError.FAIL);
     }
 
     private void assertSameCount(IndexSearcher searcher, String source, Object queryDescription, Query scriptedQuery, Query ootbQuery)
@@ -480,6 +664,19 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     protected BooleanScriptFieldType build(String code, Map<String, Object> params, OnScriptError onScriptError) {
         Script script = new Script(ScriptType.INLINE, "test", code, params);
         return new BooleanScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
+    }
+
+    protected BooleanScriptFieldType buildWrapped(
+        String code,
+        Map<String, Object> params,
+        Function<BooleanFieldScript.LeafFactory, BooleanFieldScript.LeafFactory> leafFactoryWrapper
+    ) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        BooleanFieldScript.Factory factory = factory(script);
+        BooleanFieldScript.Factory wrapped = (fieldName, params1, searchLookup, onScriptError) -> leafFactoryWrapper.apply(
+            factory.newFactory(fieldName, params1, searchLookup, onScriptError)
+        );
+        return new BooleanScriptFieldType("test", wrapped, script, emptyMap(), OnScriptError.FAIL);
     }
 
     private static BooleanFieldScript.Factory factory(Script script) {
@@ -535,5 +732,21 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             };
             default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         };
+    }
+
+    private static class CrankyLeafFactory implements BooleanFieldScript.LeafFactory {
+        private final BooleanFieldScript.LeafFactory next;
+
+        private CrankyLeafFactory(BooleanFieldScript.LeafFactory next) {
+            this.next = next;
+        }
+
+        @Override
+        public BooleanFieldScript newInstance(LeafReaderContext ctx) {
+            if (between(0, 20) == 0) {
+                throw new IllegalStateException("cranky");
+            }
+            return next.newInstance(ctx);
+        }
     }
 }

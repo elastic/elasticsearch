@@ -33,7 +33,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -63,6 +65,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName())
             .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
+            .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO)
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                 randomBoolean()
@@ -95,8 +98,12 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector = spy(
             new NodeUsageStatsForThreadPoolsCollector()
         );
+        final WriteLoadConstraintSettings writeLoadConstraintSettings = new WriteLoadConstraintSettings(
+            clusterService.getClusterSettings()
+        );
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
             settings,
+            writeLoadConstraintSettings,
             clusterService,
             threadPool,
             client,
@@ -105,13 +112,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         );
         final WriteLoadConstraintMonitor usageMonitor = spy(
             new WriteLoadConstraintMonitor(
-                clusterService.getClusterSettings(),
+                writeLoadConstraintSettings,
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,
                 new RerouteService() {
                     @Override
                     public void reroute(String reason, Priority priority, ActionListener<Void> listener) {}
-                }
+                },
+                MeterRegistry.NOOP
             )
         );
         clusterInfoService.addListener(usageMonitor::onNewInfo);
@@ -149,6 +157,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             // should have run two client requests: nodes stats request and indices stats request
             assertThat(client.requestCount, equalTo(initialRequestCount + 2));
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should have polled for heap usage
+            verify(mockEstimatedHeapUsageCollector).collectShardHeapUsage(any());
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
         }
 
@@ -197,6 +206,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
+            verify(mockEstimatedHeapUsageCollector).collectShardHeapUsage(any());
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
         }
 
@@ -219,6 +229,11 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         @Override
         public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
             listener.onResponse(Map.of());
+        }
+
+        @Override
+        public void collectShardHeapUsage(ActionListener<ShardHeapUsageEstimates> listener) {
+            listener.onResponse(ShardHeapUsageEstimates.empty());
         }
     }
 

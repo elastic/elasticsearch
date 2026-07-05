@@ -44,7 +44,7 @@ public class ElasticInferenceServiceCompletionServiceSettingsTests extends Abstr
     @Override
     protected ElasticInferenceServiceCompletionServiceSettings mutateInstance(ElasticInferenceServiceCompletionServiceSettings instance)
         throws IOException {
-        return randomValueOtherThan(instance, ElasticInferenceServiceCompletionServiceSettingsTests::createRandom);
+        return new ElasticInferenceServiceCompletionServiceSettings(randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(4)));
     }
 
     public void testFromMap() {
@@ -103,7 +103,7 @@ public class ElasticInferenceServiceCompletionServiceSettingsTests extends Abstr
     public void testFromMap_MissingModelId_ThrowsException() {
         ValidationException validationException = expectThrows(
             ValidationException.class,
-            () -> ElasticInferenceServiceCompletionServiceSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST)
+            () -> ElasticInferenceServiceCompletionServiceSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST)
         );
 
         assertThat(validationException.getMessage(), containsString("does not contain the required setting [model_id]"));

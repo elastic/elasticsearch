@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb.patterntext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -19,9 +20,9 @@ class PatternTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoa
 
     private PatternTextSyntheticFieldLoader loader;
     private final String name;
-    private final PatternTextFieldMapper.DocValuesSupplier docValuesSupplier;
+    private final IOFunction<LeafReader, BinaryDocValues> docValuesSupplier;
 
-    PatternTextSyntheticFieldLoaderLayer(String name, PatternTextFieldMapper.DocValuesSupplier docValuesSupplier) {
+    PatternTextSyntheticFieldLoaderLayer(String name, IOFunction<LeafReader, BinaryDocValues> docValuesSupplier) {
         this.name = name;
         this.docValuesSupplier = docValuesSupplier;
     }
@@ -33,7 +34,7 @@ class PatternTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoa
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        var docValues = docValuesSupplier.get(leafReader);
+        var docValues = docValuesSupplier.apply(leafReader);
         if (docValues == null) {
             return null;
         }

@@ -71,6 +71,7 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -88,6 +89,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -495,6 +497,85 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
         assertThat(e.getCause().getCause(), instanceOf(ShardNotInPrimaryModeException.class));
         assertThat(e.getCause().getCause(), hasToString(containsString("shard is not in primary mode")));
+    }
+
+    public void testRetryOnRelocationMarksRequestAsRetried() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, stateWithActivePrimary(index, true, randomInt(3)));
+
+        final Request request = new Request(shardId);
+        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        final ReplicationTask task = maybeTask();
+        final TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
+        reroutePhase.run();
+
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
+
+        if (randomBoolean()) {
+            final var markAsRetry = randomBoolean();
+            transport.handleRemoteError(
+                capturedRequests[0].requestId(),
+                new ReplicationOperation.RetryOnPrimaryException(
+                    shardId,
+                    "shard is not in primary mode",
+                    new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED),
+                    markAsRetry
+                )
+            );
+            assertThat(request.isRetrySet.get(), equalTo(markAsRetry));
+        } else {
+            final var e = randomRetryPrimaryException(shardId);
+            transport.handleRemoteError(capturedRequests[0].requestId(), e);
+            assertTrue(request.isRetrySet.get());
+        }
+        assertFalse(listener.isDone());
+    }
+
+    public void testSubsequentRetryWithPossiblyExecutedFalseShouldNotClearRetryFlag() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, stateWithActivePrimary(index, true, randomInt(3)));
+
+        final Request request = new Request(shardId);
+        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        final ReplicationTask task = maybeTask();
+        final TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
+        reroutePhase.run();
+
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
+
+        // First failure: ConnectTransportException — the op may have been executed, so the request must be marked as retry
+        transport.handleRemoteError(
+            capturedRequests[0].requestId(),
+            new ConnectTransportException(clusterService.state().nodes().getLocalNode(), "simulated disconnect")
+        );
+        assertTrue("request should be marked as retry after ConnectTransportException", request.isRetrySet.get());
+
+        // Trigger a cluster state change so the retry proceeds and re-sends the request
+        setState(clusterService, clusterService.state());
+
+        capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
+
+        // Second failure: RetryOnPrimaryException with possiblyExecutedOnPrimary=false (relocation case).
+        // This must NOT clear the retry flag that was set by the first failure.
+        transport.handleRemoteError(
+            capturedRequests[0].requestId(),
+            new ReplicationOperation.RetryOnPrimaryException(
+                shardId,
+                "shard is not in primary mode",
+                new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED),
+                false
+            )
+        );
+        assertTrue("retry flag must not be cleared by a subsequent retry with possiblyExecutedOnPrimary=false", request.isRetrySet.get());
+        assertFalse(listener.isDone());
     }
 
     /**
@@ -970,7 +1051,11 @@ public class TransportReplicationActionTests extends ESTestCase {
             indicesService
         );
 
-        action.handlePrimaryRequest(concreteShardRequest, createTransportChannel(listener), null);
+        action.handlePrimaryRequest(
+            concreteShardRequest,
+            createTransportChannel(listener),
+            new ReplicationTask(0, null, null, null, null, null)
+        );
         CapturingTransport.CapturedRequest[] requestsToReplicas = transport.capturedRequests();
         assertThat(requestsToReplicas, arrayWithSize(1));
         @SuppressWarnings("unchecked")
@@ -1089,6 +1174,101 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertPhase(task, "finished");
         // operation should have finished and counter decreased because no outstanding replica requests
         assertIndexShardCounter(0);
+    }
+
+    public void testPermitNotAcquiredBeforeDispatchToExecutor() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final ClusterState state = state(shardId.getIndexName(), true, ShardRoutingState.STARTED);
+        setState(clusterService, state);
+        final ShardRouting primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
+        final long primaryTerm = state.metadata().getProject().index(shardId.getIndexName()).primaryTerm(shardId.id());
+
+        final List<Runnable> capturedTasks = new ArrayList<>();
+        final AtomicBoolean operationRan = new AtomicBoolean(false);
+
+        new TestAction(Settings.EMPTY, "internal:testPermitDispatch", transportService, clusterService, shardStateAction, threadPool) {
+            @Override
+            protected Executor handlerExecutor(IndexShard shard) {
+                return capturedTasks::add;
+            }
+
+            @Override
+            protected void shardOperationOnPrimary(
+                Request shardRequest,
+                IndexShard primary,
+                ActionListener<PrimaryResult<Request, TestResponse>> listener
+            ) {
+                assertIndexShardCounter(1); // permit IS held during shard operation
+                operationRan.set(true);
+                super.shardOperationOnPrimary(shardRequest, primary, listener);
+            }
+        }.handlePrimaryRequest(
+            new TransportReplicationAction.ConcreteShardRequest<>(new Request(shardId), primaryShard.allocationId().getId(), primaryTerm),
+            createTransportChannel(new PlainActionFuture<>()),
+            maybeTask()
+        );
+
+        assertIndexShardCounter(0); // permit not acquired while task sits in queue
+        assertFalse(operationRan.get());
+        assertEquals(1, capturedTasks.size());
+
+        capturedTasks.get(0).run();
+
+        assertTrue(operationRan.get()); // confirms the assertIndexShardCounter(1) above was reached
+        assertIndexShardCounter(0); // permit released after operation
+    }
+
+    public void testReplicaPermitNotAcquiredBeforeDispatchToExecutor() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final ClusterState state = state(shardId.getIndexName(), true, ShardRoutingState.STARTED, ShardRoutingState.STARTED);
+        setState(clusterService, state);
+        // AsyncReplicaAction.doRun() only checks allocation ID equality, not the primary/replica role,
+        // so we use the local (primary) shard's allocation ID to pass that check deterministically.
+        final ShardRouting localShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
+        final long primaryTerm = state.metadata().getProject().index(shardId.getIndexName()).primaryTerm(shardId.id());
+
+        final List<Runnable> capturedTasks = new ArrayList<>();
+        final AtomicBoolean operationRan = new AtomicBoolean(false);
+
+        new TestAction(
+            Settings.EMPTY,
+            "internal:testReplicaPermitDispatch",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool
+        ) {
+            @Override
+            protected Executor handlerExecutor(IndexShard shard) {
+                return capturedTasks::add;
+            }
+
+            @Override
+            protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+                assertIndexShardCounter(1); // permit IS held during shard operation
+                operationRan.set(true);
+                super.shardOperationOnReplica(shardRequest, replica, listener);
+            }
+        }.handleReplicaRequest(
+            new TransportReplicationAction.ConcreteReplicaRequest<>(
+                new Request(shardId),
+                localShard.allocationId().getId(),
+                primaryTerm,
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            ),
+            createTransportChannel(new PlainActionFuture<>()),
+            maybeTask()
+        );
+
+        assertIndexShardCounter(0); // permit not acquired while task sits in queue
+        assertFalse(operationRan.get());
+        assertEquals(1, capturedTasks.size());
+
+        capturedTasks.get(0).run();
+
+        assertTrue(operationRan.get()); // confirms the assertIndexShardCounter(1) above was reached
+        assertIndexShardCounter(0); // permit released after operation
     }
 
     /**
@@ -1465,9 +1645,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        public void onRetry() {
-            super.onRetry();
-            isRetrySet.set(true);
+        public void onRetry(boolean possiblyExecuted) {
+            super.onRetry(possiblyExecuted);
+            if (possiblyExecuted) {
+                isRetrySet.set(true);
+            }
         }
 
         @Override
@@ -1646,4 +1828,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         return new TestTransportChannel(listener);
     }
 
+    public static long getRoutedBasedOnClusterVersion(ReplicationRequest<?> request) {
+        return request.routedBasedOnClusterVersion();
+    }
 }

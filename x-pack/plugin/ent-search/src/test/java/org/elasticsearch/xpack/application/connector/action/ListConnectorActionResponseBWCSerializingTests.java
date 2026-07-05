@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.application.connector.ConnectorSearchResult;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -30,7 +32,15 @@ public class ListConnectorActionResponseBWCSerializingTests extends AbstractBWCW
 
     @Override
     protected ListConnectorAction.Response mutateInstance(ListConnectorAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        QueryPage<ConnectorSearchResult> mutatedQueryPage = randomValueOtherThan(
+            instance.queryPage,
+            () -> new QueryPage<>(
+                randomList(10, ConnectorTestUtils::getRandomConnectorSearchResult),
+                randomLongBetween(0, 100),
+                ListConnectorAction.Response.RESULT_FIELD
+            )
+        );
+        return new ListConnectorAction.Response(mutatedQueryPage.results(), mutatedQueryPage.count());
     }
 
     @Override

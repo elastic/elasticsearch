@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomArray;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -56,8 +57,12 @@ public class AnalyticsEventTestUtils {
             randomLong(),
             randomFrom(AnalyticsEvent.Type.values()),
             XContentType.JSON,
-            new BytesArray("{}")
+            randomPayload()
         );
+    }
+
+    public static BytesArray randomPayload() {
+        return new BytesArray("{ \"" + randomAlphaOfLength(10) + "\": \"" + randomAlphaOfLength(10) + "\"}");
     }
 
     public static String randomUserAgent() {

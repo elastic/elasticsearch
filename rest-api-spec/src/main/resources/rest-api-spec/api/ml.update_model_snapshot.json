@@ -34,7 +34,6 @@
         }
       ]
     },
-    "params": {},
     "body": {
       "description": "The model snapshot properties to update",
       "required": true

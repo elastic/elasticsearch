@@ -9,14 +9,19 @@ package org.elasticsearch.compute.operator.fuse;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Releasables;
 
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * Updates the score column with new scores using the RRF formula.
@@ -26,10 +31,12 @@ import java.util.HashMap;
  */
 public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
-    public record Factory(int discriminatorPosition, int scorePosition, RrfConfig rrfConfig) implements OperatorFactory {
+    public record Factory(int discriminatorPosition, int scorePosition, RrfConfig rrfConfig, WarningSourceLocation source)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new RrfScoreEvalOperator(discriminatorPosition, scorePosition, rrfConfig);
+            return new RrfScoreEvalOperator(driverContext, discriminatorPosition, scorePosition, rrfConfig, source);
         }
 
         @Override
@@ -47,49 +54,88 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
     private final int scorePosition;
     private final int discriminatorPosition;
     private final RrfConfig config;
+    private Warnings warnings;
+    private final DriverContext driverContext;
+    private final WarningSourceLocation source;
 
-    private HashMap<String, Integer> counters = new HashMap<>();
+    private final HashMap<String, Integer> counters = new HashMap<>();
 
-    public RrfScoreEvalOperator(int discriminatorPosition, int scorePosition, RrfConfig config) {
+    public RrfScoreEvalOperator(
+        DriverContext driverContext,
+        int discriminatorPosition,
+        int scorePosition,
+        RrfConfig config,
+        WarningSourceLocation source
+    ) {
         this.scorePosition = scorePosition;
         this.discriminatorPosition = discriminatorPosition;
         this.config = config;
+        this.driverContext = driverContext;
+        this.source = source;
     }
 
     @Override
     protected Page process(Page page) {
-        BytesRefBlock discriminatorBlock = (BytesRefBlock) page.getBlock(discriminatorPosition);
-
-        DoubleVector.Builder scores = discriminatorBlock.blockFactory().newDoubleVectorBuilder(discriminatorBlock.getPositionCount());
+        BytesRefBlock discriminatorBlock = page.getBlock(discriminatorPosition);
+        DoubleBlock.Builder scores = discriminatorBlock.blockFactory().newDoubleBlockBuilder(discriminatorBlock.getPositionCount());
 
         for (int i = 0; i < page.getPositionCount(); i++) {
-            String discriminator = discriminatorBlock.getBytesRef(i, new BytesRef()).utf8ToString();
+            Object value = BlockUtils.toJavaObject(discriminatorBlock, i);
 
-            int rank = counters.getOrDefault(discriminator, 1);
-            counters.put(discriminator, rank + 1);
-
-            var weight = config.weights().getOrDefault(discriminator, 1.0);
-
-            scores.appendDouble(1.0 / (config.rankConstant() + rank) * weight);
+            if (value == null) {
+                warnings().registerException(new IllegalArgumentException("group column has null values; assigning null scores"));
+                scores.appendNull();
+            } else if (value instanceof List<?>) {
+                warnings().registerException(
+                    new IllegalArgumentException("group column contains multivalued entries; assigning null scores")
+                );
+                scores.appendNull();
+            } else {
+                String discriminator = ((BytesRef) value).utf8ToString();
+                int rank = counters.getOrDefault(discriminator, 1);
+                var weight = config.weights().getOrDefault(discriminator, 1.0);
+                scores.appendDouble(1.0 / (config.rankConstant() + rank) * weight);
+                counters.put(discriminator, rank + 1);
+            }
         }
 
-        Block scoreBlock = scores.build().asBlock();
-        page = page.appendBlock(scoreBlock);
+        Page newPage = null;
+        Block scoreBlock = null;
 
-        int[] projections = new int[page.getBlockCount() - 1];
-
-        for (int i = 0; i < page.getBlockCount() - 1; i++) {
-            projections[i] = i == scorePosition ? page.getBlockCount() - 1 : i;
-        }
         try {
-            return page.projectBlocks(projections);
+            scoreBlock = scores.build();
+            newPage = page.appendBlock(scoreBlock);
+
+            int[] projections = new int[newPage.getBlockCount() - 1];
+
+            for (int i = 0; i < newPage.getBlockCount() - 1; i++) {
+                projections[i] = i == scorePosition ? newPage.getBlockCount() - 1 : i;
+            }
+            return newPage.projectBlocks(projections);
         } finally {
-            page.releaseBlocks();
+            if (newPage != null) {
+                newPage.releaseBlocks();
+            } else {
+                // we never got to a point where the new page was constructed, so we need to release the initial one
+                page.releaseBlocks();
+            }
+            if (scoreBlock == null) {
+                // we never built scoreBlock, so we need to release the scores builder
+                Releasables.close(scores);
+            }
         }
     }
 
     @Override
     public String toString() {
         return "RrfScoreEvalOperator";
+    }
+
+    private Warnings warnings() {
+        if (warnings == null) {
+            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+        }
+
+        return warnings;
     }
 }

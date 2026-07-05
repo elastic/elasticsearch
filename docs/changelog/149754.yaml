@@ -1,0 +1,6 @@
+area: Infra/Scripting
+issues: []
+pr: 149754
+summary: "Add Painless cancellation checks to fetch, agg-reduce, and bulk-write script\
+  \ contexts"
+type: enhancement

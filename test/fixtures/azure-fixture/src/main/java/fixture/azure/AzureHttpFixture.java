@@ -13,29 +13,30 @@ import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
-import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
+import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.rules.ExternalResource;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
-import java.util.List;
-import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 
-import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.ESTestCase.fail;
-import static org.hamcrest.Matchers.hasSize;
 
 public class AzureHttpFixture extends ExternalResource {
 
@@ -46,10 +47,13 @@ public class AzureHttpFixture extends ExternalResource {
     private final String tenantId;
     private final Predicate<String> authHeaderPredicate;
     private final MockAzureBlobStore.LeaseExpiryPredicate leaseExpiryPredicate;
+    @Nullable
+    private final TestTlsCertificate testTlsCertificate;
 
     private HttpServer server;
     private HttpServer metadataServer;
     private HttpServer oauthTokenServiceServer;
+    private ExecutorService executorService;
 
     // JWT-looking value for workload identity authentication -- the exact value has no inherent meaning
     private final String federatedToken = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9";
@@ -113,6 +117,7 @@ public class AzureHttpFixture extends ExternalResource {
 
     public AzureHttpFixture(
         Protocol protocol,
+        @Nullable TestTlsCertificate testTlsCertificate,
         String account,
         String container,
         @Nullable String rawTenantId,
@@ -120,6 +125,10 @@ public class AzureHttpFixture extends ExternalResource {
         Predicate<String> authHeaderPredicate,
         MockAzureBlobStore.LeaseExpiryPredicate leaseExpiryPredicate
     ) {
+        if (protocol == Protocol.HTTPS && testTlsCertificate == null) {
+            fail(null, "certificate is required when HTTPS enabled");
+        }
+
         final var tenantId = Strings.hasText(rawTenantId) ? rawTenantId : null;
         final var clientId = Strings.hasText(rawClientId) ? rawClientId : null;
 
@@ -132,6 +141,7 @@ public class AzureHttpFixture extends ExternalResource {
             }
         }
         this.protocol = protocol;
+        this.testTlsCertificate = testTlsCertificate;
         this.account = account;
         this.container = container;
         this.tenantId = tenantId;
@@ -149,20 +159,30 @@ public class AzureHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return scheme() + "://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/" + account;
+        InetSocketAddress addr = server.getAddress();
+        // Use "localhost" for loopback addresses to work around Azure SDK's inability to parse bracketed IPv6 addresses
+        String host;
+        if (addr.getAddress().isLoopbackAddress()) {
+            host = "localhost";
+        } else {
+            host = InetAddresses.toUriString(addr.getAddress());
+        }
+
+        return scheme() + "://" + host + ":" + addr.getPort() + "/" + account;
     }
 
     public String getOAuthTokenServiceAddress() {
-        return scheme()
-            + "://"
-            + oauthTokenServiceServer.getAddress().getHostString()
-            + ":"
-            + oauthTokenServiceServer.getAddress().getPort()
-            + "/";
+        InetSocketAddress addr = oauthTokenServiceServer.getAddress();
+        // Use "localhost" for loopback addresses to work around Azure SDK's inability to parse bracketed IPv6 addresses
+        String host = addr.getAddress().isLoopbackAddress() ? "localhost" : addr.getHostString();
+        return scheme() + "://" + host + ":" + addr.getPort() + "/";
     }
 
     public String getMetadataAddress() {
-        return "http://" + metadataServer.getAddress().getHostString() + ":" + metadataServer.getAddress().getPort() + "/";
+        InetSocketAddress addr = metadataServer.getAddress();
+        // Use "localhost" for loopback addresses to work around Azure SDK's inability to parse bracketed IPv6 addresses
+        String host = addr.getAddress().isLoopbackAddress() ? "localhost" : addr.getHostString();
+        return "http://" + host + ":" + addr.getPort() + "/";
     }
 
     public String getFederatedToken() {
@@ -189,6 +209,16 @@ public class AzureHttpFixture extends ExternalResource {
                 this.metadataServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                 metadataServer.createContext("/", new AzureMetadataServiceHttpHandler(managedIdentityBearerToken));
                 metadataServer.start();
+                this.executorService = EsExecutors.newScaling(
+                    "azure-http-fixture",
+                    1,
+                    100,
+                    30,
+                    TimeUnit.SECONDS,
+                    true,
+                    TestEsExecutors.testOnlyDaemonThreadFactory("azure-http-fixture"),
+                    new ThreadContext(Settings.EMPTY)
+                );
             }
 
             switch (protocol) {
@@ -200,6 +230,7 @@ public class AzureHttpFixture extends ExternalResource {
                         "/" + account,
                         new AzureHttpHandler(account, container, actualAuthHeaderPredicate, leaseExpiryPredicate)
                     );
+                    server.setExecutor(executorService);
                     server.start();
 
                     oauthTokenServiceServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -210,15 +241,12 @@ public class AzureHttpFixture extends ExternalResource {
                     oauthTokenServiceServer.start();
                 }
                 case HTTPS -> {
-                    final var tmpdir = ESTestCase.createTempDir();
-                    final var certificates = PemUtils.readCertificates(List.of(copyResource(tmpdir, "azure-http-fixture.pem")));
-                    assertThat(certificates, hasSize(1));
                     final SSLContext sslContext = SSLContext.getInstance("TLS");
                     sslContext.init(
                         new KeyManager[] {
                             KeyStoreUtil.createKeyManager(
-                                new Certificate[] { certificates.get(0) },
-                                PemUtils.readPrivateKey(copyResource(tmpdir, "azure-http-fixture.key"), () -> null),
+                                new Certificate[] { testTlsCertificate.certificate() },
+                                testTlsCertificate.privateKey(),
                                 null
                             ) },
                         null,
@@ -232,6 +260,7 @@ public class AzureHttpFixture extends ExternalResource {
                             "/" + account,
                             new AzureHttpHandler(account, container, actualAuthHeaderPredicate, leaseExpiryPredicate)
                         );
+                        httpsServer.setExecutor(executorService);
                         httpsServer.start();
                     }
                     {
@@ -242,6 +271,7 @@ public class AzureHttpFixture extends ExternalResource {
                             "/",
                             new AzureOAuthTokenServiceHttpHandler(workloadIdentityBearerToken, federatedToken, tenantId, clientId)
                         );
+                        httpsServer.setExecutor(executorService);
                         httpsServer.start();
                     }
                 }
@@ -251,25 +281,13 @@ public class AzureHttpFixture extends ExternalResource {
         }
     }
 
-    private Path copyResource(Path tmpdir, String name) throws IOException {
-        try (
-            var stream = Objects.requireNonNullElseGet(
-                getClass().getResourceAsStream(name),
-                () -> ESTestCase.fail(null, "resource [%s] not found", name)
-            )
-        ) {
-            final var path = tmpdir.resolve(name);
-            Files.write(path, stream.readAllBytes());
-            return path;
-        }
-    }
-
     @Override
     protected void after() {
         if (protocol != Protocol.NONE) {
             server.stop(0);
             metadataServer.stop(0);
             oauthTokenServiceServer.stop(0);
+            ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         }
     }
 }

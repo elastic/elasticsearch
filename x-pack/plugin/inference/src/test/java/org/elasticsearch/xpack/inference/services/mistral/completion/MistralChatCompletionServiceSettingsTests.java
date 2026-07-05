@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -25,110 +26,92 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<MistralChatCompletionServiceSettings> {
 
-    public static final String MODEL_ID = "some model";
-    public static final int RATE_LIMIT = 2;
+    private static final String TEST_MODEL_ID = "mistral-small";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-mistral-small";
 
-    public void testFromMap_AllFields_Success() {
+    private static final int TEST_RATE_LIMIT = 2;
+    private static final int INITIAL_TEST_RATE_LIMIT = 100;
+
+    private static final int DEFAULT_RATE_LIMIT = 240;
+
+    public void testFromMap_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    MistralConstants.MODEL_FIELD,
-                    MODEL_ID,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT),
+            randomFrom(ConfigurationParseContext.values())
         );
 
-        assertThat(
-            serviceSettings,
-            is(
-                new MistralChatCompletionServiceSettings(
-                    MODEL_ID,
-
-                    new RateLimitSettings(RATE_LIMIT)
-                )
-            )
-        );
+        assertThat(serviceSettings, is(new MistralChatCompletionServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
-    public void testFromMap_MissingModelId_ThrowsException() {
+    public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
+        var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_MODEL_ID, null),
+            randomFrom(ConfigurationParseContext.values())
+        );
+
+        assertThat(serviceSettings, is(new MistralChatCompletionServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
+    }
+
+    public void testFromMap_NoModel_ThrowsValidationError() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> MistralChatCompletionServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)))
-                ),
-                ConfigurationParseContext.PERSISTENT
+                buildServiceSettingsMap(null, TEST_RATE_LIMIT),
+                randomFrom(ConfigurationParseContext.values())
             )
         );
 
+        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] does not contain the required setting [model];")
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] does not contain the required setting [%s]", MistralConstants.MODEL_FIELD))
         );
     }
 
-    public void testFromMap_MissingRateLimit_Success() {
-        var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(MistralConstants.MODEL_FIELD, MODEL_ID)),
-            ConfigurationParseContext.PERSISTENT
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
+        var originalServiceSettings = new MistralChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
 
-        assertThat(serviceSettings, is(new MistralChatCompletionServiceSettings(MODEL_ID, null)));
+        assertThat(
+            updatedServiceSettings,
+            is(new MistralChatCompletionServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new MistralChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    MistralConstants.MODEL_FIELD,
-                    MODEL_ID,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT),
+            randomFrom(ConfigurationParseContext.values())
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model": "some model",
+                "model": "%s",
                 "rate_limit": {
-                    "requests_per_minute": 2
+                    "requests_per_minute": %d
                 }
             }
-            """);
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT));
 
-        assertThat(xContentResult, is(expected));
-    }
-
-    public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
-        var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(MistralConstants.MODEL_FIELD, MODEL_ID)),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        serviceSettings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
-            {
-                "model": "some model",
-                "rate_limit": {
-                    "requests_per_minute": 240
-                }
-            }
-            """);
         assertThat(xContentResult, is(expected));
     }
 
@@ -144,7 +127,13 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
 
     @Override
     protected MistralChatCompletionServiceSettings mutateInstance(MistralChatCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, MistralChatCompletionServiceSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var modelId = randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(8));
+            return new MistralChatCompletionServiceSettings(modelId, instance.rateLimitSettings());
+        } else {
+            var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
+            return new MistralChatCompletionServiceSettings(instance.modelId(), rateLimitSettings);
+        }
     }
 
     @Override
@@ -161,10 +150,15 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
         return new MistralChatCompletionServiceSettings(modelId, RateLimitSettingsTests.createRandom());
     }
 
-    public static Map<String, Object> getServiceSettingsMap(String model) {
+    public static Map<String, Object> buildServiceSettingsMap(@Nullable String modelId, @Nullable Integer rateLimit) {
         var map = new HashMap<String, Object>();
 
-        map.put(MistralConstants.MODEL_FIELD, model);
+        if (modelId != null) {
+            map.put(MistralConstants.MODEL_FIELD, modelId);
+        }
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        }
 
         return map;
     }

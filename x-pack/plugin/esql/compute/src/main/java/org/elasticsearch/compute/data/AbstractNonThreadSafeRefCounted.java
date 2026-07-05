@@ -9,13 +9,17 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+
+import java.util.Objects;
 
 /**
  * Releasable, non-threadsafe version of {@link org.elasticsearch.core.AbstractRefCounted}.
  * Calls to {@link AbstractNonThreadSafeRefCounted#decRef()} and {@link AbstractNonThreadSafeRefCounted#close()} are equivalent.
  */
-abstract class AbstractNonThreadSafeRefCounted implements RefCounted, Releasable {
+public abstract class AbstractNonThreadSafeRefCounted implements RefCounted, Releasable {
     private int references = 1;
+    private Releasable onClose;
 
     @Override
     public final void incRef() {
@@ -34,6 +38,22 @@ abstract class AbstractNonThreadSafeRefCounted implements RefCounted, Releasable
         return true;
     }
 
+    /**
+     * Attaches a {@link Releasable} that is invoked exactly once when this object's reference count reaches zero,
+     * immediately after {@link #closeInternal()} completes. May be called at most once; throws
+     * {@link IllegalStateException} if called after release or a second time.
+     */
+    public final void attachReleasable(Releasable releasable) {
+        Objects.requireNonNull(releasable, "releasable must not be null");
+        if (hasReferences() == false) {
+            throw new IllegalStateException("can't attach releasable to already released object [" + this + "]");
+        }
+        if (this.onClose != null) {
+            throw new IllegalStateException("onClose already attached to [" + this + "]");
+        }
+        this.onClose = releasable;
+    }
+
     @Override
     public final boolean decRef() {
         if (hasReferences() == false) {
@@ -44,6 +64,7 @@ abstract class AbstractNonThreadSafeRefCounted implements RefCounted, Releasable
 
         if (references <= 0) {
             closeInternal();
+            Releasables.closeExpectNoException(onClose);
             return true;
         }
         return false;

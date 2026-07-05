@@ -31,13 +31,13 @@ public final class ValuesBooleanAggregatorFunctionSupplier implements Aggregator
   @Override
   public ValuesBooleanAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return ValuesBooleanAggregatorFunction.create(driverContext, channels);
+    return new ValuesBooleanAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public ValuesBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return ValuesBooleanGroupingAggregatorFunction.create(channels, driverContext);
+    return new ValuesBooleanGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

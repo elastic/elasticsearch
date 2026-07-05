@@ -43,6 +43,7 @@ $$$event-access-denied$$$
     "action":"indices:admin/auto_create", "request.name":"CreateIndexRequest",
     "indices":["<index-{now/d+1d}>"]}
     ```
+    % NOTCONSOLE
     ::::
 
 
@@ -62,6 +63,7 @@ $$$event-access-granted$$$
     "origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw",
     "action":"indices:data/write/bulk", "request.name":"BulkRequest"}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -79,6 +81,7 @@ $$$event-anonymous-access-denied$$$
     "[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty",
     "request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -97,6 +100,7 @@ $$$event-authentication-failed$$$
     "url.query":"pretty", "request.method":"POST",
     "request.id":"POv8p_qeTl2tb5xoFl0HIg"}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -116,6 +120,7 @@ $$$event-authentication-success$$$
     "url.query":"pretty", "request.method":"POST",
     "request.id":"nHV3UMOoSiu-TaSPWCfxGg"}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -134,6 +139,7 @@ $$$event-change-disable-user$$$
     action":"change_disable_user", "request.id":"qvLIgw_eTvyK3cgV-GaLVg",
     "change":{"disable":{"user":{"name":"user1"}}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -152,6 +158,7 @@ $$$event-change-enable-user$$$
     action":"change_enable_user", "request.id":"BO3QU3qeTb-Ei0G0rUOalQ",
     "change":{"enable":{"user":{"name":"user1"}}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -170,6 +177,7 @@ $$$event-change-password$$$
     action":"change_password", "request.id":"bz5a1Cc3RrebDMitMGGNCw",
     "change":{"password":{"user":{"name":"user1"}}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -188,6 +196,7 @@ $$$event-create-service-token$$$
     action":"create_service_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
     "create":{"service_token":{"namespace":"elastic","service":"fleet-server","name":"token1"}}}`
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -204,6 +213,7 @@ $$$event-connection-denied$$$
     "connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20:52314",
     "transport.profile":".http", "rule":"deny 10.10.0.0/16"}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -220,6 +230,7 @@ $$$event-connection-granted$$$
     "connection_granted", "origin.type":"rest", "origin.address":"[::1]:52314",
     "transport.profile":".http", "rule":"allow ::1,127.0.0.1"}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -245,6 +256,7 @@ $$$event-create-apikey$$$
     "metadata":{"application":"my-application","environment":{"level": 1,
     "tags":["dev","staging"]}}}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -270,6 +282,7 @@ $$$event-change-apikey$$$
     "metadata":{"application":"my-application","environment":{"level": 1,
     "tags":["dev","staging"]}},"expiration":"10d"}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -296,6 +309,7 @@ $$$event-change-apikeys$$$
     "metadata":{"application":"my-application","environment":{"level":1,
     "tags":["dev","staging"]}},"expiration":"10d"}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -314,6 +328,7 @@ $$$event-delete-privileges$$$
     action":"delete_privileges", "request.id":"7wRWVxxqTzCKEspeSP7J8g",
     "delete":{"privileges":{"application":"myapp","privileges":["read"]}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -332,6 +347,7 @@ $$$event-delete-role$$$
     "delete_role", "request.id":"155IKq3zQdWq-12dgKZRnw",
     "delete":{"role":{"name":"my_admin_role"}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -350,6 +366,7 @@ $$$event-delete-role-mapping$$$
     action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g",
     "delete":{"role_mapping":{"name":"mapping1"}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -368,6 +385,7 @@ $$$event-delete-service-token$$$
     action":"delete_service_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
     "delete":{"service_token":{"namespace":"elastic","service":"fleet-server","name":"token1"}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -386,6 +404,7 @@ $$$event-delete-user$$$
     "event.action":"delete_user", "request.id":"au5a1Cc3RrebDMitMGGNCw",
     "delete":{"user":{"name":"jacknich"}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -405,6 +424,7 @@ $$$event-invalidate-apikeys$$$
     "invalidate":{"apikeys":{"owned_by_authenticated_user":false,
     "user":{"name":"myuser","realm":"native1"}}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -424,6 +444,7 @@ $$$event-put-privileges$$$
     "put":{"privileges":[{"application":"myapp","name":"read","actions":
     ["data:read/*","action:login"],"metadata":{"description":"Read access to myapp"}}]}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -446,6 +467,7 @@ $$$event-put-role$$$
     {"names":["apm-all*"],"privileges":["all"],"query":"{\"term\":
     {\"service.name\": \"bar2\"}}"}],"applications":[],"run_as":[]}}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -465,6 +487,7 @@ $$$event-put-role-mapping$$$
     "put":{"role_mapping":{"name":"mapping1","roles":["user"],"rules":
     {"field":{"username":"*"}},"enabled":true,"metadata":{"version":1}}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -485,6 +508,7 @@ $$$event-put-user$$$
     "full_name":"Jack Sparrow","email":"jack@blackpearl.com",
     "has_password":true,"metadata":{"cunning":10}}}}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -503,6 +527,7 @@ $$$event-realm-auth-failed$$$
     "/_security/user/user1", "url.query":"pretty", "request.method":"POST",
     "request.id":"POv8p_qeTl2tb5xoFl0HIg"}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -522,6 +547,7 @@ $$$event-runas-denied$$$
     "[::1]:52662", "request.id":"RcaSt872RG-R_WJBEGfYXA",
     "action":"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -541,6 +567,7 @@ $$$event-runas-granted$$$
     "[::1]:52623", "request.id":"dGqPTdEQSX2TAPS3cvc1qA", "action":
     "indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -568,6 +595,7 @@ $$$event-tampered-request$$$
     "/twitter/_async_search", "url.query":"pretty", "request.method":"POST",
     "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}
     ```
+    % NOTCONSOLE
 
     ::::
 
@@ -696,6 +724,7 @@ The schemas of the security config objects mentioned above are as follows. They 
     "full_name": <string>, "email": <string>, "has_password": <boolean>,
     "metadata": <object>}`.
     ```
+    % NOTCONSOLE
 
     The `full_name`, `email` and `metadata` fields are omitted if empty.
 
@@ -711,6 +740,7 @@ The schemas of the security config objects mentioned above are as follows. They 
     "privileges": <string_list>, "resources": <string_list>}], "run_as": <string_list>,
     "metadata": <object>}}`.
     ```
+    % NOTCONSOLE
 
     The `global`, `field_security`, `except`, `query`, `allow_restricted_indices` and `metadata` fields are omitted if empty.
 
@@ -722,6 +752,7 @@ The schemas of the security config objects mentioned above are as follows. They 
     `{"name": <string>, "roles": <string_list>, "role_templates": [{"template": <string>,
     "format": <string>}], "rules": <object>, "enabled": <boolean>, "metadata": <object>}`.
     ```
+    % NOTCONSOLE
 
     The `roles` and `role_templates` fields are omitted if empty. The `rules` object has a recursively nested schema, identical to what is passed in the [API request for mapping roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md).
 
@@ -733,7 +764,7 @@ The schemas of the security config objects mentioned above are as follows. They 
     `{"application": <string>, "name": <string>, "actions": <string_list>,
     "metadata": <object>}`.
     ```
-
+    % NOTCONSOLE
 
 `password`
 :   A simple object like:
@@ -741,7 +772,7 @@ The schemas of the security config objects mentioned above are as follows. They 
     ```js
     `{"user":{"name": <string>}}`
     ```
-
+    % NOTCONSOLE
 
 `enable`
 :   A simple object like:
@@ -749,7 +780,7 @@ The schemas of the security config objects mentioned above are as follows. They 
     ```js
     `{"user":{"name": <string>}}`
     ```
-
+    % NOTCONSOLE
 
 `disable`
 :   A simple object like:
@@ -757,7 +788,7 @@ The schemas of the security config objects mentioned above are as follows. They 
     ```js
     `{"user":{"name": <string>}}`
     ```
-
+    % NOTCONSOLE
 
 `apikey`
 :   An object like:
@@ -766,6 +797,7 @@ The schemas of the security config objects mentioned above are as follows. They 
     `{"id": <string>, "name": <string>, "expiration": <string>, "role_descriptors": [<object>],
     "metadata": [<object>]}`
     ```
+    % NOTCONSOLE
 
     The `role_descriptors` objects have the same schema as the `role_descriptor` object that is part of the above `role` config object.
 
@@ -779,7 +811,7 @@ The object for an API key update will differ in that it will not include a `name
     `{"type": <string>, "user": {"name": <string>, "has_password": <boolean>},
     "has_access_token": <boolean>}`
     ```
-
+    % NOTCONSOLE
 
 `apikeys`
 :   An object like:
@@ -788,6 +820,7 @@ The object for an API key update will differ in that it will not include a `name
     `{"ids": <string_list>, "name": <string>, "owned_by_authenticated_user":
     <boolean>, "user":{"name": <string>, "realm": <string>}}`
     ```
+    % NOTCONSOLE
 
     The object for a bulk API key update will differ in that it will not include `name`, `owned_by_authenticated_user`, or `user`. Instead, it may include `metadata` and `role_descriptors`, which have the same schemas as the fields in the `apikey` config object above.
 
@@ -798,7 +831,8 @@ The object for an API key update will differ in that it will not include a `name
     ```js
     `{"namespace":<string>,"service":<string>,"name":<string>}`
     ```
-
+    % NOTCONSOLE
+    
 ### Extra audit event attributes for specific events [_extra_audit_event_attributes_for_specific_events]
 
 There are a few events that have some more attributes in addition to those that have been previously described:

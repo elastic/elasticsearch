@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,7 +21,7 @@ public class RollupFeatureSetUsage extends XPackFeatureUsage {
 
     public RollupFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
-        this.numberOfRollupJobs = input.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? input.readVInt() : 0;
+        this.numberOfRollupJobs = input.readVInt();
     }
 
     public RollupFeatureSetUsage(int numberOfRollupJobs) {
@@ -37,9 +36,7 @@ public class RollupFeatureSetUsage extends XPackFeatureUsage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeVInt(numberOfRollupJobs);
-        }
+        out.writeVInt(numberOfRollupJobs);
     }
 
     @Override

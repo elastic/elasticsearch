@@ -17,7 +17,11 @@ import java.util.Arrays;
 
 public class BitRankVectors extends ByteRankVectors {
     public BitRankVectors(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
-        super(vectorValues, magnitudesBytes, numVecs, dims);
+        this(vectorValues, magnitudesBytes, numVecs, dims, null);
+    }
+
+    public BitRankVectors(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims, BytesRef vectorBytes) {
+        super(vectorValues, magnitudesBytes, numVecs, dims, vectorBytes);
     }
 
     @Override

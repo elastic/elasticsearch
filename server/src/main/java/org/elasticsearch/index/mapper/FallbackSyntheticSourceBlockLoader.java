@@ -9,9 +9,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -20,9 +25,12 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.Stack;
+
+import static org.elasticsearch.index.mapper.BlockSourceReader.ESTIMATED_SIZE;
 
 /**
  * Block loader for fields that use fallback synthetic source implementation.
@@ -38,7 +46,7 @@ import java.util.Stack;
 public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader {
     private final Reader<?> reader;
     private final String fieldName;
-    private final Set<String> fieldPaths;
+    private final SourceFilter sourceFilter;
     private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
     protected FallbackSyntheticSourceBlockLoader(
@@ -50,22 +58,29 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         this.reader = reader;
         this.fieldName = fieldName;
         this.ignoredSourceFormat = ignoredSourceFormat;
-        this.fieldPaths = splitIntoFieldPaths(fieldName);
+        this.sourceFilter = new SourceFilter(new String[] { fieldName }, null);
+    }
+
+    /**
+     * Returns the ignored source format used by this loader.
+     */
+    public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+        return ignoredSourceFormat;
     }
 
     @Override
-    public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         return null;
     }
 
     @Override
-    public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new IgnoredSourceRowStrideReader<>(fieldName, fieldPaths, reader, ignoredSourceFormat);
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        return new IgnoredSourceRowStrideReader<>(breaker, fieldName, sourceFilter, reader, ignoredSourceFormat, context.reader());
     }
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return new StoredFieldsSpec(false, false, Set.of(), new IgnoredFieldsSpec(Set.of(fieldName), ignoredSourceFormat));
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, Set.of(fieldName));
     }
 
     @Override
@@ -76,6 +91,11 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
     @Override
     public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String toString() {
+        return "FallbackToSource[" + reader + "]";
     }
 
     public static Set<String> splitIntoFieldPaths(String fieldName) {
@@ -93,45 +113,65 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
     }
 
     private static class IgnoredSourceRowStrideReader<T> implements RowStrideReader {
+        private final CircuitBreaker breaker;
         private final String fieldName;
-        // Contains name of the field and all its parents
-        private final Set<String> fieldPaths;
+        private final SourceFilter sourceFilter;
         private final Reader<T> reader;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+        private final MultiValuedSortedBinaryDocValues ignoredSourceDocValues;
 
         IgnoredSourceRowStrideReader(
+            CircuitBreaker breaker,
             String fieldName,
-            Set<String> fieldPaths,
+            SourceFilter sourceFilter,
             Reader<T> reader,
-            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
-        ) {
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+            LeafReader leafReader
+        ) throws IOException {
+            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+            this.breaker = breaker;
             this.fieldName = fieldName;
-            this.fieldPaths = fieldPaths;
+            this.sourceFilter = sourceFilter;
             this.reader = reader;
             this.ignoredSourceFormat = ignoredSourceFormat;
+            if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
+                this.ignoredSourceDocValues = Objects.requireNonNull(
+                    MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
+                );
+            } else {
+                this.ignoredSourceDocValues = null;
+            }
         }
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = ignoredSourceFormat.loadSingleIgnoredField(
-                fieldPaths,
-                storedFields.storedFields()
+            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesGroupedByParent = ignoredSourceFormat.loadIgnoredFields(
+                sourceFilter,
+                storedFields.storedFields(),
+                docId,
+                ignoredSourceDocValues
             );
 
-            if (valuesForFieldAndParents.isEmpty()) {
+            if (valuesGroupedByParent.isEmpty()) {
                 builder.appendNull();
                 return;
             }
 
+            assert valuesGroupedByParent.size() == 1 : "expected single parent key but got " + valuesGroupedByParent.keySet();
+
             // TODO figure out how to handle XContentDataHelper#voidValue()
 
+            // The map has at most one key: the source filter is scoped to a single field, so all entries share the same name
+            // (either the field itself or one ancestor object).
             var blockValues = new ArrayList<T>();
-
-            var leafFieldValue = valuesForFieldAndParents.get(fieldName);
-            if (leafFieldValue != null) {
-                readFromFieldValue(leafFieldValue, blockValues);
-            } else {
-                readFromParentValue(valuesForFieldAndParents, blockValues);
+            for (var entries : valuesGroupedByParent.values()) {
+                for (var nv : entries) {
+                    if (nv.name().equals(fieldName)) {
+                        readFromFieldValue(nv, blockValues);
+                    } else {
+                        parseFieldFromParent(nv, blockValues);
+                    }
+                }
             }
 
             if (blockValues.isEmpty() == false) {
@@ -149,54 +189,30 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             }
         }
 
-        private void readFromFieldValue(List<IgnoredSourceFieldMapper.NameValue> nameValues, List<T> blockValues) throws IOException {
-            if (nameValues.isEmpty()) {
+        private void readFromFieldValue(IgnoredSourceFieldMapper.NameValue nameValue, List<T> blockValues) throws IOException {
+            // the leaf field is stored directly (not as a part of a parent object), so try to decode it.
+            Optional<Object> singleValue = XContentDataHelper.decode(nameValue.value());
+            if (singleValue.isPresent()) {
+                reader.convertValue(singleValue.get(), blockValues);
                 return;
             }
 
-            for (var nameValue : nameValues) {
-                // Leaf field is stored directly (not as a part of a parent object), let's try to decode it.
-                Optional<Object> singleValue = XContentDataHelper.decode(nameValue.value());
-                if (singleValue.isPresent()) {
-                    reader.convertValue(singleValue.get(), blockValues);
-                    continue;
-                }
+            // We have a value for this field, but its an array or an object
+            var type = XContentDataHelper.decodeType(nameValue.value());
+            assert type.isPresent();
 
-                // We have a value for this field but it's an array or an object
-                var type = XContentDataHelper.decodeType(nameValue.value());
-                assert type.isPresent();
-
-                try (
-                    XContentParser parser = type.get()
-                        .xContent()
-                        .createParser(
-                            XContentParserConfiguration.EMPTY,
-                            nameValue.value().bytes,
-                            nameValue.value().offset + 1,
-                            nameValue.value().length - 1
-                        )
-                ) {
-                    parser.nextToken();
-                    parseWithReader(parser, blockValues);
-                }
-            }
-        }
-
-        private void readFromParentValue(
-            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents,
-            List<T> blockValues
-        ) throws IOException {
-            if (valuesForFieldAndParents.isEmpty()) {
-                return;
-            }
-
-            // If a parent object is stored at a particular level its children won't be stored.
-            // So we should only ever have one parent here.
-            assert valuesForFieldAndParents.size() == 1 : "_ignored_source field contains multiple levels of the same object";
-            var parentValues = valuesForFieldAndParents.values().iterator().next();
-
-            for (var nameValue : parentValues) {
-                parseFieldFromParent(nameValue, blockValues);
+            try (
+                XContentParser parser = type.get()
+                    .xContent()
+                    .createParser(
+                        XContentParserConfiguration.EMPTY,
+                        nameValue.value().bytes,
+                        nameValue.value().offset + 1,
+                        nameValue.value().length - 1
+                    )
+            ) {
+                parser.nextToken();
+                parseWithReader(parser, blockValues);
             }
         }
 
@@ -261,6 +277,16 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         @Override
         public boolean canReuse(int startingDocID) {
             return true;
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        }
+
+        @Override
+        public String toString() {
+            return "FallbackToSource[" + reader + "]";
         }
     }
 

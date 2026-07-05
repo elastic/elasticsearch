@@ -1,0 +1,13 @@
+# External repositories whose changelog entries should be merged into the
+# Elasticsearch release notes bundle at build time.
+#
+# Each entry specifies:
+#   repoUrl       - HTTPS clone URL for git fetch
+#   sourceRepo    - GitHub owner/name, used for PR/issue links in release notes
+#   changelogPath - path inside the repo containing YAML changelog entries
+#
+# To add a new external source, append an entry below.
+
+- repoUrl: https://github.com/elastic/ml-cpp.git
+  sourceRepo: elastic/ml-cpp
+  changelogPath: docs/changelog

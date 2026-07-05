@@ -294,7 +294,7 @@ public class MergingDigest extends AbstractTDigest {
         }
         if (unmergedWeight > 0) {
             // note that we run the merge in reverse every other merge to avoid left-to-right bias in merging
-            merge(tempMean, tempWeight, tempUsed, order, unmergedWeight, useAlternatingSort & mergeCount % 2 == 1, compression);
+            merge(tempMean, tempWeight, tempUsed, order, unmergedWeight, useAlternatingSort && (mergeCount % 2 == 1), compression);
             mergeCount++;
             tempUsed = 0;
             unmergedWeight = 0;
@@ -360,13 +360,14 @@ public class MergingDigest extends AbstractTDigest {
             if (addThis) {
                 // next point will fit
                 // so merge into existing centroid
-                weight.set(lastUsedCell, weight.get(lastUsedCell) + incomingWeight.get(ix));
-                mean.set(
-                    lastUsedCell,
-                    mean.get(lastUsedCell) + (incomingMean.get(ix) - mean.get(lastUsedCell)) * incomingWeight.get(ix) / weight.get(
-                        lastUsedCell
-                    )
+                double newMean = weightedAverage(
+                    mean.get(lastUsedCell),
+                    weight.get(lastUsedCell),
+                    incomingMean.get(ix),
+                    incomingWeight.get(ix)
                 );
+                weight.set(lastUsedCell, weight.get(lastUsedCell) + incomingWeight.get(ix));
+                mean.set(lastUsedCell, newMean);
                 incomingWeight.set(ix, 0);
             } else {
                 // didn't fit ... move to next output, copy out first centroid

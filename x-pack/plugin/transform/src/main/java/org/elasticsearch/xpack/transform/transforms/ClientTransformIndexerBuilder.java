@@ -46,7 +46,7 @@ class ClientTransformIndexerBuilder {
 
     ClientTransformIndexer build(ThreadPool threadPool, TransformContext context) {
         CheckpointProvider checkpointProvider = transformServices.checkpointService()
-            .getCheckpointProvider(parentTaskClient, transformConfig);
+            .getCheckpointProvider(parentTaskClient, transformConfig, () -> context.getPersistedCloudCredential());
 
         return new ClientTransformIndexer(
             threadPool,

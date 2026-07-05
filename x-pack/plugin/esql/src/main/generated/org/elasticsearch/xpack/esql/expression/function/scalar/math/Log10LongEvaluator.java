@@ -14,29 +14,28 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Log10}.
+ * {@link ExpressionEvaluator} implementation for {@link Log10}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class Log10LongEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Log10LongEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public Log10LongEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
+  public Log10LongEvaluator(Source source, ExpressionEvaluator val, DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.driverContext = driverContext;
@@ -63,16 +62,16 @@ public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluato
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
         try {
@@ -113,22 +112,17 @@ public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluato
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+    public Factory(Source source, ExpressionEvaluator.Factory val) {
       this.source = source;
       this.val = val;
     }

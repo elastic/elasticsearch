@@ -89,14 +89,20 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public long getLong(int valueIndex) {
         return vector.getLong(valueIndex);
     }
 
     @Override
-    public LongBlock filter(int... positions) {
-        try (var builder = blockFactory().newLongBlockBuilder(positions.length)) {
-            for (int pos : positions) {
+    public LongBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (var builder = blockFactory().newLongBlockBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 if (isNull(pos)) {
                     builder.appendNull();
                     continue;

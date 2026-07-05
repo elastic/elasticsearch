@@ -8,9 +8,10 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.common.util.FeatureFlag;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -23,12 +24,15 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -45,7 +49,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     );
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_MINSCORE_FIX = new NodeFeature("text_similarity_reranker_minscore_fix");
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_SNIPPETS = new NodeFeature("text_similarity_reranker_snippets");
-    public static final FeatureFlag RERANK_SNIPPETS = new FeatureFlag("text_similarity_reranker_snippets");
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
@@ -89,7 +92,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     static {
         PARSER.declareNamedObject(constructorArg(), (p, c, n) -> {
             RetrieverBuilder innerRetriever = p.namedObject(RetrieverBuilder.class, n, c);
-            c.trackRetrieverUsage(innerRetriever.getName());
+            c.trackRetrieverUsage(innerRetriever);
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareString(optionalConstructorArg(), INFERENCE_ID_FIELD);
@@ -98,10 +101,8 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), FAILURES_ALLOWED_FIELD);
         PARSER.declareObject(optionalConstructorArg(), CHUNK_SCORER_PARSER, CHUNK_RESCORER_FIELD);
-        if (RERANK_SNIPPETS.isEnabled()) {
-            CHUNK_SCORER_PARSER.declareInt(optionalConstructorArg(), CHUNK_SIZE_FIELD);
-            CHUNK_SCORER_PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), null, CHUNKING_SETTINGS_FIELD);
-        }
+        CHUNK_SCORER_PARSER.declareInt(optionalConstructorArg(), CHUNK_SIZE_FIELD);
+        CHUNK_SCORER_PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), null, CHUNKING_SETTINGS_FIELD);
 
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
@@ -117,11 +118,18 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         return PARSER.apply(parser, context);
     }
 
+    private static void validateChunkScorerConfig(ChunkScorerConfig chunkScorerConfig) {
+        if (chunkScorerConfig != null && chunkScorerConfig.size() != null && chunkScorerConfig.size() < 1) {
+            throw new IllegalArgumentException("size must be greater than 0, was: " + chunkScorerConfig.size());
+        }
+    }
+
     private final String inferenceId;
     private final String inferenceText;
     private final String field;
     private final boolean failuresAllowed;
     private final ChunkScorerConfig chunkScorerConfig;
+    private final SetOnce<Integer> windowSizeSupplier;
 
     public TextSimilarityRankRetrieverBuilder(
         RetrieverBuilder retrieverBuilder,
@@ -133,11 +141,13 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         ChunkScorerConfig chunkScorerConfig
     ) {
         super(List.of(RetrieverSource.from(retrieverBuilder)), rankWindowSize);
+        validateChunkScorerConfig(chunkScorerConfig);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
         this.failuresAllowed = failuresAllowed;
         this.chunkScorerConfig = chunkScorerConfig;
+        this.windowSizeSupplier = null;
     }
 
     public TextSimilarityRankRetrieverBuilder(
@@ -156,9 +166,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         if (retrieverSource.size() != 1) {
             throw new IllegalArgumentException("[" + getName() + "] retriever should have exactly one inner retriever");
         }
-        if (chunkScorerConfig != null && chunkScorerConfig.size() != null && chunkScorerConfig.size() < 1) {
-            throw new IllegalArgumentException("size must be greater than 0, was: " + chunkScorerConfig.size());
-        }
+        validateChunkScorerConfig(chunkScorerConfig);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
@@ -167,6 +175,32 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         this.retrieverName = retrieverName;
         this.preFilterQueryBuilders = preFilterQueryBuilders;
         this.chunkScorerConfig = chunkScorerConfig;
+        this.windowSizeSupplier = null;
+    }
+
+    private TextSimilarityRankRetrieverBuilder(
+        List<RetrieverSource> retrieverSource,
+        String inferenceId,
+        String inferenceText,
+        String field,
+        int rankWindowSize,
+        Float minScore,
+        boolean failuresAllowed,
+        String retrieverName,
+        List<QueryBuilder> preFilterQueryBuilders,
+        ChunkScorerConfig chunkScorerConfig,
+        SetOnce<Integer> windowSizeSupplier
+    ) {
+        super(retrieverSource, rankWindowSize);
+        this.inferenceId = inferenceId;
+        this.inferenceText = inferenceText;
+        this.field = field;
+        this.minScore = minScore;
+        this.failuresAllowed = failuresAllowed;
+        this.retrieverName = retrieverName;
+        this.preFilterQueryBuilders = preFilterQueryBuilders;
+        this.chunkScorerConfig = chunkScorerConfig;
+        this.windowSizeSupplier = windowSizeSupplier;
     }
 
     @Override
@@ -184,12 +218,68 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             failuresAllowed,
             retrieverName,
             newPreFilterQueryBuilders,
-            chunkScorerConfig
+            chunkScorerConfig,
+            windowSizeSupplier
         );
     }
 
     @Override
-    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
+    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
+        // Case 1: Waiting for async window size fetch to complete
+        if (windowSizeSupplier != null && windowSizeSupplier.get() == null) {
+            return this;
+        }
+        // Case 2: Async completed - build resolved config with fetched window size
+        if (windowSizeSupplier != null && windowSizeSupplier.get() != null) {
+            ChunkScorerConfig resolvedConfig = new ChunkScorerConfig(
+                chunkScorerConfig.size(),
+                chunkScorerConfig.inferenceText(),
+                ChunkScorerConfig.defaultChunkingSettings(windowSizeSupplier.get())
+            );
+            return new TextSimilarityRankRetrieverBuilder(
+                innerRetrievers,
+                inferenceId,
+                inferenceText,
+                field,
+                rankWindowSize,
+                minScore,
+                failuresAllowed,
+                retrieverName,
+                preFilterQueryBuilders,
+                resolvedConfig,
+                null
+            );
+        }
+        // Case 3: Need to fetch window size from inference endpoint
+        if (chunkScorerConfig != null && chunkScorerConfig.chunkingSettings() == null) {
+            SetOnce<Integer> supplier = new SetOnce<>();
+            ctx.registerAsyncAction((client, listener) -> {
+                GetRerankerWindowSizeAction.Request request = new GetRerankerWindowSizeAction.Request(inferenceId);
+                client.execute(GetRerankerWindowSizeAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> {
+                    supplier.set(response.getWindowSize());
+                    l.onResponse(null);
+                }));
+            });
+            return new TextSimilarityRankRetrieverBuilder(
+                innerRetrievers,
+                inferenceId,
+                inferenceText,
+                field,
+                rankWindowSize,
+                minScore,
+                failuresAllowed,
+                retrieverName,
+                preFilterQueryBuilders,
+                chunkScorerConfig,
+                supplier
+            );
+        }
+        // Case 4: No async needed, delegate to parent for inner retriever rewrite
+        return super.doRewrite(ctx);
+    }
+
+    @Override
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean enrichResults) {
         assert rankResults.size() == 1;
         ScoreDoc[] scoreDocs = rankResults.getFirst();
         List<TextSimilarityRankDoc> filteredDocs = new ArrayList<>();
@@ -199,8 +289,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             ScoreDoc scoreDoc = scoreDocs[i];
             assert scoreDoc.score >= 0;
             if (minScore == null || scoreDoc.score >= minScore) {
-                if (explain) {
-                    filteredDocs.add(new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, inferenceId, field));
+                if (enrichResults) {
+                    filteredDocs.add(
+                        new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, inferenceId, field, chunkScorerConfig)
+                    );
                 } else {
                     filteredDocs.add(new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex));
                 }
@@ -225,6 +317,17 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             )
         );
         return sourceBuilder;
+    }
+
+    @Override
+    public Set<String> getExtendedUsageFields() {
+        Set<String> extendedFields = new HashSet<>();
+
+        if (chunkScorerConfig != null) {
+            extendedFields.add(CHUNK_RESCORER_FIELD.getPreferredName());
+        }
+
+        return extendedFields;
     }
 
     @Override

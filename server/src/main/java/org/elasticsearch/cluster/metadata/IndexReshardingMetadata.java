@@ -91,6 +91,11 @@ import java.util.Objects;
 public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
     private static final String SPLIT_FIELD_NAME = "split";
     private static final ParseField SPLIT_FIELD = new ParseField(SPLIT_FIELD_NAME);
+
+    // During a reshard split operation, we restrict the split factor to be exactly 2 i.e
+    // we can go from 1 -> 2 shards, or 2 -> 4 shards, and so on.
+    public static final int RESHARD_SPLIT_FACTOR = 2;
+
     // This exists only so that tests can verify that IndexReshardingMetadata supports more than one kind of operation.
     // It can be removed when we have defined a second real operation, such as shrink.
     private static final String NOOP_FIELD_NAME = "noop";

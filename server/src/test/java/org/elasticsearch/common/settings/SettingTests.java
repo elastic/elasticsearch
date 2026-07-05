@@ -1192,6 +1192,22 @@ public class SettingTests extends ESTestCase {
         assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [PrivateIndex]")));
     }
 
+    public void testRejectNonIndexScopedServerlessPublicSetting() {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.ServerlessPublic)
+        );
+        assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [ServerlessPublic]")));
+    }
+
+    public void testRejectIndexScopedDeprecatedSetting() {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.IndexScope, Property.Deprecated)
+        );
+        assertThat(e, hasToString(containsString("index-scoped setting [foo.bar] can not have property [Deprecated]")));
+    }
+
     public void testTimeValue() {
         final TimeValue random = randomTimeValue();
 
@@ -1518,7 +1534,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testCheckForDeprecationWithSkipSetting() {
-        final String settingName = "foo.bar.hide.this";
+        final String settingName = randomIdentifier("foo.bar.hide.this.");
         final String settingValue = "blat";
         final Setting<String> setting = Setting.simpleString(settingName, settingValue);
         final Settings settings = Settings.builder().put(settingName, settingValue).build();

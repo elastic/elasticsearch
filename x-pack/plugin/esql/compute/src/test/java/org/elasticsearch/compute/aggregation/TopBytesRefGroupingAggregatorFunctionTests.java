@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 public class TopBytesRefGroupingAggregatorFunctionTests extends AbstractTopBytesRefGroupingAggregatorFunctionTests {
     @Override
@@ -19,11 +18,6 @@ public class TopBytesRefGroupingAggregatorFunctionTests extends AbstractTopBytes
     @Override
     protected final AggregatorFunctionSupplier aggregatorFunction() {
         return new TopBytesRefAggregatorFunctionSupplier(LIMIT, true);
-    }
-
-    @Override
-    protected DataType acceptedDataType() {
-        return DataType.KEYWORD;
     }
 
     @Override

@@ -107,6 +107,7 @@ POST log-messages/_search?filter_path=aggregations
   }
 }
 ```
+% TEST[setup:categorize_text]
 
 Response:
 
@@ -160,6 +161,7 @@ POST log-messages/_search?filter_path=aggregations
   }
 }
 ```
+% TEST[setup:categorize_text]
 
 1. The filters to apply to the analyzed tokens. It filters out tokens like `bar_123`.
 
@@ -217,6 +219,7 @@ POST log-messages/_search?filter_path=aggregations
   }
 }
 ```
+% TEST[setup:categorize_text]
 
 1. The filters to apply to the analyzed tokens. It filters out tokens like `bar_123`.
 2. Require 11% of token weight to match before adding a message to an existing category rather than creating a new one.
@@ -279,6 +282,7 @@ POST log-messages/_search?filter_path=aggregations
   }
 }
 ```
+% TEST[setup:categorize_text]
 
 ```console-result
 {

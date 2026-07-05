@@ -11,9 +11,11 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -29,12 +31,14 @@ public class SearchShardsGroup implements Writeable {
     private final ShardId shardId;
     private final List<String> allocatedNodes;
     private final boolean skipped;
+    private final SplitShardCountSummary splitShardCountSummary;
     private final transient boolean preFiltered;
 
-    public SearchShardsGroup(ShardId shardId, List<String> allocatedNodes, boolean skipped) {
+    public SearchShardsGroup(ShardId shardId, List<String> allocatedNodes, boolean skipped, SplitShardCountSummary splitShardCountSummary) {
         this.shardId = shardId;
         this.allocatedNodes = allocatedNodes;
         this.skipped = skipped;
+        this.splitShardCountSummary = splitShardCountSummary;
         this.preFiltered = true;
     }
 
@@ -45,6 +49,10 @@ public class SearchShardsGroup implements Writeable {
         this.shardId = oldGroup.getShardId();
         this.allocatedNodes = Arrays.stream(oldGroup.getShards()).map(ShardRouting::currentNodeId).toList();
         this.skipped = false;
+        // This value is specific to resharding feature and this code path is specific to CCS
+        // involving 8.x remote cluster.
+        // We don't currently expect resharding to be used in such conditions so it's unset.
+        this.splitShardCountSummary = SplitShardCountSummary.UNSET;
         this.preFiltered = false;
     }
 
@@ -52,6 +60,9 @@ public class SearchShardsGroup implements Writeable {
         this.shardId = new ShardId(in);
         this.allocatedNodes = in.readStringCollectionAsList();
         this.skipped = in.readBoolean();
+        this.splitShardCountSummary = in.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)
+            ? SplitShardCountSummary.fromInt(in.readVInt())
+            : SplitShardCountSummary.UNSET;
         this.preFiltered = true;
     }
 
@@ -64,6 +75,9 @@ public class SearchShardsGroup implements Writeable {
         shardId.writeTo(out);
         out.writeStringCollection(allocatedNodes);
         out.writeBoolean(skipped);
+        if (out.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)) {
+            splitShardCountSummary.writeTo(out);
+        }
     }
 
     public ShardId shardId() {
@@ -92,20 +106,24 @@ public class SearchShardsGroup implements Writeable {
         return allocatedNodes;
     }
 
+    public SplitShardCountSummary splitShardCountSummary() {
+        return splitShardCountSummary;
+    }
+
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SearchShardsGroup group = (SearchShardsGroup) o;
-        return skipped == group.skipped
-            && preFiltered == group.preFiltered
-            && shardId.equals(group.shardId)
-            && allocatedNodes.equals(group.allocatedNodes);
+        SearchShardsGroup that = (SearchShardsGroup) o;
+        return skipped == that.skipped
+            && preFiltered == that.preFiltered
+            && Objects.equals(shardId, that.shardId)
+            && Objects.equals(allocatedNodes, that.allocatedNodes)
+            && Objects.equals(splitShardCountSummary, that.splitShardCountSummary);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(shardId, allocatedNodes, skipped, preFiltered);
+        return Objects.hash(shardId, allocatedNodes, skipped, splitShardCountSummary, preFiltered);
     }
 
     @Override

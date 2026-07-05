@@ -29,15 +29,28 @@ public abstract class AbstractBWCWireSerializingTestCase<T extends Writeable> ex
     public final void testBwcSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
-            for (TransportVersion bwcVersion : DEFAULT_BWC_VERSIONS) {
-                assertBwcSerialization(testInstance, bwcVersion);
+            try {
+                for (TransportVersion bwcVersion : DEFAULT_BWC_VERSIONS) {
+                    assertBwcSerialization(testInstance, bwcVersion);
+                }
+            } finally {
+                dispose(testInstance);
             }
         }
     }
 
     protected final void assertBwcSerialization(T testInstance, TransportVersion version) throws IOException {
         T deserializedInstance = copyInstance(testInstance, version);
-        assertOnBWCObject(mutateInstanceForVersion(testInstance, version), deserializedInstance, version);
+        try {
+            T mutated = mutateInstanceForVersion(testInstance, version);
+            try {
+                assertOnBWCObject(mutated, deserializedInstance, version);
+            } finally {
+                dispose(mutated);
+            }
+        } finally {
+            dispose(deserializedInstance);
+        }
     }
 
     protected void assertOnBWCObject(T testInstance, T bwcDeserializedObject, TransportVersion version) {

@@ -61,9 +61,7 @@ public record AnthropicChatCompletionRequestTaskSettings(
         Double topP = removeAsType(map, TOP_P_FIELD, Double.class);
         Integer topK = removeAsType(map, TOP_K_FIELD, Integer.class);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AnthropicChatCompletionRequestTaskSettings(maxTokens, temperature, topP, topK);
     }

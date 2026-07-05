@@ -21,6 +21,12 @@ Combining `query` and `retrievers` is not supported.
 
     The query to use when using the [multi-field query format](../retrievers.md#multi-field-query-format).
 
+    This format automatically groups fields into **lexical** (text) and **semantic** (vector) categories. To ensure both categories contribute equally to the final score regardless of the number of fields, the retriever applies a two-level normalization formula:
+
+    ```{math}
+    Score_{total} = Normalizer(\sum_{s \in Semantic} Normalizer(Score_s)) + Normalizer(\sum_{l \in Lexical} Score_l)
+    ```
+
 `fields` {applies_to}`stack: ga 9.1`
 :   (Optional, array of strings)
 
@@ -49,6 +55,14 @@ Combining `query` and `retrievers` is not supported.
 
     A list of the sub-retrievers' configuration, that we will take into account and whose result sets we will merge through a weighted sum.
     Each configuration can have a different weight and normalization depending on the specified retriever.
+
+    The final score is calculated using the following linear combination formula:
+
+    ```{math}
+    Score = \sum_{i} (weight_i \times Normalizer(Score_i))
+    ```
+
+    
 
 `rank_window_size`
 :   (Optional, integer)
@@ -91,8 +105,8 @@ The `linear` retriever supports the following normalizers:
 * `none`: No normalization
 * `minmax`: Normalizes scores based on the following formula:
 
-    ```
-    score = (score - min) / (max - min)
+    ```{math}
+    score = \frac{score - min}{max - min}
     ```
 * `l2_norm`: Normalizes scores using the L2 norm of the score values {applies_to}`stack: ga 9.1`
 
@@ -115,7 +129,7 @@ GET my_index/_search
               "num_candidates": 100
             }
           },
-          "weight": 5 # KNN query weighted 5x
+          "weight": 5 <1> 
         },
         {
           "retriever": {
@@ -127,7 +141,7 @@ GET my_index/_search
               }
             }
           },
-          "weight": 1.5 # BM25 query weighted 1.5x
+          "weight": 1.5 <2> 
         }
       ],
       "normalizer": "minmax"
@@ -135,6 +149,9 @@ GET my_index/_search
   }
 }
 ```
+
+1. KNN query weighted 5x
+2. BM25 query weighted 1.5x
 
 In this example, the `minmax` normalizer is applied to both the kNN retriever and the standard retriever. The top-level normalizer serves as a default that can be overridden by individual sub-retrievers. When using the multi-field query format, the top-level normalizer is applied to all generated inner retrievers.
 

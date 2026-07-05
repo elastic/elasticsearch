@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -70,7 +71,7 @@ public class RemoteClusterSettings {
         (ns, key) -> boolSetting(
             key,
             DEFAULT_SKIP_UNAVAILABLE,
-            new RemoteConnectionEnabled<>(ns, key),
+            new UnsupportedInCPSValidator<>(ns, key),
             Setting.Property.Dynamic,
             Setting.Property.NodeScope
         )
@@ -199,9 +200,13 @@ public class RemoteClusterSettings {
             Settings settings,
             ProxyLinkedProjectConfigBuilder builder
         ) {
-            return builder.proxyAddress(PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .maxNumConnections(REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .serverName(SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            builder.proxyAddress(PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            final var serverName = SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            if (serverName != null && serverName.isEmpty() == false) {
+                builder.serverName(serverName);
+            }
+            builder.maxNumConnections(REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            return builder;
         }
     }
 
@@ -284,10 +289,14 @@ public class RemoteClusterSettings {
             Settings settings,
             SniffLinkedProjectConfigBuilder builder
         ) {
-            return builder.nodePredicate(getNodePredicate(settings))
-                .seedNodes(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .proxyAddress(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings))
-                .maxNumConnections(REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            builder.nodePredicate(getNodePredicate(settings));
+            builder.seedNodes(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            final var proxyAddress = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            if (proxyAddress != null && proxyAddress.isEmpty() == false) {
+                builder.proxyAddress(proxyAddress);
+            }
+            builder.maxNumConnections(REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            return builder;
         }
 
         public static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
@@ -390,6 +399,10 @@ public class RemoteClusterSettings {
             this.key = key;
         }
 
+        protected String getKey() {
+            return key;
+        }
+
         @Override
         public void validate(T value) {}
 
@@ -481,6 +494,27 @@ public class RemoteClusterSettings {
             );
             Stream<Setting<?>> settingStream = Stream.of(concrete);
             return settingStream.iterator();
+        }
+    }
+
+    private static class UnsupportedInCPSValidator<T> extends RemoteConnectionEnabled<T> {
+        private final Setting<Boolean> cpsSetting = Setting.boolSetting("serverless.cross_project.enabled", false);
+
+        private UnsupportedInCPSValidator(String clusterAlias, String key) {
+            super(clusterAlias, key);
+        }
+
+        @Override
+        public void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            if (isPresent && (Boolean) settings.get(cpsSetting)) {
+                throw new IllegalArgumentException("setting [" + getKey() + "] is unavailable when CPS is enabled");
+            }
+            super.validate(value, settings, isPresent);
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return Iterators.concat(super.settings(), Iterators.single(cpsSetting));
         }
     }
 }

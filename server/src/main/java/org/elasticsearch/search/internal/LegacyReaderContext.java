@@ -31,12 +31,13 @@ public final class LegacyReaderContext extends ReaderContext {
         IndexShard indexShard,
         Engine.SearcherSupplier reader,
         ShardSearchRequest shardSearchRequest,
-        long keepAliveInMillis
+        long keepAliveInMillis,
+        long creatorTaskId
     ) {
-        super(id, indexService, indexShard, reader, keepAliveInMillis, false);
+        super(id, indexService, indexShard, reader, keepAliveInMillis, false, creatorTaskId);
         assert shardSearchRequest.readerId() == null;
         assert shardSearchRequest.keepAlive() == null;
-        assert id.getSearcherId() == null : "Legacy reader context must not have searcher id";
+        assert id.isRetryable() == false : "Legacy reader context is not retryable";
         this.shardSearchRequest = Objects.requireNonNull(shardSearchRequest, "ShardSearchRequest must be provided");
         if (shardSearchRequest.scroll() != null) {
             // Search scroll requests are special, they don't hold indices names so we have

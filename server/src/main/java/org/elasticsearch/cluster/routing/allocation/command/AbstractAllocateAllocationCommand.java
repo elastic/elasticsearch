@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -89,6 +89,8 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         }
     }
 
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
+
     protected final String index;
     protected final int shardId;
     protected final String node;
@@ -108,7 +110,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         index = in.readString();
         shardId = in.readVInt();
         node = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (in.getTransportVersion().supports(MULTI_PROJECT)) {
             projectId = ProjectId.readFrom(in);
         } else {
             projectId = Metadata.DEFAULT_PROJECT_ID;
@@ -120,7 +122,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         out.writeString(index);
         out.writeVInt(shardId);
         out.writeString(node);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (out.getTransportVersion().supports(MULTI_PROJECT)) {
             projectId.writeTo(out);
         } else {
             assert Metadata.DEFAULT_PROJECT_ID.equals(projectId) : projectId;

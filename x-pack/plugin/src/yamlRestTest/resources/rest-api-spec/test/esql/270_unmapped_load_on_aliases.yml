@@ -1,0 +1,460 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_v2]
+      reason: "uses SET unmapped_fields=\"load\""
+
+  - do:
+      indices.create:
+        index: alias-test-full
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              message:
+                type: keyword
+              event_duration:
+                type: long
+              status:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: alias-test-partial
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              message:
+                type: keyword
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: alias-test-full
+                alias: alias-test-both
+            - add:
+                index: alias-test-partial
+                alias: alias-test-both
+            - add:
+                index: alias-test-full
+                alias: alias-test-full-only
+            - add:
+                index: alias-test-partial
+                alias: alias-test-partial-only
+
+  - do:
+      bulk:
+        index: alias-test-full
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "@timestamp": "2024-01-01T00:00:00Z", "message": "ok", "event_duration": 100, "status": "green" }
+          - { "index": {} }
+          - { "@timestamp": "2024-01-02T00:00:00Z", "message": "warn", "event_duration": 200, "status": "yellow" }
+          - { "index": {} }
+          - { "@timestamp": "2024-01-03T00:00:00Z", "message": "err", "event_duration": 300, "status": "red" }
+
+  - do:
+      bulk:
+        index: alias-test-partial
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "@timestamp": "2024-01-04T00:00:00Z", "message": "partial1" }
+          - { "index": {} }
+          - { "@timestamp": "2024-01-05T00:00:00Z", "message": "partial2" }
+
+---
+'basic load from alias spanning two indices':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | KEEP message, event_duration, status | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: event_duration }
+  - match: { columns.1.type: long }
+  - match: { columns.2.name: status }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: ["err", 300, "red"] }
+  - match: { values.1: ["ok", 100, "green"] }
+  - match: { values.2: ["partial1", null, null] }
+  - match: { values.3: ["partial2", null, null] }
+  - match: { values.4: ["warn", 200, "yellow"] }
+
+---
+'load from alias without SET does not show unmapped fields':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM alias-test-both | SORT message'
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.1.name: event_duration }
+  - match: { columns.2.name: message }
+  - match: { columns.3.name: status }
+  - length: { values: 5 }
+
+---
+'filter on unmapped field IS NULL via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | WHERE event_duration IS NULL | KEEP message | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.0.type: keyword }
+  - match: { values.0: ["partial1"] }
+  - match: { values.1: ["partial2"] }
+
+---
+'filter on unmapped field IS NOT NULL via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | WHERE event_duration IS NOT NULL | KEEP message, event_duration | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: event_duration }
+  - match: { values.0: ["err", 300] }
+  - match: { values.1: ["ok", 100] }
+  - match: { values.2: ["warn", 200] }
+
+---
+'stats on unmapped field via alias':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | STATS total = SUM(event_duration), c = COUNT(event_duration)'
+  - match: { columns.0.name: total }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: c }
+  - match: { columns.1.type: long }
+  - match: { values.0: [600, 3] }
+
+---
+'stats grouped by unmapped field via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | STATS c = COUNT(*) BY status | SORT status'
+  - match: { columns.0.name: c }
+  - match: { columns.1.name: status }
+  - match: { values.0: [1, "green"] }
+  - match: { values.1: [1, "red"] }
+  - match: { values.2: [1, "yellow"] }
+  - match: { values.3: [2, null] }
+
+---
+'eval on unmapped field via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | EVAL doubled = event_duration * 2 | KEEP message, doubled | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: doubled }
+  - match: { values.0: ["err", 600] }
+  - match: { values.1: ["ok", 200] }
+  - match: { values.2: ["partial1", null] }
+  - match: { values.3: ["partial2", null] }
+  - match: { values.4: ["warn", 400] }
+
+---
+'load from single-index alias has no unmapped':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-full-only | KEEP message, event_duration | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: event_duration }
+  - match: { values.0: ["err", 300] }
+  - match: { values.1: ["ok", 100] }
+  - match: { values.2: ["warn", 200] }
+
+---
+'load from alias using wildcard pattern':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-* | KEEP message, event_duration | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: event_duration }
+  - length: { values: 5 }
+  - match: { values.0: ["err", 300] }
+  - match: { values.1: ["ok", 100] }
+  - match: { values.2: ["partial1", null] }
+  - match: { values.3: ["partial2", null] }
+  - match: { values.4: ["warn", 200] }
+
+---
+'load nonexistent field via alias':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | KEEP message, nonexistent_field | SORT message | LIMIT 3'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: nonexistent_field }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: ["err", null] }
+  - match: { values.1: ["ok", null] }
+  - match: { values.2: ["partial1", null] }
+
+---
+'coalesce on unmapped field via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | EVAL s = COALESCE(status, "unknown") | KEEP message, s | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: s }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: ["err", "red"] }
+  - match: { values.1: ["ok", "green"] }
+  - match: { values.2: ["partial1", "unknown"] }
+  - match: { values.3: ["partial2", "unknown"] }
+  - match: { values.4: ["warn", "yellow"] }
+
+---
+'rename partially unmapped field via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | RENAME status AS s | KEEP message, s | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: s }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: ["err", "red"] }
+  - match: { values.1: ["ok", "green"] }
+  - match: { values.2: ["partial1", null] }
+  - match: { values.3: ["partial2", null] }
+  - match: { values.4: ["warn", "yellow"] }
+
+---
+'filter with STARTS_WITH on partially mapped field via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | WHERE STARTS_WITH(status, "gr") | KEEP message, status'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: status }
+  - length: { values: 1 }
+  - match: { values.0: ["ok", "green"] }
+
+---
+'sort on unmapped field via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | KEEP message, status | SORT status NULLS LAST, message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: status }
+  - match: { values.0: ["ok", "green"] }
+  - match: { values.1: ["err", "red"] }
+  - match: { values.2: ["warn", "yellow"] }
+  - match: { values.3: ["partial1", null] }
+  - match: { values.4: ["partial2", null] }
+
+---
+'sort on expression of unmapped field via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | KEEP message, status | SORT LENGTH(status) NULLS LAST, message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: status }
+  - match: { values.0: ["err", "red"] }
+  - match: { values.1: ["ok", "green"] }
+  - match: { values.2: ["warn", "yellow"] }
+  - match: { values.3: ["partial1", null] }
+  - match: { values.4: ["partial2", null] }
+
+---
+'filter conjunction mapped and unmapped via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | WHERE message == "ok" AND status == "green" | KEEP message, status'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: status }
+  - length: { values: 1 }
+  - match: { values.0: ["ok", "green"] }
+
+---
+'filter disjunction mapped and unmapped via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | WHERE message == "partial1" OR status == "red" | KEEP message, status | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: status }
+  - length: { values: 2 }
+  - match: { values.0: ["err", "red"] }
+  - match: { values.1: ["partial1", null] }
+
+---
+'filter conjunction mapped and nonexistent via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | WHERE message == "ok" AND nonexistent_field == "x" | KEEP message, nonexistent_field'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: nonexistent_field }
+  - length: { values: 0 }
+
+---
+'cast unmapped field to string via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | EVAL dur_str = TO_STRING(event_duration) | KEEP message, dur_str | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: dur_str }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: ["err", "300"] }
+  - match: { values.1: ["ok", "100"] }
+  - match: { values.2: ["partial1", null] }
+  - match: { values.3: ["partial2", null] }
+  - match: { values.4: ["warn", "200"] }
+
+---
+'load with METADATA _index via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both METADATA _index | KEEP _index, message, status | SORT _index, message'
+  - match: { columns.0.name: _index }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: message }
+  - match: { columns.2.name: status }
+  - match: { values.0: ["alias-test-full", "err", "red"] }
+  - match: { values.1: ["alias-test-full", "ok", "green"] }
+  - match: { values.2: ["alias-test-full", "warn", "yellow"] }
+  - match: { values.3: ["alias-test-partial", "partial1", null] }
+  - match: { values.4: ["alias-test-partial", "partial2", null] }
+
+---
+'inline stats on unmapped field via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | INLINE STATS c = COUNT(*) BY status | KEEP message, status, c | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: status }
+  - match: { columns.2.name: c }
+  - match: { columns.2.type: long }
+  - match: { values.0: ["err", "red", 1] }
+  - match: { values.1: ["ok", "green", 1] }
+  - match: { values.2: ["partial1", null, 2] }
+  - match: { values.3: ["partial2", null, 2] }
+  - match: { values.4: ["warn", "yellow", 1] }
+
+---
+'multiple stats aggregations on unmapped field via alias':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | STATS s = SUM(event_duration), mn = MIN(event_duration), mx = MAX(event_duration), avg = AVG(event_duration), c = COUNT(event_duration)'
+  - match: { columns.0.name: s }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: mn }
+  - match: { columns.1.type: long }
+  - match: { columns.2.name: mx }
+  - match: { columns.2.type: long }
+  - match: { columns.3.name: avg }
+  - match: { columns.3.type: double }
+  - match: { columns.4.name: c }
+  - match: { columns.4.type: long }
+  - match: { values.0: [600, 100, 300, 200.0, 3] }
+
+---
+'drop unmapped field via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | DROP status | KEEP message, event_duration | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: event_duration }
+  - match: { values.0: ["err", 300] }
+  - match: { values.1: ["ok", 100] }
+  - match: { values.2: ["partial1", null] }
+  - match: { values.3: ["partial2", null] }
+  - match: { values.4: ["warn", 200] }
+
+---
+'multiple aliases in FROM':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-full-only, alias-test-partial-only | KEEP message, event_duration | SORT message'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: event_duration }
+  - length: { values: 5 }
+  - match: { values.0: ["err", 300] }
+  - match: { values.1: ["ok", 100] }
+  - match: { values.2: ["partial1", null] }
+  - match: { values.3: ["partial2", null] }
+  - match: { values.4: ["warn", 200] }
+
+---
+'stats after cast on unmapped field via alias':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | STATS c = COUNT(*) BY status::string | SORT `status::string` NULLS LAST'
+  - match: { columns.0.name: c }
+  - match: { columns.1.name: "status::string" }
+  - match: { values.0: [1, "green"] }
+  - match: { values.1: [1, "red"] }
+  - match: { values.2: [1, "yellow"] }
+  - match: { values.3: [2, null] }

@@ -33,16 +33,10 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
 
   private final DriverContext driverContext;
 
-  public ValuesFloatGroupingAggregatorFunction(List<Integer> channels,
-      ValuesFloatAggregator.GroupingState state, DriverContext driverContext) {
+  ValuesFloatGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = ValuesFloatAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static ValuesFloatGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new ValuesFloatGroupingAggregatorFunction(channels, ValuesFloatAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -58,6 +52,15 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     FloatBlock vBlock = page.getBlock(channels.get(0));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+      return null;
+    }
     FloatVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock);
@@ -149,6 +152,15 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
     assert channels.size() == intermediateBlockCount();
     Block valuesUncast = page.getBlock(channels.get(0));
     if (valuesUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     FloatBlock values = (FloatBlock) valuesUncast;
@@ -211,6 +223,15 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
     assert channels.size() == intermediateBlockCount();
     Block valuesUncast = page.getBlock(channels.get(0));
     if (valuesUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     FloatBlock values = (FloatBlock) valuesUncast;
@@ -259,6 +280,15 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
     assert channels.size() == intermediateBlockCount();
     Block valuesUncast = page.getBlock(channels.get(0));
     if (valuesUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     FloatBlock values = (FloatBlock) valuesUncast;
@@ -271,6 +301,11 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, FloatBlock vBlock) {
     if (vBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }
@@ -281,14 +316,15 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return ValuesFloatAggregator.prepareEvaluateIntermediate(state, selected, ctx);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = ValuesFloatAggregator.evaluateFinal(state, selected, ctx);
+    return ValuesFloatAggregator.prepareEvaluateFinal(state, selected, ctx);
   }
 
   @Override

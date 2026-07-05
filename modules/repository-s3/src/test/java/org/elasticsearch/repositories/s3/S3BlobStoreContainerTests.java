@@ -37,6 +37,7 @@ import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -46,12 +47,14 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.s3.S3BlobContainer.ConditionalOperation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -75,7 +78,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 randomAlphaOfLengthBetween(1, 10),
                 null,
                 blobSize,
-                randomBoolean()
+                randomCondition()
             )
         );
         assertEquals("Upload request size [" + blobSize + "] can't be larger than 5gb", e.getMessage());
@@ -96,7 +99,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 blobName,
                 new ByteArrayInputStream(new byte[0]),
                 ByteSizeUnit.MB.toBytes(2),
-                randomBoolean()
+                randomCondition()
             )
         );
         assertEquals("Upload request size [2097152] can't be larger than buffer size", e.getMessage());
@@ -117,6 +120,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.supportsConditionalWrites()).thenReturn(true);
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
@@ -124,14 +128,14 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
-        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(storageClass);
 
         final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final boolean failIfAlreadyExists = randomBoolean();
+        final ConditionalOperation conditionalOperation = randomCondition();
 
         final S3Client client = configureMockClient(blobStore);
 
@@ -141,7 +145,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(client.putObject(requestCaptor.capture(), bodyCaptor.capture())).thenReturn(PutObjectResponse.builder().build());
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
-        blobContainer.executeSingleUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, failIfAlreadyExists);
+        blobContainer.executeSingleUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, conditionalOperation);
 
         final PutObjectRequest request = requestCaptor.getValue();
         assertEquals(bucketName, request.bucket());
@@ -157,8 +161,19 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             );
         }
 
-        if (failIfAlreadyExists) {
-            assertEquals("*", request.ifNoneMatch());
+        switch (conditionalOperation) {
+            case ConditionalOperation.IfMatch ifMatch -> {
+                assertEquals(ifMatch.etag(), request.ifMatch());
+                assertNull(request.ifNoneMatch());
+            }
+            case ConditionalOperation.IfNoneMatch ignored -> {
+                assertNull(request.ifMatch());
+                assertEquals("*", request.ifNoneMatch());
+            }
+            case ConditionalOperation.None ignored -> {
+                assertNull(request.ifMatch());
+                assertNull(request.ifNoneMatch());
+            }
         }
 
         final RequestBody requestBody = bodyCaptor.getValue();
@@ -184,7 +199,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 randomAlphaOfLengthBetween(1, 10),
                 null,
                 blobSize,
-                randomBoolean()
+                randomCondition()
             )
         );
         assertEquals("Multipart upload request size [" + blobSize + "] can't be larger than 5tb", e.getMessage());
@@ -203,7 +218,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 randomAlphaOfLengthBetween(1, 10),
                 null,
                 blobSize,
-                randomBoolean()
+                randomCondition()
             )
         );
         assertEquals("Multipart upload request size [" + blobSize + "] can't be smaller than 5mb", e.getMessage());
@@ -234,10 +249,13 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(1, 128));
         final long bufferSize = ByteSizeUnit.MB.toBytes(randomIntBetween(5, 1024));
+        final long maxCopySizeBeforeMultipart = ByteSizeUnit.MB.toBytes(randomIntBetween(5, 1024));
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
+        when(blobStore.maxCopySizeBeforeMultipart()).thenReturn(maxCopySizeBeforeMultipart);
+        when(blobStore.supportsConditionalWrites()).thenReturn(true);
 
         final S3BlobStore sourceBlobStore = mock(S3BlobStore.class);
         when(sourceBlobStore.bucket()).thenReturn(sourceBucketName);
@@ -246,14 +264,14 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
-        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(storageClass);
 
         final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final boolean failIfAlreadyExists = doCopy ? false : randomBoolean();
+        final ConditionalOperation conditionalOperation = doCopy ? ConditionalOperation.NONE : randomCondition();
 
         final S3Client client = configureMockClient(blobStore);
 
@@ -270,7 +288,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final ArgumentCaptor<RequestBody> uploadPartBodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
 
         final List<String> expectedEtags = new ArrayList<>();
-        final long partSize = Math.min(doCopy ? ByteSizeUnit.GB.toBytes(5) : bufferSize, blobSize);
+        final long partSize = Math.min(doCopy ? maxCopySizeBeforeMultipart : bufferSize, blobSize);
         long totalBytes = 0;
         do {
             expectedEtags.add(randomAlphaOfLength(50));
@@ -303,7 +321,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         if (doCopy) {
             blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize);
         } else {
-            blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, failIfAlreadyExists);
+            blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, conditionalOperation);
         }
 
         final CreateMultipartUploadRequest initRequest = createMultipartUploadRequestCaptor.getValue();
@@ -370,8 +388,19 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         assertEquals(blobPath.buildAsString() + blobName, compRequest.key());
         assertEquals(uploadId, compRequest.uploadId());
 
-        if (failIfAlreadyExists) {
-            assertEquals("*", compRequest.ifNoneMatch());
+        switch (conditionalOperation) {
+            case ConditionalOperation.IfMatch ifMatch -> {
+                assertEquals(ifMatch.etag(), compRequest.ifMatch());
+                assertNull(compRequest.ifNoneMatch());
+            }
+            case ConditionalOperation.IfNoneMatch ignored -> {
+                assertNull(compRequest.ifMatch());
+                assertEquals("*", compRequest.ifNoneMatch());
+            }
+            case ConditionalOperation.None ignored -> {
+                assertNull(compRequest.ifMatch());
+                assertNull(compRequest.ifNoneMatch());
+            }
         }
 
         final List<String> actualETags = compRequest.multipartUpload()
@@ -394,7 +423,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
-        when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(randomFrom(StorageClass.values()));
 
         final S3Client client = mock(S3Client.class);
         final SdkHttpClient httpClient = mock(SdkHttpClient.class);
@@ -459,7 +488,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 blobName,
                 new ByteArrayInputStream(new byte[0]),
                 blobSize,
-                randomBoolean()
+                randomCondition()
             );
         });
 
@@ -505,7 +534,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final var blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(sourceBucketName);
-        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(storageClass);
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
@@ -553,6 +582,14 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             });
         }
         return client;
+    }
+
+    private ConditionalOperation randomCondition() {
+        return switch (between(0, 2)) {
+            case 0 -> ConditionalOperation.NONE;
+            case 1 -> ConditionalOperation.IF_NONE_MATCH;
+            default -> ConditionalOperation.ifMatch(randomAlphanumericOfLength(128));
+        };
     }
 
     private static void closeMockClient(S3BlobStore blobStore) {
@@ -621,34 +658,52 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         assertThat(ex.getMessage(), equalTo("cannedACL is not valid: [test_invalid]"));
     }
 
-    public void testInitStorageClass() {
+    public void testInitStorageClassForAllowList() {
         // it should default to `standard`
-        assertThat(S3BlobStore.initStorageClass(null), equalTo(StorageClass.STANDARD));
-        assertThat(S3BlobStore.initStorageClass(""), equalTo(StorageClass.STANDARD));
+        assertThat(S3BlobStore.initStorageClass(null, true), equalTo(StorageClass.STANDARD));
+        assertThat(S3BlobStore.initStorageClass("", true), equalTo(StorageClass.STANDARD));
 
-        // it should accept [standard, standard_ia, onezone_ia, reduced_redundancy, intelligent_tiering]
-        assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.STANDARD));
-        assertThat(S3BlobStore.initStorageClass("standard_ia"), equalTo(StorageClass.STANDARD_IA));
-        assertThat(S3BlobStore.initStorageClass("onezone_ia"), equalTo(StorageClass.ONEZONE_IA));
-        assertThat(S3BlobStore.initStorageClass("reduced_redundancy"), equalTo(StorageClass.REDUCED_REDUNDANCY));
-        assertThat(S3BlobStore.initStorageClass("intelligent_tiering"), equalTo(StorageClass.INTELLIGENT_TIERING));
+        for (final String name : EnumSet.allOf(StorageClass.class)
+            .stream()
+            .filter(S3BlobStore.ALLOWED_STORAGE_CLASSES::contains)
+            .map(Enum::name)
+            .toList()) {
+            assertThat(S3BlobStore.initStorageClass(name, true), equalTo(StorageClass.valueOf(name)));
+        }
     }
 
     public void testCaseInsensitiveStorageClass() {
-        assertThat(S3BlobStore.initStorageClass("sTandaRd"), equalTo(StorageClass.STANDARD));
-        assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia"), equalTo(StorageClass.STANDARD_IA));
-        assertThat(S3BlobStore.initStorageClass("oNeZoNe_iA"), equalTo(StorageClass.ONEZONE_IA));
-        assertThat(S3BlobStore.initStorageClass("reduCED_redundancy"), equalTo(StorageClass.REDUCED_REDUNDANCY));
-        assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG"), equalTo(StorageClass.INTELLIGENT_TIERING));
+        assertThat(S3BlobStore.initStorageClass("sTandaRd", true), equalTo(StorageClass.STANDARD));
+        assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia", true), equalTo(StorageClass.STANDARD_IA));
+        assertThat(S3BlobStore.initStorageClass("oNeZoNe_iA", true), equalTo(StorageClass.ONEZONE_IA));
+        assertThat(S3BlobStore.initStorageClass("reduCED_redundancy", true), equalTo(StorageClass.REDUCED_REDUNDANCY));
+        assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG", true), equalTo(StorageClass.INTELLIGENT_TIERING));
+        assertThat(S3BlobStore.initStorageClass("oUtPoSts", true), equalTo(StorageClass.OUTPOSTS));
+        assertThat(S3BlobStore.initStorageClass("glaCiEr_iR", true), equalTo(StorageClass.GLACIER_IR));
+        assertThat(S3BlobStore.initStorageClass("SnOw", true), equalTo(StorageClass.SNOW));
     }
 
     public void testInvalidStorageClass() {
-        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("whatever"));
+        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("whatever", false));
         assertThat(ex.getMessage(), equalTo("`whatever` is not a known S3 Storage Class."));
     }
 
-    public void testRejectGlacierStorageClass() {
-        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("glacier"));
+    public void testDisallowedKnownStorageClassesInAllowList() {
+        for (final String name : EnumSet.allOf(StorageClass.class)
+            .stream()
+            .filter(
+                storageClass -> StorageClass.UNKNOWN_TO_SDK_VERSION.equals(storageClass) == false
+                    && S3BlobStore.ALLOWED_STORAGE_CLASSES.contains(storageClass) == false
+            )
+            .map(Enum::name)
+            .toList()) {
+            BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass(name, true));
+            assertThat(ex.getMessage(), equalTo("`" + name + "` is not an allowed S3 Storage Class."));
+        }
+    }
+
+    public void testRejectGlacierStorageClassForNonAllowList() {
+        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("glacier", false));
         assertThat(ex.getMessage(), equalTo("Glacier storage class is not supported"));
     }
 

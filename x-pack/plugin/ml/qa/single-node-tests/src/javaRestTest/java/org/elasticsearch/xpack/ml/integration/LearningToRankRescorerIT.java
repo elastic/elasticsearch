@@ -83,7 +83,7 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
               }
             }""");
         var response = client().performRequest(request);
-        assertExplainExtractedFeatures(response, List.of("type_tv", "cost", "two"));
+        assertExplainExtractedFeatures(response, List.of("cost", "type_tv", "two"));
     }
 
     public void testLearningToRankRescoreSmallWindow() throws Exception {
@@ -192,27 +192,25 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
             assertThat(queryDetails.get(1).get("description"), equalTo("extracted features"));
 
             var featureDetails = new ArrayList<>((ArrayList<Map<String, Object>>) queryDetails.get(1).get("details"));
-            assertThat(featureDetails.size(), equalTo(3));
+            assertThat(featureDetails.size(), equalTo(expectedFeatures.size()));
 
-            var missingKeys = new ArrayList<String>();
-            for (String expectedFeature : expectedFeatures) {
-                var expectedDescription = Strings.format("feature value for [%s]", expectedFeature);
-
-                var wasFound = false;
-                for (Map<String, Object> detailItem : featureDetails) {
-                    if (detailItem.get("description").equals(expectedDescription)) {
-                        featureDetails.remove(detailItem);
-                        wasFound = true;
-                        break;
-                    }
-                }
-
-                if (wasFound == false) {
-                    missingKeys.add(expectedFeature);
+            // Extract feature names in the order they appear in the explanation
+            List<String> actualFeatureOrder = new ArrayList<>();
+            for (Map<String, Object> detailItem : featureDetails) {
+                String description = (String) detailItem.get("description");
+                // Extract feature name from "feature value for [featureName]"
+                if (description != null && description.startsWith("feature value for [") && description.endsWith("]")) {
+                    String featureName = description.substring("feature value for [".length(), description.length() - 1);
+                    actualFeatureOrder.add(featureName);
                 }
             }
 
-            assertThat(Strings.format("Could not find features: [%s]", String.join(", ", missingKeys)), featureDetails.size(), equalTo(0));
+            // Verify that features appear in the expected order
+            assertThat(
+                "Features should appear in the expected order. Expected: " + expectedFeatures + ", Actual: " + actualFeatureOrder,
+                actualFeatureOrder,
+                equalTo(expectedFeatures)
+            );
         }
     }
 

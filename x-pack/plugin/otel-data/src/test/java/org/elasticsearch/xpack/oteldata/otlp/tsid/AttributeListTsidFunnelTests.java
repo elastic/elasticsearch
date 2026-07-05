@@ -61,8 +61,11 @@ public class AttributeListTsidFunnelTests extends ESTestCase {
         funnel.add(
             List.of(
                 keyValue("elasticsearch.index", "index"),
+                keyValue("data_stream.type", "metrics"),
                 keyValue("data_stream.dataset", "dataset"),
-                keyValue("data_stream.namespace", "namespace")
+                keyValue("data_stream.namespace", "namespace"),
+                keyValue("elastic.mapping.mode", "otel"),
+                keyValue("elasticsearch.document_id", "doc-id")
             ),
             funnelBuilder
         );

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -43,20 +44,26 @@ public class ColumnInfoImpl implements ColumnInfo {
         PARSER = parser.build();
     }
 
+    private static final TransportVersion ESQL_REPORT_ORIGINAL_TYPES = TransportVersion.fromName("esql_report_original_types");
+    private static final TransportVersion ESQL_COLUMN_META = TransportVersion.fromName("esql_column_meta");
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
         }
         if ((o instanceof ColumnInfoImpl that)) {
-            return Objects.equals(name, that.name) && Objects.equals(type, that.type) && Objects.equals(originalTypes, that.originalTypes);
+            return Objects.equals(name, that.name)
+                && Objects.equals(type, that.type)
+                && Objects.equals(originalTypes, that.originalTypes)
+                && Objects.equals(meta, that.meta);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, originalTypes);
+        return Objects.hash(name, type, originalTypes, meta);
     }
 
     public static ColumnInfo fromXContent(XContentParser parser) {
@@ -76,16 +83,28 @@ public class ColumnInfoImpl implements ColumnInfo {
     @Nullable
     private final DataType suggestedCast;
 
+    @Nullable
+    private final Map<String, Object> meta;
+
     @ParserConstructor
     public ColumnInfoImpl(String name, String type, @Nullable List<String> originalTypes) {
-        this(name, DataType.fromEs(type), originalTypes);
+        this(name, DataType.fromEs(type), originalTypes, null);
+    }
+
+    public ColumnInfoImpl(String name, String type, @Nullable List<String> originalTypes, @Nullable Map<String, Object> meta) {
+        this(name, DataType.fromEs(type), originalTypes, meta);
     }
 
     public ColumnInfoImpl(String name, DataType type, @Nullable List<String> originalTypes) {
+        this(name, type, originalTypes, null);
+    }
+
+    public ColumnInfoImpl(String name, DataType type, @Nullable List<String> originalTypes, @Nullable Map<String, Object> meta) {
         this.name = name;
         this.type = type;
         this.originalTypes = originalTypes;
         this.suggestedCast = calculateSuggestedCast(this.originalTypes);
+        this.meta = meta;
     }
 
     private static DataType calculateSuggestedCast(List<String> originalTypes) {
@@ -100,13 +119,17 @@ public class ColumnInfoImpl implements ColumnInfo {
     public ColumnInfoImpl(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = DataType.fromEs(in.readString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_REPORT_ORIGINAL_TYPES)) {
             this.originalTypes = in.readOptionalStringCollectionAsList();
             this.suggestedCast = calculateSuggestedCast(this.originalTypes);
         } else {
             this.originalTypes = null;
             this.suggestedCast = null;
+        }
+        if (in.getTransportVersion().supports(ESQL_COLUMN_META)) {
+            this.meta = in.readOptional(StreamInput::readGenericMap);
+        } else {
+            this.meta = null;
         }
     }
 
@@ -114,9 +137,11 @@ public class ColumnInfoImpl implements ColumnInfo {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(type.outputType());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_REPORT_ORIGINAL_TYPES)) {
             out.writeOptionalStringCollection(originalTypes);
+        }
+        if (out.getTransportVersion().supports(ESQL_COLUMN_META)) {
+            out.writeOptional(StreamOutput::writeGenericMap, meta);
         }
     }
 
@@ -130,6 +155,9 @@ public class ColumnInfoImpl implements ColumnInfo {
         }
         if (suggestedCast != null) {
             builder.field("suggested_cast", suggestedCast.typeName());
+        }
+        if (meta != null) {
+            builder.field("_meta", meta);
         }
         builder.endObject();
         return builder;
@@ -154,7 +182,12 @@ public class ColumnInfoImpl implements ColumnInfo {
         return originalTypes;
     }
 
+    @Nullable
+    public Map<String, Object> meta() {
+        return meta;
+    }
+
     public String toString() {
-        return "ColumnInfoImpl{" + "name='" + name + '\'' + ", type=" + type + ", originalTypes=" + originalTypes + '}';
+        return "ColumnInfoImpl{" + "name='" + name + '\'' + ", type=" + type + ", originalTypes=" + originalTypes + ", meta=" + meta + '}';
     }
 }

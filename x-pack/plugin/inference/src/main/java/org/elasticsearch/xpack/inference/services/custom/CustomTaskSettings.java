@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +30,8 @@ public class CustomTaskSettings implements TaskSettings {
 
     static final CustomTaskSettings EMPTY_SETTINGS = new CustomTaskSettings(new HashMap<>());
 
+    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
+
     public static CustomTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
         if (map == null || map.isEmpty()) {
@@ -46,9 +47,7 @@ public class CustomTaskSettings implements TaskSettings {
             false
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CustomTaskSettings(Objects.requireNonNullElse(parameters, new HashMap<>()));
     }
@@ -98,13 +97,12 @@ public class CustomTaskSettings implements TaskSettings {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED;
+        return INFERENCE_CUSTOM_SERVICE_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED)
-            || version.isPatchFrom(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED_8_19);
+        return version.supports(INFERENCE_CUSTOM_SERVICE_ADDED);
     }
 
     @Override
@@ -132,7 +130,7 @@ public class CustomTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        CustomTaskSettings updatedSettings = CustomTaskSettings.fromMap(new HashMap<>(newSettings));
+        CustomTaskSettings updatedSettings = CustomTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

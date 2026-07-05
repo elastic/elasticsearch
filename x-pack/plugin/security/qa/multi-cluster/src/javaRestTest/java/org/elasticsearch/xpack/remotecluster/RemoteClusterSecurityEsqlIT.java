@@ -42,12 +42,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -406,7 +403,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["employees*"],
@@ -445,7 +442,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["employees*"],
@@ -479,7 +476,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // add DLS to the remote indices in the role to restrict access to only emp_id = 21
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["employees*"],
@@ -515,7 +512,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // add FLS to the remote indices in the role to restrict access to only access department
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["employees*"],
@@ -637,7 +634,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["employees"],
@@ -659,7 +656,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // without the remote index priv
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["idontexist"],
@@ -704,7 +701,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             error.getMessage(),
             containsString(
                 "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles [remote_search], "
-                    + "this action is granted by the index privileges [read,read_cross_cluster,all]"
+                    + "this action is granted by the index privileges [read_cross_cluster,read,all]"
             )
         );
 
@@ -720,7 +717,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             error.getMessage(),
             containsString(
                 "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles "
-                    + "[remote_search], this action is granted by the index privileges [read,read_cross_cluster,all]"
+                    + "[remote_search], this action is granted by the index privileges [read_cross_cluster,read,all]"
             )
         );
 
@@ -735,7 +732,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             error.getMessage(),
             containsString(
                 "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles "
-                    + "[remote_search], this action is granted by the index privileges [read,read_cross_cluster,all]"
+                    + "[remote_search], this action is granted by the index privileges [read_cross_cluster,read,all]"
             )
         );
     }
@@ -823,7 +820,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // ideally, remote only enrichment wouldn't need this local privilege, however remote only enrichment is not currently supported
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "cluster": ["cross_cluster_search"],
               "remote_indices": [
                 {
@@ -956,7 +953,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 },
                 {
                   "names": ["employees3"],
-                  "privileges": ["view_index_metadata", "read_cross_cluster"],
+                  "privileges": ["view_index_metadata"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]
@@ -982,20 +979,11 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             assertThat(ids, equalTo(List.of(List.of("1"), List.of("11"), List.of("13"), List.of("7"))));
         }
         // none
-        for (var index : List.of("*:employees1", "*:employees3", "*:employees1,employees3", "*:alias-employees,*:alias-management")) {
+        for (var index : List.of("*:employees1", "*:employees3", "*:alias-employees,*:alias-management")) {
             Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
             ResponseException error = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(request));
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            String expectedIndexExpressionInError = index.replace("*", "my_remote_cluster");
-            Pattern p = Pattern.compile("Unknown index \\[([^\\]]+)\\]");
-            Matcher m = p.matcher(error.getMessage());
-            assertTrue("Pattern matcher to parse error message did not find matching string: " + error.getMessage(), m.find());
-            String unknownIndexExpressionInErrorMessage = m.group(1);
-            Set<String> actualUnknownIndexes = org.elasticsearch.common.Strings.commaDelimitedListToSet(
-                unknownIndexExpressionInErrorMessage
-            );
-            Set<String> expectedUnknownIndexes = org.elasticsearch.common.Strings.commaDelimitedListToSet(expectedIndexExpressionInError);
-            assertThat(actualUnknownIndexes, equalTo(expectedUnknownIndexes));
+            assertThat(error.getMessage(), containsString("Unknown index [" + index.replace("*:", "my_remote_cluster:") + "]"));
         }
 
         for (var index : List.of(
@@ -1034,7 +1022,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
-                  "indices": [{"names": ["employees*"], "privileges": ["read","read_cross_cluster"]}],
+                  "indices": [{"names": ["employees*"], "privileges": ["read"]}],
                   "cluster": [ "manage_own_api_key" ],
                   "remote_indices": [
                     {
@@ -1179,45 +1167,134 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             verifier.accept(performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey), true);
         }
 
-        // an error is thrown if there are no matching indices at all
         {
             // with non-matching concrete index
             String q = "FROM my_remote_cluster:employees_nomatch";
 
-            Request limit1 = esqlRequest(q + " | LIMIT 1");
-            ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit1));
-            assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
-            e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey));
-            assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
+            CheckedConsumer<Response, Exception> verifier = resp -> {
+                assertOK(resp);
+                Map<String, Object> map = responseAsMap(resp);
+                assertThat(((List<?>) map.get("values")).size(), equalTo(0));
+                assertExpectedClustersForMissingIndicesTests(
+                    map,
+                    List.of(
+                        new ExpectedCluster(
+                            REMOTE_CLUSTER_ALIAS,
+                            "employees_nomatch",
+                            "skipped",
+                            0,
+                            new ExpectedFailure("verification_exception", List.of("Unknown index", "my_remote_cluster:employees_nomatch"))
+                        )
+                    )
+                );
+            };
 
-            Request limit0 = esqlRequest(q + " | LIMIT 0");
-            e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit0));
-            assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
-            e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey));
-            assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
+            if (skipUnavailable) {
+                Request limit1 = esqlRequest(q + " | LIMIT 1");
+                verifier.accept(performRequestWithRemoteSearchUser(limit1));
+                verifier.accept(performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey));
+
+                Request limit0 = esqlRequest(q + " | LIMIT 0");
+                verifier.accept(performRequestWithRemoteSearchUser(limit0));
+                verifier.accept(performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey));
+            } else {
+
+                Request limit1 = esqlRequest(q + " | LIMIT 1");
+                ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit1));
+                assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
+                e = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey)
+                );
+                assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
+
+                Request limit0 = esqlRequest(q + " | LIMIT 0");
+                e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit0));
+                assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
+                e = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey)
+                );
+                assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
+            }
         }
 
-        // an error is thrown if there are no matching indices at all
         {
-            String localExpr = randomFrom("nomatch", "nomatch*");
-            String remoteExpr = randomFrom("nomatch", "nomatch*");
+            String localExpr = "nomatch";
+            String remoteExpr = "nomatch*";
             String q = Strings.format("FROM %s,%s:%s", localExpr, REMOTE_CLUSTER_ALIAS, remoteExpr);
 
             Request limit1 = esqlRequest(q + " | LIMIT 1");
             ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit1));
             assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
+            assertThat(e.getMessage(), containsString("nomatch"));
             e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey));
             assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
+            assertThat(e.getMessage(), containsString("nomatch"));
 
             Request limit0 = esqlRequest(q + " | LIMIT 0");
             e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit0));
             assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
+            assertThat(e.getMessage(), containsString("nomatch"));
             e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey));
             assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
+            assertThat(e.getMessage(), containsString("nomatch"));
+        }
+
+        {
+            String localExpr = "nomatch*";
+            String remoteExpr = "nomatch";
+            String q = Strings.format("FROM %s,%s:%s", localExpr, REMOTE_CLUSTER_ALIAS, remoteExpr);
+
+            if (skipUnavailable) {
+                CheckedConsumer<Response, Exception> verifier = resp -> {
+                    assertOK(resp);
+                    Map<String, Object> map = responseAsMap(resp);
+                    assertExpectedClustersForMissingIndicesTests(
+                        map,
+                        List.of(
+                            // local cluster is never marked as SKIPPED even when no matching indices - just marked as 0 shards searched
+                            new ExpectedCluster("(local)", "nomatch*", "successful", 0),
+                            new ExpectedCluster(
+                                REMOTE_CLUSTER_ALIAS,
+                                "nomatch",
+                                "skipped",
+                                0,
+                                new ExpectedFailure("verification_exception", List.of("Unknown index", "my_remote_cluster:nomatch"))
+                            )
+                        )
+                    );
+                };
+                Request limit1 = esqlRequest(q + " | LIMIT 1");
+                verifier.accept(performRequestWithRemoteSearchUser(limit1));
+                verifier.accept(performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey));
+
+                Request limit0 = esqlRequest(q + " | LIMIT 0");
+                verifier.accept(performRequestWithRemoteSearchUser(limit0));
+                verifier.accept(performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey));
+            } else {
+                Request limit1 = esqlRequest(q + " | LIMIT 1");
+                ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit1));
+                assertThat(e.getMessage(), containsString("Unknown index"));
+                assertThat(e.getMessage(), containsString("nomatch"));
+                e = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey)
+                );
+                assertThat(e.getMessage(), containsString("Unknown index"));
+                assertThat(e.getMessage(), containsString("nomatch"));
+
+                Request limit0 = esqlRequest(q + " | LIMIT 0");
+                e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit0));
+                assertThat(e.getMessage(), containsString("Unknown index"));
+                assertThat(e.getMessage(), containsString("nomatch"));
+                e = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey)
+                );
+                assertThat(e.getMessage(), containsString("Unknown index"));
+                assertThat(e.getMessage(), containsString("nomatch"));
+            }
         }
 
         // error since the remote cluster specified a concrete index that is not found

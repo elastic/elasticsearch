@@ -9,6 +9,8 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
@@ -94,6 +96,40 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
     }
 
     /**
+     * Reproduces a bug where system index mappings are not updated after a major-version reindex migration.
+     * <a href="https://github.com/elastic/elasticsearch/issues/144764"></a>
+     */
+    public void testSystemIndexManagerUpgradesMappingsOfReindexedIndex() throws Exception {
+        internalCluster().startNodes(1);
+
+        // Directly set up the post-migration state: a reindexed concrete index with old mappings,
+        // and the original primary index name as an alias pointing to it.
+        // Use MIGRATE_SYSTEM_INDEX_CAUSE so that TransportCreateIndexAction allows creating a system
+        // index whose name is not the descriptor's primary index, mirroring SystemIndexMigrator.
+        final String reindexedIndexName = PRIMARY_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX;
+        assertAcked(
+            indicesAdmin().create(
+                new CreateIndexRequest(reindexedIndexName).cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
+                    .settings(TestSystemIndexDescriptor.SETTINGS)
+                    .mapping(TestSystemIndexDescriptor.getOldMappings())
+            ).actionGet()
+        );
+        ensureGreen(reindexedIndexName);
+        assertAcked(
+            indicesAdmin().aliases(
+                new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
+                    IndicesAliasesRequest.AliasActions.add().index(reindexedIndexName).alias(PRIMARY_INDEX_NAME)
+                ).addAliasAction(IndicesAliasesRequest.AliasActions.add().index(reindexedIndexName).alias(INDEX_NAME))
+            ).actionGet()
+        );
+
+        TestSystemIndexDescriptor.useNewMappings.set(true);
+        triggerClusterStateUpdates();
+
+        assertBusy(() -> assertMappingsAndSettings(TestSystemIndexDescriptor.getNewMappings(), reindexedIndexName));
+    }
+
+    /**
      * Ensures that we can clear any blocks that get set on managed system indices.
      *
      * See https://github.com/elastic/elasticsearch/issues/80814
@@ -119,21 +155,25 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
         indicesAdmin().putTemplate(new PutIndexTemplateRequest(name).patterns(List.of(name))).actionGet();
     }
 
+    private void assertMappingsAndSettings(String expectedMappings) {
+        assertMappingsAndSettings(expectedMappings, PRIMARY_INDEX_NAME);
+    }
+
     /**
      * Fetch the mappings and settings for {@link TestSystemIndexDescriptor#INDEX_NAME} and verify that they match the expected values.
      */
-    private void assertMappingsAndSettings(String expectedMappings) {
+    private void assertMappingsAndSettings(String expectedMappings, String primaryIndexName) {
         final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(
             new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)
         ).actionGet();
 
         final Map<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
         assertThat(
-            "Expected mappings to contain a key for [" + PRIMARY_INDEX_NAME + "], but found: " + mappings.toString(),
-            mappings.containsKey(PRIMARY_INDEX_NAME),
+            "Expected mappings to contain a key for [" + primaryIndexName + "], but found: " + mappings.toString(),
+            mappings.containsKey(primaryIndexName),
             equalTo(true)
         );
-        final Map<String, Object> sourceAsMap = mappings.get(PRIMARY_INDEX_NAME).getSourceAsMap();
+        final Map<String, Object> sourceAsMap = mappings.get(primaryIndexName).getSourceAsMap();
 
         assertThat(sourceAsMap, equalTo(XContentHelper.convertToMap(XContentType.JSON.xContent(), expectedMappings, false)));
 
@@ -141,7 +181,7 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
             new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)
         ).actionGet();
 
-        final Settings actual = getSettingsResponse.getIndexToSettings().get(PRIMARY_INDEX_NAME);
+        final Settings actual = getSettingsResponse.getIndexToSettings().get(primaryIndexName);
 
         for (String settingName : TestSystemIndexDescriptor.SETTINGS.keySet()) {
             assertThat(actual.get(settingName), equalTo(TestSystemIndexDescriptor.SETTINGS.get(settingName)));

@@ -6,12 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
-import org.elasticsearch.SpecialPermission;
-
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-
 /**
  * A <em>try-with-resource</em> compatible object for configuring a thread {@link Thread#getContextClassLoader()}.
  * On construction this class will set the current (or provided) thread's context class loader.
@@ -20,32 +14,20 @@ import java.security.PrivilegedExceptionAction;
 public class RestorableContextClassLoader implements AutoCloseable {
 
     private final Thread thread;
-    private ClassLoader restore;
+    private final ClassLoader restore;
 
-    public RestorableContextClassLoader(Class<?> fromClass) throws PrivilegedActionException {
-        this(Thread.currentThread(), getClassLoader(fromClass));
+    public RestorableContextClassLoader(Class<?> fromClass) {
+        this(Thread.currentThread(), fromClass.getClassLoader());
     }
 
-    private static ClassLoader getClassLoader(Class<?> fromClass) throws PrivilegedActionException {
-        return AccessController.doPrivileged((PrivilegedExceptionAction<ClassLoader>) fromClass::getClassLoader);
-    }
-
-    public RestorableContextClassLoader(Thread thread, ClassLoader setClassLoader) throws PrivilegedActionException {
+    public RestorableContextClassLoader(Thread thread, ClassLoader setClassLoader) {
         this.thread = thread;
-        SpecialPermission.check();
-        AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-            restore = thread.getContextClassLoader();
-            thread.setContextClassLoader(setClassLoader);
-            return null;
-        });
+        restore = thread.getContextClassLoader();
+        thread.setContextClassLoader(setClassLoader);
     }
 
     @Override
-    public void close() throws PrivilegedActionException {
-        SpecialPermission.check();
-        AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-            this.thread.setContextClassLoader(this.restore);
-            return null;
-        });
+    public void close() {
+        thread.setContextClassLoader(restore);
     }
 }

@@ -9,40 +9,44 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Add}.
+ * {@link ExpressionEvaluator} implementation for {@link Add}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class AddDatetimesEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AddDatetimesEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator datetime;
+  private final ExpressionEvaluator datetime;
 
   private final TemporalAmount temporalAmount;
+
+  private final ZoneId zoneId;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public AddDatetimesEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
-      TemporalAmount temporalAmount, DriverContext driverContext) {
+  public AddDatetimesEvaluator(Source source, ExpressionEvaluator datetime,
+      TemporalAmount temporalAmount, ZoneId zoneId, DriverContext driverContext) {
     this.source = source;
     this.datetime = datetime;
     this.temporalAmount = temporalAmount;
+    this.zoneId = zoneId;
     this.driverContext = driverContext;
   }
 
@@ -67,20 +71,20 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   public LongBlock eval(int positionCount, LongBlock datetimeBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (datetimeBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (datetimeBlock.getValueCount(p) != 1) {
-          if (datetimeBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (datetimeBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         long datetime = datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p));
         try {
-          result.appendLong(Add.processDatetimes(datetime, this.temporalAmount));
+          result.appendLong(Add.processDatetimes(datetime, this.temporalAmount, this.zoneId));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -95,7 +99,7 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
       position: for (int p = 0; p < positionCount; p++) {
         long datetime = datetimeVector.getLong(p);
         try {
-          result.appendLong(Add.processDatetimes(datetime, this.temporalAmount));
+          result.appendLong(Add.processDatetimes(datetime, this.temporalAmount, this.zoneId));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -107,7 +111,7 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
 
   @Override
   public String toString() {
-    return "AddDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + "]";
+    return "AddDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + ", zoneId=" + zoneId + "]";
   }
 
   @Override
@@ -117,38 +121,36 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory datetime;
+    private final ExpressionEvaluator.Factory datetime;
 
     private final TemporalAmount temporalAmount;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime,
-        TemporalAmount temporalAmount) {
+    private final ZoneId zoneId;
+
+    public Factory(Source source, ExpressionEvaluator.Factory datetime,
+        TemporalAmount temporalAmount, ZoneId zoneId) {
       this.source = source;
       this.datetime = datetime;
       this.temporalAmount = temporalAmount;
+      this.zoneId = zoneId;
     }
 
     @Override
     public AddDatetimesEvaluator get(DriverContext context) {
-      return new AddDatetimesEvaluator(source, datetime.get(context), temporalAmount, context);
+      return new AddDatetimesEvaluator(source, datetime.get(context), temporalAmount, zoneId, context);
     }
 
     @Override
     public String toString() {
-      return "AddDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + "]";
+      return "AddDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + ", zoneId=" + zoneId + "]";
     }
   }
 }

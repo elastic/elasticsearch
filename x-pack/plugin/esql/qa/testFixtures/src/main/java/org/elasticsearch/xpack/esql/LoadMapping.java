@@ -37,15 +37,15 @@ import static org.junit.Assert.assertNotNull;
 
 public class LoadMapping {
     public static Map<String, EsField> loadMapping(String name) {
-        InputStream stream = LoadMapping.class.getResourceAsStream("/" + name);
-        assertNotNull("Could not find mapping resource:" + name, stream);
+        var path = "/index/mappings/" + name;
+        InputStream stream = LoadMapping.class.getResourceAsStream(path);
+        assertNotNull("Could not find mapping resource:" + path, stream);
         return loadMapping(stream);
     }
 
-    private static Map<String, EsField> loadMapping(InputStream stream) {
-        try (InputStream in = stream) {
-            Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, in, true);
-            return fromEs(map);
+    public static Map<String, EsField> loadMapping(InputStream in) {
+        try (in) {
+            return fromEs(XContentHelper.convertToMap(JsonXContent.jsonXContent, in, true));
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }

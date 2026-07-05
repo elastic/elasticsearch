@@ -18,34 +18,55 @@ import static org.junit.Assert.assertTrue;
  * How should we assert the warnings returned by ESQL.
  */
 public interface AssertWarnings {
-    void assertWarnings(List<String> warnings);
+    void assertWarnings(List<String> warnings, Object context);
+
+    default String contextMessage(Object context) {
+        if (context == null) {
+            return "";
+        }
+        StringBuilder contextBuilder = new StringBuilder();
+        contextBuilder.append("Context: ").append(context);
+        if (contextBuilder.length() > 1000) {
+            contextBuilder.setLength(1000);
+            contextBuilder.append("...(truncated)");
+        }
+        contextBuilder.append("\n");
+        return contextBuilder.toString();
+    }
 
     record NoWarnings() implements AssertWarnings {
         @Override
-        public void assertWarnings(List<String> warnings) {
-            assertMap(warnings.stream().sorted().toList(), matchesList());
+        public void assertWarnings(List<String> warnings, Object context) {
+            assertMap(contextMessage(context), warnings.stream().sorted().toList(), matchesList());
         }
     }
 
     record ExactStrings(List<String> expected) implements AssertWarnings {
         @Override
-        public void assertWarnings(List<String> warnings) {
-            assertMap(warnings.stream().sorted().toList(), matchesList(expected.stream().sorted().toList()));
+        public void assertWarnings(List<String> warnings, Object context) {
+            assertMap(contextMessage(context), warnings.stream().sorted().toList(), matchesList(expected.stream().sorted().toList()));
         }
     }
 
     record DeduplicatedStrings(List<String> expected) implements AssertWarnings {
         @Override
-        public void assertWarnings(List<String> warnings) {
-            assertMap(warnings.stream().sorted().distinct().toList(), matchesList(expected.stream().sorted().toList()));
+        public void assertWarnings(List<String> warnings, Object context) {
+            assertMap(
+                contextMessage(context),
+                warnings.stream().sorted().distinct().toList(),
+                matchesList(expected.stream().sorted().toList())
+            );
         }
     }
 
     record AllowedRegexes(List<Pattern> expected) implements AssertWarnings {
         @Override
-        public void assertWarnings(List<String> warnings) {
+        public void assertWarnings(List<String> warnings, Object context) {
             for (String warning : warnings) {
-                assertTrue("Unexpected warning: " + warning, expected.stream().anyMatch(x -> x.matcher(warning).matches()));
+                assertTrue(
+                    contextMessage(context) + "Unexpected warning: " + warning,
+                    expected.stream().anyMatch(x -> x.matcher(warning).matches())
+                );
             }
         }
     }

@@ -40,11 +40,11 @@
     },
     "params": {
       "start": {
-        "type": "string",
+        "type": "date",
         "description": "The start time from where the datafeed preview should begin"
       },
       "end": {
-        "type": "string",
+        "type": "date",
         "description": "The end time when the datafeed preview should stop"
       }
     },

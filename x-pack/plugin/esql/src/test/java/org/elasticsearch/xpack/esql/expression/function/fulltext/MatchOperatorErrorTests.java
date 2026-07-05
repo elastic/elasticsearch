@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction.expectedTypesAsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MatchOperatorErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
@@ -32,13 +34,17 @@ public class MatchOperatorErrorTests extends ErrorsForCasesWithoutExamplesTestCa
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MatchOperator(source, args.get(0), args.get(1));
+        return new MatchOperator(source, args.get(0), args.get(1), EsqlTestUtils.TEST_CFG);
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(
-            errorMessageStringForMatch(validPerPosition, signature, (l, p) -> p == 0 ? FIELD_TYPE_ERROR_STRING : QUERY_TYPE_ERROR_STRING)
+            errorMessageStringForMatch(
+                validPerPosition,
+                signature,
+                (l, p) -> p == 0 ? expectedTypesAsString(Match.FIELD_DATA_TYPES) : expectedTypesAsString(Match.QUERY_DATA_TYPES)
+            )
         );
     }
 
@@ -50,7 +56,7 @@ public class MatchOperatorErrorTests extends ErrorsForCasesWithoutExamplesTestCa
         boolean invalid = false;
         for (int i = 0; i < signature.size() && invalid == false; i++) {
             // Need to check for nulls and bad parameters in order
-            if (signature.get(i) == DataType.NULL) {
+            if (signature.get(i) == DataType.NULL && i > 0) {
                 return TypeResolutions.ParamOrdinal.fromIndex(i).name().toLowerCase(Locale.ROOT)
                     + " argument of ["
                     + sourceForSignature(signature)
@@ -61,17 +67,12 @@ public class MatchOperatorErrorTests extends ErrorsForCasesWithoutExamplesTestCa
             }
         }
 
-        try {
-            return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is for nulls or from the combination
-            return EsqlBinaryComparison.formatIncompatibleTypesMessage(signature.get(0), signature.get(1), sourceForSignature(signature));
-        }
+        return typeErrorMessage(
+            true,
+            validPerPosition,
+            signature,
+            positionalErrorMessageSupplier,
+            () -> EsqlBinaryComparison.formatIncompatibleTypesMessage(signature.get(0), signature.get(1), sourceForSignature(signature))
+        );
     }
-
-    private static final String FIELD_TYPE_ERROR_STRING =
-        "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version";
-
-    private static final String QUERY_TYPE_ERROR_STRING =
-        "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version";
 }

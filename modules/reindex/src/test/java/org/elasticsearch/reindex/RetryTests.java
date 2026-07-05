@@ -18,14 +18,15 @@ import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -91,7 +92,7 @@ public class RetryTests extends ESIntegTestCase {
     final Settings nodeSettings() {
         return Settings.builder()
             // whitelist reindexing from the HTTP host we're going to use
-            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*")
+            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*,[::1]:*")
             .build();
     }
 
@@ -104,7 +105,7 @@ public class RetryTests extends ESIntegTestCase {
     }
 
     public void testReindexFromRemote() throws Exception {
-        Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> function = client -> {
+        Function<Client, AbstractBulkByPaginatedSearchRequestBuilder<?, ?>> function = client -> {
             /*
              * Use the master node for the reindex from remote because that node
              * doesn't have a copy of the data on it.
@@ -118,9 +119,10 @@ public class RetryTests extends ESIntegTestCase {
             assertNotNull(masterNode);
 
             TransportAddress address = masterNode.getInfo(HttpInfo.class).getAddress().publishAddress();
+            String host = InetAddresses.toUriString(address.address().getAddress());
             RemoteInfo remote = new RemoteInfo(
                 "http",
-                address.getAddress(),
+                host,
                 address.getPort(),
                 null,
                 new BytesArray("{\"match_all\":{}}"),
@@ -154,8 +156,8 @@ public class RetryTests extends ESIntegTestCase {
 
     private void testCase(
         String action,
-        Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> request,
-        BulkIndexByScrollResponseMatcher matcher
+        Function<Client, AbstractBulkByPaginatedSearchRequestBuilder<?, ?>> request,
+        BulkIndexByPaginatedSearchResponseMatcher matcher
     ) throws Exception {
         /*
          * These test cases work by stuffing the bulk queue of a single node and
@@ -187,7 +189,7 @@ public class RetryTests extends ESIntegTestCase {
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         indicesAdmin().prepareRefresh("source").get();
 
-        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
+        AbstractBulkByPaginatedSearchRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
         // Make sure we use more than one batch so we have to scroll
         builder.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 
@@ -195,9 +197,9 @@ public class RetryTests extends ESIntegTestCase {
         CyclicBarrier bulkBlock = blockExecutor(ThreadPool.Names.WRITE, node);
 
         logger.info("Starting request");
-        ActionFuture<BulkByScrollResponse> responseListener = builder.execute();
+        ActionFuture<BulkByPaginatedSearchResponse> responseListener = builder.execute();
 
-        BulkByScrollResponse response = null;
+        BulkByPaginatedSearchResponse response = null;
         try {
             logger.info("Waiting for bulk rejections");
             assertBusy(() -> assertThat(taskStatus(action).getBulkRetries(), greaterThan(0L)));
@@ -244,7 +246,7 @@ public class RetryTests extends ESIntegTestCase {
     /**
      * Fetch the status for a task of type "action". Fails if there aren't exactly one of that type of task running.
      */
-    private BulkByScrollTask.Status taskStatus(String action) {
+    private BulkByPaginatedSearchTask.Status taskStatus(String action) {
         /*
          * We always use the master client because we always start the test requests on the
          * master. We do this simply to make sure that the test request is not started on the
@@ -252,7 +254,7 @@ public class RetryTests extends ESIntegTestCase {
          */
         ListTasksResponse response = clusterAdmin().prepareListTasks().setActions(action).setDetailed(true).get();
         assertThat(response.getTasks(), hasSize(1));
-        return (BulkByScrollTask.Status) response.getTasks().get(0).status();
+        return (BulkByPaginatedSearchTask.Status) response.getTasks().get(0).status();
     }
 
 }

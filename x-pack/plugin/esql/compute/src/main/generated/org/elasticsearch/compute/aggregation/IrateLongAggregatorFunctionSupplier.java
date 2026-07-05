@@ -9,16 +9,22 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link IrateLongAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class IrateLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final boolean isDelta;
+  WarningSourceLocation warningsSource;
 
-  public IrateLongAggregatorFunctionSupplier(boolean isDelta) {
-    this.isDelta = isDelta;
+  private final boolean isDateNanos;
+
+  public IrateLongAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
+      boolean isDateNanos) {
+    this.warningsSource = warningsSource;
+    this.isDateNanos = isDateNanos;
   }
 
   @Override
@@ -39,11 +45,12 @@ public final class IrateLongAggregatorFunctionSupplier implements AggregatorFunc
   @Override
   public IrateLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return IrateLongGroupingAggregatorFunction.create(channels, driverContext, isDelta);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new IrateLongGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
   }
 
   @Override
   public String describe() {
-    return "irate of longs";
+    return IrateLongAggregator.describe();
   }
 }

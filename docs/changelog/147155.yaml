@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 147155
+summary: Collapse `SearchHit.readFrom` and `SearchHits.readFrom` signatures
+type: enhancement

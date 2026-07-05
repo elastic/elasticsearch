@@ -23,7 +23,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 
 import java.io.IOException;
 
@@ -31,7 +31,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
 
 class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
-    private static final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
+    static final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
 
     protected ES815BitFlatVectorsFormat() {
         super("ES815BitFlatVectorsFormat");
@@ -39,7 +39,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState segmentWriteState) throws IOException {
-        return delegate.fieldsWriter(segmentWriteState);
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -75,7 +75,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
             assert vectorValues instanceof ByteVectorValues;
             assert vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN;
             if (vectorValues instanceof ByteVectorValues byteVectorValues) {
-                assert byteVectorValues instanceof QuantizedByteVectorValues == false;
+                assert byteVectorValues instanceof LegacyQuantizedByteVectorValues == false;
                 return switch (vectorSimilarityFunction) {
                     case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE, EUCLIDEAN -> new HammingScorerSupplier(byteVectorValues);
                 };

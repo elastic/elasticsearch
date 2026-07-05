@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plan.logical.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -36,30 +38,56 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.inference.InferenceSettings.RERANK_ROW_LIMIT_SETTING;
 
 public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerificationAware, TelemetryAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
-    public static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
+
+    public static final String TIMEOUT_OPTION_NAME = "timeout";
+
+    private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, RERANK_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
+    private static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
 
     private final Attribute scoreAttribute;
     private final Expression queryText;
     private final List<Alias> rerankFields;
     private List<Attribute> lazyOutput;
 
-    public Rerank(Source source, LogicalPlan child, Expression queryText, List<Alias> rerankFields, Attribute scoreAttribute) {
-        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), queryText, rerankFields, scoreAttribute);
+    public Rerank(
+        Source source,
+        LogicalPlan child,
+        Expression rowLimit,
+        Expression queryText,
+        List<Alias> rerankFields,
+        Attribute scoreAttribute
+    ) {
+        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), rowLimit, queryText, rerankFields, scoreAttribute, null);
     }
 
     public Rerank(
         Source source,
         LogicalPlan child,
         Expression inferenceId,
+        Expression rowLimit,
         Expression queryText,
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
-        super(source, child, inferenceId);
+        this(source, child, inferenceId, rowLimit, queryText, rerankFields, scoreAttribute, null);
+    }
+
+    public Rerank(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        Expression rowLimit,
+        Expression queryText,
+        List<Alias> rerankFields,
+        Attribute scoreAttribute,
+        TimeValue timeout
+    ) {
+        super(source, child, inferenceId, rowLimit, timeout);
         this.queryText = queryText;
         this.rerankFields = rerankFields;
         this.scoreAttribute = scoreAttribute;
@@ -70,9 +98,11 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
             in.readNamedWriteable(Expression.class),
             in.readCollectionAsList(Alias::new),
-            in.readNamedWriteable(Attribute.class)
+            in.readNamedWriteable(Attribute.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
         );
     }
 
@@ -82,6 +112,14 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         out.writeNamedWriteable(queryText);
         out.writeCollection(rerankFields());
         out.writeNamedWriteable(scoreAttribute);
+        if (out.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
+            out.writeOptionalTimeValue(timeout());
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public Expression queryText() {
@@ -102,11 +140,16 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     }
 
     @Override
+    public List<String> validOptionNames() {
+        return List.of(INFERENCE_ID_OPTION_NAME, TIMEOUT_OPTION_NAME);
+    }
+
+    @Override
     public Rerank withInferenceId(Expression newInferenceId) {
         if (inferenceId().equals(newInferenceId)) {
             return this;
         }
-        return new Rerank(source(), child(), newInferenceId, queryText, rerankFields, scoreAttribute);
+        return new Rerank(source(), child(), newInferenceId, rowLimit(), queryText, rerankFields, scoreAttribute, timeout());
     }
 
     public Rerank withRerankFields(List<Alias> newRerankFields) {
@@ -114,7 +157,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             return this;
         }
 
-        return new Rerank(source(), child(), inferenceId(), queryText, newRerankFields, scoreAttribute);
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, newRerankFields, scoreAttribute, timeout());
     }
 
     public Rerank withScoreAttribute(Attribute newScoreAttribute) {
@@ -122,17 +165,20 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             return this;
         }
 
-        return new Rerank(source(), child(), inferenceId(), queryText, rerankFields, newScoreAttribute);
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, rerankFields, newScoreAttribute, timeout());
     }
 
     @Override
-    public String getWriteableName() {
-        return ENTRY.name;
+    public Rerank withTimeout(TimeValue newTimeout) {
+        if (Objects.equals(timeout(), newTimeout)) {
+            return this;
+        }
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, newTimeout);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Rerank(source(), newChild, inferenceId(), queryText, rerankFields, scoreAttribute);
+        return new Rerank(source(), newChild, inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, timeout());
     }
 
     @Override
@@ -147,7 +193,16 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     @Override
     public Rerank withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Rerank(source(), child(), inferenceId(), queryText, rerankFields, this.renameScoreAttribute(newNames.get(0)));
+        return new Rerank(
+            source(),
+            child(),
+            inferenceId(),
+            rowLimit(),
+            queryText,
+            rerankFields,
+            this.renameScoreAttribute(newNames.get(0)),
+            timeout()
+        );
     }
 
     private Attribute renameScoreAttribute(String newName) {
@@ -163,10 +218,8 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     }
 
     public boolean isValidRerankField(Alias rerankField) {
-        // Only supportinng the following datatypes for now: text, numeric and boolean
-        return DataType.isString(rerankField.dataType())
-            || rerankField.dataType() == DataType.BOOLEAN
-            || rerankField.dataType().isNumeric();
+        // Only supporting string datatypes for rerank fields
+        return DataType.isString(rerankField.dataType());
     }
 
     @Override
@@ -175,8 +228,13 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     }
 
     @Override
+    public boolean isFoldable() {
+        return false;
+    }
+
+    @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), queryText, rerankFields, scoreAttribute);
+        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute, timeout());
     }
 
     @Override
@@ -193,17 +251,12 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             }
         }
 
-        // When using multiple fields the content is transformed into YAML before it is reranked
-        // We can use any of string, numeric or boolean field.
+        // Rerank fields must be string types
         rerankFields.stream()
             .filter(Predicate.not(this::isValidRerankField))
             .forEach(
                 rerankField -> failures.add(
-                    fail(
-                        rerankField,
-                        "rerank field must be a valid string, numeric or boolean expression, found [{}]",
-                        rerankField.source().text()
-                    )
+                    fail(rerankField, "rerank field must be a valid string expression, found [{}]", rerankField.source().text())
                 )
             );
     }

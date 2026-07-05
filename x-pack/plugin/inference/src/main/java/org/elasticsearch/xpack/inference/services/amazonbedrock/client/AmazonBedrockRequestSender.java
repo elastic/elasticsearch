@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockRequestExecutorService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockRequestManager;
@@ -63,10 +63,13 @@ public class AmazonBedrockRequestSender implements Sender {
             this.serviceComponents = Objects.requireNonNull(serviceComponents);
             Objects.requireNonNull(clusterService);
 
+            var executorServiceSettings = new RequestExecutorServiceSettings(serviceComponents.settings());
+            executorServiceSettings.init(clusterService);
+
             executorService = new AmazonBedrockRequestExecutorService(
                 serviceComponents.threadPool(),
                 startCompleted,
-                new RequestExecutorServiceSettings(serviceComponents.settings(), clusterService),
+                executorServiceSettings,
                 requestSender
             );
 
@@ -75,7 +78,7 @@ public class AmazonBedrockRequestSender implements Sender {
 
         public Sender createSender() {
             // ensure this is started
-            bedrockRequestSender.start();
+            bedrockRequestSender.startSynchronously();
             return bedrockRequestSender;
         }
     }
@@ -97,8 +100,8 @@ public class AmazonBedrockRequestSender implements Sender {
         this.startCompleted = Objects.requireNonNull(startCompleted);
     }
 
-    @Override
-    public void start() {
+    // default for testing
+    void startSynchronously() {
         if (started.compareAndSet(false, true)) {
             // The manager must be started before the executor service. That way we guarantee that the http client
             // is ready prior to the service attempting to use the http client to send a request
@@ -138,7 +141,7 @@ public class AmazonBedrockRequestSender implements Sender {
     @Override
     public void sendWithoutQueuing(
         Logger logger,
-        Request request,
+        OutboundRequest outboundRequest,
         ResponseHandler responseHandler,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

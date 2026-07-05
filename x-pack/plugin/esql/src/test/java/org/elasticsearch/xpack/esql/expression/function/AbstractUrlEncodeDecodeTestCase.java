@@ -112,6 +112,14 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
                 // bad inputs for decoder tests aren't encoded first (as they wouldn't be bad then), but are expected to be handled
                 // gracefully by the decoder.
 
+                boolean isJdk25plus = Runtime.version().feature() >= 25;
+
+                String errorMessage1 = "Line 1:1: java.lang.IllegalArgumentException: "
+                    + "URLDecoder: Illegal hex characters in escape (%%) pattern - not a hexadecimal digit: \"%s\" = %s";
+
+                String errorMessage2 = "Line 1:1: java.lang.IllegalArgumentException: "
+                    + "URLDecoder: Illegal hex characters in escape (%%) pattern - Error at index 0 in: \"%s\"";
+
                 List<Tuple<String, String>> tuples = List.of(
                     // incomplete sequence
                     Tuple.tuple("%1", "Line 1:1: java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern"),
@@ -122,15 +130,15 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
                     // invalid hex digits
                     Tuple.tuple(
                         "%xy",
-                        "Line 1:1: java.lang.IllegalArgumentException: URLDecoder: Illegal hex characters in escape (%) pattern - "
-                            + "not a hexadecimal digit: \"x\" = 120"
+                        // the error message changed in JDK 25
+                        isJdk25plus ? String.format(Locale.ROOT, errorMessage1, "x", 120) : String.format(Locale.ROOT, errorMessage2, "xy")
                     ),
 
                     // valid and invalid sequences
                     Tuple.tuple(
                         "foo+bar%20qux%mn",
-                        "Line 1:1: java.lang.IllegalArgumentException: URLDecoder: Illegal hex characters in escape (%) pattern - "
-                            + "not a hexadecimal digit: \"m\" = 109"
+                        // the error message changed in JDK 25
+                        isJdk25plus ? String.format(Locale.ROOT, errorMessage1, "m", 109) : String.format(Locale.ROOT, errorMessage2, "mn")
                     )
                 );
 
@@ -142,7 +150,7 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
             }
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
 
     }
 

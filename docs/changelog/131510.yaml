@@ -1,5 +1,0 @@
-pr: 131510
-summary: Upgrade apm-agent to 1.55.0
-area: Infra/Metrics
-type: upgrade
-issues: []

@@ -16,6 +16,7 @@
 
 package org.elasticsearch.injection.guice;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.guice.internal.Errors;
 import org.elasticsearch.injection.guice.internal.InternalContext;
 import org.elasticsearch.injection.guice.internal.InternalFactory;
@@ -195,6 +196,7 @@ class InjectorShell {
 
     private static class LoggerFactory implements InternalFactory<Logger>, Provider<Logger> {
         @Override
+        @SuppressForbidden(reason = "Allowed to use java.util.logging in Guice")
         public Logger get(Errors errors, InternalContext context, Dependency<?> dependency) {
             InjectionPoint injectionPoint = dependency.getInjectionPoint();
             return injectionPoint == null

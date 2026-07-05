@@ -15,7 +15,7 @@ The `min_hash` filter performs the following operations on a token stream in ord
 2. Assigns the hashes to buckets, keeping only the smallest hashes of each bucket.
 3. Outputs the smallest hash from each bucket as a token stream.
 
-This filter uses Lucene’s [MinHashFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/minhash/MinHashFilter.md).
+This filter uses Lucene’s [MinHashFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/minhash/MinHashFilter.html).
 
 ## Configurable parameters [analysis-minhash-tokenfilter-configure-parms]
 

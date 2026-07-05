@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data.sort;
 
+// begin generated imports
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
@@ -21,9 +22,10 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
- * Aggregates the top N long values per bucket.
+ * Aggregates the top N {@code long} values per bucket.
  * See {@link BucketedSort} for more information.
  * This class is generated. Edit @{code X-BucketedSort.java.st} instead of this file.
  */
@@ -92,7 +94,8 @@ public class LongBucketedSort implements Releasable {
     public void collect(long value, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex))) {
+            long rootValue = values.get(rootIndex);
+            if (betterThan(value, rootValue)) {
                 values.set(rootIndex, value);
                 downHeap(rootIndex, 0, bucketSize);
             }
@@ -153,7 +156,8 @@ public class LongBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(other.values.get(i), groupId);
+            long otherValue = other.values.get(i);
+            collect(otherValue, groupId);
         }
     }
 
@@ -162,12 +166,7 @@ public class LongBucketedSort implements Releasable {
      */
     public Block toBlock(BlockFactory blockFactory, IntVector selected) {
         // Check if the selected groups are all empty, to avoid allocating extra memory
-        if (IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
-            var bounds = this.getBucketValuesIndexes(bucket);
-            var size = bounds.v2() - bounds.v1();
-
-            return size > 0;
-        })) {
+        if (allSelectedGroupsAreEmpty(selected)) {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
@@ -185,7 +184,7 @@ public class LongBucketedSort implements Releasable {
                 }
 
                 if (size == 1) {
-                    builder.appendLong(values.get(bounds.v1()));
+                    builder.appendLong(values.get(rootIndex));
                     continue;
                 }
 
@@ -197,12 +196,23 @@ public class LongBucketedSort implements Releasable {
 
                 builder.beginPositionEntry();
                 for (int i = 0; i < size; i++) {
-                    builder.appendLong(values.get(bounds.v1() + i));
+                    builder.appendLong(values.get(rootIndex + i));
                 }
                 builder.endPositionEntry();
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Checks if the selected groups are all empty.
+     */
+    private boolean allSelectedGroupsAreEmpty(IntVector selected) {
+        return IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
+            var bounds = this.getBucketValuesIndexes(bucket);
+            var size = bounds.v2() - bounds.v1();
+            return size > 0;
+        });
     }
 
     /**
@@ -234,7 +244,8 @@ public class LongBucketedSort implements Releasable {
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     private boolean betterThan(long lhs, long rhs) {
-        return getOrder().reverseMul() * Long.compare(lhs, rhs) < 0;
+        int res = Long.compare(lhs, rhs);
+        return getOrder().reverseMul() * res < 0;
     }
 
     /**
@@ -255,7 +266,9 @@ public class LongBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.LONG_PAGE_SIZE, Long.BYTES);
+        int pageSize = PageCacheRecycler.LONG_PAGE_SIZE;
+        int bytesPerElement = Long.BYTES;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, pageSize, bytesPerElement);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
@@ -340,15 +353,21 @@ public class LongBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(values.get(worstIndex), values.get(leftIndex))) {
+                long worstValue = values.get(worstIndex);
+                long leftValue = values.get(leftIndex);
+                if (betterThan(worstValue, leftValue)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
-                    worst = rightChild;
-                    worstIndex = rightIndex;
+                if (rightChild < heapSize) {
+                    worstValue = values.get(worstIndex);
+                    long rightValue = values.get(rightIndex);
+                    if (betterThan(worstValue, rightValue)) {
+                        worst = rightChild;
+                        worstIndex = rightIndex;
+                    }
                 }
             }
             if (worst == parent) {

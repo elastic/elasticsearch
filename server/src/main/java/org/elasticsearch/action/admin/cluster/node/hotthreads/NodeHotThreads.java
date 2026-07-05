@@ -9,10 +9,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,11 +26,7 @@ public class NodeHotThreads extends BaseNodeResponse {
 
     NodeHotThreads(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            bytes = in.readReleasableBytesReference();
-        } else {
-            bytes = ReleasableBytesReference.wrap(new BytesArray(in.readString().getBytes(StandardCharsets.UTF_8)));
-        }
+        bytes = in.readReleasableBytesReference();
     }
 
     public NodeHotThreads(DiscoveryNode node, ReleasableBytesReference hotThreadsUtf8Bytes) {
@@ -57,11 +51,7 @@ public class NodeHotThreads extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBytesReference(bytes);
-        } else {
-            out.writeString(bytes.utf8ToString());
-        }
+        out.writeBytesReference(bytes);
     }
 
     @Override

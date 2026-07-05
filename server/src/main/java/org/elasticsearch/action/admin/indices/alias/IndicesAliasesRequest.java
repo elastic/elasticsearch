@@ -61,12 +61,12 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     // expressions only against indices
     private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
         .wildcardOptions(
             IndicesOptions.WildcardOptions.builder()
                 .matchOpen(true)
                 .matchClosed(false)
                 .includeHidden(false)
-                .resolveAliases(false)
                 .allowEmptyExpressions(false)
                 .build()
         )

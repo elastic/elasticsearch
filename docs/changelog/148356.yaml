@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148356
+summary: Use lat/lon ordering for DECAY `geo_point` origin
+type: bug

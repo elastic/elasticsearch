@@ -32,6 +32,7 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
         booleans(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         bytesRefs(cases, "mv_count", "MvCount", t -> DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         doubles(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        flattened(cases, "mv_count", "MvCount", t -> DataType.INTEGER, (size, values) -> equalTo(size));
         ints(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         longs(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         unsignedLongs(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
@@ -44,7 +45,7 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
         geohashGrid(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         geotileGrid(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         geohexGrid(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
     }
 
     @Override

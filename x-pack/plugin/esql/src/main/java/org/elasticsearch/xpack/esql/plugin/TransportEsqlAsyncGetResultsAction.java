@@ -23,6 +23,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsyncGetResultsAction<EsqlQueryResponse, EsqlQueryTask> {
 
     private final BlockFactory blockFactory;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportEsqlAsyncGetResultsAction(
@@ -43,9 +45,9 @@ public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsync
         ClusterService clusterService,
         NamedWriteableRegistry registry,
         Client client,
-        ThreadPool threadPool,
         BigArrays bigArrays,
-        BlockFactoryProvider blockFactoryProvider
+        BlockFactoryProvider blockFactoryProvider,
+        ThreadPool threadPool
     ) {
         super(
             EsqlAsyncGetResultAction.NAME,
@@ -59,11 +61,12 @@ public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsync
             EsqlQueryTask.class
         );
         this.blockFactory = blockFactoryProvider.blockFactory();
+        this.threadPool = threadPool;
     }
 
     @Override
     protected void doExecute(Task task, GetAsyncResultRequest request, ActionListener<EsqlQueryResponse> listener) {
-        super.doExecute(task, request, unwrapListener(listener));
+        super.doExecute(task, request, unwrapListener(request.getId(), listener));
     }
 
     @Override
@@ -75,14 +78,21 @@ public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsync
     static final String VERIFY_EX_NAME = ElasticsearchException.getExceptionName(new VerificationException(""));
 
     /**
-     * Unwraps the exception in the case of failure. This keeps the exception types
-     * the same as the sync API, namely ParsingException and VerificationException.
+     * Adds async headers, and unwraps the exception in the case of failure.
+     * <p>
+     *     This keeps the exception types the same as the sync API, namely ParsingException and VerificationException.
+     * </p>
      */
-    static <R> ActionListener<R> unwrapListener(ActionListener<R> listener) {
+    ActionListener<EsqlQueryResponse> unwrapListener(String asyncExecutionId, ActionListener<EsqlQueryResponse> listener) {
         return new ActionListener<>() {
             @Override
-            public void onResponse(R o) {
-                listener.onResponse(o);
+            public void onResponse(EsqlQueryResponse response) {
+                boolean isRunning = response.isRunning();
+                threadPool.getThreadContext()
+                    .addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, isRunning ? "?1" : "?0");
+                threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
+
+                listener.onResponse(response);
             }
 
             @Override

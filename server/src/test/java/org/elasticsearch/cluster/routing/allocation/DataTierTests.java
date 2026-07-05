@@ -157,8 +157,7 @@ public class DataTierTests extends ESTestCase {
             }
             final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(allRoles));
             if (frequently()) {
-                roles.add(new DiscoveryNodeRole("custom_role", "cr") {
-                });
+                roles.add(new DiscoveryNodeRole("custom_role", "cr") {});
             }
             final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes, roles);
             nodesList.add(node);

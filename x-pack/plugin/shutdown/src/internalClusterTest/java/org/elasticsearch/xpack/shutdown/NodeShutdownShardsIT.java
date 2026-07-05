@@ -9,24 +9,32 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.COMPLETE;
@@ -40,7 +48,43 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(ShutdownPlugin.class);
+        return List.of(ShutdownPlugin.class, TestPlugin.class);
+    }
+
+    private static final String UNMOVABLE_INDEX_NAME = "unmoveable_index";
+
+    private static class UnmovableIndexAllocationDecider extends AllocationDecider {
+
+        private final AtomicBoolean enabled;
+
+        private UnmovableIndexAllocationDecider(AtomicBoolean enabled) {
+            super();
+            this.enabled = enabled;
+        }
+
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            // Allow initial allocation but not relocation for UNMOVABLE_INDEX_NAME
+            if (enabled.get() && shardRouting.unassigned() == false && shardRouting.getIndexName().equals(UNMOVABLE_INDEX_NAME)) {
+                return Decision.NO;
+            } else {
+                return Decision.YES;
+            }
+        }
+
+        @Override
+        public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return (enabled.get() && shardRouting.getIndexName().equals(UNMOVABLE_INDEX_NAME)) ? Decision.NO : Decision.YES;
+        }
+    }
+
+    public static class TestPlugin extends Plugin implements ClusterPlugin {
+        private final AtomicBoolean enabled = new AtomicBoolean(true);
+
+        @Override
+        public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+            return List.of(new UnmovableIndexAllocationDecider(enabled));
+        }
     }
 
     /**
@@ -125,6 +169,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     public void testNodeReplacementOnlyAllowsShardsFromReplacedNode() throws Exception {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
         createIndex("myindex", 3, 1);
+        createIndex(UNMOVABLE_INDEX_NAME, 1, 0);
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
 
@@ -140,7 +185,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId);
             assertIndexReplicaShardsAreNotAllocated("myindex");
         });
-        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, STALLED));
 
         final String nodeC = internalCluster().startNode();
 
@@ -174,6 +219,20 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                         )
                 );
             }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
+
+        if (randomBoolean()) {
+            // Let the unmovable index move, it should complete the vacates and also allow replica to be assigned to the replacement target
+            internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
+                .filterPlugins(TestPlugin.class)
+                .findFirst()
+                .orElseThrow().enabled.set(false);
+            ClusterRerouteUtils.reroute(client());
+            assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
+        } else {
+            // Stop the source node which also allows allocation to complete
+            internalCluster().stopNode(nodeA);
+        }
+        ensureGreen("other");
     }
 
     public void testNodeReplacementOverridesFilters() throws Exception {
@@ -181,6 +240,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         // Create an index and pin it to nodeA, when we replace it with nodeB,
         // it'll move the data, overridding the `_name` allocation filter
         createIndex("myindex", indexSettings(3, 0).put("index.routing.allocation.require._name", nodeA).build());
+        createIndex(UNMOVABLE_INDEX_NAME, 1, 0);
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t2"; // TODO: fix this to so it's actually overrideable
 
@@ -195,7 +255,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
 
         assertBusy(() -> assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId));
-        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, STALLED));
         assertIndexSetting("myindex", "index.routing.allocation.require._name", nodeA);
 
         createIndex("other", 1, 1);
@@ -228,6 +288,20 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                         )
                 );
             }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
+
+        if (randomBoolean()) {
+            // Let the unmovable index move, it should complete the vacates and also allow replica to be assigned to the replacement target
+            internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
+                .filterPlugins(TestPlugin.class)
+                .findFirst()
+                .orElseThrow().enabled.set(false);
+            ClusterRerouteUtils.reroute(client());
+            assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
+        } else {
+            // Stop the source node which also allows allocation to complete
+            internalCluster().stopNode(nodeA);
+        }
+        ensureGreen("other");
     }
 
     public void testNodeReplacementAcceptIndexThatCouldNotBeAllocatedAnywhere() throws Exception {

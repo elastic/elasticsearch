@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 146528
+pr: 146666
+summary: "ES|QL - Add timeout to inference operations COMPLETION, RERANK and TEXT_EMBEDDING"
+type: feature

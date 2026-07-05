@@ -20,8 +20,7 @@ import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.resources.LoopResources;
 
-import com.azure.core.http.HttpClient;
-import com.azure.core.http.HttpMethod;
+import com.azure.core.http.HttpHeaderName;
 import com.azure.core.http.HttpPipelineCallContext;
 import com.azure.core.http.HttpPipelineNextPolicy;
 import com.azure.core.http.HttpPipelinePosition;
@@ -38,22 +37,26 @@ import com.azure.storage.common.policy.RequestRetryOptions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
-import java.net.URL;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME;
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME;
 
@@ -63,7 +66,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private static final TimeValue DEFAULT_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final TimeValue DEFAULT_MAX_CONNECTION_IDLE_TIME = TimeValue.timeValueSeconds(60);
     private static final int DEFAULT_MAX_CONNECTIONS = 50;
-    private static final int DEFAULT_EVENT_LOOP_THREAD_COUNT = 1;
     private static final int PENDING_CONNECTION_QUEUE_SIZE = -1; // see ConnectionProvider.ConnectionPoolSpec.pendingAcquireMaxCount
 
     /**
@@ -79,8 +81,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     static final Setting<Integer> EVENT_LOOP_THREAD_COUNT = Setting.intSetting(
         "repository.azure.http_client.event_loop_executor_thread_count",
-        DEFAULT_EVENT_LOOP_THREAD_COUNT,
+        settings -> Integer.toString(Math.max(1, EsExecutors.allocatedProcessors(settings) / 4)),
         1,
+        Integer.MAX_VALUE,
         Setting.Property.NodeScope
     );
 
@@ -174,7 +177,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         OperationPurpose purpose
     ) {
         if (closed) {
-            throw new IllegalStateException("AzureClientProvider is already closed");
+            throw new AlreadyClosedException("AzureClientProvider is already closed");
         }
 
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);
@@ -184,11 +187,15 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             .runOn(nioLoopResources)
             .option(ChannelOption.ALLOCATOR, byteBufAllocator);
 
-        final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
+        final NettyAsyncHttpClientBuilder httpClientBuilder = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true)
+            .proxy(proxyOptions);
+        if (settings.getReadTimeout().equals(TimeValue.MINUS_ONE) == false) {
+            httpClientBuilder.readTimeout(Duration.ofMillis(settings.getReadTimeout().millis()));
+        }
 
         final String connectionString = settings.getConnectString();
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
-            .httpClient(httpClient)
+            .httpClient(httpClientBuilder.build())
             .retryOptions(retryOptions);
 
         if (settings.hasCredentials() == false) {
@@ -252,9 +259,22 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     @Override
     protected void doStop() {
         closed = true;
-        connectionProvider.dispose();
-        eventLoopGroup.shutdownGracefully();
-        Schedulers.resetFactory();
+        // Dispose of the connection provider first and wait for it to complete before we close the event loop.
+        try {
+            connectionProvider.disposeLater().block(Duration.ofSeconds(5));
+        } catch (RuntimeException e) {
+            logger.warn("Error disposing connection provider", e);
+        } finally {
+            // Now it's safe to shut down the event loop
+            try {
+                FutureUtils.get(eventLoopGroup.shutdownGracefully(), 5, TimeUnit.SECONDS);
+            } catch (RuntimeException e) {
+                logger.warn("Error shutting down event loop group", e);
+            } finally {
+                // Now everything is shut down, reset the factory to clear any cached schedulers
+                Schedulers.resetFactory();
+            }
+        }
     }
 
     @Override
@@ -332,6 +352,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                 return next.process();
             }
             RequestMetrics metrics = (RequestMetrics) metricsData.get();
+            logger.trace("Increasing request count by + 1");
             metrics.requestCount++;
             long requestStartTimeNanos = System.nanoTime();
             return next.process().doOnError(throwable -> {
@@ -347,6 +368,23 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                     if (response.getStatusCode() == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
                         metrics.throttleCount++;
                     }
+                    logger.trace(
+                        () -> format(
+                            "Unsuccessful response [%s]: statusCode=[%s], errorCount=%d, throttleCount=%d",
+                            response.getRequest().getHeaders().get(HttpHeaderName.X_MS_CLIENT_REQUEST_ID),
+                            response.getStatusCode(),
+                            metrics.errorCount,
+                            metrics.throttleCount
+                        )
+                    );
+                } else {
+                    logger.trace(
+                        () -> format(
+                            "Successful response [%s]: statusCode=[%s]",
+                            response.getRequest().getHeaders().get(HttpHeaderName.X_MS_CLIENT_REQUEST_ID),
+                            response.getStatusCode()
+                        )
+                    );
                 }
             });
         }
@@ -387,10 +425,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         }
 
         private void trackCompletedRequest(HttpRequest httpRequest, RequestMetrics requestMetrics) {
-            HttpMethod method = httpRequest.getHttpMethod();
-            if (method != null) {
+            if (httpRequest.getHttpMethod() != null) {
                 try {
-                    requestMetricsHandler.requestCompleted(purpose, method, httpRequest.getUrl(), requestMetrics);
+                    requestMetricsHandler.requestCompleted(purpose, httpRequest, requestMetrics);
                 } catch (Exception e) {
                     logger.warn("Unable to notify a successful request", e);
                 }
@@ -412,6 +449,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
      */
     interface RequestMetricsHandler {
 
-        void requestCompleted(OperationPurpose purpose, HttpMethod method, URL url, RequestMetrics metrics);
+        void requestCompleted(OperationPurpose purpose, HttpRequest request, RequestMetrics metrics);
     }
 }

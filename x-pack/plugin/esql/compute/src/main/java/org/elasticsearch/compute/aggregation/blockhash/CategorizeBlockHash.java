@@ -113,13 +113,23 @@ public class CategorizeBlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
+    public Block[] getKeys(IntVector selected) {
+        // Select is always nonEmpty because we don't support splitting pages from Categorize
         return new Block[] { aggregatorMode.isOutputPartial() ? buildIntermediateBlock() : buildFinalBlock() };
     }
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, categorizer.getCategoryCount() + 1, blockFactory);
+        return blockFactory.newIntRangeVector(seenNull ? 0 : 1, categorizer.getCategoryCount() + 1);
+    }
+
+    @Override
+    public int numKeys() {
+        if (seenNull) {
+            return categorizer.getCategoryCount() + 1;
+        } else {
+            return categorizer.getCategoryCount();
+        }
     }
 
     @Override

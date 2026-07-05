@@ -7,17 +7,16 @@
 
 package org.elasticsearch.compute.test;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.AbstractBlockBuilder;
 import org.elasticsearch.compute.data.AbstractVectorBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Block.MvOrdering;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BooleanVectorFixedBuilder;
@@ -34,6 +33,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.LongVectorFixedBuilder;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
 
 import java.util.BitSet;
 import java.util.HashMap;
@@ -60,6 +60,11 @@ public class MockBlockFactory extends BlockFactory {
     final ConcurrentMap<Object, Object> TRACKED_BLOCKS = new ConcurrentHashMap<>();
 
     public void ensureAllBlocksAreReleased() {
+
+        if (arrowAllocator != null) {
+            arrowAllocator.close();
+        }
+
         purgeTrackBlocks();
         final Map<Object, Object> copy = new HashMap<>(TRACKED_BLOCKS);
         // we should really assert this, but not just yet, see comment below
@@ -85,16 +90,18 @@ public class MockBlockFactory extends BlockFactory {
         }
     }
 
-    public MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
-        this(breaker, bigArrays, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE);
+    public MockBlockFactory(BlockFactoryBuilder builder) {
+        this(builder, null);
     }
 
-    public MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
-        this(breaker, bigArrays, maxPrimitiveArraySize, null);
+    protected MockBlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
+        super(builder, parent);
     }
 
-    private MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
-        super(breaker, bigArrays, maxPrimitiveArraySize, parent);
+    @Override
+    protected BufferAllocator childFactoryAllocator() {
+        var listener = new CircuitBreakerAllocationListener(this.breaker());
+        return super.arrowAllocator().newChildAllocator("mock-factory", listener, 0, Long.MAX_VALUE);
     }
 
     @Override
@@ -102,7 +109,7 @@ public class MockBlockFactory extends BlockFactory {
         if (childBreaker.parentBreaker() != breaker()) {
             throw new IllegalStateException("Different parent breaker");
         }
-        return new MockBlockFactory(childBreaker, bigArrays(), ByteSizeValue.ofBytes(maxPrimitiveArrayBytes()), this);
+        return new MockBlockFactory(builder(bigArrays()).breaker(childBreaker).maxPrimitiveArraySize(maxPrimitiveArrayBytes()), this);
     }
 
     @Override

@@ -1,9 +1,10 @@
 aggregate_double_metric with time series mappings:
   - requires:
-      cluster_features: ["gte_v7.16.0"]
-      reason: introduced in 7.16.0
+      test_runner_features: [ allowed_warnings ]
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
           index: test_index
           body:
@@ -38,10 +39,6 @@ aggregate_double_metric with time series mappings:
 
 ---
 aggregate_double_metric with wrong time series mappings:
-  - requires:
-      cluster_features: ["gte_v7.16.0"]
-      reason: introduced in 7.16.0
-
   - do:
       catch: /Unknown value \[histogram\] for field \[time_series_metric\] \- accepted values are \[gauge\]/
       indices.create:
@@ -78,10 +75,6 @@ aggregate_double_metric with wrong time series mappings:
 
 ---
 "Field caps with tsdb":
-  - requires:
-      cluster_features: ["gte_v8.8.0"]
-      reason: "Field caps fix in 8.9"
-
   - do:
       indices.create:
         index: tsdb-fieldcap

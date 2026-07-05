@@ -70,6 +70,9 @@ public final class TaskResult implements Writeable, ToXContentObject {
     }
 
     public TaskResult(boolean completed, TaskInfo task, @Nullable BytesReference error, @Nullable BytesReference result) {
+        if (error != null && result != null) {
+            throw new IllegalArgumentException("TaskResult cannot have both a non-null error and a non-null result");
+        }
         this.completed = completed;
         this.task = requireNonNull(task, "task is required");
         this.error = error;
@@ -141,6 +144,10 @@ public final class TaskResult implements Writeable, ToXContentObject {
 
     public boolean isCompleted() {
         return completed;
+    }
+
+    public TaskResult withError(Exception newError) throws IOException {
+        return new TaskResult(completed, task, toXContent(newError), response);
     }
 
     @Override

@@ -27,10 +27,8 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
-import org.gradle.plugins.ide.eclipse.model.EclipseModel;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -127,16 +125,6 @@ public abstract class GradleUtils {
             idea.getModule().getTestSources().from(testSourceSet.getJava().getSrcDirs());
             idea.getModule().getScopes().put(testSourceSet.getName(), Map.of("plus", List.of(runtimeClasspathConfiguration)));
         });
-        project.getPluginManager().withPlugin("eclipse", p -> {
-            EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
-            List<SourceSet> eclipseSourceSets = new ArrayList<>();
-            for (SourceSet old : eclipse.getClasspath().getSourceSets()) {
-                eclipseSourceSets.add(old);
-            }
-            eclipseSourceSets.add(testSourceSet);
-            eclipse.getClasspath().setSourceSets(project.getExtensions().getByType(SourceSetContainer.class));
-            eclipse.getClasspath().getPlusConfigurations().add(runtimeClasspathConfiguration);
-        });
     }
 
     /**
@@ -206,5 +194,46 @@ public abstract class GradleUtils {
      */
     public static boolean isIncludedBuild(Project project) {
         return project.getGradle().getParent() != null;
+    }
+
+    /**
+     * Actions we want to be able to retry. Mostly related to network operations that can fail transiently.
+     * @param runnable action to run
+     * */
+    public static void withRetries(Runnable runnable) {
+        withRetries(3, 10, runnable);
+    }
+
+    /**
+     * Actions we want to be able to retry. Mostly related to network operations that can fail transiently.
+     * @param gracePeriodInS initial wait time between retries, in seconds
+     * @param retries number of retries before giving up
+     * @param runnable action to run
+     * */
+    public static void withRetries(int retries, int gracePeriodInS, Runnable runnable) {
+        int delay = gracePeriodInS;
+        for (int attempt = 0; attempt <= retries; attempt++) {
+            try {
+                runnable.run();
+                return;
+            } catch (GradleException e) {
+                if (attempt == retries) {
+                    throw e;
+                }
+                System.out.println("Attempt " + (attempt + 1) + " failed, retrying in " + delay + " seconds...");
+                try {
+                    Thread.sleep(delay * 1000L);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Retry interrupted", ie);
+                }
+                // After the first sleep, increase delay by 20 seconds once, then grow by gracePeriodInS each retry
+                if (attempt == 0) {
+                    delay = gracePeriodInS + 20;
+                } else {
+                    delay += gracePeriodInS;
+                }
+            }
+        }
     }
 }

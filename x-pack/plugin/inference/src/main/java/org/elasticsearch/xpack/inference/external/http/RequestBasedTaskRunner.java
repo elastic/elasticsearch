@@ -41,7 +41,7 @@ class RequestBasedTaskRunner {
      */
     public void requestNextRun() {
         if (isRunning.get() && loopCount.getAndIncrement() == 0) {
-            var currentThreadPool = EsExecutors.executorName(Thread.currentThread().getName());
+            var currentThreadPool = EsExecutors.executorName(Thread.currentThread());
             if (executorServiceName.equalsIgnoreCase(currentThreadPool)) {
                 run();
             } else {

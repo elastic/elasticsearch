@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -52,6 +54,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -86,7 +89,7 @@ public class CancellationTests extends ESTestCase {
                 assertThat(e, instanceOf(TaskCancelledException.class));
                 countDownLatch.countDown();
             }
-        }, "", mock(TransportService.class), mockClusterService);
+        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP);
         countDownLatch.await();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
@@ -140,7 +143,7 @@ public class CancellationTests extends ESTestCase {
                 assertThat(e, instanceOf(TaskCancelledException.class));
                 countDownLatch.countDown();
             }
-        }, "", mock(TransportService.class), mockClusterService);
+        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP);
         countDownLatch.await();
         verify(client, times(1)).fieldCaps(any(), any());
         verify(client, times(1)).settings();
@@ -182,7 +185,7 @@ public class CancellationTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<OpenPointInTimeResponse> listener = (ActionListener<OpenPointInTimeResponse>) invocation.getArguments()[2];
-            listener.onResponse(new OpenPointInTimeResponse(pitId, 1, 1, 0, 0));
+            listener.onResponse(new OpenPointInTimeResponse(pitId, 1, 1, 0, 0, SearchResponse.Clusters.EMPTY));
             return null;
         }).when(client).execute(eq(TransportOpenPointInTimeAction.TYPE), any(), any());
 
@@ -192,7 +195,7 @@ public class CancellationTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             SearchRequest request = (SearchRequest) invocation.getArguments()[1];
-            assertEquals(pitId, request.pointInTimeBuilder().getEncodedId());
+            assertThat(request.pointInTimeBuilder().getEncodedId(), equalBytes(pitId));
             TaskId parentTask = request.getParentTask();
             assertNotNull(parentTask);
             assertEquals(task.getId(), parentTask.getId());
@@ -206,7 +209,7 @@ public class CancellationTests extends ESTestCase {
         // Emulation of close pit
         doAnswer(invocation -> {
             ClosePointInTimeRequest request = (ClosePointInTimeRequest) invocation.getArguments()[1];
-            assertEquals(pitId, request.getId());
+            assertThat(request.getId(), equalBytes(pitId));
 
             @SuppressWarnings("unchecked")
             ActionListener<ClosePointInTimeResponse> listener = (ActionListener<ClosePointInTimeResponse>) invocation.getArguments()[2];
@@ -230,7 +233,7 @@ public class CancellationTests extends ESTestCase {
                 assertThat(e, instanceOf(TaskCancelledException.class));
                 countDownLatch.countDown();
             }
-        }, "", mock(TransportService.class), mockClusterService);
+        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP);
         assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
         // Final verification to ensure no more interaction
         verify(client).fieldCaps(any(), any());
@@ -255,6 +258,7 @@ public class CancellationTests extends ESTestCase {
         when(mockClusterService.localNode()).thenReturn(mockNode);
         when(mockClusterName.value()).thenReturn(randomAlphaOfLength(10));
         when(mockClusterService.getClusterName()).thenReturn(mockClusterName);
+        when(mockClusterService.getSettings()).thenReturn(Settings.EMPTY);
         return mockClusterService;
     }
 

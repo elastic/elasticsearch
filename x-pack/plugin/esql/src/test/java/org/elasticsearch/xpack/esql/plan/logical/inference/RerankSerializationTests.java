@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -28,23 +29,40 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
     protected Rerank createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
-        return new Rerank(source, child, string(randomIdentifier()), string(randomIdentifier()), randomFields(), scoreAttribute());
+        return new Rerank(
+            source,
+            child,
+            string(randomIdentifier()),
+            randomRowLimit(),
+            string(randomIdentifier()),
+            randomFields(),
+            scoreAttribute(),
+            randomTimeout()
+        );
     }
 
     @Override
     protected Rerank mutateInstance(Rerank instance) throws IOException {
         LogicalPlan child = instance.child();
         Expression inferenceId = instance.inferenceId();
+        Expression rowLimit = instance.rowLimit();
         Expression queryText = instance.queryText();
         List<Alias> fields = instance.rerankFields();
+        TimeValue timeout = instance.timeout();
 
-        switch (between(0, 3)) {
+        switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, () -> string(RerankSerializationTests.randomIdentifier()));
-            case 2 -> queryText = randomValueOtherThan(queryText, () -> string(RerankSerializationTests.randomIdentifier()));
-            case 3 -> fields = randomValueOtherThan(fields, this::randomFields);
+            case 2 -> rowLimit = randomValueOtherThan(rowLimit, this::randomRowLimit);
+            case 3 -> queryText = randomValueOtherThan(queryText, () -> string(RerankSerializationTests.randomIdentifier()));
+            case 4 -> fields = randomValueOtherThan(fields, this::randomFields);
+            case 5 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
         }
-        return new Rerank(instance.source(), child, inferenceId, queryText, fields, instance.scoreAttribute());
+        return new Rerank(instance.source(), child, inferenceId, rowLimit, queryText, fields, instance.scoreAttribute(), timeout);
+    }
+
+    private TimeValue randomTimeout() {
+        return randomBoolean() ? null : TimeValue.timeValueMillis(randomLongBetween(1, 300_000));
     }
 
     private List<Alias> randomFields() {
@@ -53,6 +71,10 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
 
     private Literal string(String value) {
         return Literal.keyword(EMPTY, value);
+    }
+
+    private Expression randomRowLimit() {
+        return new Literal(Source.EMPTY, randomIntBetween(1, 100), DataType.INTEGER);
     }
 
     private Attribute scoreAttribute() {

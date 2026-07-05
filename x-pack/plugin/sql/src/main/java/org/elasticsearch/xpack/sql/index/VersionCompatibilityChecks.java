@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.sql.index;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -21,8 +19,6 @@ import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.supportsUns
 import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.supportsVersionType;
 
 public final class VersionCompatibilityChecks {
-
-    public static final TransportVersion INTRODUCING_UNSIGNED_LONG_TRANSPORT = TransportVersions.V_8_2_0;
 
     private VersionCompatibilityChecks() {}
 

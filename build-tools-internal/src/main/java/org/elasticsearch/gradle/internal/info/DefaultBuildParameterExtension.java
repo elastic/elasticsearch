@@ -27,11 +27,11 @@ import java.util.function.Supplier;
 
 public abstract class DefaultBuildParameterExtension implements BuildParameterExtension {
     private final Provider<Boolean> inFipsJvm;
+    private final Provider<String> fipsMode;
     private final Provider<File> runtimeJavaHome;
     private final RuntimeJava runtimeJava;
     private final List<JavaHome> javaVersions;
     private final JavaVersion minimumCompilerVersion;
-    private final JavaVersion minimumRuntimeVersion;
     private final JavaVersion gradleJavaVersion;
     private final Provider<JavaVersion> runtimeJavaVersion;
     private final Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
@@ -47,6 +47,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     // not final for testing
     private Provider<BwcVersions> bwcVersions;
     private Provider<String> gitOrigin;
+    private JavaVersion minimumRuntimeVersion;
 
     public DefaultBuildParameterExtension(
         ProviderFactory providers,
@@ -65,6 +66,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         Provider<BwcVersions> bwcVersions
     ) {
         this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(DefaultBuildParameterExtension::parseBoolean);
+        this.fipsMode = providers.systemProperty("tests.fips.mode");
         this.runtimeJava = runtimeJava;
         this.runtimeJavaHome = cache(providers, runtimeJava.getJavahome());
         this.javaToolChainSpec = cache(providers, javaToolChainSpec);
@@ -99,6 +101,11 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     @Override
     public boolean getInFipsJvm() {
         return inFipsJvm.getOrElse(false);
+    }
+
+    @Override
+    public String getFipsMode() {
+        return fipsMode.getOrElse("140-3");
     }
 
     @Override
@@ -248,5 +255,10 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     // for testing; not part of public api
     public void setGitOrigin(Provider<String> gitOrigin) {
         this.gitOrigin = gitOrigin;
+    }
+
+    // for testing; not part of public api
+    public void setMinimumRuntimeVersion(JavaVersion minimumRuntimeVersion) {
+        this.minimumRuntimeVersion = minimumRuntimeVersion;
     }
 }

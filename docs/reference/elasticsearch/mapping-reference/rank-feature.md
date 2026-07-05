@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Rank feature"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/rank-feature.html

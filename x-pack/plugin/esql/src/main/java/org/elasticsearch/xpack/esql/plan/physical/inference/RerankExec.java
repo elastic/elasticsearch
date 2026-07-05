@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -38,6 +40,7 @@ public class RerankExec extends InferenceExec {
     private final Expression queryText;
     private final List<Alias> rerankFields;
     private final Attribute scoreAttribute;
+    private final TimeValue timeout;
     private List<Attribute> lazyOutput;
 
     public RerankExec(
@@ -48,10 +51,23 @@ public class RerankExec extends InferenceExec {
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
+        this(source, child, inferenceId, queryText, rerankFields, scoreAttribute, null);
+    }
+
+    public RerankExec(
+        Source source,
+        PhysicalPlan child,
+        Expression inferenceId,
+        Expression queryText,
+        List<Alias> rerankFields,
+        Attribute scoreAttribute,
+        TimeValue timeout
+    ) {
         super(source, child, inferenceId);
         this.queryText = queryText;
         this.rerankFields = rerankFields;
         this.scoreAttribute = scoreAttribute;
+        this.timeout = timeout;
     }
 
     public RerankExec(StreamInput in) throws IOException {
@@ -61,7 +77,8 @@ public class RerankExec extends InferenceExec {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readCollectionAsList(Alias::new),
-            in.readNamedWriteable(Attribute.class)
+            in.readNamedWriteable(Attribute.class),
+            in.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
         );
     }
 
@@ -77,6 +94,10 @@ public class RerankExec extends InferenceExec {
         return scoreAttribute;
     }
 
+    public TimeValue timeout() {
+        return timeout;
+    }
+
     @Override
     public String getWriteableName() {
         return ENTRY.name;
@@ -88,16 +109,19 @@ public class RerankExec extends InferenceExec {
         out.writeNamedWriteable(queryText());
         out.writeCollection(rerankFields());
         out.writeNamedWriteable(scoreAttribute);
+        if (out.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
+            out.writeOptionalTimeValue(timeout);
+        }
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, RerankExec::new, child(), inferenceId(), queryText, rerankFields, scoreAttribute);
+        return NodeInfo.create(this, RerankExec::new, child(), inferenceId(), queryText, rerankFields, scoreAttribute, timeout);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new RerankExec(source(), newChild, inferenceId(), queryText, rerankFields, scoreAttribute);
+        return new RerankExec(source(), newChild, inferenceId(), queryText, rerankFields, scoreAttribute, timeout);
     }
 
     @Override
@@ -121,11 +145,12 @@ public class RerankExec extends InferenceExec {
         RerankExec rerank = (RerankExec) o;
         return Objects.equals(queryText, rerank.queryText)
             && Objects.equals(rerankFields, rerank.rerankFields)
-            && Objects.equals(scoreAttribute, rerank.scoreAttribute);
+            && Objects.equals(scoreAttribute, rerank.scoreAttribute)
+            && Objects.equals(timeout, rerank.timeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryText, rerankFields, scoreAttribute);
+        return Objects.hash(super.hashCode(), queryText, rerankFields, scoreAttribute, timeout);
     }
 }

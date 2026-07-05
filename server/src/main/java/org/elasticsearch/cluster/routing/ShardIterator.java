@@ -18,8 +18,7 @@ import java.util.List;
  * The {@link ShardIterator} is a {@link ShardsIterator} which iterates all
  * shards of a given {@link ShardId shard id}
  */
-public final class ShardIterator extends PlainShardsIterator implements Comparable<ShardIterator> {
-
+public sealed class ShardIterator extends PlainShardsIterator implements Comparable<ShardIterator> permits SearchShardRouting {
     private final ShardId shardId;
 
     public static ShardIterator allSearchableShards(ShardIterator shardIterator) {

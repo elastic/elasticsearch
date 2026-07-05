@@ -9,11 +9,10 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements IndicesRequest {
+class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements IndicesRequest {
 
     private final List<ShardId> shardIds;
     private final String[] fields;
@@ -46,22 +45,13 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         super(in);
         shardIds = in.readCollectionAsList(ShardId::new);
         fields = in.readStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            filters = in.readStringArray();
-            allowedTypes = in.readStringArray();
-        } else {
-            filters = Strings.EMPTY_ARRAY;
-            allowedTypes = Strings.EMPTY_ARRAY;
-        }
+        filters = in.readStringArray();
+        allowedTypes = in.readStringArray();
         originalIndices = OriginalIndices.readOriginalIndices(in);
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readLong();
         runtimeFields = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            includeEmptyFields = in.readBoolean();
-        } else {
-            includeEmptyFields = true;
-        }
+        includeEmptyFields = in.readBoolean();
     }
 
     FieldCapabilitiesNodeRequest(
@@ -137,17 +127,13 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         super.writeTo(out);
         out.writeCollection(shardIds);
         out.writeStringArray(fields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            out.writeStringArray(filters);
-            out.writeStringArray(allowedTypes);
-        }
+        out.writeStringArray(filters);
+        out.writeStringArray(allowedTypes);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(includeEmptyFields);
-        }
+        out.writeBoolean(includeEmptyFields);
     }
 
     @Override

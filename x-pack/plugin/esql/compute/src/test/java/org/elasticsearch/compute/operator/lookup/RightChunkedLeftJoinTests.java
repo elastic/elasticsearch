@@ -230,13 +230,13 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
             1,
             10,
             ElementType[]::new,
-            () -> RandomBlock.randomElementExcluding(List.of(ElementType.AGGREGATE_METRIC_DOUBLE))
+            () -> RandomBlock.randomElementExcluding(List.of(ElementType.AGGREGATE_METRIC_DOUBLE, ElementType.TDIGEST))
         );
         ElementType[] rightColumns = randomArray(
             1,
             10,
             ElementType[]::new,
-            () -> RandomBlock.randomElementExcluding(List.of(ElementType.AGGREGATE_METRIC_DOUBLE))
+            () -> RandomBlock.randomElementExcluding(List.of(ElementType.AGGREGATE_METRIC_DOUBLE, ElementType.TDIGEST))
         );
 
         RandomPage left = randomPage(factory, leftColumns, leftSize);

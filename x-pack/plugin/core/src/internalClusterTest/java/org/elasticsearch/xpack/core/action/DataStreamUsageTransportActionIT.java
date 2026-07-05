@@ -163,7 +163,10 @@ public class DataStreamUsageTransportActionIT extends ESIntegTestCase {
                 }
                 DataStreamLifecycle lifecycle = randomBoolean()
                     ? null
-                    : DataStreamLifecycle.createFailuresLifecycle(randomBoolean(), TimeValue.timeValueDays(randomIntBetween(1, 10)));
+                    : DataStreamLifecycle.failuresLifecycleBuilder()
+                        .enabled(randomBoolean())
+                        .dataRetention(TimeValue.timeValueDays(randomIntBetween(1, 10)))
+                        .build();
                 if (lifecycle != null && lifecycle.enabled()) {
                     explicitlyEnabledFailuresLifecycleCount.incrementAndGet();
                     effectivelyEnabledFailuresLifecycleCount.incrementAndGet();

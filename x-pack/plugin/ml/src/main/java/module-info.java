@@ -32,6 +32,7 @@ module org.elasticsearch.ml {
     opens org.elasticsearch.xpack.ml to org.elasticsearch.painless.spi; // whitelist resource access
     opens org.elasticsearch.xpack.ml.utils; // for exact.properties access
 
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.ml.MachineLearningFeatures;
     provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.xpack.ml.MachineLearningPainlessExtension;
     provides org.elasticsearch.xpack.autoscaling.AutoscalingExtension with org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingExtension;
 
@@ -43,5 +44,12 @@ module org.elasticsearch.ml {
     exports org.elasticsearch.xpack.ml.autoscaling;
     exports org.elasticsearch.xpack.ml.job.categorization;
     exports org.elasticsearch.xpack.ml.notifications;
+    exports org.elasticsearch.xpack.ml.action.datafeed;
+    exports org.elasticsearch.xpack.ml.action.dataframe;
+    exports org.elasticsearch.xpack.ml.action.trainedmodel;
+    exports org.elasticsearch.xpack.ml.action.filter;
+    exports org.elasticsearch.xpack.ml.action.calendar;
+    exports org.elasticsearch.xpack.ml.action.job;
+    exports org.elasticsearch.xpack.ml.action.snapshot;
 
 }

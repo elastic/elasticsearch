@@ -10,7 +10,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -41,7 +41,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-public class SimulatePipelineRequest extends LegacyActionRequest implements ToXContentObject {
+public class SimulatePipelineRequest extends UntypedActionRequest implements ToXContentObject {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
@@ -172,7 +172,7 @@ public class SimulatePipelineRequest extends LegacyActionRequest implements ToXC
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Unconditionally deprecate the _type field once V8 BWC support is removed
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Unconditionally deprecate the _type field once V8 BWC support is removed
     private static List<IngestDocument> parseDocs(Map<String, Object> config, RestApiVersion restApiVersion) {
         List<Map<String, Object>> docs = ConfigurationUtils.readList(null, null, config, Fields.DOCS);
         if (docs.isEmpty()) {

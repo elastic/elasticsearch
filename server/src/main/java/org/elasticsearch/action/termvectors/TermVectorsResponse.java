@@ -17,7 +17,6 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -26,7 +25,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -87,10 +85,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     TermVectorsResponse(StreamInput in) throws IOException {
         index = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types no longer relevant so ignore
-            in.readString();
-        }
         id = in.readString();
         docVersion = in.readVLong();
         exists = in.readBoolean();
@@ -105,10 +99,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types not supported so send an empty array to previous versions
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeVLong(docVersion);
         final boolean docExists = isExists();

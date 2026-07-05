@@ -52,7 +52,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
-        return new FieldCapabilitiesResponse(indices, responses);
+        return FieldCapabilitiesResponse.builder().withIndices(indices).withFields(responses).build();
     }
 
     @Override
@@ -87,7 +87,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
             }
         }
         // TODO pass real list
-        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
+        return FieldCapabilitiesResponse.builder().withFields(mutatedResponses).build();
     }
 
     @Override
@@ -110,6 +110,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                     "metadata_field": false,
                     "searchable": false,
                     "aggregatable": true,
+                    "inference": false,
                     "time_series_dimension": true,
                     "indices": [ "index3", "index4" ],
                     "non_searchable_indices": [ "index4" ]
@@ -119,6 +120,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                     "metadata_field": false,
                     "searchable": true,
                     "aggregatable": false,
+                    "inference": false,
                     "time_series_metric": "counter",
                     "indices": [ "index1", "index2" ],
                     "non_aggregatable_indices": [ "index1" ],
@@ -130,7 +132,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                     "type": "text",
                     "metadata_field": false,
                     "searchable": true,
-                    "aggregatable": false
+                    "aggregatable": false,
+                    "inference": false
                   }
                 }
               },
@@ -147,7 +150,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                   }
                 }
               ]
-            }""".replaceAll("\\s+", ""), Strings.toString(response));
+            }""".replaceAll("\\s+", ""), Strings.toTruncatedString(response));
     }
 
     private static FieldCapabilitiesResponse createSimpleResponse() {
@@ -180,7 +183,11 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
         List<FieldCapabilitiesFailure> failureMap = List.of(
             new FieldCapabilitiesFailure(new String[] { "errorindex", "errorindex2" }, new IllegalArgumentException("test"))
         );
-        return new FieldCapabilitiesResponse(new String[] { "index1", "index2", "index3", "index4" }, responses, failureMap);
+        return FieldCapabilitiesResponse.builder()
+            .withIndices(new String[] { "index1", "index2", "index3", "index4" })
+            .withFields(responses)
+            .withFailures(failureMap)
+            .build();
     }
 
     public void testChunking() {

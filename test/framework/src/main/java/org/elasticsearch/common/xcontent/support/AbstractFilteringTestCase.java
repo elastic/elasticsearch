@@ -54,8 +54,7 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
                 assertThat("Couldn't find [" + file + "]", stream, notNullValue());
                 try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, stream)) {
                     // copyCurrentStructure does not property handle filters when it is passed a json parser. So we hide it.
-                    return builder.copyCurrentStructure(new FilterXContentParserWrapper(parser) {
-                    });
+                    return builder.copyCurrentStructure(new FilterXContentParserWrapper(parser) {});
                 }
             }
         };
@@ -456,7 +455,6 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testExcludeWildCardFields() throws IOException {
         Builder sample = builder -> builder.startObject()
             .startObject("include")

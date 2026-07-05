@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -21,15 +22,19 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -47,30 +52,6 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
             suppliers.addAll(
                 List.of(
                     new TestCaseSupplier(
-                        List.of(stringType, DataType.DATETIME),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(new BytesRef("YeAr"), stringType, "chrono"),
-                                new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "date")
-                            ),
-                            "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                            DataType.LONG,
-                            equalTo(2023L)
-                        )
-                    ),
-                    new TestCaseSupplier(
-                        List.of(stringType, DataType.DATE_NANOS),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(new BytesRef("YeAr"), stringType, "chrono"),
-                                new TestCaseSupplier.TypedData(1687944333000000000L, DataType.DATE_NANOS, "date")
-                            ),
-                            "DateExtractNanosEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                            DataType.LONG,
-                            equalTo(2023L)
-                        )
-                    ),
-                    new TestCaseSupplier(
                         List.of(stringType, DataType.DATE_NANOS),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
@@ -80,7 +61,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             "DateExtractNanosEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                             DataType.LONG,
                             equalTo(123456L)
-                        )
+                        ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
                     ),
                     new TestCaseSupplier(
                         List.of(stringType, DataType.DATETIME),
@@ -93,7 +74,10 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                             DataType.LONG,
                             is(nullValue())
-                        ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                            .withWarning(
+                                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                            )
                             .withWarning(
                                 "Line 1:1: java.lang.IllegalArgumentException: "
                                     + "No enum constant java.time.temporal.ChronoField.NOT A UNIT"
@@ -104,12 +88,50 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
             );
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        suppliers.addAll(casesFor("YeAr", "2023-11-04T16:13:12Z", "Z", 2023));
+        suppliers.addAll(casesFor("day_of_month", "2020-01-01T00:00:00Z", "America/New_York", 31));
+        suppliers.addAll(casesFor("month_of_year", "2020-06-30T23:00:00Z", "Europe/Paris", 7));
+
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    private static List<TestCaseSupplier> casesFor(String field, String date, String zoneIdName, long expectedResult) {
+        long dateMillis = Instant.parse(date).toEpochMilli();
+        ZoneId zoneId = ZoneId.of(zoneIdName);
+        return List.of(
+            new TestCaseSupplier(
+                field + " - " + date + " (millis) - " + zoneId,
+                List.of(DataType.KEYWORD, DataType.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field, DataType.KEYWORD, "field"),
+                        new TestCaseSupplier.TypedData(dateMillis, DataType.DATETIME, "date")
+                    ),
+                    "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=" + zoneId + "]",
+                    DataType.LONG,
+                    equalTo(expectedResult)
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+            ),
+            new TestCaseSupplier(
+                field + " - " + date + " (nanos) - " + zoneId,
+                List.of(DataType.KEYWORD, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field, DataType.KEYWORD, "field"),
+                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(dateMillis), DataType.DATE_NANOS, "date")
+                    ),
+                    "DateExtractNanosEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=" + zoneId + "]",
+                    DataType.LONG,
+                    equalTo(expectedResult)
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+            )
+        );
     }
 
     public void testAllChronoFields() {
         long epochMilli = 1687944333123L;
-        ZonedDateTime date = Instant.ofEpochMilli(epochMilli).atZone(EsqlTestUtils.TEST_CFG.zoneId());
+        ZonedDateTime date = Instant.ofEpochMilli(epochMilli)
+            .atZone(QuerySettings.TIME_ZONE.get(EsqlTestUtils.TEST_CFG.resolvedSettings()));
         for (ChronoField value : ChronoField.values()) {
             DateExtract instance = new DateExtract(
                 Source.EMPTY,
@@ -120,7 +142,11 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
 
             assertThat(instance.fold(FoldContext.small()), is(date.getLong(value)));
             assertThat(
-                DateExtract.processMillis(epochMilli, new BytesRef(value.name()), EsqlTestUtils.TEST_CFG.zoneId()),
+                DateExtract.processMillis(
+                    epochMilli,
+                    new BytesRef(value.name()),
+                    QuerySettings.TIME_ZONE.get(EsqlTestUtils.TEST_CFG.resolvedSettings())
+                ),
                 is(date.getLong(value))
             );
         }

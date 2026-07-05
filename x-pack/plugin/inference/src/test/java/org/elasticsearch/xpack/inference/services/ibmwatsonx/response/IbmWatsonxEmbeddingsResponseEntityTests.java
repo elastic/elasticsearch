@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -36,12 +36,12 @@ public class IbmWatsonxEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        TextEmbeddingFloatResults parsedResults = IbmWatsonxEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+        DenseEmbeddingFloatResults parsedResults = IbmWatsonxEmbeddingsResponseEntity.fromResponse(
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.embeddings(), is(List.of(TextEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F)))));
+        assertThat(parsedResults.embeddings(), is(List.of(DenseEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F)))));
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
@@ -66,8 +66,8 @@ public class IbmWatsonxEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        TextEmbeddingFloatResults parsedResults = IbmWatsonxEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+        DenseEmbeddingFloatResults parsedResults = IbmWatsonxEmbeddingsResponseEntity.fromResponse(
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -75,8 +75,8 @@ public class IbmWatsonxEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
-                    TextEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F)),
-                    TextEmbeddingFloatResults.Embedding.of(List.of(0.030681048F, 0.01714732F))
+                    DenseEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F)),
+                    DenseEmbeddingFloatResults.Embedding.of(List.of(0.030681048F, 0.01714732F))
                 )
             )
         );
@@ -107,7 +107,7 @@ public class IbmWatsonxEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalStateException.class,
             () -> IbmWatsonxEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );

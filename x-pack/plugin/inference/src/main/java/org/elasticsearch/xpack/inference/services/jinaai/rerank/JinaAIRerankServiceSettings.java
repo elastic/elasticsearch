@@ -7,18 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -29,32 +26,38 @@ import java.util.Objects;
 public class JinaAIRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, JinaAIRateLimitServiceSettings {
     public static final String NAME = "jinaai_rerank_service_settings";
 
-    private static final Logger logger = LogManager.getLogger(JinaAIRerankServiceSettings.class);
-
     public static JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        var commonServiceSettings = JinaAICommonServiceSettings.fromMap(map, context, validationException);
 
-        var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
-
+        validationException.throwIfValidationErrorsExist();
         return new JinaAIRerankServiceSettings(commonServiceSettings);
     }
 
-    private final JinaAIServiceSettings commonSettings;
+    private final JinaAICommonServiceSettings commonSettings;
 
-    public JinaAIRerankServiceSettings(JinaAIServiceSettings commonSettings) {
+    public JinaAIRerankServiceSettings(JinaAICommonServiceSettings commonSettings) {
         this.commonSettings = commonSettings;
     }
 
     public JinaAIRerankServiceSettings(StreamInput in) throws IOException {
-        this.commonSettings = new JinaAIServiceSettings(in);
+        this.commonSettings = new JinaAICommonServiceSettings(in);
     }
 
-    public JinaAIServiceSettings getCommonSettings() {
+    public JinaAICommonServiceSettings getCommonSettings() {
         return commonSettings;
+    }
+
+    @Override
+    public JinaAIRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var updatedCommonServiceSettings = commonSettings.updateCommonServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new JinaAIRerankServiceSettings(updatedCommonServiceSettings);
     }
 
     @Override
@@ -90,7 +93,7 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

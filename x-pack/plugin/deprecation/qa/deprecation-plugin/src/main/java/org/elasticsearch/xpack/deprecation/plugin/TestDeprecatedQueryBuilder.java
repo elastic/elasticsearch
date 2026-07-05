@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,7 +27,7 @@ import java.io.IOException;
  * <p>
  * This makes it easy to test multiple unique responses for a single request.
  */
-public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDeprecatedQueryBuilder> {
+public class TestDeprecatedQueryBuilder extends LeafQueryBuilder<TestDeprecatedQueryBuilder> {
     public static final String NAME = "deprecated_match_all";
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TestDeprecatedQueryBuilder.class);
@@ -76,7 +76,7 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
             context.index().getName()
         );
 
-        return Queries.newMatchAllQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override

@@ -1,6 +1,0 @@
-pr: 134033
-summary: Fix FORK with union-types
-area: ES|QL
-type: bug
-issues:
- - 133973

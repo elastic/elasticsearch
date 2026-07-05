@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.ml.search;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.
  * @deprecated Replaced by sparse_vector query
  */
 @Deprecated
-public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
+public class TextExpansionQueryBuilder extends LeafQueryBuilder<TextExpansionQueryBuilder> {
 
     public static final String NAME = "text_expansion";
     public static final ParseField MODEL_TEXT = new ParseField("model_text");
@@ -86,11 +86,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.fieldName = in.readString();
         this.modelText = in.readString();
         this.modelId = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
-        } else {
-            this.tokenPruningConfig = null;
-        }
+        this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
     }
 
     private TextExpansionQueryBuilder(TextExpansionQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
@@ -118,7 +114,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_8_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -129,9 +125,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         out.writeString(fieldName);
         out.writeString(modelText);
         out.writeString(modelId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalWriteable(tokenPruningConfig);
-        }
+        out.writeOptionalWriteable(tokenPruningConfig);
     }
 
     @Override
@@ -188,7 +182,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                         listener.onFailure(new IllegalStateException(warning.getWarning()));
                     } else {
                         listener.onFailure(
-                            new IllegalStateException(
+                            new IllegalArgumentException(
                                 "expected a result of type ["
                                     + TextExpansionResults.NAME
                                     + "] received ["

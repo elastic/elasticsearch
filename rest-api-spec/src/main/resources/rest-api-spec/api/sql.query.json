@@ -27,12 +27,17 @@
     },
     "params": {
       "format": {
-        "type": "string",
-        "description": "a short version of the Accept header, e.g. json, yaml"
-      },
-      "project_routing": {
-        "type": "string",
-        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
+        "type": "enum",
+        "description": "The format for the response.\nYou can also specify a format using the `Accept` HTTP header.\nIf you specify both this parameter and the `Accept` HTTP header, this parameter takes precedence.",
+        "options": [
+          "csv",
+          "json",
+          "tsv",
+          "txt",
+          "yaml",
+          "cbor",
+          "smile"
+        ]
       }
     },
     "body": {

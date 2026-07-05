@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -26,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.MAX_INDEX_NAME_BYTES;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
@@ -52,7 +52,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
-    public static final TransportVersion VERSION_SUPPORTING_QUIET_PARAMETER = TransportVersions.V_8_4_0;
     private boolean quiet = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
@@ -92,11 +91,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
-            quiet = in.readBoolean();
-        } else {
-            quiet = true;
-        }
+        quiet = in.readBoolean();
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
@@ -116,9 +111,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
-            out.writeBoolean(quiet);
-        }
+        out.writeBoolean(quiet);
         indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
@@ -151,6 +144,21 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         if (featureStates == null) {
             validationException = addValidationError("featureStates is missing", validationException);
+        }
+        if (renameReplacement != null) {
+            int byteLength = renameReplacement.getBytes(StandardCharsets.UTF_8).length;
+
+            // Allow small buffer for cases where back-references or escapes result in shorter output
+            if (renameReplacement.getBytes(StandardCharsets.UTF_8).length > MAX_INDEX_NAME_BYTES + 10) {
+                validationException = addValidationError(
+                    "rename_replacement UTF-8 byte length ["
+                        + byteLength
+                        + "] exceeds maximum allowed length ["
+                        + (MAX_INDEX_NAME_BYTES + 10)
+                        + "] bytes",
+                    validationException
+                );
+            }
         }
         if (indexSettings == null) {
             validationException = addValidationError("indexSettings are missing", validationException);

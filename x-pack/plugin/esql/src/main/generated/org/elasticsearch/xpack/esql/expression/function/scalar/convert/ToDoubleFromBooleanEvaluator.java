@@ -12,28 +12,28 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDouble}.
+ * {@link ExpressionEvaluator} implementation for {@link ToDouble}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDoubleFromBooleanEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDoubleFromBooleanEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator bool;
+  private final ExpressionEvaluator bool;
 
-  public ToDoubleFromBooleanEvaluator(Source source, EvalOperator.ExpressionEvaluator bool,
+  public ToDoubleFromBooleanEvaluator(Source source, ExpressionEvaluator bool,
       DriverContext driverContext) {
     super(driverContext, source);
     this.bool = bool;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return bool;
   }
 
@@ -109,12 +109,12 @@ public final class ToDoubleFromBooleanEvaluator extends AbstractConvertFunction.
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory bool;
+    private final ExpressionEvaluator.Factory bool;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory bool) {
+    public Factory(Source source, ExpressionEvaluator.Factory bool) {
       this.source = source;
       this.bool = bool;
     }

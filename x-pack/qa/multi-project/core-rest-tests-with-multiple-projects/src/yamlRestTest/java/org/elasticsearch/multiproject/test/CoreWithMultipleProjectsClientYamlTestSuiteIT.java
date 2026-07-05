@@ -14,11 +14,12 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-@TimeoutSuite(millis = 45 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProjectsClientYamlSuiteTestCase {
 
     @ClassRule
@@ -29,6 +30,7 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
         .module("x-pack-ilm")
         .module("x-pack-stack")
         .module("ingest-common")
+        .module("user-agent")
         .module("reindex")
         .module("wildcard")
         .module("analysis-common")
@@ -38,6 +40,8 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
         .module("lang-mustache")
         .module("parent-join")
         .module("streams")
+        .configFile("user-agent/test-regexes.yml", Resource.fromClasspath("test-regexes.yml"))
+        .configFile("ingest-user-agent/test-regexes-legacy.yml", Resource.fromClasspath("test-regexes.yml"))
         .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")

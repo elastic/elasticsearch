@@ -42,7 +42,7 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
     /**
      * 1. creates an index on N-2 and performs async_search on it that is kept in system index
      * 2. After update to N-1 (latest) perform a system index migration step, also write block the index
-     * 3. on N, check that async search results are still retrievable and we can write to the system index
+     * 3. on N, check that N-1 search results are still retrievable and we can write to the system index
      */
     public void testAsyncSearchIndexMigration() throws Exception {
         final String index = suffix("index");
@@ -112,7 +112,7 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
 
         if (isFullyUpgradedTo(VERSION_CURRENT)) {
             assertThat(indexVersion(index, true), equalTo(VERSION_MINUS_2));
-            assertAsyncSearchHitCount(async_search_ids.get("n-2_id"), numDocs);
+            // n-2 results should no longer be readable
             assertAsyncSearchHitCount(async_search_ids.get("n-1_id"), numDocs);
 
             // check system index is still writeable

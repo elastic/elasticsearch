@@ -11,9 +11,9 @@ package org.elasticsearch.search.aggregations.bucket.global;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -35,7 +35,7 @@ public final class GlobalAggregator extends BucketsAggregator implements SingleB
 
         super(name, subFactories, context, null, CardinalityUpperBound.ONE, metadata);
         weight = context.searcher()
-            .rewrite(context.filterQuery(new MatchAllDocsQuery()))
+            .rewrite(context.filterQuery(Queries.ALL_DOCS_INSTANCE))
             .createWeight(context.searcher(), scoreMode(), 1.0f);
     }
 

@@ -16,7 +16,9 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
@@ -31,6 +33,7 @@ import org.elasticsearch.test.hamcrest.RectangleMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -39,6 +42,8 @@ import java.util.stream.IntStream;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
 import static org.elasticsearch.common.geo.Orientation.RIGHT;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
     public void testCartesianBoundsBlockLoader() throws IOException {
@@ -61,6 +66,26 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
             g -> SpatialEnvelopeVisitor.visitGeo(g, SpatialEnvelopeVisitor.WrapLongitude.WRAP),
             AbstractShapeGeometryFieldMapperTests::makeGeoRectangle
         );
+    }
+
+    public void testCartesianBoundsNoData() throws IOException {
+        var loader = new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader("field");
+        try (Directory directory = newDirectory()) {
+            try (var iw = new IndexWriter(directory, new IndexWriterConfig(null /* analyzer */))) {
+                iw.addDocument(List.of());
+            }
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                try (
+                    BlockLoader.ColumnAtATimeReader allReader = loader.reader(breaker, leaf.getContext());
+                    var block = (TestBlock) allReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false)
+                ) {
+                    assertThat(block.size(), equalTo(1));
+                    assertThat(block.get(0), nullValue());
+                }
+            }
+        }
     }
 
     // TODO: Re-enable this test after fixing the bug in the SpatialEnvelopeVisitor regarding Rectangle crossing the dateline
@@ -117,6 +142,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
             ArrayList<Object> intArrayResults = new ArrayList<>();
             int currentIndex = 0;
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 for (var leaf : reader.leaves()) {
                     LeafReader leafReader = leaf.reader();
                     int numDocs = leafReader.numDocs();
@@ -125,7 +151,10 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
                     for (int j : array) {
                         expected.add(visitor.apply(geometries.get(j + currentIndex)).get());
                     }
-                    try (var block = (TestBlock) loader.reader(leaf).read(TestBlock.factory(), TestBlock.docs(array), 0, false)) {
+                    try (
+                        BlockLoader.ColumnAtATimeReader allReader = loader.reader(breaker, leaf);
+                        var block = (TestBlock) allReader.read(TestBlock.factory(), TestBlock.docs(array), 0, false)
+                    ) {
                         for (int i = 0; i < block.size(); i++) {
                             intArrayResults.add(block.get(i));
                         }

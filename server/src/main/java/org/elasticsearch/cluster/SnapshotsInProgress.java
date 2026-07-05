@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -121,9 +120,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     private static Set<String> readNodeIdsForRemoval(StreamInput in) throws IOException {
-        return in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-            ? in.readCollectionAsImmutableSet(StreamInput::readString)
-            : Set.of();
+        return in.readCollectionAsImmutableSet(StreamInput::readString);
     }
 
     private static Map<ProjectRepo, ByRepo> collectByRepo(StreamInput in) throws IOException {
@@ -342,13 +339,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return TransportVersion.minimumCompatible();
     }
 
-    private static final TransportVersion DIFFABLE_VERSION = TransportVersions.V_8_5_0;
-
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
-            return new SnapshotInProgressDiff(in);
-        }
-        return readDiffFrom(Custom.class, TYPE, in);
+        return new SnapshotInProgressDiff(in);
     }
 
     @Override
@@ -363,11 +355,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         while (iterator.hasNext()) {
             iterator.next().writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeStringCollection(nodesIdsForRemoval);
-        } else {
-            assert nodesIdsForRemoval.isEmpty() : nodesIdsForRemoval;
-        }
+        out.writeStringCollection(nodesIdsForRemoval);
     }
 
     @Override
@@ -551,8 +539,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * running shard snapshots.
      */
     public SnapshotsInProgress withUpdatedNodeIdsForRemoval(ClusterState clusterState) {
-        assert clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
-
         final var updatedNodeIdsForRemoval = new HashSet<>(nodesIdsForRemoval);
 
         final var nodeIdsMarkedForRemoval = getNodesIdsMarkedForRemoval(clusterState);
@@ -1232,6 +1218,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          */
         @Nullable
         public Entry abort() {
+            if (isClone()) {
+                return abortClone();
+            }
             final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
             boolean allQueued = true;
@@ -1240,12 +1229,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 allQueued &= status.state() == ShardState.QUEUED;
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
-                    status = new ShardSnapshotStatus(
-                        nodeId,
-                        nodeId == null ? ShardState.FAILED : ShardState.ABORTED,
-                        status.generation(),
-                        "aborted by snapshot deletion"
-                    );
+                    final var newState = nodeId == null ? ShardState.FAILED : ShardState.ABORTED;
+                    status = new ShardSnapshotStatus(nodeId, newState, status.generation(), "aborted by snapshot deletion");
                 }
                 completed &= status.state().completed();
                 shardsBuilder.put(shardEntry.getKey(), status);
@@ -1267,6 +1252,37 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 ABORTED_FAILURE_TEXT,
                 userMetadata,
                 version
+            );
+        }
+
+        private Entry abortClone() {
+            final Map<RepositoryShardId, ShardSnapshotStatus> clonesBuilder = new HashMap<>();
+            boolean allQueued = true;
+            for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardEntry : shardStatusByRepoShardId.entrySet()) {
+                ShardSnapshotStatus status = shardEntry.getValue();
+                allQueued &= status.state() == ShardState.QUEUED;
+                if (status.state().completed() == false) {
+                    final String nodeId = status.nodeId();
+                    final var newState = nodeId == null ? ShardState.FAILED : ShardState.ABORTED;
+                    status = new ShardSnapshotStatus(nodeId, newState, status.generation(), "aborted by snapshot deletion");
+                }
+                clonesBuilder.put(shardEntry.getKey(), status);
+            }
+            if (allQueued) {
+                return null;
+            }
+            return Entry.createClone(
+                snapshot,
+                // The clone is being deleted, simply mark it as FAILED if all shard clones are completed so that the entry
+                // gets deleted without the need for finalization.
+                completed(clonesBuilder.values()) ? State.FAILED : State.ABORTED,
+                indices,
+                startTime,
+                repositoryStateId,
+                ABORTED_FAILURE_TEXT,
+                version,
+                source,
+                clonesBuilder
             );
         }
 
@@ -1812,6 +1828,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private static final class SnapshotInProgressDiff implements NamedDiff<Custom> {
 
+        private static final TransportVersion PROJECT_ID_IN_SNAPSHOT = TransportVersion.fromName("project_id_in_snapshot");
+
         private final SnapshotsInProgress after;
 
         private final DiffableUtils.MapDiff<ProjectRepo, ByRepo, Map<ProjectRepo, ByRepo>> mapDiff;
@@ -1824,7 +1842,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         SnapshotInProgressDiff(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+            if (in.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
                 final var oldMapDiff = DiffableUtils.readJdkMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -1874,30 +1892,22 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert after != null : "should only write instances that were diffed from this node's state";
-            if (out.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
-                if (out.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
-                    DiffableUtils.jdkMapDiffWithUpdatedKeys(mapDiff, projectRepo -> {
-                        if (ProjectId.DEFAULT.equals(projectRepo.projectId()) == false) {
-                            final var message = "Cannot write instance with non-default project id "
-                                + projectRepo.projectId()
-                                + " to version before "
-                                + TransportVersions.PROJECT_ID_IN_SNAPSHOT;
-                            assert false : message;
-                            throw new IllegalArgumentException(message);
-                        }
-                        return projectRepo.name();
-                    }, DiffableUtils.getStringKeySerializer()).writeTo(out);
-                } else {
-                    mapDiff.writeTo(out);
-                }
+            if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
+                DiffableUtils.jdkMapDiffWithUpdatedKeys(mapDiff, projectRepo -> {
+                    if (ProjectId.DEFAULT.equals(projectRepo.projectId()) == false) {
+                        final var message = "Cannot write instance with non-default project id "
+                            + projectRepo.projectId()
+                            + " to version before "
+                            + PROJECT_ID_IN_SNAPSHOT;
+                        assert false : message;
+                        throw new IllegalArgumentException(message);
+                    }
+                    return projectRepo.name();
+                }, DiffableUtils.getStringKeySerializer()).writeTo(out);
             } else {
-                new SimpleDiffable.CompleteDiff<>(after).writeTo(out);
+                mapDiff.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeStringCollection(nodeIdsForRemoval);
-            } else {
-                assert nodeIdsForRemoval.isEmpty() : nodeIdsForRemoval;
-            }
+            out.writeStringCollection(nodeIdsForRemoval);
         }
     }
 

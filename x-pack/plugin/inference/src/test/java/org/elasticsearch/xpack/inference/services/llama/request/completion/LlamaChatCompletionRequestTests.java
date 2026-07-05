@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests;
 
 import java.io.IOException;
@@ -26,7 +27,7 @@ public class LlamaChatCompletionRequestTests extends ESTestCase {
     public void testCreateRequest_WithStreaming() throws IOException {
         String input = randomAlphaOfLength(15);
         var request = createRequest("model", "url", "secret", input, true);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -36,7 +37,7 @@ public class LlamaChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap.get("stream"), is(true));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("n"), is(1));
-        assertThat(requestMap.get("stream_options"), is(Map.of("include_usage", true)));
+        assertNull(requestMap.get("stream_options"));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
         assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
     }
@@ -44,7 +45,7 @@ public class LlamaChatCompletionRequestTests extends ESTestCase {
     public void testCreateRequest_NoStreaming_NoAuthorization() throws IOException {
         String input = randomAlphaOfLength(15);
         var request = createRequestWithNoAuth("model", "url", input, false);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

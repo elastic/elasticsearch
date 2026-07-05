@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -21,7 +20,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
@@ -66,11 +66,6 @@ public class AmazonBedrockMockRequestSender implements Sender {
     }
 
     @Override
-    public void start() {
-        // do nothing
-    }
-
-    @Override
     public void send(
         RequestManager requestCreator,
         InferenceInputs inferenceInputs,
@@ -78,13 +73,15 @@ public class AmazonBedrockMockRequestSender implements Sender {
         ActionListener<InferenceServiceResults> listener
     ) {
         sendCounter++;
-        if (inferenceInputs instanceof EmbeddingsInput docsInput) {
-            inputs.add(ChunkInferenceInput.inputs(docsInput.getInputs()));
-            if (docsInput.getInputType() != null) {
-                inputTypes.add(docsInput.getInputType());
+        if (inferenceInputs instanceof EmbeddingsInput embeddingsInput) {
+            inputs.add(embeddingsInput.getTextInputs());
+            if (embeddingsInput.getInputType() != null) {
+                inputTypes.add(embeddingsInput.getInputType());
             }
         } else if (inferenceInputs instanceof ChatCompletionInput chatCompletionInput) {
             inputs.add(chatCompletionInput.getInputs());
+        } else if (inferenceInputs instanceof UnifiedChatInput unifiedChatInput) {
+            results.add(unifiedChatInput.getRequest());
         } else {
             throw new IllegalArgumentException(
                 "Invalid inference inputs received in mock sender: " + inferenceInputs.getClass().getSimpleName()
@@ -108,7 +105,7 @@ public class AmazonBedrockMockRequestSender implements Sender {
     @Override
     public void sendWithoutQueuing(
         Logger logger,
-        Request request,
+        OutboundRequest outboundRequest,
         ResponseHandler responseHandler,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

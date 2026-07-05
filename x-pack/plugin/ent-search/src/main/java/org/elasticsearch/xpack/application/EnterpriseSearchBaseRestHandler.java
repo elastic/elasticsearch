@@ -11,7 +11,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.io.IOException;
@@ -26,17 +25,10 @@ public abstract class EnterpriseSearchBaseRestHandler extends BaseRestHandler {
     }
 
     protected final BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (LicenseUtils.supportedLicense(this.product, this.licenseState)) {
-            return innerPrepareRequest(request, client);
-        } else {
-            // We need to consume parameters and content from the REST request in order to bypass unrecognized param errors
-            // and return a license error.
-            request.params().keySet().forEach(key -> request.param(key, ""));
-            request.content();
-            return channel -> channel.sendResponse(
-                new RestResponse(channel, LicenseUtils.newComplianceException(this.licenseState, this.product))
-            );
+        if (LicenseUtils.supportedLicense(this.product, this.licenseState) == false) {
+            throw LicenseUtils.newComplianceException(this.licenseState, this.product);
         }
+        return innerPrepareRequest(request, client);
     }
 
     /**

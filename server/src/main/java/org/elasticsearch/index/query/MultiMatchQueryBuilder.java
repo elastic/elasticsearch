@@ -13,7 +13,6 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +24,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.MultiMatchQueryParser;
 import org.elasticsearch.index.search.QueryParserHelper;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -222,9 +222,6 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
         fuzzyRewrite = in.readOptionalString();
         tieBreaker = in.readOptionalFloat();
         lenient = in.readOptionalBoolean();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalFloat();
-        }
         zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
         fuzzyTranspositions = in.readBoolean();
@@ -245,9 +242,6 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalFloat(tieBreaker);
         out.writeOptionalBoolean(lenient);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalFloat(null);
-        }
         zeroTermsQuery.writeTo(out);
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
         out.writeBoolean(fuzzyTranspositions);
@@ -732,8 +726,8 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MultiMatchQueryParser multiMatchQuery = new MultiMatchQueryParser(context);
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
+        MultiMatchQueryParser multiMatchQuery = new MultiMatchQueryParser(context, queryVisitor);
         if (analyzer != null) {
             if (context.getIndexAnalyzers().get(analyzer) == null) {
                 throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");

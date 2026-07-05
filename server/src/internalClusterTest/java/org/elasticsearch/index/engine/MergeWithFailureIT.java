@@ -102,9 +102,8 @@ public class MergeWithFailureIT extends ESIntegTestCase {
             }
             return Optional.of(
                 config -> new TestEngine(
-                    EngineTestCase.copy(
-                        config,
-                        new OneMergeWrappingMergePolicy(config.getMergePolicy(), toWrap -> new MergePolicy.OneMerge(toWrap) {
+                    EngineConfig.builder(config)
+                        .mergePolicy(new OneMergeWrappingMergePolicy(config.getMergePolicy(), toWrap -> new MergePolicy.OneMerge(toWrap) {
                             @Override
                             public CodecReader wrapForMerge(CodecReader reader) {
                                 return new FilterCodecReader(reader) {
@@ -135,8 +134,8 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                                     }
                                 };
                             }
-                        })
-                    )
+                        }))
+                        .build()
                 )
             );
         }
@@ -321,7 +320,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         ensureRed(indexName);
 
         // verify that the shard store is effectively closed
-        assertTrue(plugin.shardStoreClosedListener.isDone());
+        safeGet(plugin.shardStoreClosedListener);
 
         if (closingThread != null) {
             closingThread.join();

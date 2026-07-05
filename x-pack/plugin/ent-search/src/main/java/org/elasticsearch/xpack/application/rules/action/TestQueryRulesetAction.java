@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,7 +43,7 @@ public class TestQueryRulesetAction {
 
     private TestQueryRulesetAction() {/* no instances */}
 
-    public static class Request extends LegacyActionRequest implements ToXContentObject, IndicesRequest {
+    public static class Request extends UntypedActionRequest implements ToXContentObject, IndicesRequest {
         private final String rulesetId;
         private final Map<String, Object> matchCriteria;
 
@@ -158,6 +159,14 @@ public class TestQueryRulesetAction {
         public Response(int totalMatchedRules, List<MatchedRule> matchedRules) {
             this.totalMatchedRules = totalMatchedRules;
             this.matchedRules = matchedRules;
+        }
+
+        int totalMatchedRules() {
+            return totalMatchedRules;
+        }
+
+        List<MatchedRule> matchedRules() {
+            return Collections.unmodifiableList(matchedRules);
         }
 
         @Override

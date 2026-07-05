@@ -17,15 +17,13 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
-
-import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
@@ -74,7 +72,7 @@ public class ArchiveAllocationDeciderTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
 
         final ArchiveAllocationDecider decider = new ArchiveAllocationDecider(() -> validLicense);
-        final RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(List.of(decider)), clusterState, null, null, 0L);
+        final RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(decider).build();
         assertThat(decider.canAllocate(shard, allocation).type(), is(expectedType));
     }
 

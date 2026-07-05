@@ -32,7 +32,7 @@ abstract class ValueExtractorForBytesRef implements ValueExtractor {
     protected final boolean inKey;
 
     ValueExtractorForBytesRef(TopNEncoder encoder, boolean inKey) {
-        this.encoder = encoder;
+        this.encoder = encoder.toUnsortable();
         this.inKey = inKey;
     }
 

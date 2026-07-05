@@ -8,35 +8,49 @@
 package org.elasticsearch.compute.operator.fuse;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.DoubleVectorBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CompleteInputCollectorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  *
  * Updates the score column in two stages:
  * 1. Normalizes the scores using the normalization method specified in the config. Each row belongs
- * to a result group that is specified by the discriminator column. Scores are normalized for each result group.
+ * to a result group which is specified by the discriminator column. Scores are normalized for each result group.
  * 2. Multiplies the normalized score by the weight specified in the config. The config contains the weights that
  * we need to apply for each result group.
  *
  */
-public class LinearScoreEvalOperator implements Operator {
-    public record Factory(int discriminatorPosition, int scorePosition, LinearConfig linearConfig) implements OperatorFactory {
+public class LinearScoreEvalOperator extends CompleteInputCollectorOperator {
+    public record Factory(int discriminatorPosition, int scorePosition, LinearConfig linearConfig, WarningSourceLocation source)
+        implements
+            OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new LinearScoreEvalOperator(discriminatorPosition, scorePosition, linearConfig);
+            return new LinearScoreEvalOperator(driverContext, discriminatorPosition, scorePosition, linearConfig, source);
         }
 
         @Override
@@ -56,93 +70,147 @@ public class LinearScoreEvalOperator implements Operator {
     private final LinearConfig config;
     private final Normalizer normalizer;
 
-    private final Deque<Page> inputPages;
     private final Deque<Page> outputPages;
-    private boolean finished;
 
-    public LinearScoreEvalOperator(int discriminatorPosition, int scorePosition, LinearConfig config) {
+    private long emitNanos;
+    private int pagesProcessed = 0;
+    private long rowsEmitted = 0;
+
+    private final WarningSourceLocation source;
+    private Warnings warnings;
+    private final DriverContext driverContext;
+
+    public LinearScoreEvalOperator(
+        DriverContext driverContext,
+        int discriminatorPosition,
+        int scorePosition,
+        LinearConfig config,
+        WarningSourceLocation source
+    ) {
+        super();
         this.scorePosition = scorePosition;
         this.discriminatorPosition = discriminatorPosition;
         this.config = config;
         this.normalizer = createNormalizer(config.normalizer());
+        this.driverContext = driverContext;
+        this.source = source;
 
-        finished = false;
-        inputPages = new ArrayDeque<>();
         outputPages = new ArrayDeque<>();
     }
 
     @Override
-    public boolean needsInput() {
-        return finished == false;
+    protected void onFinished() {
+        createOutputPages();
     }
 
     @Override
-    public void addInput(Page page) {
-        inputPages.add(page);
+    protected boolean isOperatorFinished() {
+        return outputPages.isEmpty();
     }
 
     @Override
-    public void finish() {
-        if (finished == false) {
-            finished = true;
-            createOutputPages();
+    protected Page onGetOutput() {
+        Page page = outputPages.removeFirst();
+        rowsEmitted += page.getPositionCount();
+
+        return page;
+    }
+
+    @Override
+    protected void onClose() {
+        for (Page page : outputPages) {
+            page.releaseBlocks();
         }
     }
 
     private void createOutputPages() {
+        final var emitStart = System.nanoTime();
         normalizer.preprocess(inputPages, scorePosition, discriminatorPosition);
+        try {
+            while (inputPages.isEmpty() == false) {
+                Page inputPage = inputPages.peek();
+                processInputPage(inputPage);
+                inputPages.removeFirst();
+                pagesProcessed += 1;
+            }
+        } finally {
+            emitNanos = System.nanoTime() - emitStart;
+            Releasables.close(inputPages);
+        }
+    }
 
-        while (inputPages.isEmpty() == false) {
-            Page inputPage = inputPages.peek();
+    private void processInputPage(Page inputPage) {
+        BytesRefBlock discriminatorBlock = inputPage.getBlock(discriminatorPosition);
+        DoubleBlock initialScoreBlock = inputPage.getBlock(scorePosition);
 
-            BytesRefBlock discriminatorBlock = inputPage.getBlock(discriminatorPosition);
-            DoubleVectorBlock initialScoreBlock = inputPage.getBlock(scorePosition);
+        Page newPage = null;
+        Block scoreBlock = null;
+        DoubleBlock.Builder scores = null;
 
-            DoubleVector.Builder scores = discriminatorBlock.blockFactory().newDoubleVectorBuilder(discriminatorBlock.getPositionCount());
+        try {
+            scores = discriminatorBlock.blockFactory().newDoubleBlockBuilder(discriminatorBlock.getPositionCount());
 
             for (int i = 0; i < inputPage.getPositionCount(); i++) {
-                String discriminator = discriminatorBlock.getBytesRef(i, new BytesRef()).utf8ToString();
+                Object discriminatorValue = BlockUtils.toJavaObject(discriminatorBlock, i);
+
+                if (discriminatorValue == null) {
+                    warnings().registerException(new IllegalArgumentException("group column has null values; assigning null scores"));
+                    scores.appendNull();
+                    continue;
+                } else if (discriminatorValue instanceof List<?>) {
+                    warnings().registerException(
+                        new IllegalArgumentException("group column contains multivalued entries; assigning null scores")
+                    );
+                    scores.appendNull();
+                    continue;
+                }
+                String discriminator = ((BytesRef) discriminatorValue).utf8ToString();
 
                 var weight = config.weights().get(discriminator) == null ? 1.0 : config.weights().get(discriminator);
 
-                Double score = initialScoreBlock.getDouble(i);
+                initialScoreBlock.doesHaveMultivaluedFields();
+
+                Object scoreValue = BlockUtils.toJavaObject(initialScoreBlock, i);
+                if (scoreValue == null) {
+                    warnings().registerException(new IllegalArgumentException("score column has null values; assigning null scores"));
+                    scores.appendNull();
+                    continue;
+                } else if (scoreValue instanceof List<?>) {
+                    warnings().registerException(
+                        new IllegalArgumentException("score column contains multivalued entries; assigning null scores")
+                    );
+                    scores.appendNull();
+                    continue;
+                }
+
+                double score = (double) scoreValue;
+
                 scores.appendDouble(weight * normalizer.normalize(score, discriminator));
             }
-            Block scoreBlock = scores.build().asBlock();
-            inputPage = inputPage.appendBlock(scoreBlock);
 
-            int[] projections = new int[inputPage.getBlockCount() - 1];
+            scoreBlock = scores.build();
+            newPage = inputPage.appendBlock(scoreBlock);
 
-            for (int i = 0; i < inputPage.getBlockCount() - 1; i++) {
-                projections[i] = i == scorePosition ? inputPage.getBlockCount() - 1 : i;
+            int[] projections = new int[newPage.getBlockCount() - 1];
+
+            for (int i = 0; i < newPage.getBlockCount() - 1; i++) {
+                projections[i] = i == scorePosition ? newPage.getBlockCount() - 1 : i;
             }
-            inputPages.removeFirst();
-            outputPages.add(inputPage.projectBlocks(projections));
-            inputPage.releaseBlocks();
+
+            outputPages.add(newPage.projectBlocks(projections));
+        } finally {
+            if (newPage != null) {
+                newPage.releaseBlocks();
+            }
+            if (scoreBlock == null && scores != null) {
+                Releasables.close(scores);
+            }
         }
     }
 
     @Override
-    public boolean isFinished() {
-        return finished && outputPages.isEmpty();
-    }
-
-    @Override
-    public Page getOutput() {
-        if (finished == false || outputPages.isEmpty()) {
-            return null;
-        }
-        return outputPages.removeFirst();
-    }
-
-    @Override
-    public void close() {
-        for (Page page : inputPages) {
-            page.releaseBlocks();
-        }
-        for (Page page : outputPages) {
-            page.releaseBlocks();
-        }
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return outputPages.isEmpty() == false;
     }
 
     @Override
@@ -156,6 +224,69 @@ public class LinearScoreEvalOperator implements Operator {
             + "]";
     }
 
+    @Override
+    public Operator.Status status() {
+        return new Status(emitNanos, pagesReceived, pagesProcessed, rowsReceived, rowsEmitted);
+    }
+
+    public record Status(long emitNanos, int pagesReceived, int pagesProcessed, long rowsReceived, long rowsEmitted)
+        implements
+            Operator.Status {
+
+        public static final TransportVersion ESQL_FUSE_LINEAR_OPERATOR_STATUS = TransportVersion.fromName(
+            "esql_fuse_linear_operator_status"
+        );
+
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "linearScoreEval",
+            Status::new
+        );
+
+        Status(StreamInput streamInput) throws IOException {
+            this(streamInput.readLong(), streamInput.readInt(), streamInput.readInt(), streamInput.readLong(), streamInput.readLong());
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return version.supports(ESQL_FUSE_LINEAR_OPERATOR_STATUS);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            assert false : "must not be called when overriding supportsVersion";
+            throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(emitNanos);
+            out.writeInt(pagesReceived);
+            out.writeInt(pagesProcessed);
+            out.writeLong(rowsReceived);
+            out.writeLong(rowsEmitted);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("emit_nanos", emitNanos);
+            if (builder.humanReadable()) {
+                builder.field("emit_time", TimeValue.timeValueNanos(emitNanos));
+            }
+            builder.field("pages_received", pagesReceived);
+            builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
+            return builder.endObject();
+        }
+    }
+
     private Normalizer createNormalizer(LinearConfig.Normalizer normalizer) {
         return switch (normalizer) {
             case NONE -> new NoneNormalizer();
@@ -164,23 +295,43 @@ public class LinearScoreEvalOperator implements Operator {
         };
     }
 
-    private interface Normalizer {
-        double normalize(double score, String discriminator);
+    private abstract static class Normalizer {
+        abstract double normalize(double score, String discriminator);
 
-        void preprocess(Collection<Page> inputPages, int scorePosition, int discriminatorPosition);
+        abstract void preprocess(double score, String discriminator);
+
+        void finalizePreprocess() {};
+
+        void preprocess(Collection<Page> inputPages, int scorePosition, int discriminatorPosition) {
+            for (Page inputPage : inputPages) {
+                DoubleBlock scoreBlock = inputPage.getBlock(scorePosition);
+                BytesRefBlock discriminatorBlock = inputPage.getBlock(discriminatorPosition);
+
+                for (int i = 0; i < inputPage.getPositionCount(); i++) {
+                    Object scoreValue = BlockUtils.toJavaObject(scoreBlock, i);
+                    Object discriminatorValue = BlockUtils.toJavaObject(discriminatorBlock, i);
+
+                    if (scoreValue instanceof Double score && discriminatorValue instanceof BytesRef discriminator) {
+                        preprocess(score, discriminator.utf8ToString());
+                    }
+                }
+            }
+
+            finalizePreprocess();
+        }
     }
 
-    private class NoneNormalizer implements Normalizer {
+    private static class NoneNormalizer extends Normalizer {
         @Override
         public double normalize(double score, String discriminator) {
             return score;
         }
 
         @Override
-        public void preprocess(Collection<Page> inputPages, int scorePosition, int discriminatorPosition) {}
+        void preprocess(double score, String discriminator) {}
     }
 
-    private class L2NormNormalizer implements Normalizer {
+    private static class L2NormNormalizer extends Normalizer {
         private final Map<String, Double> l2Norms = new HashMap<>();
 
         @Override
@@ -191,24 +342,17 @@ public class LinearScoreEvalOperator implements Operator {
         }
 
         @Override
-        public void preprocess(Collection<Page> inputPages, int scorePosition, int discriminatorPosition) {
-            for (Page inputPage : inputPages) {
-                DoubleVectorBlock scoreBlock = inputPage.getBlock(scorePosition);
-                BytesRefBlock discriminatorBlock = inputPage.getBlock(discriminatorPosition);
+        void preprocess(double score, String discriminator) {
+            l2Norms.compute(discriminator, (k, v) -> v == null ? score * score : v + score * score);
+        }
 
-                for (int i = 0; i < inputPage.getPositionCount(); i++) {
-                    double score = scoreBlock.getDouble(i);
-                    String discriminator = discriminatorBlock.getBytesRef(i, new BytesRef()).utf8ToString();
-
-                    l2Norms.compute(discriminator, (k, v) -> v == null ? score * score : v + score * score);
-                }
-            }
-
+        @Override
+        void finalizePreprocess() {
             l2Norms.replaceAll((k, v) -> Math.sqrt(v));
         }
     }
 
-    private class MinMaxNormalizer implements Normalizer {
+    private static class MinMaxNormalizer extends Normalizer {
         private final Map<String, Double> minScores = new HashMap<>();
         private final Map<String, Double> maxScores = new HashMap<>();
 
@@ -228,19 +372,17 @@ public class LinearScoreEvalOperator implements Operator {
         }
 
         @Override
-        public void preprocess(Collection<Page> inputPages, int scorePosition, int discriminatorPosition) {
-            for (Page inputPage : inputPages) {
-                DoubleVectorBlock scoreBlock = inputPage.getBlock(scorePosition);
-                BytesRefBlock discriminatorBlock = inputPage.getBlock(discriminatorPosition);
-
-                for (int i = 0; i < inputPage.getPositionCount(); i++) {
-                    double score = scoreBlock.getDouble(i);
-                    String discriminator = discriminatorBlock.getBytesRef(i, new BytesRef()).utf8ToString();
-
-                    minScores.compute(discriminator, (key, value) -> value == null ? score : Math.min(value, score));
-                    maxScores.compute(discriminator, (key, value) -> value == null ? score : Math.max(value, score));
-                }
-            }
+        void preprocess(double score, String discriminator) {
+            minScores.compute(discriminator, (key, value) -> value == null ? score : Math.min(value, score));
+            maxScores.compute(discriminator, (key, value) -> value == null ? score : Math.max(value, score));
         }
+    }
+
+    private Warnings warnings() {
+        if (warnings == null) {
+            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+        }
+
+        return warnings;
     }
 }

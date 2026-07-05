@@ -705,8 +705,7 @@ public final class DataStreamTestHelper {
             DateFieldMapper.Resolution.MILLISECONDS,
             null,
             ScriptCompiler.NONE,
-            false,
-            IndexVersion.current()
+            DEFAULT_INDEX_SETTINGS
         ).build(MapperBuilderContext.root(false, true));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         Environment env = mock(Environment.class);
@@ -716,16 +715,19 @@ public final class DataStreamTestHelper {
         when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         MappingLookup mappingLookup = MappingLookup.EMPTY;
         if (dataStream != null) {
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
+            IndexMode indexMode = randomFrom(IndexMode.availableModes());
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder(
+                "_doc",
+                indexMode.isStrictColumnar() ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
+            );
             root.add(
                 new DateFieldMapper.Builder(
                     DataStream.TIMESTAMP_FIELD_NAME,
                     DateFieldMapper.Resolution.MILLISECONDS,
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     ScriptCompiler.NONE,
-                    true,
-                    IndexVersion.current()
-                )
+                    DEFAULT_INDEX_SETTINGS
+                ).ignoreMalformed(true)
             );
             MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();
             Mapping mapping = new Mapping(
@@ -733,7 +735,7 @@ public final class DataStreamTestHelper {
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
-            mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of());
+            mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), indexMode);
         }
         IndicesService indicesService = mockIndicesServices(mappingLookup);
 
@@ -764,21 +766,21 @@ public final class DataStreamTestHelper {
         );
     }
 
+    private static final IndexSettings DEFAULT_INDEX_SETTINGS = new IndexSettings(
+        IndexMetadata.builder("_na_")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .creationDate(System.currentTimeMillis())
+            .build(),
+        Settings.EMPTY
+    );
+
     public static MetadataFieldMapper getDataStreamTimestampFieldMapper() {
         Map<String, Object> fieldsMapping = new HashMap<>();
         fieldsMapping.put("enabled", true);
         MappingParserContext mockedParserContext = mock(MappingParserContext.class);
-        when(mockedParserContext.getIndexSettings()).thenReturn(
-            new IndexSettings(
-                IndexMetadata.builder("_na_")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .creationDate(System.currentTimeMillis())
-                    .build(),
-                Settings.EMPTY
-            )
-        );
+        when(mockedParserContext.getIndexSettings()).thenReturn(DEFAULT_INDEX_SETTINGS);
         return DataStreamTimestampFieldMapper.PARSER.parse("field", fieldsMapping, mockedParserContext).build();
     }
 
@@ -797,7 +799,7 @@ public final class DataStreamTestHelper {
             when(indexService.index()).thenReturn(indexMetadata.getIndex());
             MapperService mapperService = mock(MapperService.class);
 
-            RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
+            RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(
                 MapperBuilderContext.root(false, false)
             );
             Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], null);
@@ -813,8 +815,7 @@ public final class DataStreamTestHelper {
             when(mapperService.documentMapper()).thenReturn(documentMapper);
             when(indexService.mapperService()).thenReturn(mapperService);
             when(mapperService.mappingLookup()).thenReturn(mappingLookup);
-            when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {
-            });
+            when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
             when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
             return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
         });

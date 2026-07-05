@@ -56,6 +56,52 @@ public class TaskTests extends ESTestCase {
             assertFalse(map.containsKey("cancelled"));
         }
         assertEquals(map.get("headers"), Collections.singletonMap("foo", "bar"));
+        // Should omit these fields in the default case:
+        assertFalse(map.containsKey("original_task_id"));
+        assertFalse(map.containsKey("original_start_time_in_millis"));
     }
 
+    public void testTaskInfoToString_relocatedTask() {
+        String nodeId = randomAlphaOfLength(10);
+        long taskId = randomIntBetween(0, 100000);
+        long startTime = randomNonNegativeLong();
+        long runningTime = randomNonNegativeLong();
+        boolean cancellable = randomBoolean();
+        boolean cancelled = cancellable && randomBoolean();
+        TaskId originalTaskId = new TaskId(randomAlphaOfLength(10), randomIntBetween(0, 100000));
+        long originalStartTimeMillis = randomNonNegativeLong();
+        TaskInfo taskInfo = new TaskInfo(
+            new TaskId(nodeId, taskId),
+            "test_type",
+            nodeId,
+            "test_action",
+            "test_description",
+            null,
+            startTime,
+            runningTime,
+            cancellable,
+            cancelled,
+            TaskId.EMPTY_TASK_ID,
+            Collections.singletonMap("foo", "bar"),
+            originalTaskId,
+            originalStartTimeMillis
+        );
+        String taskInfoString = taskInfo.toString();
+        Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)), true).v2();
+        assertEquals(((Number) map.get("id")).longValue(), taskId);
+        assertEquals(map.get("type"), "test_type");
+        assertEquals(map.get("action"), "test_action");
+        assertEquals(map.get("description"), "test_description");
+        assertEquals(((Number) map.get("start_time_in_millis")).longValue(), startTime);
+        assertEquals(((Number) map.get("running_time_in_nanos")).longValue(), runningTime);
+        assertEquals(map.get("cancellable"), cancellable);
+        if (cancellable) {
+            assertEquals(map.get("cancelled"), cancelled);
+        } else {
+            assertFalse(map.containsKey("cancelled"));
+        }
+        assertEquals(map.get("headers"), Collections.singletonMap("foo", "bar"));
+        assertEquals(map.get("original_task_id"), originalTaskId.toString());
+        assertEquals(asInstanceOf(Number.class, map.get("original_start_time_in_millis")).longValue(), originalStartTimeMillis);
+    }
 }

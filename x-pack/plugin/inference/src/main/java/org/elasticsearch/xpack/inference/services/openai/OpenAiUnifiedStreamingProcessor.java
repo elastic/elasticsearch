@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.openai;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,6 +18,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.CompletionTokenDetails;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -28,6 +30,11 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.COMPLETION_TOKENS_DETAILS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_DETAILS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_TOKENS_FIELD;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
 public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
@@ -56,6 +63,8 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
     public static final String COMPLETION_TOKENS_FIELD = "completion_tokens";
     public static final String PROMPT_TOKENS_FIELD = "prompt_tokens";
     public static final String TOTAL_TOKENS_FIELD = "total_tokens";
+    public static final String PROMPT_TOKENS_DETAILS_FIELD = "prompt_tokens_details";
+    public static final String CACHED_TOKENS_FIELD = "cached_tokens";
 
     private final BiFunction<String, Exception, Exception> errorParser;
 
@@ -190,7 +199,9 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                         (String) args[0],
                         (String) args[1],
                         (String) args[2],
-                        (List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall>) args[3]
+                        (List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall>) args[3],
+                        (String) args[4],
+                        (List<ReasoningDetail>) args[5]
                     )
                 );
 
@@ -202,6 +213,12 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                     ConstructingObjectParser.optionalConstructorArg(),
                     (p, c) -> ChatCompletionChunkParser.ToolCallParser.parse(p),
                     new ParseField(TOOL_CALLS_FIELD)
+                );
+                PARSER.declareString(optionalConstructorArg(), new ParseField(REASONING_FIELD));
+                PARSER.declareObjectArrayOrNull(
+                    optionalConstructorArg(),
+                    ReasoningDetail.RESPONSE_PARSER::apply,
+                    new ParseField(REASONING_DETAILS_FIELD)
                 );
             }
 
@@ -267,21 +284,63 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
         }
 
         private static class UsageParser {
+
             private static final ConstructingObjectParser<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage, Void> PARSER =
                 new ConstructingObjectParser<>(
                     USAGE_FIELD,
                     true,
-                    args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage((int) args[0], (int) args[1], (int) args[2])
+                    args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(
+                        (int) args[0],
+                        (int) args[1],
+                        (int) args[2],
+                        (Integer) args[3],
+                        (CompletionTokenDetails) args[4]
+                    )
                 );
 
             static {
                 PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(COMPLETION_TOKENS_FIELD));
                 PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(PROMPT_TOKENS_FIELD));
                 PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(TOTAL_TOKENS_FIELD));
+                PARSER.declareObject(
+                    ConstructingObjectParser.optionalConstructorArg(),
+                    PromptTokensDetailsParser.PARSER,
+                    new ParseField(PROMPT_TOKENS_DETAILS_FIELD)
+                );
+                PARSER.declareObjectOrNull(
+                    ConstructingObjectParser.optionalConstructorArg(),
+                    CompletionTokensDetailsParser.PARSER,
+                    null,
+                    new ParseField(COMPLETION_TOKENS_DETAILS_FIELD)
+                );
             }
 
             public static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage parse(XContentParser parser) throws IOException {
                 return PARSER.parse(parser, null);
+            }
+
+            private static class CompletionTokensDetailsParser {
+                private static final ConstructingObjectParser<CompletionTokenDetails, Void> PARSER = new ConstructingObjectParser<>(
+                    COMPLETION_TOKENS_DETAILS_FIELD,
+                    true,
+                    args -> new CompletionTokenDetails((Integer) args[0])
+                );
+
+                static {
+                    PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(REASONING_TOKENS_FIELD));
+                }
+            }
+
+            private static class PromptTokensDetailsParser {
+                private static final ConstructingObjectParser<Integer, Void> PARSER = new ConstructingObjectParser<>(
+                    PROMPT_TOKENS_DETAILS_FIELD,
+                    true,
+                    args -> (Integer) args[0]
+                );
+
+                static {
+                    PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CACHED_TOKENS_FIELD));
+                }
             }
         }
     }

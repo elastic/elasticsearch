@@ -131,6 +131,7 @@ Elastic provides a Grade plugin, `elasticsearch.stable-esplugin`, that makes it 
       "filter":  ["hello_world"]
     }
     ```
+    % TEST[skip:would require this plugin to be installed]
 
 
 
@@ -162,6 +163,7 @@ If you are using the `elasticsearch.stable-esplugin` plugin for Gradle, you can 
         }
     }
     ```
+    % NOTCONSOLE
 
 4. In `src/yamlRestTest/resources/rest-api-spec/test/plugin`, create the `10_token_filter.yml` YAML file:
 

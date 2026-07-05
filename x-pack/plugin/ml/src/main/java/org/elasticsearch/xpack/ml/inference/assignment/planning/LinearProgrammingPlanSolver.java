@@ -21,8 +21,6 @@ import org.ojalgo.structure.Access1D;
 import org.ojalgo.type.CalendarDateDuration;
 import org.ojalgo.type.CalendarDateUnit;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -325,7 +323,7 @@ class LinearProgrammingPlanSolver {
                 .setLinearFactors(allocations, Access1D.wrap(modelMemories));
         }
 
-        Optimisation.Result result = privilegedModelMaximise(model);
+        Optimisation.Result result = model.maximise();
 
         if (result.getState().isFeasible() == false) {
             logger.debug("Linear programming solution state [{}] is not feasible", result.getState());
@@ -345,11 +343,6 @@ class LinearProgrammingPlanSolver {
         }
         logger.debug(() -> "LP solver result =\n" + prettyPrintSolverResult(assignmentValues, allocationValues));
         return true;
-    }
-
-    @SuppressWarnings("removal")
-    private static Optimisation.Result privilegedModelMaximise(ExpressionsBasedModel model) {
-        return AccessController.doPrivileged((PrivilegedAction<Optimisation.Result>) () -> model.maximise());
     }
 
     private int memoryComplexity() {

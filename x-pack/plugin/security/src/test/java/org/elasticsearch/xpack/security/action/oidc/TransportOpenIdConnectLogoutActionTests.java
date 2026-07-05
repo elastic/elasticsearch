@@ -24,8 +24,10 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -89,6 +91,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
     private List<BulkRequest> bulkRequests;
     private Client client;
     private TransportOpenIdConnectLogoutAction action;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setup() throws Exception {
@@ -185,6 +188,8 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
 
+        bytesRefRecycler = new MockBytesRefRecycler();
+
         tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
@@ -193,7 +198,8 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             new SecurityContext(settings, threadContext),
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
 
         final TransportService transportService = new TransportService(
@@ -261,6 +267,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
     @After
     public void cleanup() {
         oidcRealm.close();
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     @SuppressWarnings("unchecked")

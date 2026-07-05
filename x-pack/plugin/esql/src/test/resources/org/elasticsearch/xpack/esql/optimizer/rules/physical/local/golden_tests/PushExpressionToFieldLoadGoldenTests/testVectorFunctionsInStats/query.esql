@@ -1,0 +1,2 @@
+from all_types
+| stats count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5

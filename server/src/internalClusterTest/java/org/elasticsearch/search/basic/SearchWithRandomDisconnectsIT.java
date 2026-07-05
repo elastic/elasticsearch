@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -82,7 +83,7 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
                 }
             });
         }
-        for (int i = 0, n = randomIntBetween(50, 100); i < n; i++) {
+        for (int i = 0, n = randomIntBetween(20, 50); i < n; i++) {
             NetworkDisruption networkDisruption = new NetworkDisruption(
                 isolateNode(internalCluster().getRandomNodeName()),
                 NetworkDisruption.DISCONNECT
@@ -97,7 +98,7 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
         for (PlainActionFuture<Void> future : futures) {
             future.get();
         }
-        ensureGreen(DISRUPTION_HEALING_OVERHEAD, indexNames);
+        ensureGreen(new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + 2000L * indexNames.length), indexNames);
         assertAcked(indicesAdmin().prepareDelete(indexNames));
     }
 

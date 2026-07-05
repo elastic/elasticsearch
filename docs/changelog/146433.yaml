@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 146331
+pr: 146433
+summary: "ESQL:DS: have NDJSON plugin respect error policy"
+type: bug

@@ -11,10 +11,13 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantDoubleVector;
+import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.DoubleArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -35,18 +38,13 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
 
   private final boolean ascending;
 
-  public TopDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      TopDoubleAggregator.SingleState state, int limit, boolean ascending) {
-    this.driverContext = driverContext;
-    this.channels = channels;
-    this.state = state;
+  TopDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit,
+      boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit, boolean ascending) {
-    return new TopDoubleAggregatorFunction(driverContext, channels, TopDoubleAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
+    this.driverContext = driverContext;
+    this.channels = channels;
+    this.state = TopDoubleAggregator.initSingle(driverContext.bigArrays(), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -73,6 +71,18 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -83,6 +93,18 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -90,6 +112,30 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector vVector) {
+    if (vVector.getClass() == DoubleArrayVector.class) {
+      DoubleArrayVector specialized = (DoubleArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double vValue = specialized.getDouble(valuesPosition);
+        TopDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == DoubleArrowBufVector.class) {
+      DoubleArrowBufVector specialized = (DoubleArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double vValue = specialized.getDouble(valuesPosition);
+        TopDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantDoubleVector.class) {
+      ConstantDoubleVector specialized = (ConstantDoubleVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double vValue = specialized.getDouble(valuesPosition);
+        TopDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       double vValue = vVector.getDouble(valuesPosition);
       TopDoubleAggregator.combine(state, vValue);
@@ -97,6 +143,39 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == DoubleArrayVector.class) {
+      DoubleArrayVector specialized = (DoubleArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double vValue = specialized.getDouble(valuesPosition);
+        TopDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == DoubleArrowBufVector.class) {
+      DoubleArrowBufVector specialized = (DoubleArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double vValue = specialized.getDouble(valuesPosition);
+        TopDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantDoubleVector.class) {
+      ConstantDoubleVector specialized = (ConstantDoubleVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double vValue = specialized.getDouble(valuesPosition);
+        TopDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;
@@ -108,11 +187,12 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(DoubleBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         TopDoubleAggregator.combine(state, vValue);
@@ -125,11 +205,12 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         TopDoubleAggregator.combine(state, vValue);
@@ -143,6 +224,15 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block topUncast = page.getBlock(channels.get(0));
     if (topUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleBlock top = (DoubleBlock) topUncast;

@@ -7,14 +7,21 @@
 
 import org.apache.tools.ant.filters.ReplaceTokens
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+def pluginPaths = []
+def pluginNames = []
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  pluginPaths << pluginProject.path
+  pluginNames << pluginName
+}
 
 dependencies {
   yamlRestTestImplementation project(':x-pack:qa')
+  pluginPaths.each { pluginPath ->
+    clusterPlugins(project(pluginPath))
+  }
 }
-
-def pluginPaths = project(':plugins').getChildProjects().collect {pluginName, pluginProject -> pluginProject.path }
 
 ext.expansions = [
   'expected.plugins.count': pluginPaths.size()
@@ -25,13 +32,7 @@ tasks.named("processYamlRestTestResources").configure {
   filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
-testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  user username: "test_user", password: "x-pack-test-password"
-
-  pluginPaths.each {pluginPath ->
-    plugin pluginPath
-  }
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("plugins require default distro with all modules")
+  systemProperty('tests.plugin.names', pluginNames.join(','))
 }

@@ -282,11 +282,9 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     /**
-     * {@code index.mode: tsdb} must be rejected exactly like {@code time_series}. Note that the error
-     * message itself always names {@code time_series}: {@link IndexMode#TSDB} delegates
-     * {@code validateWithOtherSettings} straight to {@link IndexMode#TIME_SERIES}, whose message uses the
-     * canonical {@code time_series} name regardless of which alias was actually configured (mirroring
-     * {@code tsdbMode()}'s behavior elsewhere in {@link IndexMode}).
+     * {@code index.mode: tsdb} must be rejected exactly like {@code time_series}, and the rejection
+     * message must name the mode that was actually configured ({@code tsdb}), not the canonical
+     * {@code time_series} name.
      */
     public void testSliceEnabledSettingRejectedForTsdb() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
@@ -306,7 +304,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString("index.slice.enabled"));
         assertThat(exception.getMessage(), containsString("index.mode"));
-        assertThat(exception.getMessage(), containsString("time_series"));
+        assertThat(exception.getMessage(), containsString("tsdb"));
     }
 
     @TestLogging(reason = "testing warning logging", value = "org.elasticsearch.index.IndexSettings:WARN")

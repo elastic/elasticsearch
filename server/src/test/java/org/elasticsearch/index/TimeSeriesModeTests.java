@@ -55,9 +55,9 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     /**
-     * {@link IndexMode#TSDB} delegates {@link IndexMode#validateWithOtherSettings} to
-     * {@link IndexMode#TIME_SERIES}, so it must reject the same incompatible settings with the
-     * same (canonical {@code time_series}) error message.
+     * {@link IndexMode#TSDB} shares its {@link IndexMode#validateWithOtherSettings} implementation with
+     * {@link IndexMode#TIME_SERIES}, so it must reject the same incompatible settings - naming the mode
+     * that was actually configured ({@code tsdb}) in the error message.
      */
     public void testPartitionedWithTsdb() {
         Settings s = Settings.builder()
@@ -67,7 +67,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             .build();
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
         Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.routing_partition_size]"));
+        assertThat(e.getMessage(), equalTo("[index.mode=tsdb] is incompatible with [index.routing_partition_size]"));
     }
 
     public void testSortField() {
@@ -77,6 +77,22 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.field]"));
     }
 
+    /**
+     * Same as {@link #testSortField()} but using {@link IndexMode#TSDB}. This exercises the
+     * {@code validateTimeSeriesSettings} path in {@link IndexMode} that builds a synthetic
+     * {@code Settings} from the calling mode's own name to compute this setting's default value for
+     * comparison, so it must reject the same way and name {@code tsdb} in the error message.
+     */
+    public void testSortFieldWithTsdb() {
+        Settings s = Settings.builder()
+            .put(getSettingsWithMode("tsdb", randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z"))
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "a")
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e.getMessage(), equalTo("[index.mode=tsdb] is incompatible with [index.sort.field]"));
+    }
+
     public void testSortMode() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last").build();
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
@@ -84,11 +100,33 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.missing]"));
     }
 
+    /** Same as {@link #testSortMode()} but using {@link IndexMode#TSDB}. */
+    public void testSortModeWithTsdb() {
+        Settings s = Settings.builder()
+            .put(getSettingsWithMode("tsdb", randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z"))
+            .put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last")
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e.getMessage(), equalTo("[index.mode=tsdb] is incompatible with [index.sort.missing]"));
+    }
+
     public void testSortOrder() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc").build();
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
         Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.order]"));
+    }
+
+    /** Same as {@link #testSortOrder()} but using {@link IndexMode#TSDB}. */
+    public void testSortOrderWithTsdb() {
+        Settings s = Settings.builder()
+            .put(getSettingsWithMode("tsdb", randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z"))
+            .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc")
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e.getMessage(), equalTo("[index.mode=tsdb] is incompatible with [index.sort.order]"));
     }
 
     public void testWithoutRoutingPath() {
@@ -106,7 +144,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> new IndexSettings(IndexSettingsTests.newIndexMeta("test", s), Settings.EMPTY)
         );
-        assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+        assertThat(e.getMessage(), containsString("[index.mode=tsdb] requires a non-empty [index.routing_path]"));
     }
 
     public void testWithEmptyRoutingPath() {
@@ -173,7 +211,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> withMapping(mapperService, topMapping(b -> b.startObject("_routing").field("required", true).endObject()))
         );
-        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
+        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=tsdb]"));
     }
 
     public void testValidateAlias() {
@@ -199,10 +237,10 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         IndexSettings.MODE.get(s).validateAlias(null, null); // Doesn't throw exception
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s).validateAlias("r", null));
-        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
+        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=tsdb]"));
 
         e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s).validateAlias(null, "r"));
-        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
+        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=tsdb]"));
     }
 
     public void testRoutingPathMatchesObject() throws IOException {

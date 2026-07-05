@@ -1,5 +1,0 @@
-pr: 152923
-summary: Grant `elastic/kibana` service account privileges to auto-create `.entities.*` indices
-area: Kibana
-type: bug
-issues: []

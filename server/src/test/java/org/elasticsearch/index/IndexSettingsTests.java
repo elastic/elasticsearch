@@ -281,6 +281,13 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("time_series"));
     }
 
+    /**
+     * {@code index.mode: tsdb} must be rejected exactly like {@code time_series}. Note that the error
+     * message itself always names {@code time_series}: {@link IndexMode#TSDB} delegates
+     * {@code validateWithOtherSettings} straight to {@link IndexMode#TIME_SERIES}, whose message uses the
+     * canonical {@code time_series} name regardless of which alias was actually configured (mirroring
+     * {@code tsdbMode()}'s behavior elsewhere in {@link IndexMode}).
+     */
     public void testSliceEnabledSettingRejectedForTsdbAlias() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException exception = expectThrows(
@@ -299,7 +306,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString("index.slice.enabled"));
         assertThat(exception.getMessage(), containsString("index.mode"));
-        assertThat(exception.getMessage(), containsString("tsdb"));
+        assertThat(exception.getMessage(), containsString("time_series"));
     }
 
     @TestLogging(reason = "testing warning logging", value = "org.elasticsearch.index.IndexSettings:WARN")

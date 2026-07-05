@@ -11,12 +11,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 
 /**
  * {@link FeatureMetric#set} throws for any plan node it cannot map and that is not on the exclusion list. Since the
@@ -52,5 +55,28 @@ public class FeatureMetricTests extends ESTestCase {
         BitSet bitset = new BitSet();
         FeatureMetric.set(external, bitset);
         assertTrue("excluded plans must not set any telemetry bit", bitset.isEmpty());
+    }
+
+    /**
+     * {@link FeatureMetric#TS} and {@link FeatureMetric#FROM} branch on {@code EsRelation#indexMode()#isTsdb()}.
+     * {@code IndexMode.TSDB} is a preferred alias for {@code IndexMode.TIME_SERIES} (isTsdb() is true for both), so
+     * both constants must flip the TS bit - never the FROM bit - exactly like the canonical TIME_SERIES constant.
+     */
+    public void testTimeSeriesRelationSetsTsMetricForBothIndexModeAliases() {
+        for (IndexMode mode : List.of(IndexMode.TIME_SERIES, IndexMode.TSDB)) {
+            EsRelation relation = relation(mode);
+            BitSet bitset = new BitSet();
+            FeatureMetric.set(relation, bitset);
+            assertTrue("indexMode [" + mode + "] must set the TS telemetry bit", bitset.get(FeatureMetric.TS.ordinal()));
+            assertFalse("indexMode [" + mode + "] must not set the FROM telemetry bit", bitset.get(FeatureMetric.FROM.ordinal()));
+        }
+    }
+
+    public void testStandardRelationSetsFromMetricNotTs() {
+        EsRelation relation = relation(IndexMode.STANDARD);
+        BitSet bitset = new BitSet();
+        FeatureMetric.set(relation, bitset);
+        assertTrue("STANDARD indexMode must set the FROM telemetry bit", bitset.get(FeatureMetric.FROM.ordinal()));
+        assertFalse("STANDARD indexMode must not set the TS telemetry bit", bitset.get(FeatureMetric.TS.ordinal()));
     }
 }

@@ -12,8 +12,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -41,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAs
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Round extends EsqlScalarFunction implements OptionalArgument {
+public class Round extends EsqlScalarFunction implements OptionalArgument, NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Round", Round::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Round.class)
         .binary(Round::new)
@@ -54,6 +56,13 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     private static final BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> EVALUATOR_IDENTITY = (s, e) -> e;
 
     private final Expression field, decimals;
+
+    /**
+     * When {@code true}, a {@code NaN} input is returned as-is instead of being rounded to {@code 0}. Only the
+     * single-argument {@code double} form can produce a non-finite result, and only the PromQL translation sets this so
+     * that {@code round(NaN)} follows IEEE-754 semantics (matching Prometheus); the ES|QL default is {@code false}.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
@@ -79,16 +88,22 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
             description = "The number of decimal places to round to. Defaults to 0. If `null`, the function returns `null`."
         ) Expression decimals
     ) {
+        this(source, field, decimals, false);
+    }
+
+    public Round(Source source, Expression field, Expression decimals, boolean allowNonFinite) {
         super(source, decimals != null ? Arrays.asList(field, decimals) : Arrays.asList(field));
         this.field = field;
         this.decimals = decimals;
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Round(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
+            in.readOptionalNamedWriteable(Expression.class),
+            NonFiniteSupport.readNonFinite(in)
         );
     }
 
@@ -97,6 +112,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeOptionalNamedWriteable(decimals);
+        writeNonFinite(out);
     }
 
     @Override
@@ -132,7 +148,10 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Evaluator(extraName = "DoubleNoDecimals")
-    static double process(double val) {
+    static double process(double val, @Fixed(includeInToString = false) boolean allowNonFinite) {
+        if (allowNonFinite && Double.isNaN(val)) {
+            return val;
+        }
         return Maths.round(val, 0).doubleValue();
     }
 
@@ -169,12 +188,22 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
-        return new Round(source(), newChildren.get(0), decimals() == null ? null : newChildren.get(1));
+        return new Round(source(), newChildren.get(0), decimals() == null ? null : newChildren.get(1), allowNonFinite);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Round::new, field(), decimals());
+        return NodeInfo.create(this, Round::new, field(), decimals(), allowNonFinite);
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Round(source(), field(), decimals(), false);
     }
 
     public Expression field() {
@@ -194,7 +223,11 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType fieldType = dataType();
         if (fieldType == DataType.DOUBLE) {
-            return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator.Factory::new, RoundDoubleEvaluator.Factory::new);
+            return toEvaluator(
+                toEvaluator,
+                (source, fieldEvaluator) -> new RoundDoubleNoDecimalsEvaluator.Factory(source, fieldEvaluator, allowNonFinite),
+                RoundDoubleEvaluator.Factory::new
+            );
         }
         if (fieldType == DataType.INTEGER) {
             return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundIntEvaluator.Factory::new);

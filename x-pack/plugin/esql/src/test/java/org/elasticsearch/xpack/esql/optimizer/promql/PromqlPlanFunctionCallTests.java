@@ -119,6 +119,15 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("round(vector(0), 0)", equalTo(Double.NaN)); // exercises the 0 * +Inf = NaN path
     }
 
+    /**
+     * Prometheus {@code round(NaN)} returns {@code NaN}. The single-argument PromQL {@code round} builds a
+     * non-finite-preserving {@code Round}, so a {@code NaN} input is kept rather than folded to {@code 0} (the value the
+     * strict ES|QL {@code ROUND} produces for {@code NaN}).
+     */
+    public void testRoundOfNaNIsPreserved() {
+        assertConstantResult("round(vector(0 / 0))", equalTo(Double.NaN)); // 0/0 is NaN in PromQL
+    }
+
     public void testYearUsesStepTimestampWhenNoArgument() {
         var ctx = new PromqlFunctionRegistry.PromqlContext(
             Literal.NULL,

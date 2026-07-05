@@ -67,6 +67,15 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
     }
 
     /**
+     * Prometheus {@code round(NaN)} returns {@code NaN}; the single-argument {@code round} preserves the non-finite input
+     * rather than rounding it to {@code 0}.
+     */
+    public void testRoundOfNaNIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("round(" + METRIC + " * NaN)", "NaN");
+    }
+
+    /**
      * Prometheus drops every series when {@code min > max} (clamp returns an empty result), see promql/functions.go.
      */
     public void testClampWithMinGreaterThanMaxDropsSeries() throws Exception {

@@ -132,17 +132,13 @@ public class PromqlBuiltinFunctionDefinitions {
     static final PromqlFunctionDefinition ROUND = PromqlFunctionDefinition.def()
         .binaryOptionalValueTransformation(PromqlFunctionDefinition.TO_NEAREST, (source, value, toNearest, configuration) -> {
             if (toNearest == null) {
-                return new Round(source, value, null);
+                return new Round(source, value, null, true);
             } else {
                 return promqlRoundToNearest(source, value, toNearest, configuration);
             }
         })
         .example("round(rate(http_requests_total[5m]))")
         .description("Rounds the sample values to the nearest integer, or to the nearest multiple of the optional argument.")
-        .differenceFromPrometheus(
-            "With a `to_nearest` argument, ties round up, matching Prometheus. Called with a single argument, a `NaN` input "
-                + "returns `0` instead of `NaN`."
-        )
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("round");
 

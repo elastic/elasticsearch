@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -149,6 +150,10 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         Expression right = getFieldAttribute("r", DataType.DOUBLE);
         assertNonFiniteMathDowngradedAndIdempotent(new Pow(EMPTY, left, right, true));
         assertNonFiniteMathDowngradedAndIdempotent(new Mul(EMPTY, left, right, true));
+    }
+
+    public void testNonFiniteRoundDowngradedWithOldVersion() {
+        assertNonFiniteMathDowngradedAndIdempotent(new Round(EMPTY, getFieldAttribute("f", DataType.DOUBLE), null, true));
     }
 
     /**

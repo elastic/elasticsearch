@@ -19,6 +19,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -284,6 +285,51 @@ public class ScanningBinaryDocValuesTermQueryTests extends ESTestCase {
         }
     }
 
+    /**
+     * ArrayOrderInlineNull-encoded multi-valued docs use the same ANY-value (OR) semantics as SeparateCount,
+     * but decoded via a different code path ({@code arrayOrder=true}).
+     */
+    public void testMultiValuedArrayOrder() throws Exception {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                // doc 0: ["world", "hello"] (document order, not sorted) -> "hello" equals term
+                addArrayOrderDoc(writer, fieldName, "world", "hello");
+                // doc 1: ["foo", "bar"] -> neither equals term
+                addArrayOrderDoc(writer, fieldName, "foo", "bar");
+                // doc 2: single-valued "hello" -> equals term
+                addArrayOrderDoc(writer, fieldName, "hello");
+
+                BytesRef term = new BytesRef("hello");
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertEquals(2, searcher.count(new ScanningBinaryDocValuesTermQuery(fieldName, term, true)));
+                }
+            }
+        }
+    }
+
+    /**
+     * A {@code null} slot in an ArrayOrderInlineNull-encoded doc must be skipped, not matched or crash decoding.
+     */
+    public void testMultiValuedArrayOrderWithNullSlot() throws Exception {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                // doc 0: [null, "world", "hello"] -> "hello" equals term
+                addArrayOrderDocWithNull(writer, fieldName, "world", "hello");
+                // doc 1: [null, "foo", "bar"] -> neither equals term
+                addArrayOrderDocWithNull(writer, fieldName, "foo", "bar");
+
+                BytesRef term = new BytesRef("hello");
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertEquals(1, searcher.count(new ScanningBinaryDocValuesTermQuery(fieldName, term, true)));
+                }
+            }
+        }
+    }
+
     public void testEqualsAndHashCode() {
         ScanningBinaryDocValuesTermQuery q1 = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("term"), false);
         ScanningBinaryDocValuesTermQuery q2 = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("term"), false);
@@ -321,6 +367,28 @@ public class ScanningBinaryDocValuesTermQueryTests extends ESTestCase {
         var countField = NumericDocValuesField.indexedField(fieldName + ".counts", field.count());
         document.add(field);
         document.add(countField);
+        writer.addDocument(document);
+    }
+
+    static void addArrayOrderDoc(RandomIndexWriter writer, String fieldName, String... values) throws IOException {
+        LuceneDocument document = new LuceneDocument();
+        if (values.length == 1) {
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordSingleValue(document, fieldName, new BytesRef(values[0]));
+        } else {
+            for (String value : values) {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(document, fieldName, new BytesRef(value));
+            }
+        }
+        writer.addDocument(document);
+    }
+
+    /** Records a leading {@code null} slot followed by {@code values}, in document order. */
+    static void addArrayOrderDocWithNull(RandomIndexWriter writer, String fieldName, String... values) throws IOException {
+        LuceneDocument document = new LuceneDocument();
+        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(document, fieldName);
+        for (String value : values) {
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(document, fieldName, new BytesRef(value));
+        }
         writer.addDocument(document);
     }
 

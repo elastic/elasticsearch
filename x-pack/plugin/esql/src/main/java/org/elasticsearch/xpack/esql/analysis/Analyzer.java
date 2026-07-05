@@ -3177,6 +3177,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    static final String NON_LOADABLE_PUNK_WARNING = "Field [{}] of type [{}] is unmapped in some indices and has no implicit "
+        + "conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices";
+
+    // visible for testing
+    static String nonLoadablePunkWarning(String fieldName, String mappedTypeName) {
+        return LoggerMessageFormat.format(NON_LOADABLE_PUNK_WARNING, new Object[] { fieldName, mappedTypeName });
+    }
+
+    /**
+     * dense_vector has a KEYWORD converter, but it reads hexadecimal strings whereas an unmapped dense_vector loads from _source as an
+     * array of numbers (#152184). For a partially unmapped dense_vector we therefore neither implicitly cast it (that would produce
+     * garbage) nor warn about a missing KEYWORD conversion (that wording would be misleading). Both are gated on this predicate.
+     */
+    private static boolean hasMisleadingKeywordConverter(DataType mappedType) {
+        return mappedType == DENSE_VECTOR;
+    }
+
     /**
      * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
      * If there was no {@code AbstractConvertFunction} that resolved multi-type fields in the {@link ResolveUnionTypes} rule,
@@ -3198,9 +3215,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // actually observe (it reaches the final output or is consumed by some expression). Loadable casts produced a separate
             // attribute with its own id (see ResolveUnionTypes#createIfDoesNotAlreadyExist), so matching by id excludes them for free.
             //
-            // The LOAD gate looks redundant — a PUNK is only ever created when unmapped-field-index tracking is on — but it isn't, because
-            // that tracking keys off the *raw* unmapped_fields setting while the analyzer may run with a different resolution. Concretely,
-            // a
+            // The LOAD gate looks redundant (a PUNK is only ever created when unmapped-field-index tracking is on), but it isn't: that
+            // tracking keys off the *raw* unmapped_fields setting while the analyzer may run with a different resolution. Concretely, a
             // query carrying a PROMQL command is forced to NULLIFY (EsqlSession#analyzeWithRetry), yet if the raw setting was "load" the
             // indices were still tracked, so PUNKs reach cleanup under NULLIFY. Warning there would be wrong (we're nullifying, not failing
             // to load). Tracking-despite-nullify is arguably an EsqlSession bug (see the #145920 TODO there); until it's fixed this gate
@@ -3229,21 +3245,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             plan.forEachExpressionDown(FieldAttribute.class, fa -> {
                 if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk && observedFieldIds.contains(fa.id())) {
                     DataType mappedType = punk.mappedField().getDataType();
-                    // dense_vector has a KEYWORD converter, but it reads hexadecimal strings while an unmapped dense_vector loads from
-                    // _source as an array of numbers (#152184), so the "no implicit conversion from KEYWORD" wording would be misleading.
-                    if (mappedType != DENSE_VECTOR && warned.add(fa.id())) {
-                        HeaderWarning.addWarning(
-                            "Field [{}] of type [{}] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will "
-                                + "not be loaded from _source; values will be null in those indices",
-                            fa.name(),
-                            mappedType.typeName()
-                        );
+                    if (hasMisleadingKeywordConverter(mappedType) == false && warned.add(fa.id())) {
+                        HeaderWarning.addWarning(NON_LOADABLE_PUNK_WARNING, fa.name(), mappedType.typeName());
                     }
                 }
             });
         }
 
-        /** Ids of every attribute that reaches the final output or is referenced by some node — i.e. whose value the user can observe. */
+        /** Ids that appear in the plan's output or in any node's references. */
         private static Set<NameId> observedFieldIds(LogicalPlan plan) {
             Set<NameId> ids = new HashSet<>();
             plan.output().forEach(a -> ids.add(a.id()));
@@ -3405,9 +3414,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk) {
                         DataType mappedType = punk.mappedField().getDataType();
 
-                        if (mappedType == DENSE_VECTOR) {
-                            // The KEYWORD->DENSE_VECTOR converter reads hexadecimal strings, but an unmapped dense_vector loads from
-                            // _source as an array of numbers, so implicitly casting it would produce garbage (#152184).
+                        if (hasMisleadingKeywordConverter(mappedType)) {
                             return fa;
                         }
 

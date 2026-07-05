@@ -148,6 +148,29 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         assertEquals(Settings.EMPTY, result);
     }
 
+    public void testGetAdditionalIndexSettingsTsdbAlias() throws IOException {
+        // Same scenario as testGetAdditionalIndexSettingsTsdb, but using the IndexMode.TSDB alias to make sure the
+        // legacy license check in LogsdbIndexModeSettingsProvider#isLegacyLicensedUsageOfSyntheticSourceAllowed
+        // treats it identically to IndexMode.TIME_SERIES.
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
+        String dataStreamName = "metrics-my-app";
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
+        Settings.Builder builder = Settings.builder();
+        provider.provideAdditionalSettings(
+            indexName,
+            dataStreamName,
+            IndexMode.TSDB,
+            null,
+            null,
+            settings,
+            List.of(),
+            IndexVersion.current(),
+            builder
+        );
+        var result = builder.build();
+        assertEquals(Settings.EMPTY, result);
+    }
+
     public void testGetAdditionalIndexSettingsTsdbAfterCutoffDate() throws Exception {
         long start = LocalDateTime.of(2025, 2, 5, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         License license = createGoldOrPlatinumLicense(start);
@@ -180,6 +203,53 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             indexName,
             dataStreamName,
             IndexMode.TIME_SERIES,
+            null,
+            null,
+            settings,
+            List.of(),
+            IndexVersion.current(),
+            builder
+        );
+
+        var result = builder.build();
+        var expected = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED").build();
+        assertEquals(expected, result);
+    }
+
+    public void testGetAdditionalIndexSettingsTsdbAfterCutoffDateAlias() throws Exception {
+        // Same scenario as testGetAdditionalIndexSettingsTsdbAfterCutoffDate, but using the IndexMode.TSDB alias to
+        // make sure the legacy license check treats it identically to IndexMode.TIME_SERIES.
+        long start = LocalDateTime.of(2025, 2, 5, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        License license = createGoldOrPlatinumLicense(start);
+        long time = LocalDateTime.of(2024, 12, 31, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        var licenseState = new XPackLicenseState(() -> time, new XPackLicenseStatus(license.operationMode(), true, null));
+
+        var licenseService = new LogsdbLicenseService(Settings.EMPTY);
+        licenseService.setLicenseState(licenseState);
+        var mockLicenseService = mock(LicenseService.class);
+        when(mockLicenseService.getLicense()).thenReturn(license);
+
+        LogsdbLicenseService syntheticSourceLicenseService = new LogsdbLicenseService(Settings.EMPTY);
+        syntheticSourceLicenseService.setLicenseState(licenseState);
+        syntheticSourceLicenseService.setLicenseService(mockLicenseService);
+
+        provider = new LogsdbIndexModeSettingsProvider(syntheticSourceLicenseService, Settings.EMPTY);
+        provider.init(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            IndexVersion::current,
+            () -> Version.CURRENT,
+            true,
+            true
+        );
+
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
+        String dataStreamName = "metrics-my-app";
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
+        Settings.Builder builder = Settings.builder();
+        provider.provideAdditionalSettings(
+            indexName,
+            dataStreamName,
+            IndexMode.TSDB,
             null,
             null,
             settings,

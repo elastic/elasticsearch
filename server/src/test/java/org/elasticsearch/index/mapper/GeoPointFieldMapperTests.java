@@ -170,6 +170,23 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
+    /**
+     * The {@code tsdb} index mode is an alias for {@code time_series} (see {@link IndexMode#isTsdb()})
+     * so it must produce the same doc-values-only defaulting for metric fields.
+     */
+    public void testTimeSeriesIndexDefaultTsdbAlias() throws Exception {
+        var positionMetricType = TimeSeriesParams.MetricType.POSITION;
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TSDB.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
+        var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", positionMetricType.toString());
+        }));
+        var ft = (GeoPointFieldMapper.GeoPointFieldType) mapperService.fieldType("field");
+        assertThat(ft.getMetricType(), equalTo(positionMetricType));
+        assertTrue(ft.indexType().hasOnlyDocValues());
+    }
+
     public void testMetricAndDocvalues() {
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);

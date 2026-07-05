@@ -266,6 +266,63 @@ public class TransportDownsampleActionTests extends ESTestCase {
         verifyIndexFinalisation();
     }
 
+    /**
+     * Same as {@link #testDownsampling()} but using {@link IndexMode#TSDB}, the preferred alias for
+     * {@link IndexMode#TIME_SERIES}, to configure the source index. This verifies that the
+     * {@code index.mode}-gated validation in {@link TransportDownsampleAction} relies on
+     * {@link IndexMode#isTsdb()} rather than an exact match against {@link IndexMode#TIME_SERIES},
+     * so a source index configured with the {@code tsdb} alias is downsampled successfully as well.
+     */
+    public void testDownsamplingWithTsdbIndexModeAlias() {
+        var projectMetadata = ProjectMetadata.builder(projectId)
+            .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards, IndexMode.TSDB))
+            .build();
+
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(projectMetadata)
+            .blocks(ClusterBlocks.builder().addIndexBlock(projectId, sourceIndex, IndexMetadata.INDEX_WRITE_BLOCK))
+            .build();
+
+        when(projectResolver.getProjectMetadata(any(ClusterState.class))).thenReturn(projectMetadata);
+
+        Answer<Void> mockPersistentTask = invocation -> {
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = invocation.getArgument(4);
+            PersistentTasksCustomMetadata.PersistentTask<?> task1 = mock(PersistentTasksCustomMetadata.PersistentTask.class);
+            when(task1.getId()).thenReturn(randomAlphaOfLength(10));
+            DownsampleShardPersistentTaskState runningTaskState = new DownsampleShardPersistentTaskState(
+                DownsampleShardIndexerStatus.COMPLETED,
+                null
+            );
+            when(task1.getState()).thenReturn(runningTaskState);
+            listener.onResponse(task1);
+            return null;
+        };
+        doAnswer(mockPersistentTask).when(persistentTaskService).sendStartRequest(anyString(), anyString(), any(), any(), any());
+        doAnswer(mockPersistentTask).when(persistentTaskService).waitForPersistentTaskCondition(any(), anyString(), any(), any(), any());
+        doAnswer(invocation -> {
+            var listener = invocation.getArgument(1, TransportDownsampleAction.UpdateDownsampleIndexSettingsActionListener.class);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(indicesAdminClient).updateSettings(any(), any());
+        assertSuccessfulUpdateDownsampleStatus(clusterState);
+
+        PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
+        action.masterOperation(
+            task,
+            new DownsampleAction.Request(
+                ESTestCase.TEST_REQUEST_TIMEOUT,
+                sourceIndex,
+                targetIndex,
+                TimeValue.ONE_HOUR,
+                new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod())
+            ),
+            clusterState,
+            listener
+        );
+        safeGet(listener);
+        verifyIndexFinalisation();
+    }
+
     public void testDownsamplingWithShortCircuitAfterCreation() {
         var projectMetadata = ProjectMetadata.builder(projectId)
             .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards))
@@ -495,11 +552,20 @@ public class TransportDownsampleActionTests extends ESTestCase {
     }
 
     private IndexMetadata.Builder createSourceIndexMetadata(String sourceIndex, int primaryShards, int replicaShards) {
+        return createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards, IndexMode.TIME_SERIES);
+    }
+
+    private IndexMetadata.Builder createSourceIndexMetadata(
+        String sourceIndex,
+        int primaryShards,
+        int replicaShards,
+        IndexMode indexMode
+    ) {
         return IndexMetadata.builder(sourceIndex)
             .settings(
                 indexSettings(IndexVersion.current(), randomUUID(), primaryShards, replicaShards).put(
                     IndexSettings.MODE.getKey(),
-                    IndexMode.TIME_SERIES.getName()
+                    indexMode.getName()
                 )
                     .put("index.routing_path", "dimensions")
                     .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)

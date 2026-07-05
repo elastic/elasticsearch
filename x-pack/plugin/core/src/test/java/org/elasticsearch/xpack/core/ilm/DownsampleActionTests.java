@@ -312,6 +312,49 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
         }
     }
 
+    public void testDownsamplingPrerequisitesStepWithTsdbAlias() {
+        DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        boolean withForceMerge = randomBoolean();
+        DownsampleAction action = new DownsampleAction(fixedInterval, WAIT_TIMEOUT, withForceMerge, randomSamplingMethod());
+        String phase = randomAlphaOfLengthBetween(1, 10);
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        {
+            // indices using the tsdb alias of the time series index mode execute the action
+            BranchingStep branchingStep = getFirstBranchingStep(action, phase, nextStepKey, withForceMerge);
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TSDB)
+                .put("index.routing_path", "uid")
+                .build();
+            IndexMetadata indexMetadata = newIndexMeta("test", settings);
+
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+
+            branchingStep.performAction(indexMetadata.getIndex(), state);
+            assertThat(branchingStep.getNextStepKey().name(), is(CheckNotDataStreamWriteIndexStep.NAME));
+        }
+        {
+            // already downsampled indices for the interval skip the action, regardless of the index mode alias used
+            BranchingStep branchingStep = getFirstBranchingStep(action, phase, nextStepKey, withForceMerge);
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TSDB)
+                .put("index.routing_path", "uid")
+                .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY, IndexMetadata.DownsampleTaskStatus.SUCCESS)
+                .put(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey(), "test")
+                .build();
+            String indexName = DOWNSAMPLED_INDEX_PREFIX + fixedInterval + "-test";
+            IndexMetadata indexMetadata = newIndexMeta(indexName, settings);
+
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+
+            branchingStep.performAction(indexMetadata.getIndex(), state);
+            assertThat(branchingStep.getNextStepKey(), is(nextStepKey));
+        }
+    }
+
     private static BranchingStep getFirstBranchingStep(DownsampleAction action, String phase, StepKey nextStepKey, boolean withForceMerge) {
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);

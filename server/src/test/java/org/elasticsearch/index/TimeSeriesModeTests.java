@@ -54,6 +54,22 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.routing_partition_size]"));
     }
 
+    /**
+     * The {@code tsdb} alias delegates {@link IndexMode#validateWithOtherSettings} to
+     * {@link IndexMode#TIME_SERIES}, so it must reject the same incompatible settings with the
+     * same (canonical {@code time_series}) error message.
+     */
+    public void testPartitionedWithTsdbAlias() {
+        Settings s = Settings.builder()
+            .put(getSettingsWithMode("tsdb", randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z"))
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+            .put(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), 2)
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.routing_partition_size]"));
+    }
+
     public void testSortField() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "a").build();
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
@@ -77,6 +93,15 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
 
     public void testWithoutRoutingPath() {
         Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(IndexSettingsTests.newIndexMeta("test", s), Settings.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+    }
+
+    public void testWithoutRoutingPathWithTsdbAlias() {
+        Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "tsdb").build();
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> new IndexSettings(IndexSettingsTests.newIndexMeta("test", s), Settings.EMPTY)
@@ -141,6 +166,16 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
+    public void testRequiredRoutingWithTsdbAlias() {
+        Settings s = getSettingsWithMode("tsdb", randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z");
+        var mapperService = new TestMapperServiceBuilder().settings(s).applyDefaultMapping(false).build();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> withMapping(mapperService, topMapping(b -> b.startObject("_routing").field("required", true).endObject()))
+        );
+        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
+    }
+
     public void testValidateAlias() {
         Settings s = getSettings();
         IndexSettings.MODE.get(s).validateAlias(null, null); // Doesn't throw exception
@@ -155,6 +190,18 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     public void testValidateAliasWithSearchRouting() {
         Settings s = getSettings();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s).validateAlias(null, "r"));
+        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
+    }
+
+    public void testValidateAliasWithTsdbAlias() {
+        Settings s = getSettingsWithMode("tsdb", randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z");
+        assertSame(IndexMode.TSDB, IndexSettings.MODE.get(s));
+        IndexSettings.MODE.get(s).validateAlias(null, null); // Doesn't throw exception
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s).validateAlias("r", null));
+        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s).validateAlias(null, "r"));
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
@@ -359,8 +406,16 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     private Settings getSettings(String routingPath, String startTime, String endTime) {
+        return getSettingsWithMode("time_series", routingPath, startTime, endTime);
+    }
+
+    /**
+     * Same as {@link #getSettings(String, String, String)} but with an explicit {@code index.mode}
+     * value, so that tests can assert the {@code tsdb} alias behaves identically to {@code time_series}.
+     */
+    private Settings getSettingsWithMode(String mode, String routingPath, String startTime, String endTime) {
         return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexSettings.MODE.getKey(), mode)
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime)
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime)

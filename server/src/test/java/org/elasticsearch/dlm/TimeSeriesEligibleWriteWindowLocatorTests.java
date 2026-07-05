@@ -84,6 +84,20 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
         }
     }
 
+    public void testWriteWindowDefinedByRetentionWithTsdbAlias() {
+        // IndexMode.TSDB is a preferred alias for IndexMode.TIME_SERIES, so a data stream configured
+        // with index.mode: tsdb must be treated identically by the eligible write window logic.
+        TimeValue retention = TimeValue.timeValueDays(30);
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(retention).build();
+        DataStream dataStream = dataStream("metrics-test", lifecycle, IndexMode.TSDB);
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        long requestTimestamp = randomNonNegativeLong();
+        assertThat(
+            DLM_ONLY.getEligibleWriteWindowStart(dataStream, project, null, requestTimestamp),
+            equalTo(requestTimestamp - retention.getMillis())
+        );
+    }
+
     public void testWriteWindowDefinedByFrozenAfter() {
         TimeValue frozenAfter = TimeValue.timeValueDays(7);
         DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
@@ -136,7 +150,11 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
     }
 
     private static DataStream dataStream(String name, DataStreamLifecycle lifecycle) {
+        return dataStream(name, lifecycle, IndexMode.TIME_SERIES);
+    }
+
+    private static DataStream dataStream(String name, DataStreamLifecycle lifecycle, IndexMode indexMode) {
         Index index = new Index(DataStream.getDefaultBackingIndexName(name, 1), randomAlphaOfLength(10));
-        return DataStream.builder(name, List.of(index)).setLifecycle(lifecycle).setIndexMode(IndexMode.TIME_SERIES).build();
+        return DataStream.builder(name, List.of(index)).setLifecycle(lifecycle).setIndexMode(indexMode).build();
     }
 }

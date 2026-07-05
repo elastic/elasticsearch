@@ -61,6 +61,12 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     private static final Settings TSDB_SYNTHETIC_SETTINGS = tsdbSettings(null, "host");
 
     /**
+     * Same as {@link #TSDB_SYNTHETIC_SETTINGS} but using the {@link IndexMode#TSDB} alias instead of
+     * {@link IndexMode#TIME_SERIES}; {@link IndexMode#isTsdb()} treats both identically.
+     */
+    private static final Settings TSDB_ALIAS_SYNTHETIC_SETTINGS = tsdbAliasSettings(null, "host");
+
+    /**
      * TSDB index with {@code index.mapping.source.mode: stored}. Stored source preserves the raw
      * indexed bytes (e.g. CBOR for Prometheus remote-write documents), so the {@code _timeseries} loader must explicitly normalize to JSON.
      */
@@ -165,9 +171,35 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         return builder.build();
     }
 
+    private static Settings tsdbAliasSettings(SourceFieldMapper.Mode sourceMode, String routingPath) {
+        Settings.Builder builder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TSDB.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z");
+        if (sourceMode != null) {
+            builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), sourceMode);
+        }
+        return builder.build();
+    }
+
     public void testDimensionsOnly() throws IOException {
         BlockLoader loader = createBlockLoader(
             TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("host", "env", "region")));
+    }
+
+    /**
+     * The {@code tsdb} index mode is an alias for {@code time_series} (see {@link IndexMode#isTsdb()})
+     * so {@link TimeSeriesMetadataFieldBlockLoader} must be selected and behave identically.
+     */
+    public void testDimensionsOnlyTsdbAlias() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_ALIAS_SYNTHETIC_SETTINGS,
             MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())
         );

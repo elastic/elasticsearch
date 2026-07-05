@@ -277,6 +277,30 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertTrue(additionalIndexSettings.isEmpty());
     }
 
+    public void testOnExplicitTsdbIndex() throws IOException {
+        // Same scenario as testOnExplicitTimeSeriesIndex, but using the "tsdb" alias for index.mode.
+        final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            logsdbLicenseService,
+            Settings.builder().put("cluster.logsdb.enabled", true).build()
+        );
+
+        Settings.Builder settingsBuilder = builder();
+        provider.provideAdditionalSettings(
+            null,
+            "logs-apache-production",
+            null,
+            emptyProject(),
+            Instant.now().truncatedTo(ChronoUnit.SECONDS),
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TSDB.getName()).build(),
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
+            IndexVersion.current(),
+            settingsBuilder
+        );
+        final Settings additionalIndexSettings = settingsBuilder.build();
+
+        assertTrue(additionalIndexSettings.isEmpty());
+    }
+
     public void testNonLogsDataStream() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
             logsdbLicenseService,
@@ -669,6 +693,44 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         }
     }
 
+    public void testNewIndexHasSyntheticSourceUsageTsdb() throws IOException {
+        // Same scenario as testNewIndexHasSyntheticSourceUsageTimeSeries, but exercised through the "tsdb" index.mode
+        // alias to make sure IndexMode.isTsdb(...) treats it identically to "time_series".
+        String dataStreamName = DATA_STREAM_NAME;
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
+        String mapping = """
+            {
+                "properties": {
+                    "my_field": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    }
+                }
+            }
+            """;
+        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
+        {
+            Settings settings = Settings.builder().put("index.mode", "tsdb").put("index.routing_path", "my_field").build();
+            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(getMapping(mapping))))
+                .hasSyntheticSourceUsage();
+            assertTrue(result);
+        }
+        {
+            Settings settings = Settings.builder().put("index.mode", "tsdb").put("index.routing_path", "my_field").build();
+            boolean result = provider.getMappingHints(indexName, null, settings, List.of()).hasSyntheticSourceUsage();
+            assertTrue(result);
+        }
+        {
+            boolean result = provider.getMappingHints(indexName, null, Settings.EMPTY, List.of()).hasSyntheticSourceUsage();
+            assertFalse(result);
+        }
+        {
+            boolean result = provider.getMappingHints(indexName, null, Settings.EMPTY, List.of(new CompressedXContent(getMapping(mapping))))
+                .hasSyntheticSourceUsage();
+            assertFalse(result);
+        }
+    }
+
     public void testNewIndexHasSyntheticSourceUsageInvalidSettings() throws IOException {
         String dataStreamName = DATA_STREAM_NAME;
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
@@ -791,6 +853,41 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertThat(newMapperServiceCounter.get(), equalTo(4));
+    }
+
+    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceTsdbAlias() {
+        // Same scenario as the IndexMode.TIME_SERIES case in testGetAdditionalIndexSettingsDowngradeFromSyntheticSource,
+        // but using the IndexMode.TSDB alias to make sure the template mode injection in
+        // LogsdbIndexModeSettingsProvider#buildIndexMetadataForMapperService treats it identically.
+        String dataStreamName = DATA_STREAM_NAME;
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple(dataStreamName, 1)),
+            List.of(),
+            Instant.now().toEpochMilli(),
+            builder().build(),
+            1
+        );
+        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
+        Settings settings = builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+            .build();
+        logsdbLicenseService.setSyntheticSourceFallback(true);
+
+        Settings.Builder settingsBuilder = builder();
+        provider.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            IndexMode.TSDB,
+            project,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of(),
+            IndexVersion.current(),
+            settingsBuilder
+        );
+        Settings result = settingsBuilder.build();
+        assertThat(result.size(), equalTo(1));
+        assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        assertThat(newMapperServiceCounter.get(), equalTo(1));
     }
 
     public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceOldNode() {

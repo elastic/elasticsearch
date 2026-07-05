@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -316,6 +317,72 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             contains(
                 allOf(
                     transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream)),
+                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
+                )
+            )
+        );
+    }
+
+    public void testGetTimeSeriesDataStreamUsingTsdbAlias() {
+        // Same scenario as testGetTimeSeriesDataStreamWithOutOfOrderIndices, but using the "tsdb" alias for
+        // index.mode instead of "time_series". DataStreamTestHelper#getClusterStateWithDataStream hardcodes
+        // IndexMode.TIME_SERIES, so the data stream and backing indices are built by hand here to exercise
+        // IndexMode.isTsdb(...) with IndexMode.TSDB at both call sites in
+        // TransportGetDataStreamsAction#innerOperation.
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        String dataStreamName = "ds-1";
+        Instant sixHoursAgo = now.minus(6, ChronoUnit.HOURS);
+        Instant fourHoursAgo = now.minus(4, ChronoUnit.HOURS);
+        Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
+        Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
+
+        List<Tuple<Instant, Instant>> timeSlices = List.of(
+            new Tuple<>(fourHoursAgo, twoHoursAgo),
+            new Tuple<>(sixHoursAgo, fourHoursAgo),
+            new Tuple<>(twoHoursAgo, twoHoursAhead)
+        );
+
+        ProjectMetadata.Builder mBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        long generation = 1L;
+        for (Tuple<Instant, Instant> tuple : timeSlices) {
+            Instant start = tuple.v1();
+            Instant end = tuple.v2();
+            Settings settings = Settings.builder()
+                .put("index.mode", "tsdb")
+                .put("index.routing_path", "uid")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
+                .build();
+            var im = createIndexMetadata(getDefaultBackingIndexName(dataStreamName, generation, start.toEpochMilli()), true, settings, 0);
+            mBuilder.put(im, true);
+            backingIndices.add(im);
+            generation++;
+        }
+        DataStream dataStream = DataStream.builder(
+            dataStreamName,
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+        ).setGeneration(generation).setIndexMode(IndexMode.TSDB).build();
+        mBuilder.put(dataStream);
+
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            projectStateFromProject(mBuilder),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
+            null,
+            metadataDataStreamsService
+        );
+        assertThat(
+            response.getDataStreams(),
+            contains(
+                allOf(
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStreamName)),
                     transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
                 )
             )

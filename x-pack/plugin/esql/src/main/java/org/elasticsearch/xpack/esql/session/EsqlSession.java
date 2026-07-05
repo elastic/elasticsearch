@@ -1997,7 +1997,8 @@ public class EsqlSession {
         );
     }
 
-    private static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
+    // visible for testing
+    static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
         return switch (indexMode) {
             case IndexMode.TIME_SERIES, IndexMode.TSDB -> {
                 // Match either alias: the requested indexMode is a fixed sentinel (e.g. the TS command always

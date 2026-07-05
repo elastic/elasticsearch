@@ -198,6 +198,21 @@ public class MappingLookupTests extends ESTestCase {
         e = expectThrows(MapperParsingException.class, () -> tsMappingLookup.validateDoesNotShadow("metric"));
         assertThat(e.getMessage(), equalTo("Field [metric] attempted to shadow a time_series_metric"));
         tsMappingLookup.validateDoesNotShadow("plain");
+
+        // The tsdb index mode is an alias for time_series (see IndexMode#isTsdb()), so it must reject
+        // shadowing of dimension/metric fields identically.
+        MappingLookup tsdbMappingLookup = createMappingLookup(
+            List.of(dimMapper, metricMapper, plainMapper),
+            emptyList(),
+            emptyList(),
+            IndexMode.TSDB
+        );
+        tsdbMappingLookup.validateDoesNotShadow("not_mapped");
+        e = expectThrows(MapperParsingException.class, () -> tsdbMappingLookup.validateDoesNotShadow("dim"));
+        assertThat(e.getMessage(), equalTo("Field [dim] attempted to shadow a time_series_dimension"));
+        e = expectThrows(MapperParsingException.class, () -> tsdbMappingLookup.validateDoesNotShadow("metric"));
+        assertThat(e.getMessage(), equalTo("Field [metric] attempted to shadow a time_series_metric"));
+        tsdbMappingLookup.validateDoesNotShadow("plain");
     }
 
     public void testShadowingOnConstruction() {
@@ -235,6 +250,21 @@ public class MappingLookupTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
+            equalTo(
+                shadowDim
+                    ? "Field [dim] attempted to shadow a time_series_dimension"
+                    : "Field [metric] attempted to shadow a time_series_metric"
+            )
+        );
+
+        // The tsdb index mode is an alias for time_series (see IndexMode#isTsdb()), so it must reject
+        // the same shadowing on construction.
+        Exception tsdbException = expectThrows(
+            MapperParsingException.class,
+            () -> createMappingLookup(List.of(dimMapper, metricMapper), emptyList(), List.of(shadowing), IndexMode.TSDB)
+        );
+        assertThat(
+            tsdbException.getMessage(),
             equalTo(
                 shadowDim
                     ? "Field [dim] attempted to shadow a time_series_dimension"

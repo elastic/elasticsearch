@@ -43,6 +43,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -1234,6 +1236,51 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
             );
             assertThat(indices.size(), is(0));
         }
+    }
+
+    /**
+     * Same coverage as {@link #testTimeSeriesIndicesStillWithinTimeBounds()} but using the {@link IndexMode#TSDB} alias
+     * instead of {@link IndexMode#TIME_SERIES}, to ensure {@code isTsdb()} gates this behaviour identically for both.
+     */
+    public void testTimeSeriesIndicesStillWithinTimeBoundsWithTsdbIndexMode() {
+        Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        // These ranges are on the edge of each other's temporal boundaries.
+        Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+
+        IndexMetadata outOfBoundsIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
+            .settings(
+                indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TSDB)
+                    .put("index.routing_path", "uid")
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start1.toEpochMilli())
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end1.toEpochMilli())
+            )
+            .build();
+        IndexMetadata withinBoundsIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
+            .settings(
+                indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TSDB)
+                    .put("index.routing_path", "uid")
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start2.toEpochMilli())
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end2.toEpochMilli())
+            )
+            .build();
+
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(outOfBoundsIndex, true)
+            .put(withinBoundsIndex, true)
+            .build();
+
+        Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
+            project,
+            List.of(outOfBoundsIndex.getIndex(), withinBoundsIndex.getIndex()),
+            currentTime::toEpochMilli
+        );
+
+        assertThat(indices, containsInAnyOrder(withinBoundsIndex.getIndex()));
     }
 
     public void testTrackingTimeStats() {

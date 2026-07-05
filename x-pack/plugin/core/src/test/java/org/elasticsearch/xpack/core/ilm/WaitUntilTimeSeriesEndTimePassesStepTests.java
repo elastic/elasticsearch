@@ -15,9 +15,13 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.time.Instant;
@@ -144,5 +148,94 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
                 }
             }, MASTER_TIMEOUT);
         }
+    }
+
+    /**
+     * {@link org.elasticsearch.index.IndexMode#TSDB} is a preferred alias for
+     * {@link org.elasticsearch.index.IndexMode#TIME_SERIES} and must gate {@link WaitUntilTimeSeriesEndTimePassesStep}
+     * identically. {@link #testEvaluateCondition()} only exercises indices whose {@code index.mode} is the literal
+     * {@code time_series}, so this repeats the time-series-specific assertions using {@code index.mode: tsdb} directly.
+     */
+    public void testEvaluateConditionTsdbAlias() {
+        Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Instant startTimeLapsed = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant endTimeLapsed = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant startTimeFuture = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant endTimeFuture = currentTime.plus(2, ChronoUnit.HOURS);
+
+        WaitUntilTimeSeriesEndTimePassesStep step = new WaitUntilTimeSeriesEndTimePassesStep(
+            randomStepKey(),
+            randomStepKey(),
+            () -> currentTime
+        );
+
+        {
+            // end_time has lapsed already so condition must be met
+            IndexMetadata indexMeta = createTsdbIndexMetadata("tsdb-index-lapsed", startTimeLapsed, endTimeLapsed);
+            ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMeta, true).build();
+            ProjectState projectState = ClusterState.builder(ClusterName.DEFAULT)
+                .putProjectMetadata(project)
+                .build()
+                .projectState(project.id());
+
+            step.evaluateCondition(projectState, indexMeta, new AsyncWaitStep.Listener() {
+
+                @Override
+                public void onResponse(boolean complete, ToXContentObject informationContext) {
+                    assertThat(complete, is(true));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("Unexpected method call", e);
+                }
+            }, MASTER_TIMEOUT);
+        }
+
+        {
+            // end_time is in the future
+            IndexMetadata indexMeta = createTsdbIndexMetadata("tsdb-index-future", startTimeFuture, endTimeFuture);
+            ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMeta, true).build();
+            ProjectState projectState = ClusterState.builder(ClusterName.DEFAULT)
+                .putProjectMetadata(project)
+                .build()
+                .projectState(project.id());
+
+            step.evaluateCondition(projectState, indexMeta, new AsyncWaitStep.Listener() {
+
+                @Override
+                public void onResponse(boolean complete, ToXContentObject informationContext) {
+                    assertThat(complete, is(false));
+                    String information = Strings.toString(informationContext);
+                    assertThat(
+                        information,
+                        containsString(
+                            "The [index.time_series.end_time] setting for index ["
+                                + indexMeta.getIndex().getName()
+                                + "] is ["
+                                + endTimeFuture.toEpochMilli()
+                                + "]. Waiting until the index's time series end time lapses before proceeding with action ["
+                                + step.getKey().action()
+                                + "] as the index can still accept writes."
+                        )
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("Unexpected method call", e);
+                }
+            }, MASTER_TIMEOUT);
+        }
+    }
+
+    private static IndexMetadata createTsdbIndexMetadata(String indexName, Instant startTime, Instant endTime) {
+        Settings settings = indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.TSDB.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "uid")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(startTime))
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(endTime))
+            .build();
+        return IndexMetadata.builder(indexName).settings(settings).build();
     }
 }

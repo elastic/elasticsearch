@@ -357,6 +357,24 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         assertFalse(ft.indexType().hasDenseIndex());
     }
 
+    /**
+     * The {@code tsdb} index mode is an alias for {@code time_series} (see {@link IndexMode#isTsdb()})
+     * so it must produce the same doc-values-only defaulting for metric fields.
+     */
+    public void testTimeSeriesIndexDefaultTsdbAlias() throws Exception {
+        var randomMetricType = randomFrom(TimeSeriesParams.MetricType.scalar());
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TSDB.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
+        var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", randomMetricType.toString());
+        }));
+        var ft = (ScaledFloatFieldMapper.ScaledFloatFieldType) mapperService.fieldType("field");
+        assertThat(ft.getMetricType(), equalTo(randomMetricType));
+        assertTrue(ft.hasDocValues());
+        assertFalse(ft.indexType().hasDenseIndex());
+    }
+
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         // Large floats are a terrible idea but the round trip should still work no matter how badly you configure the field

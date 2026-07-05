@@ -2734,6 +2734,24 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(orderChild.name(), equalTo("@timestamp"));
     }
 
+    public void testImplicitTimestampSortForTsQueryWithTsdbAlias() {
+        // Same as testImplicitTimestampSortForTsQuery, but the index uses IndexMode.TSDB instead of
+        // IndexMode.TIME_SERIES: AddImplicitTimestampSort is gated on IndexMode#isTsdb(), so both
+        // aliases must be treated identically.
+        var plan = tsdbAlias().query("TS test");
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
     public void testImplicitTimestampSortWithKeep() {
         // TS query with KEEP should have implicit sort
         var plan = tsdb().query("TS test | KEEP @timestamp, host");
@@ -5034,6 +5052,42 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection(plan2, "s1", "s2", "min", "count", "avg", "cluster", "time_bucket");
     }
 
+    public void testImplicitCastingForAggregateMetricDoubleWithTsdbAlias() {
+        // Same as testImplicitCastingForAggregateMetricDouble's TS branch, but the indices use
+        // IndexMode.TSDB instead of IndexMode.TIME_SERIES: ImplicitCastAggregateMetricDoubles is
+        // gated on IndexMode#isTsdb(), so both aliases must be treated identically.
+        assumeTrue(
+            "aggregate metric double implicit casting must be available",
+            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()
+        );
+        Map<String, EsField> mapping = Map.of(
+            "@timestamp",
+            new EsField("@timestamp", DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "cluster",
+            new EsField("cluster", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+            "metric_field",
+            new InvalidMappedField("metric_field", Map.of("aggregate_metric_double", Set.of("k8s-downsampled"), "double", Set.of("k8s")))
+        );
+
+        var esIndex = new EsIndex(
+            "k8s,k8s-downsampled",
+            mapping,
+            Map.of("k8s", IndexMode.TSDB, "k8s-downsampled", IndexMode.TSDB),
+            Map.of(),
+            Map.of()
+        );
+        var testAnalyzer = analyzer().addIndex(esIndex);
+        var plan2 = testAnalyzer.query("""
+            TS k8s,k8s-downsampled | stats s1 = sum(sum_over_time(metric_field)),
+            s2 = sum(avg_over_time(metric_field)),
+            min = min(max_over_time(metric_field)),
+            count = count(count_over_time(metric_field)),
+            avg = avg(min_over_time(metric_field))
+            by cluster, time_bucket = bucket(@timestamp,1minute)
+            """);
+        assertProjection(plan2, "s1", "s2", "min", "count", "avg", "cluster", "time_bucket");
+    }
+
     public void testToGaugeStrippedOnAggregateMetricDoubleAndGaugeUnion() {
         assumeTrue("to_gauge must be available", EsqlCapabilities.Cap.TO_GAUGE.isEnabled());
         assumeTrue(
@@ -5531,6 +5585,15 @@ public class AnalyzerTests extends ESTestCase {
 
     private static TestAnalyzer tsdb() {
         return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
+     * Same fixture as {@link #tsdb()}, but built with the {@link IndexMode#TSDB} alias instead of
+     * {@link IndexMode#TIME_SERIES}. Used to prove that {@code index.mode: tsdb} is treated identically
+     * to {@code index.mode: time_series} by rules gated on {@link IndexMode#isTsdb()}.
+     */
+    private static TestAnalyzer tsdbAlias() {
+        return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TSDB);
     }
 
     private static TestAnalyzer k8s() {

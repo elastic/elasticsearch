@@ -122,6 +122,34 @@ public class RoutingPathExtractorTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code index.mode: tsdb} is a preferred alias for {@code time_series}; it must flow through the same
+     * {@code trackTimeSeriesRoutingHash} logic in {@link IndexRouting.ExtractFromSource}, so the routing hash
+     * that {@link IndexRouting.ExtractFromSource#postProcess} attaches to the request must be identical
+     * regardless of which alias created the index.
+     */
+    public void testTsdbAliasProducesSameRoutingHashAsTimeSeries() throws IOException {
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("dim.host", "node-7");
+        doc.put("dim.region", "us-west-2");
+        doc.put("metric", "cpu.user");
+        BytesReference json = toJson(doc);
+
+        IndexRouting.ExtractFromSource.ForRoutingPath timeSeriesStrategy = forRoutingPath("dim.*", IndexMode.TIME_SERIES);
+        IndexRequest timeSeriesReq = new IndexRequest("test").id("doc-1").source(json, XContentType.JSON);
+        timeSeriesStrategy.preProcess(timeSeriesReq);
+        timeSeriesStrategy.indexShard(timeSeriesReq);
+        timeSeriesStrategy.postProcess(timeSeriesReq);
+
+        IndexRouting.ExtractFromSource.ForRoutingPath tsdbStrategy = forRoutingPath("dim.*", IndexMode.TSDB);
+        IndexRequest tsdbReq = new IndexRequest("test").id("doc-1").source(json, XContentType.JSON);
+        tsdbStrategy.preProcess(tsdbReq);
+        tsdbStrategy.indexShard(tsdbReq);
+        tsdbStrategy.postProcess(tsdbReq);
+
+        assertThat("routing hash must be identical for time_series and tsdb aliases", tsdbReq.routing(), equalTo(timeSeriesReq.routing()));
+    }
+
     public void testReuseAcrossDocumentsClearsBuilderState() throws IOException {
         // Same extractor, two different documents with different routing-path values should produce
         // the same shard ids as fresh extractors.
@@ -182,10 +210,14 @@ public class RoutingPathExtractorTests extends ESTestCase {
     }
 
     private static IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath(String routingPath) {
+        return forRoutingPath(routingPath, IndexMode.TIME_SERIES);
+    }
+
+    private static IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath(String routingPath, IndexMode indexMode) {
         Settings settings = Settings.builder()
             .put(SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexSettings.MODE.getKey(), indexMode)
             .build();
         IndexMetadata md = IndexMetadata.builder("test").settings(settings).numberOfShards(8).numberOfReplicas(0).build();
         IndexRouting routing = IndexRouting.fromIndexMetadata(md);

@@ -13,6 +13,11 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.IndexModeFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -51,9 +56,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class EsqlSessionTests extends ESTestCase {
@@ -76,6 +85,67 @@ public class EsqlSessionTests extends ESTestCase {
                 new IndexPattern(EMPTY, "logs*")
             )
         );
+    }
+
+    // IndexMode.TSDB is a preferred alias for IndexMode.TIME_SERIES (isTsdb() is true for both); this pins that
+    // shouldRetryConcreteTimeSeriesResolution treats the alias identically to the canonical constant.
+    public void testShouldRetryConcreteTsdbAliasResolution() {
+        assertTrue(
+            EsqlSession.shouldRetryConcreteTimeSeriesResolution(
+                IndexMode.TSDB,
+                IndexResolution.empty("logs"),
+                new IndexPattern(EMPTY, "logs")
+            )
+        );
+    }
+
+    public void testShouldNotRetryWildcardTsdbAliasResolution() {
+        assertFalse(
+            EsqlSession.shouldRetryConcreteTimeSeriesResolution(
+                IndexMode.TSDB,
+                IndexResolution.empty("logs*"),
+                new IndexPattern(EMPTY, "logs*")
+            )
+        );
+    }
+
+    // createQueryFilter builds the _index_mode filter used to resolve the concrete backing indices of a TS/METRICS
+    // source. The requested indexMode is a fixed sentinel (TS always declares IndexMode.TIME_SERIES) but the
+    // concrete backing indices may be configured with either [index.mode=time_series] or its alias
+    // [index.mode=tsdb], so the filter must match both terms regardless of which indexMode triggered it.
+    public void testCreateQueryFilterForTimeSeriesMatchesBothIndexModeAliases() {
+        QueryBuilder filter = EsqlSession.createQueryFilter(IndexMode.TIME_SERIES, null);
+        TermsQueryBuilder termsFilter = as(filter, TermsQueryBuilder.class);
+        assertThat(termsFilter.fieldName(), equalTo(IndexModeFieldMapper.NAME));
+        assertThat(termsFilter.values(), containsInAnyOrder(IndexMode.TIME_SERIES.getName(), IndexMode.TSDB.getName()));
+    }
+
+    public void testCreateQueryFilterForTsdbAliasMatchesBothIndexModeAliases() {
+        QueryBuilder filter = EsqlSession.createQueryFilter(IndexMode.TSDB, null);
+        TermsQueryBuilder termsFilter = as(filter, TermsQueryBuilder.class);
+        assertThat(termsFilter.fieldName(), equalTo(IndexModeFieldMapper.NAME));
+        assertThat(termsFilter.values(), containsInAnyOrder(IndexMode.TIME_SERIES.getName(), IndexMode.TSDB.getName()));
+    }
+
+    public void testCreateQueryFilterCombinesRequestFilterWithIndexModeFilter() {
+        QueryBuilder requestFilter = QueryBuilders.matchAllQuery();
+        QueryBuilder filter = EsqlSession.createQueryFilter(IndexMode.TSDB, requestFilter);
+        BoolQueryBuilder boolFilter = as(filter, BoolQueryBuilder.class);
+        assertThat(boolFilter.filter(), hasSize(2));
+        assertThat(boolFilter.filter(), hasItem(requestFilter));
+        TermsQueryBuilder termsFilter = boolFilter.filter()
+            .stream()
+            .filter(TermsQueryBuilder.class::isInstance)
+            .map(TermsQueryBuilder.class::cast)
+            .findFirst()
+            .orElseThrow();
+        assertThat(termsFilter.fieldName(), equalTo(IndexModeFieldMapper.NAME));
+        assertThat(termsFilter.values(), containsInAnyOrder(IndexMode.TIME_SERIES.getName(), IndexMode.TSDB.getName()));
+    }
+
+    public void testCreateQueryFilterForStandardModeReturnsRequestFilterUnchanged() {
+        QueryBuilder requestFilter = QueryBuilders.matchAllQuery();
+        assertThat(EsqlSession.createQueryFilter(IndexMode.STANDARD, requestFilter), sameInstance(requestFilter));
     }
 
     public void testRefineConcreteTimeSeriesResolutionReturnsHelpfulError() {

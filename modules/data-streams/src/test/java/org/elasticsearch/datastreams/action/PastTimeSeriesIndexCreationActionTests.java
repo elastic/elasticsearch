@@ -462,13 +462,108 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
     }
 
     private static IndexMetadata createIndexMetadata(String indexName, Instant startTime, Instant endTime) {
+        return createIndexMetadata(indexName, startTime, endTime, IndexMode.TIME_SERIES);
+    }
+
+    private static IndexMetadata createIndexMetadata(String indexName, Instant startTime, Instant endTime, IndexMode indexMode) {
         Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (startTime != null && endTime != null) {
-            settings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            settings.put(IndexSettings.MODE.getKey(), indexMode.getName())
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime.toEpochMilli())
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime.toEpochMilli());
         }
         return IndexMetadata.builder(indexName).settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+    }
+
+    /**
+     * Builds a ProjectMetadata with a TSDB data stream whose backing indices use the {@link IndexMode#TSDB}
+     * alias rather than {@link IndexMode#TIME_SERIES}, to verify that {@code IndexMode.isTsdb} treats the
+     * alias identically to {@code TIME_SERIES} in {@link TransportPastTimeSeriesIndexCreationAction}.
+     */
+    private ProjectMetadata projectWithTsdbAliasDataStream(List<Tuple<Instant, Instant>> timeSlices) {
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        long generation = 1L;
+        for (Tuple<Instant, Instant> slice : timeSlices) {
+            String indexName = DataStream.getDefaultBackingIndexName(DATA_STREAM, generation, slice.v1().toEpochMilli());
+            backingIndices.add(createIndexMetadata(indexName, slice.v1(), slice.v2(), IndexMode.TSDB));
+            generation++;
+        }
+        DataStream ds = DataStream.builder(DATA_STREAM, backingIndices.stream().map(IndexMetadata::getIndex).toList())
+            .setGeneration(generation)
+            .setIndexMode(IndexMode.TSDB)
+            .build();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
+        for (IndexMetadata im : backingIndices) {
+            builder.put(im, false);
+        }
+        return builder.put(ds).build();
+    }
+
+    /** Builds a ClusterState with a {@link IndexMode#TSDB}-alias data stream whose backing indices cover the given time ranges. */
+    private ClusterState stateWithExistingTsdbAlias(List<Tuple<Instant, Instant>> timeSlices, Instant now) {
+        List<Tuple<Instant, Instant>> allSlices = new ArrayList<>(timeSlices);
+        allSlices.add(Tuple.tuple(now, now.plus(randomIntBetween(1, 3), ChronoUnit.DAYS)));
+        return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectWithTsdbAliasDataStream(allSlices)).build();
+    }
+
+    /**
+     * Equivalent of {@link #testSortAndRetrieve} that uses the {@link IndexMode#TSDB} alias instead of
+     * {@link IndexMode#TIME_SERIES} for the backing indices, to confirm {@code retrieveSortedTimeWindows}
+     * (gated by {@code IndexMode.isTsdb}) recognizes the alias mode the same way.
+     */
+    public void testSortAndRetrieveWithTsdbAlias() {
+        Instant start1 = Instant.parse("2024-01-15T00:00:00Z");
+        Instant start2 = Instant.parse("2024-01-16T00:00:00Z");
+        Instant start3 = Instant.parse("2024-01-17T00:00:00Z");
+        Instant end = Instant.parse("2024-01-18T00:00:00Z");
+        ProjectMetadata project = projectWithTsdbAliasDataStream(
+            List.of(Tuple.tuple(start3, end), Tuple.tuple(start1, start2), Tuple.tuple(start2, start3))
+        );
+        // Add a non-TSDB index to the mixed data stream to confirm it's still excluded from the windows.
+        String nonTsdbName = randomIndexName();
+        IndexMetadata nonTsdb = IndexMetadata.builder(nonTsdbName)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        DataStream mixedDs = project.dataStreams().get(DATA_STREAM).unsafeAddBackingIndex(nonTsdb.getIndex());
+        project = ProjectMetadata.builder(project).put(nonTsdb, false).put(mixedDs).build();
+
+        var result = PastTimeSeriesIndexCreationExecutor.retrieveSortedTimeWindows(project.dataStreams().get(DATA_STREAM), project);
+        assertThat(result, hasSize(1));
+        TransportPastTimeSeriesIndexCreationAction.CoveredTimeWindow timeWindow = result.pop();
+        assertThat(timeWindow.start(), is(start1.toEpochMilli()));
+        assertThat(timeWindow.end(), is(end.toEpochMilli()));
+    }
+
+    /**
+     * Equivalent of the happy-path portion of {@link #testCreateIndicesWhenNeeded} that uses the
+     * {@link IndexMode#TSDB} alias instead of {@link IndexMode#TIME_SERIES}, to confirm
+     * {@code validateDataStream} and the time-range computation (both gated by {@code IndexMode.isTsdb})
+     * behave identically for the alias.
+     */
+    public void testCreateIndicesWhenNeededWithTsdbAlias() throws Exception {
+        Instant now = Instant.now();
+        ClusterState clusterState = stateWithExistingTsdbAlias(List.of(), now);
+        List<Integer> dayOffsets = List.of(5, 3, 2);
+        // Add two timestamps that fall within one index
+        {
+            Instant ts1 = getTimestampWithinDay(now, dayOffsets.getFirst(), randomIntBetween(2, 5));
+            Instant ts2 = getTimestampWithinDay(now, dayOffsets.getFirst(), randomIntBetween(7, 12));
+            TaskResult result = run(clusterState, ts1.toEpochMilli(), ts2.toEpochMilli());
+            assertThat(result.covered, containsInAnyOrder(ts1, ts2));
+            assertThat(result.createdNames.size(), is(1));
+            clusterState = result.state();
+        }
+
+        // Add two timestamp that will create two indices
+        {
+            Instant ts1 = getTimestampWithinDay(now, dayOffsets.get(1), randomIntBetween(1, 5));
+            Instant ts2 = getTimestampWithinDay(now, dayOffsets.get(2), randomIntBetween(13, 18));
+            TaskResult result = run(clusterState, ts1.toEpochMilli(), ts2.toEpochMilli());
+            assertThat(result.covered, containsInAnyOrder(ts1, ts2));
+            assertThat(result.createdNames.size(), is(2));
+        }
     }
 
     public void testOutsideEligibleWriteWindowFails() throws Exception {

@@ -752,6 +752,34 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
     }
 
+    /**
+     * Same scenario as {@link #testRoutingPathWithSingleBytePrefixTsid()} but with {@code index.mode: tsdb},
+     * the preferred alias for {@code time_series}. {@link IndexMode#TSDB} must select the same
+     * {@link IndexRouting.ExtractFromSource.ForIndexDimensions} strategy, track the routing hash the same
+     * way, and produce identical shard assignments as {@link IndexMode#TIME_SERIES}.
+     */
+    public void testRoutingPathWithSingleBytePrefixTsidUsingTsdbAlias() throws IOException {
+        TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
+            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
+            8,
+            "dim.*,other.*,top",
+            randomBoolean(),
+            IndexMode.TSDB
+        );
+        assumeTrue("require single-byte-prefix tsid", TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 3);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 7);
+        assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 1);
+        assertIndexShard(fixture, Map.of("top", "a"), 6);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
+        assertIndexShard(fixture, Map.of("dim.a", "a"), 5);
+        assertIndexShard(fixture, Map.of("dim.a", 1), 2);
+        assertIndexShard(fixture, Map.of("dim.a", "1"), 0);
+        assertIndexShard(fixture, Map.of("dim.a", true), 3);
+        assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
+    }
+
     public void testRoutingPathReadWithInvalidString() {
         int shards = between(2, 1000);
         IndexRouting indexRouting = indexRoutingForPath(shards, "foo").routing();
@@ -1243,7 +1271,29 @@ public class IndexRoutingTests extends ESTestCase {
         String path,
         boolean useSyntheticId
     ) {
-        return getIndexRoutingWithSetting(createdVersion, shards, path, IndexMetadata.INDEX_DIMENSIONS.getKey(), useSyntheticId);
+        return indexRoutingForTimeSeriesDimensions(createdVersion, shards, path, useSyntheticId, IndexMode.TIME_SERIES);
+    }
+
+    /**
+     * Same as {@link #indexRoutingForTimeSeriesDimensions(IndexVersion, int, String, boolean)} but lets the
+     * caller pick the index mode, so callers can prove {@link IndexMode#TSDB} routes identically to
+     * {@link IndexMode#TIME_SERIES}.
+     */
+    private TimeSeriesRoutingFixture indexRoutingForTimeSeriesDimensions(
+        IndexVersion createdVersion,
+        int shards,
+        String path,
+        boolean useSyntheticId,
+        IndexMode indexMode
+    ) {
+        return getIndexRoutingWithSetting(
+            createdVersion,
+            shards,
+            path,
+            IndexMetadata.INDEX_DIMENSIONS.getKey(),
+            useSyntheticId,
+            indexMode
+        );
     }
 
     /**
@@ -1256,11 +1306,25 @@ public class IndexRoutingTests extends ESTestCase {
         String setting,
         boolean useSyntheticId
     ) {
+        return getIndexRoutingWithSetting(indexVersion, shards, path, setting, useSyntheticId, IndexMode.TIME_SERIES);
+    }
+
+    /**
+     * Same as {@link #getIndexRoutingWithSetting(IndexVersion, int, String, String, boolean)} but lets the
+     * caller pick the index mode.
+     */
+    private static TimeSeriesRoutingFixture getIndexRoutingWithSetting(
+        IndexVersion indexVersion,
+        int shards,
+        String path,
+        String setting,
+        boolean useSyntheticId,
+        IndexMode indexMode
+    ) {
         if (useSyntheticId) {
             assert indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) : "Can't use synthetic id with this index version";
         }
-        Settings.Builder settingsBuilder = settings(indexVersion).put(setting, path)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+        Settings.Builder settingsBuilder = settings(indexVersion).put(setting, path).put(IndexSettings.MODE.getKey(), indexMode);
         if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
             settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
         }

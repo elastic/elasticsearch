@@ -130,7 +130,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
          *
          * Operations on the transform node happen in {@link #nodeOperation()}
          */
-        var transformMetadata = TransformMetadata.getTransformMetadata(clusterState);
+        assert projectId != null : "transform tasks are project-scoped; projectId must be set";
+        var transformMetadata = TransformMetadata.transformMetadata(clusterState.metadata().getProject(projectId));
         if (transformMetadata.isUpgradeMode()) {
             return AWAITING_UPGRADE;
         }
@@ -394,9 +395,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }));
 
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
+        assert buildTask.getProjectId() != null : "transform tasks are project-scoped; projectId must be set";
+        final ProjectId nodeProjectId = ProjectId.fromId(buildTask.getProjectId());
         TransformInternalIndex.createLatestVersionedIndexIfRequired(
             clusterService,
             parentTaskClient,
+            nodeProjectId,
             transformExtension.getTransformInternalIndexAdditionalSettings(),
             templateCheckListener.delegateResponse((l, e) -> {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);

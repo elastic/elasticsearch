@@ -267,13 +267,13 @@ public class TransportDownsampleActionTests extends ESTestCase {
     }
 
     /**
-     * Same as {@link #testDownsampling()} but using {@link IndexMode#TSDB}, the preferred alias for
+     * Same as {@link #testDownsampling()} but using {@link IndexMode#TSDB}, the preferred alternative to
      * {@link IndexMode#TIME_SERIES}, to configure the source index. This verifies that the
      * {@code index.mode}-gated validation in {@link TransportDownsampleAction} relies on
      * {@link IndexMode#isTsdb()} rather than an exact match against {@link IndexMode#TIME_SERIES},
-     * so a source index configured with the {@code tsdb} alias is downsampled successfully as well.
+     * so a source index configured with {@code index.mode: tsdb} is downsampled successfully as well.
      */
-    public void testDownsamplingWithTsdbIndexModeAlias() {
+    public void testDownsamplingWithTsdbIndexMode() {
         var projectMetadata = ProjectMetadata.builder(projectId)
             .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards, IndexMode.TSDB))
             .build();

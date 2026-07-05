@@ -308,7 +308,7 @@ public enum IndexMode {
         }
     },
     /**
-     * Alias of {@link #TIME_SERIES} with the preferred name {@code tsdb}. Behaves identically
+     * Preferred alternative to {@link #TIME_SERIES} with the name {@code tsdb}. Behaves identically
      * to {@link #TIME_SERIES} in every respect other than {@link #getName()}; existing
      * {@code time_series} indices are unaffected and {@link #fromString} accepts both spellings.
      */
@@ -1051,7 +1051,7 @@ public enum IndexMode {
 
     /**
      * Whether this index mode represents a time series (tsdb) index, regardless of whether it
-     * was declared as {@code time_series} or its preferred alias {@code tsdb}.
+     * was declared as {@code time_series} or {@code tsdb}.
      */
     public boolean isTsdb() {
         return this == TIME_SERIES || this == TSDB;
@@ -1068,7 +1068,7 @@ public enum IndexMode {
 
     /**
      * Whether the given raw {@code index.mode} setting value names a time series (tsdb) index
-     * mode, accepting both {@code time_series} and its preferred alias {@code tsdb},
+     * mode, accepting both {@code time_series} and {@code tsdb},
      * case-insensitively. Use this instead of comparing against {@link #TIME_SERIES}'s or
      * {@link #TSDB}'s {@link #getName()} directly when the value hasn't been parsed with
      * {@link #fromString} yet.

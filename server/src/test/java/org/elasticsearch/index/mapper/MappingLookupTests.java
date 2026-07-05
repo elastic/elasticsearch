@@ -199,7 +199,7 @@ public class MappingLookupTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Field [metric] attempted to shadow a time_series_metric"));
         tsMappingLookup.validateDoesNotShadow("plain");
 
-        // The tsdb index mode is an alias for time_series (see IndexMode#isTsdb()), so it must reject
+        // IndexMode.TSDB is equivalent to time_series (see IndexMode#isTsdb()), so it must reject
         // shadowing of dimension/metric fields identically.
         MappingLookup tsdbMappingLookup = createMappingLookup(
             List.of(dimMapper, metricMapper, plainMapper),
@@ -257,7 +257,7 @@ public class MappingLookupTests extends ESTestCase {
             )
         );
 
-        // The tsdb index mode is an alias for time_series (see IndexMode#isTsdb()), so it must reject
+        // IndexMode.TSDB is equivalent to time_series (see IndexMode#isTsdb()), so it must reject
         // the same shadowing on construction.
         Exception tsdbException = expectThrows(
             MapperParsingException.class,

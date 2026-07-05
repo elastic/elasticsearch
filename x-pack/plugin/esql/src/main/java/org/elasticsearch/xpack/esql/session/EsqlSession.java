@@ -2001,9 +2001,9 @@ public class EsqlSession {
     static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
         return switch (indexMode) {
             case IndexMode.TIME_SERIES, IndexMode.TSDB -> {
-                // Match either alias: the requested indexMode is a fixed sentinel (e.g. the TS command always
+                // Match both values: the requested indexMode is a fixed sentinel (e.g. the TS command always
                 // declares IndexMode.TIME_SERIES), but the concrete backing indices may be configured with
-                // either [index.mode=time_series] or its alias [index.mode=tsdb].
+                // either [index.mode=time_series] or [index.mode=tsdb].
                 var indexModeFilter = new TermsQueryBuilder(
                     IndexModeFieldMapper.NAME,
                     IndexMode.TIME_SERIES.getName(),

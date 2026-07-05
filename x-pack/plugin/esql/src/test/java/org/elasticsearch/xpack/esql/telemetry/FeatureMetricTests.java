@@ -59,10 +59,11 @@ public class FeatureMetricTests extends ESTestCase {
 
     /**
      * {@link FeatureMetric#TS} and {@link FeatureMetric#FROM} branch on {@code EsRelation#indexMode()#isTsdb()}.
-     * {@code IndexMode.TSDB} is a preferred alias for {@code IndexMode.TIME_SERIES} (isTsdb() is true for both), so
-     * both constants must flip the TS bit - never the FROM bit - exactly like the canonical TIME_SERIES constant.
+     * {@code IndexMode.TSDB} is a preferred alternative to {@code IndexMode.TIME_SERIES} (isTsdb() is true for
+     * both), so both constants must flip the TS bit - never the FROM bit - exactly like the canonical TIME_SERIES
+     * constant.
      */
-    public void testTimeSeriesRelationSetsTsMetricForBothIndexModeAliases() {
+    public void testTimeSeriesRelationSetsTsMetricForBothIndexModes() {
         for (IndexMode mode : List.of(IndexMode.TIME_SERIES, IndexMode.TSDB)) {
             EsRelation relation = relation(mode);
             BitSet bitset = new BitSet();

@@ -1239,7 +1239,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
     }
 
     /**
-     * Same coverage as {@link #testTimeSeriesIndicesStillWithinTimeBounds()} but using the {@link IndexMode#TSDB} alias
+     * Same coverage as {@link #testTimeSeriesIndicesStillWithinTimeBounds()} but using {@link IndexMode#TSDB}
      * instead of {@link IndexMode#TIME_SERIES}, to ensure {@code isTsdb()} gates this behaviour identically for both.
      */
     public void testTimeSeriesIndicesStillWithinTimeBoundsWithTsdbIndexMode() {

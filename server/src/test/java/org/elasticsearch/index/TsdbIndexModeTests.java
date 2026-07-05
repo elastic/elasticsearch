@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * {@link IndexMode#TSDB} is a preferred alias for {@link IndexMode#TIME_SERIES}: both parse from
+ * {@link IndexMode#TSDB} is a preferred alternative to {@link IndexMode#TIME_SERIES}: both parse from
  * (and behave identically for) the same {@code index.mode} settings, but {@code time_series}
  * remains the canonical emitted/persisted string so existing indices are unaffected.
  */

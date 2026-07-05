@@ -357,7 +357,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     /**
      * Verifies ROUND_TO on a long field is NOT pushed to the block loader when
-     * the shard's index metadata reports the {@link IndexMode#TSDB} alias
+     * the shard's index metadata reports {@link IndexMode#TSDB}
      * rather than {@link IndexMode#TIME_SERIES}. {@code TSDB} behaves
      * identically to {@code TIME_SERIES} for {@code hasTimeSeriesShards()},
      * so this mirrors {@link #testRoundToInTsEval()}.
@@ -880,7 +880,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     /**
      * Same as {@link #tsSearchStats()} but reports the shard's index metadata
-     * using the {@link IndexMode#TSDB} alias instead of {@link IndexMode#TIME_SERIES}.
+     * using {@link IndexMode#TSDB} instead of {@link IndexMode#TIME_SERIES}.
      */
     private static SearchStats tsdbSearchStats() {
         return new EsqlTestUtils.TestSearchStats() {

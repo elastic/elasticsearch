@@ -778,7 +778,7 @@ public final class IndexSettings {
         @Override
         public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
             if (enabled) {
-                // Verify if index mode is a time series mode (TIME_SERIES or its alias TSDB)
+                // Verify if index mode is a time series mode (TIME_SERIES or TSDB)
                 var indexMode = (IndexMode) settings.get(MODE);
                 if (indexMode.isTsdb() == false) {
                     throw new IllegalArgumentException(

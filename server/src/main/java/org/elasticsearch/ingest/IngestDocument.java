@@ -123,7 +123,7 @@ public final class IngestDocument {
     public IngestDocument(IngestDocument other) {
         this(
             new IngestCtxMap(deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource())), other.ctxMap.getMetadata().clone()),
-            deepCopyMap(other.ingestMetadata)
+            deepCopyMap(ensureNoSelfReferences(other.ingestMetadata))
         );
         /*
          * The executedPipelines and accessPatternStack fields are clearly execution-centric rather than data centric.
@@ -1089,6 +1089,11 @@ public final class IngestDocument {
      */
     public Map<String, Object> getIngestMetadata() {
         return this.ingestMetadata;
+    }
+
+    void ensureNoSelfReferences() {
+        CollectionUtils.ensureNoSelfReferences(ctxMap.getSource(), "source document");
+        CollectionUtils.ensureNoSelfReferences(ingestMetadata, "ingest metadata");
     }
 
     @SuppressWarnings("unchecked")

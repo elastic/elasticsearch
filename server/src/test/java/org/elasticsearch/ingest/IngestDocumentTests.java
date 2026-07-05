@@ -1917,6 +1917,16 @@ public class IngestDocumentTests extends ESTestCase {
             Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
             assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
         }
+
+        {
+            // the copy constructor rejects self-references in ingest metadata too
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            Map<String, Object> selfReference = new HashMap<>();
+            selfReference.put("self", selfReference);
+            ingestDocument.getIngestMetadata().put("self", selfReference);
+            Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
+        }
     }
 
     public void testCopyConstructorWithExecutedPipelines() {

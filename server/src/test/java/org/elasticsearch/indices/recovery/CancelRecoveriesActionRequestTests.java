@@ -33,17 +33,15 @@ public class CancelRecoveriesActionRequestTests extends AbstractWireSerializingT
 
     @Override
     protected CancelRecoveriesAction.Request mutateInstance(CancelRecoveriesAction.Request instance) throws IOException {
-        return switch (between(0, 1)) {
-            case 0 -> new CancelRecoveriesAction.Request(
+        return randomBoolean()
+            ? new CancelRecoveriesAction.Request(
                 randomValueOtherThan(instance.clusterStateVersion(), ESTestCase::randomNonNegativeLong),
                 instance.cancellations()
-            );
-            case 1 -> new CancelRecoveriesAction.Request(
+            )
+            : new CancelRecoveriesAction.Request(
                 instance.clusterStateVersion(),
                 randomValueOtherThan(instance.cancellations(), this::randomCancellations)
             );
-            default -> throw new AssertionError("impossible");
-        };
     }
 
     private List<CancelRecoveriesAction.ShardRecoveryCancellation> randomCancellations() {

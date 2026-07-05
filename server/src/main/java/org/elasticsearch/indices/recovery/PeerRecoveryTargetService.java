@@ -830,8 +830,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 return;
             }
             if (cause instanceof RecoveryCancelledException) {
-                // Cancellation propagated back through the START_RECOVERY response before directCancelRecovery
-                // fired on this node. Delegate to directCancelRecovery.
+                /// `START_RECOVERY` is a single request/response pair held open by the source until the whole
+                /// recovery finishes, including the primary relocation handoff (if relevant).
+                /// If [IndexShard#activateWithPrimaryContext] throws on this node due to a master cancellation request
+                /// (see [TransportCancelRecoveriesAction]), the failure flows back through the source's handling of
+                /// the `START_RECOVERY` request and lands here. Delegate to directCancelRecovery.
                 directCancelRecovery(request.shardId(), request.targetAllocationId());
                 return;
             }

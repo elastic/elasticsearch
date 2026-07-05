@@ -8,32 +8,26 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
- * End-to-end guard for the GA text-format codec gate (elastic/esql-planning#938): on release builds an
- * {@code EXTERNAL "...csv.bz2"} query must be rejected at planning time with the
+ * End-to-end guard for the GA text-format codec gate (elastic/esql-planning#938): on release builds a
+ * {@code FROM <dataset>} query over a {@code ...csv.bz2} resource (registered without a {@code format} setting, so
+ * the codec is resolved from the extension) must be rejected at planning time with the
  * {@code "compression codec [bzip2] is not supported; supported: uncompressed, gzip, zstd"} message produced by
  * {@code FormatReaderRegistry.byExtension}. bzip2 stands in for the four codecs the gate removes from the GA
  * surface (bzip2/snappy/lz4/brotli); it is the only one wired up as a node plugin in this module.
@@ -49,44 +43,12 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
  * {@code ExternalFileBzip2NdJsonCountIT}; the matching release/snapshot unit coverage of the same code path lives in
  * {@code DataSourceModuleTests}.
  */
-public class ExternalCompressedCodecRejectionIT extends AbstractEsqlIntegTestCase {
-
-    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
-
-    /**
-     * {@link EsqlPluginWithEnterpriseOrTrialLicense} overrides {@link ExtensiblePlugin#loadExtensions} with a no-op;
-     * re-delegating to {@code super} lets {@code MockPluginsService} aggregate the data-source SPI implementations.
-     */
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
+public class ExternalCompressedCodecRejectionIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
         // Bzip2 must be registered so the codec resolves and the build-type gate (not a "no such codec" error) fires.
-        plugins.add(Bzip2DataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesEnabled() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+        return List.of(CsvDataSourcePlugin.class, Bzip2DataSourcePlugin.class);
     }
 
     @Override
@@ -95,14 +57,14 @@ public class ExternalCompressedCodecRejectionIT extends AbstractEsqlIntegTestCas
     }
 
     public void testBzip2CsvRejectedOnReleaseBuild() throws IOException {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         assumeFalse("snapshot builds allow the full codec set; the gate is release-only", Build.current().isSnapshot());
 
         // The gate fires before the object is opened, so the file content is irrelevant; the bytes are never read.
         Path file = createTempDir().resolve("rejected.csv.bz2");
         Files.write(file, "placeholder".getBytes(StandardCharsets.UTF_8));
 
-        String query = "EXTERNAL \"" + StoragePath.fileUri(file) + "\" | LIMIT 1";
+        String dataset = registerDataset("codec_reject", StoragePath.fileUri(file), Map.of());
+        String query = "FROM " + dataset + " | LIMIT 1";
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TIMEOUT).close());
         assertCauseMessageContains(ex, "compression codec [bzip2] is not supported; supported: uncompressed, gzip, zstd");
     }

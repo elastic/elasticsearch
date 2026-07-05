@@ -171,6 +171,9 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
         return cancelledInQueue;
     }
 
+    /// Prunes queued recoveries and remembered direct-cancellation requests that have been rendered stale by this
+    /// cluster state update, i.e. the shard is no longer assigned to this node under the allocation ID it was
+    /// queued or cancelled for (it was reallocated elsewhere, unassigned, or this node has left the cluster entirely).
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final RoutingNode localNode = event.state().getRoutingNodes().node(clusterService.localNode().getId());
@@ -179,6 +182,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
             if (closed) {
                 return;
             }
+            // This node has left the cluster's data nodes entirely (e.g. it's shutting down)
             if (localNode == null) {
                 cancelledAllocationIds.clear();
                 staleRecoveries.addAll(pendingRecoveries);
@@ -186,19 +190,24 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
             } else {
                 cancelledAllocationIds.entrySet()
                     .removeIf((cancellation) -> allocationIdIsOutdated(localNode, cancellation.getValue(), cancellation.getKey()));
-                pendingRecoveries.removeIf((pending) -> {
+                final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
+                while (it.hasNext()) {
+                    final PendingRecovery pending = it.next();
                     final RecoveryState recoveryState = pending.recoveryState();
                     if (allocationIdIsOutdated(localNode, recoveryState.getShardId(), pending.allocationId())) {
+                        it.remove();
                         staleRecoveries.add(pending);
-                        pending.stats().targetQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType());
-                        return true;
                     }
-                    return false;
-                });
+                }
             }
         }
         for (PendingRecovery stale : staleRecoveries) {
             final RecoveryState state = stale.recoveryState();
+            // Note that updating RecoveryStats is not strictly necessary here and just done out of completeness sake +
+            // easier testing. Indeed, a pending recovery never started, and if its allocation ID has changed or localNode
+            // became `null`, the old IndexShard objects those stats belong would have already been closed.
+            stale.stats().targetQueuedRecoveryDiscarded(stale.recoveryState().getRecoverySource().getType());
+
             // Get off the cluster applier thread. Generic executor has unbounded queue and thread shutdown happens
             // after service close so this runnable should never get rejected.
             logger.debug("cancelling stale queued recovery {}", state);

@@ -36,11 +36,14 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
 
@@ -344,6 +347,248 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         assertThat(outputRows.get(2).value(), equalTo(8L));
     }
 
+    /**
+     * Time-series aggregations never emit partial results periodically (rate and {@code *_over_time} require every
+     * sample of a {@code _tsid} to be aggregated by a single driver in one pass): nothing is emitted until finish(),
+     * no matter how many high-cardinality batches are fed.
+     */
+    public void testDoesNotEmitPartialResultsPeriodically() {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.INITIAL,
+            List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
+            1024,
+            null,
+            5
+        );
+        BlockFactory bf = blockFactory();
+        var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
+        List<Page> collected = new ArrayList<>();
+        try (Operator op = operatorFactory.get(driverCtx)) {
+            for (String tsid : List.of("a", "b", "c", "d", "e", "f", "g", "h")) {
+                List<List<Object>> batch = new ArrayList<>();
+                addTsidRows(batch, tsid, 4);
+                op.addInput(buildPage(bf, batch));
+                assertNull("periodic partial emission must be disabled: no output before finish()", op.getOutput());
+            }
+            op.finish();
+            drainInto(op, collected);
+            assertTrue(op.isFinished());
+            int emitted = summarize(collected).stream().mapToInt(PageSummary::positionCount).sum();
+            assertThat("all groups are emitted once finished", emitted, equalTo(32));
+        } finally {
+            for (Page page : collected) {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Low-cardinality partial-mode output that fits within {@code targetChunkRows} is emitted as a single page (no
+     * chunking, preserving today's behaviour when the data fits).
+     */
+    public void testEmitsSinglePageInPartialModeWhenBelowChunkSize() {
+        List<List<Object>> batch = new ArrayList<>();
+        for (String tsid : List.of("a", "b", "c")) {
+            addTsidRows(batch, tsid, 1);
+        }
+        List<PageSummary> pages = runPartialMode(100_000, List.of(batch));
+        assertThat(pages.size(), equalTo(1));
+        assertThat(pages.get(0).positionCount(), equalTo(3));
+    }
+
+    /**
+     * When the partial-mode output exceeds {@code targetChunkRows} it is split into several pages, each no larger than
+     * {@code targetChunkRows}, and the chunks together cover every group exactly once.
+     */
+    public void testChunksPartialOutputAboveChunkSize() {
+        int targetChunkRows = 5;
+        int groupsPerTsid = 4;
+        List<String> tsids = List.of("a", "b", "c", "d");
+        List<List<Object>> rows = new ArrayList<>();
+        for (String tsid : tsids) {
+            addTsidRows(rows, tsid, groupsPerTsid);
+        }
+        List<PageSummary> pages = runPartialMode(targetChunkRows, List.of(rows));
+        assertThat("output larger than the chunk size must be chunked", pages.size(), greaterThan(1));
+        int emitted = 0;
+        for (PageSummary page : pages) {
+            assertThat("no chunk exceeds targetChunkRows", page.positionCount(), lessThanOrEqualTo(targetChunkRows));
+            emitted += page.positionCount();
+        }
+        assertThat("every group is emitted exactly once across chunks", emitted, equalTo(tsids.size() * groupsPerTsid));
+    }
+
+    /**
+     * DimensionValues must survive output chunking: its single value builder is materialized once and the requested
+     * subset is copied per page, so chunked partial output yields the correct value for every group without
+     * re-building (and closing) the shared builder.
+     */
+    public void testDimensionValuesSupportsChunkedPartialOutput() {
+        int targetChunkRows = 3;
+        List<String> tsids = List.of("a", "b", "c", "d", "e", "f", "g");
+        List<List<Object>> batch = new ArrayList<>();
+        for (String tsid : tsids) {
+            batch.add(List.of(tsid, 0L, 1)); // one group per tsid; more than targetChunkRows so the output is chunked
+        }
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.INITIAL,
+            List.of(
+                new DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier().groupingAggregatorFactory(
+                    AggregatorMode.INITIAL,
+                    List.of(0)
+                )
+            ),
+            1024,
+            null,
+            targetChunkRows
+        );
+        BlockFactory bf = blockFactory();
+        var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
+        List<Page> collected = new ArrayList<>();
+        Map<String, String> dimensionByTsid = new HashMap<>();
+        try (Operator op = operatorFactory.get(driverCtx)) {
+            op.addInput(buildPage(bf, batch));
+            op.finish();
+            drainInto(op, collected);
+            assertThat("output must be chunked into multiple pages", collected.size(), greaterThan(1));
+            var scratch = new BytesRef();
+            for (Page page : collected) {
+                assertThat("no chunk exceeds targetChunkRows", page.getPositionCount(), lessThanOrEqualTo(targetChunkRows));
+                BytesRefBlock tsidBlock = page.getBlock(0);
+                BytesRefBlock dimensionBlock = page.getBlock(2); // 2 key blocks + the DimensionValues intermediate state
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    String tsid = tsidBlock.getBytesRef(tsidBlock.getFirstValueIndex(p), scratch).utf8ToString();
+                    assertFalse("dimension value must be present at position " + p, dimensionBlock.isNull(p));
+                    String dim = dimensionBlock.getBytesRef(dimensionBlock.getFirstValueIndex(p), scratch).utf8ToString();
+                    dimensionByTsid.put(tsid, dim);
+                }
+            }
+        } finally {
+            for (Page page : collected) {
+                page.releaseBlocks();
+            }
+        }
+        Map<String, String> expected = new HashMap<>();
+        for (String tsid : tsids) {
+            expected.put(tsid, tsid);
+        }
+        assertThat("every tsid's dimension value is its own tsid, across all chunks", dimensionByTsid, equalTo(expected));
+    }
+
+    /**
+     * Chunked partial pages are what reduction stages receive in distributed execution. Feed two independently chunked
+     * initial outputs through intermediate and final aggregations, verifying both stages re-group keys across chunk
+     * boundaries.
+     */
+    public void testReductionsConsumeChunkedPartialOutput() {
+        int targetChunkRows = 5;
+        int groupsPerTsid = 4;
+        List<String> tsids = List.of("a", "b", "c", "d");
+        List<List<Object>> firstShardRows = new ArrayList<>();
+        List<List<Object>> secondShardRows = new ArrayList<>();
+        Map<String, Long> expected = new HashMap<>();
+        for (String tsid : tsids) {
+            for (int t = 0; t < groupsPerTsid; t++) {
+                firstShardRows.add(List.of(tsid, (long) t, 1));
+                secondShardRows.add(List.of(tsid, (long) t, 10));
+                expected.put(tsid + "/" + t, 11L);
+            }
+        }
+
+        List<Page> partialPages = new ArrayList<>();
+        List<Page> intermediatePages = new ArrayList<>();
+        List<Page> finalPages = new ArrayList<>();
+        try {
+            partialPages.addAll(runInitialPages(targetChunkRows, firstShardRows));
+            partialPages.addAll(runInitialPages(targetChunkRows, secondShardRows));
+            assertThat("initial output must be chunked before final reduction", partialPages.size(), greaterThan(2));
+            for (Page page : partialPages) {
+                assertThat("partial chunk exceeds targetChunkRows", page.getPositionCount(), lessThanOrEqualTo(targetChunkRows));
+            }
+
+            Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+            var intermediateFactory = new TimeSeriesAggregationOperator.Factory(
+                oneMinBucket,
+                false,
+                List.of(
+                    new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                    new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                ),
+                AggregatorMode.INTERMEDIATE,
+                List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(2, 3))),
+                1024,
+                null,
+                targetChunkRows
+            );
+            BlockFactory bf = blockFactory();
+            var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
+            try (Operator op = intermediateFactory.get(driverCtx)) {
+                while (partialPages.isEmpty() == false) {
+                    op.addInput(partialPages.remove(0));
+                }
+                op.finish();
+                drainInto(op, intermediatePages);
+                assertTrue("intermediate operator should be finished once drained", op.isFinished());
+            }
+            assertThat("intermediate output must also be chunked", intermediatePages.size(), greaterThan(1));
+            for (Page page : intermediatePages) {
+                assertThat("intermediate chunk exceeds targetChunkRows", page.getPositionCount(), lessThanOrEqualTo(targetChunkRows));
+            }
+
+            var finalFactory = new TimeSeriesAggregationOperator.Factory(
+                oneMinBucket,
+                false,
+                List.of(
+                    new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                    new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+                ),
+                AggregatorMode.FINAL,
+                List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2, 3))),
+                1024,
+                null,
+                targetChunkRows
+            );
+            try (Operator op = finalFactory.get(driverCtx)) {
+                while (intermediatePages.isEmpty() == false) {
+                    op.addInput(intermediatePages.remove(0));
+                }
+                op.finish();
+                drainInto(op, finalPages);
+                assertTrue("final operator should be finished once drained", op.isFinished());
+            }
+
+            Map<String, Long> actual = new HashMap<>();
+            for (OutputRow row : extractRows(finalPages)) {
+                actual.put(row.tsid() + "/" + row.bucket(), row.value());
+            }
+            assertThat(actual, equalTo(expected));
+        } finally {
+            for (Page page : partialPages) {
+                page.releaseBlocks();
+            }
+            for (Page page : intermediatePages) {
+                page.releaseBlocks();
+            }
+            for (Page page : finalPages) {
+                page.releaseBlocks();
+            }
+        }
+    }
+
     // --- helpers ---
 
     private List<Page> runPipeline(
@@ -405,6 +650,142 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             }
         }
         return outputRows;
+    }
+
+    private List<Page> runInitialPages(int targetChunkRows, List<List<Object>> rows) {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.INITIAL,
+            List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
+            1024,
+            null,
+            targetChunkRows
+        );
+
+        BlockFactory bf = blockFactory();
+        var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
+        List<Page> collected = new ArrayList<>();
+        boolean success = false;
+        try (Operator op = operatorFactory.get(driverCtx)) {
+            op.addInput(buildPage(bf, rows));
+            op.finish();
+            drainInto(op, collected);
+            assertTrue("initial operator should be finished once drained", op.isFinished());
+            success = true;
+            return collected;
+        } finally {
+            if (success == false) {
+                for (Page page : collected) {
+                    page.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /**
+     * Drives a {@link TimeSeriesAggregationOperator} in {@link AggregatorMode#INITIAL} (partial output) so that output
+     * chunking is active: the single emitted result is sliced into pages of about {@code targetChunkRows}. Each element
+     * of {@code inputBatches} becomes one input page (one {@code addInput} call), letting tests control batching, and
+     * the operator's output is summarized into {@link PageSummary} so the (tracked) output pages can be released before
+     * assertions run.
+     */
+    private List<PageSummary> runPartialMode(int targetChunkRows, List<List<List<Object>>> inputBatches) {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.INITIAL,
+            List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
+            1024,
+            null,
+            targetChunkRows
+        );
+
+        BlockFactory bf = blockFactory();
+        var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
+        List<Page> collected = new ArrayList<>();
+        try (Operator op = operatorFactory.get(driverCtx)) {
+            for (List<List<Object>> batch : inputBatches) {
+                assertTrue("operator should accept input before each batch", op.needsInput());
+                op.addInput(buildPage(bf, batch));
+                drainInto(op, collected);
+            }
+            op.finish();
+            drainInto(op, collected);
+            assertTrue("operator should be finished once drained", op.isFinished());
+            return summarize(collected);
+        } finally {
+            for (Page page : collected) {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    private static void drainInto(Operator op, List<Page> collected) {
+        Page output;
+        while ((output = op.getOutput()) != null) {
+            collected.add(output);
+        }
+    }
+
+    /**
+     * Builds one input page of {@code (tsid, timestamp, value)} rows. Callers must feed rows already sorted by
+     * {@code (tsid, timestamp)} because {@link TimeSeriesAggregationOperator} assumes time-series-sorted input.
+     */
+    private static Page buildPage(BlockFactory bf, List<List<Object>> rows) {
+        int positions = rows.size();
+        try (
+            var tsids = bf.newBytesRefVectorBuilder(positions);
+            var timestamps = bf.newLongVectorBuilder(positions);
+            var values = bf.newIntVectorBuilder(positions)
+        ) {
+            for (List<Object> row : rows) {
+                tsids.appendBytesRef(new BytesRef((String) row.get(0)));
+                timestamps.appendLong(((Number) row.get(1)).longValue());
+                values.appendInt(((Number) row.get(2)).intValue());
+            }
+            return new Page(tsids.build().asBlock(), timestamps.build().asBlock(), values.build().asBlock());
+        }
+    }
+
+    /**
+     * Appends {@code groupCount} rows for {@code tsid}, each with a distinct timestamp, so the tsid contributes
+     * exactly {@code groupCount} groups (output rows) to the partial aggregation.
+     */
+    private static void addTsidRows(List<List<Object>> rows, String tsid, int groupCount) {
+        for (int i = 0; i < groupCount; i++) {
+            rows.add(List.of(tsid, (long) i, 1));
+        }
+    }
+
+    /**
+     * A view over one partial-output page: its row count and the per-row {@code _tsid} (key block 0), captured so
+     * assertions can run after the underlying page has been released.
+     */
+    private record PageSummary(int positionCount, List<String> tsids) {}
+
+    private static List<PageSummary> summarize(List<Page> pages) {
+        List<PageSummary> summaries = new ArrayList<>(pages.size());
+        BytesRef scratch = new BytesRef();
+        for (Page page : pages) {
+            BytesRefBlock tsidBlock = page.getBlock(0);
+            List<String> tsids = new ArrayList<>(page.getPositionCount());
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                tsids.add(tsidBlock.getBytesRef(tsidBlock.getFirstValueIndex(p), scratch).utf8ToString());
+            }
+            summaries.add(new PageSummary(page.getPositionCount(), tsids));
+        }
+        return summaries;
     }
 
 }

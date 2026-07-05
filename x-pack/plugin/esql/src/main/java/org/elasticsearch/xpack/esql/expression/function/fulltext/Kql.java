@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -192,7 +193,7 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
     }
 
     private Map<String, Object> kqlQueryOptions() throws InvalidArgumentException {
-        if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
+        if (options() == null && QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).equals(ZoneOffset.UTC)) {
             return null;
         }
 
@@ -200,7 +201,7 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         if (options() != null) {
             Options.populateMap((MapExpression) options(), kqlOptions, source(), SECOND, ALLOWED_OPTIONS);
         }
-        kqlOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), configuration.zoneId().getId());
+        kqlOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).getId());
         return kqlOptions;
     }
 

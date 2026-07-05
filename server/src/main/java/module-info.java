@@ -501,6 +501,10 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec,
             org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 
+    provides org.apache.lucene.index.SortFieldProvider
+        with
+            org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField.Provider;
+
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 
     exports org.elasticsearch.cluster.routing.allocation.shards

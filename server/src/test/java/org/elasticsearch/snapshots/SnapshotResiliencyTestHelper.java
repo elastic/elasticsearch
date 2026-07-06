@@ -652,6 +652,7 @@ public class SnapshotResiliencyTestHelper {
 
                 throttlingRecoveryService = new ThrottlingRecoveryService(
                     threadPool,
+                    projectResolver,
                     clusterService,
                     new CompositeRecoverySchedulingListener()
                 );

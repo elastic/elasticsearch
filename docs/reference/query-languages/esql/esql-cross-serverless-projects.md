@@ -350,6 +350,14 @@ Other predefined tags (`_csp`, `_region`, and so on) and custom tags are not yet
 {{esql}} `LOOKUP JOIN` follows the same constraints as [{{esql}} cross-cluster `LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md#cross-cluster-support).
 The lookup index must exist on every project being queried, because each project uses its own local copy of the lookup index data.
 
+### Views across projects
+
+[{{esql}} views](/reference/query-languages/esql/esql-views.md) allows virtual indexes to be defined using {{esql}} queries.
+These queries will run in serverless just like a normal {{esql}} query. With some limitations:
+:::{include} _snippets/common/cps_view_limitations.md
+:::
+
+
 ## Related pages
 
 * [ES|QL cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md): the equivalent feature for non-serverless deployments.

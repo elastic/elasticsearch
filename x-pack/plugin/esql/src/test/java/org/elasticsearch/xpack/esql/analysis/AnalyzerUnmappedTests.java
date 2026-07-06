@@ -1425,6 +1425,18 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
+    // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.
+    public void testUnmappedFieldNullifyWithPromQl() {
+        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json");
+
+        assertTrue(analyzer.statement(setUnmappedNullify("PROMQL index=test step=5m sum(network.bytes_in)")).resolved());
+
+        analyzer.statementError(
+            setUnmappedNullify("PROMQL index=test step=5m sum(network.bytes_in) | EVAL x = does_not_exist"),
+            containsString("Unknown column [does_not_exist]")
+        );
+    }
+
     /**
      * When unmapped_fields=load and an index has a partially mapped field that is not KEYWORD (e.g. LONG),
      * analysis must autocast to the mapped type if conversion was possible.

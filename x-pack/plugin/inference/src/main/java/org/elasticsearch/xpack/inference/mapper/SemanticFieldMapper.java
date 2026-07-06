@@ -89,6 +89,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
@@ -271,15 +272,62 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         protected Parameter<SemanticTextIndexOptions> configureIndexOptionsParam() {
+            return buildIndexOptionsParam(SemanticFieldMapper::defaultIndexOptions, SemanticFieldMapper::defaultElementTypeToBfloat16);
+        }
+
+        /**
+         * Builds the {@code index_options} parameter, resolving its serialized value from the current index options,
+         * model settings, and the given hooks so subclasses can express only how they differ:
+         * {@code defaultIndexOptionsResolver} computes the resolved defaults to serialize when no index options are
+         * configured, and {@code bfloat16Resolver} decides whether an unconfigured {@code element_type} should default
+         * to {@code bfloat16} when explicit dense_vector index options are set.
+         */
+        protected Parameter<SemanticTextIndexOptions> buildIndexOptionsParam(
+            Function<MinimalServiceSettings, SemanticTextIndexOptions> defaultIndexOptionsResolver,
+            Predicate<DenseVectorFieldMapper.ElementType> bfloat16Resolver
+        ) {
             return new Parameter<>(
                 INDEX_OPTIONS_FIELD,
                 true,
                 () -> null,
                 (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated(), experimentalFeaturesEnabled),
                 mapper -> ((SemanticFieldType) mapper.fieldType()).indexOptions,
-                XContentBuilder::field, // TODO: Customize how default index options are serialized
+                (b, n, v) -> {
+                    throw new IllegalStateException("Serializer for [" + INDEX_OPTIONS_FIELD + "] should not be called");
+                },
                 Objects::toString
-            ).acceptsNull();
+            ) {
+                @Override
+                protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+                    SemanticTextIndexOptions value = getValue();
+                    if (includeDefaults || isConfigured()) {
+                        MinimalServiceSettings resolvedModelSettings = getResolvedModelSettings(null, false);
+                        if (value == null) {
+                            // Default value, serialize resolved defaults
+                            value = defaultIndexOptionsResolver.apply(resolvedModelSettings);
+                        } else if (value.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
+                            ExtendedDenseVectorIndexOptions innerIndexOptions = getExtendedDenseVectorIndexOptions(value);
+                            DenseVectorFieldMapper.ElementType elementTypeOverride = innerIndexOptions.getElementType();
+                            DenseVectorFieldMapper.DenseVectorIndexOptions dvio = innerIndexOptions.getBaseIndexOptions();
+
+                            if (resolvedModelSettings == null) {
+                                throw new IllegalStateException("Model settings should be resolvable when explicit index options are set");
+                            }
+
+                            if (includeDefaults
+                                && elementTypeOverride == null
+                                && bfloat16Resolver.test(resolvedModelSettings.elementType())) {
+                                value = new SemanticTextIndexOptions(
+                                    SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                                    new ExtendedDenseVectorIndexOptions(dvio, DenseVectorFieldMapper.ElementType.BFLOAT16)
+                                );
+                            }
+                        }
+
+                        builder.field(INDEX_OPTIONS_FIELD, value);
+                    }
+                }
+            }.acceptsNull();
         }
 
         protected Parameter<ChunkingSettings> configureChunkingSettingsParam() {
@@ -308,6 +356,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         /**
          * Returns the {@link MinimalServiceSettings} defined in this builder if set;
          * otherwise, resolves and returns the settings from the registry.
+         * <p>
+         * Returns {@code null} when the settings cannot be resolved (during mapping recovery, or when
+         * the referenced inference endpoint is not registered). Callers decide how to handle this:
+         * some defer (e.g. embedding field creation waits until the endpoint exists), while others
+         * fail loudly (e.g. explicit index options validation requires a resolvable model).
          */
         protected MinimalServiceSettings getResolvedModelSettings(@Nullable MapperService.MergeReason mergeReason, boolean logWarning) {
             if (modelSettings.get() != null) {
@@ -320,20 +373,9 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             }
 
             try {
-                /*
-                 * If the model is not already set and we are not in a recovery scenario, resolve it using the registry.
-                 * Note: We do not set the model in the mapping at this stage. Instead, the model will be added through
-                 * a mapping update during the first ingestion.
-                 * This approach allows mappings to reference inference endpoints that may not yet exist.
-                 * The only requirement is that the referenced inference endpoint must be available at the time of ingestion.
-                 */
                 return modelRegistry.getMinimalServiceSettings(inferenceId.get());
             } catch (ResourceNotFoundException exc) {
                 if (logWarning) {
-                    /* We allow the inference ID to be unregistered at this point.
-                     * This will delay the creation of sub-fields, so indexing and querying for this field won't work
-                     * until the corresponding inference endpoint is created.
-                     */
                     logger().warn(
                         "The field [{}] references an unknown inference ID [{}]. "
                             + "Indexing and querying this field will not work correctly until the corresponding "
@@ -1227,5 +1269,15 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     private static boolean defaultElementTypeToBfloat16(DenseVectorFieldMapper.ElementType modelElementType) {
         return modelElementType == DenseVectorFieldMapper.ElementType.FLOAT;
+    }
+
+    private static SemanticTextIndexOptions defaultIndexOptions(MinimalServiceSettings modelSettings) {
+        if (modelSettings != null && defaultElementTypeToBfloat16(modelSettings.elementType())) {
+            return new SemanticTextIndexOptions(
+                SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                new ExtendedDenseVectorIndexOptions(null, DenseVectorFieldMapper.ElementType.BFLOAT16)
+            );
+        }
+        return null;
     }
 }

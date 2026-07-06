@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -30,8 +32,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -312,6 +316,72 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
     }
 
+    /**
+     * Async metadata resolution. When {@code hint} is non-null the length/mtime came from a directory
+     * listing: the storage object is built with those values (so {@code length()} serves the cached
+     * value without I/O) and the existence probe is skipped, so no synchronous HEAD/range round-trip
+     * runs on the executor before the async footer read. When {@code hint} is null the object is
+     * created bare and its existence is verified up front, matching the synchronous path.
+     */
+    @Override
+    public void resolveMetadataAsync(
+        String location,
+        @Nullable ListingHint hint,
+        Map<String, Object> config,
+        Executor executor,
+        ActionListener<SourceMetadata> listener
+    ) {
+        final StorageObject storageObject;
+        final FormatReader reader;
+        try {
+            // Reject unknown configuration keys before any provider/reader work — same single source
+            // of truth as the synchronous resolveMetadata path.
+            validateConfig(location, config);
+            StoragePath storagePath = StoragePath.of(location);
+            String scheme = storagePath.scheme();
+
+            StorageProvider provider;
+            if (config != null && config.isEmpty() == false) {
+                provider = storageRegistry.createProviderTrackingConsumedKeys(
+                    scheme,
+                    settings,
+                    ExternalSourceResolver.storageConfig(config)
+                ).value();
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(config).value();
+            } else {
+                provider = storageRegistry.provider(storagePath);
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+            }
+
+            if (hint != null) {
+                storageObject = provider.newObject(storagePath, hint.length(), Instant.ofEpochMilli(hint.lastModifiedMillis()));
+            } else {
+                storageObject = provider.newObject(storagePath);
+                if (storageObject.exists() == false) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "Failed to resolve metadata for [" + location + "]",
+                            new IOException("File does not exist: " + location)
+                        )
+                    );
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        // Map an I/O failure from the async metadata read to the same IllegalArgumentException shape
+        // the synchronous path produces, so callers see identical exceptions regardless of path.
+        reader.metadataAsync(storageObject, executor, listener.delegateResponse((l, e) -> {
+            if (e instanceof IOException) {
+                l.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e));
+            } else {
+                l.onFailure(e);
+            }
+        }));
+    }
+
     @Override
     public SplitProvider splitProvider() {
         return new FileSplitProvider(
@@ -357,15 +427,24 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 ? format.filterPushdownSupport()
                 : null;
 
-            // No per-query concurrency wrap here. Storage already carries reactive retry/backoff (per-store 503
-            // backoff) from the registry (see StorageProviderRegistry#wrapProvider). Per-node read concurrency is
-            // bounded by the dedicated esql_external_blocking_io thread pool (blocking backends — GCS/local, via
-            // fileReadExecutor) and by the S3/Azure SDK connection pools — not by any per-read permit. The old
-            // per-query budget self-throttled a single query against its own shrunk share and failed it on a 60s
-            // timeout; removed in favor of these standing bounds plus reactive backoff.
+            // Per-query fairness: draw a dynamic slice of the per-scheme permit budget so one query cannot starve the
+            // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
+            // registry (see StorageProviderRegistry#wrapProvider), and in-flight reads are additionally bounded by
+            // the per-scheme permit semaphore. Blocking reads run on the dedicated esql_external_io pool.
             Closeable onClose = null;
+            ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
+            if (allocator != null) {
+                QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                storage = budgeted;
+                onClose = budgeted;
+            }
 
+            // Read/parse pool: the dedicated esql_external_io pool (blocking opens + parser workers), falling back to
+            // the compute pool when no distinct file-read pool is wired. The producer/drain loop runs on the compute
+            // pool (context.executor(), esql_worker) instead — see AsyncExternalSourceOperatorFactory — so a full
+            // read/parse pool of blocked parser workers cannot starve the drain that consumes their pages.
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
+            Executor producerExecutor = context.executor();
             // Deferred extraction fires when both signals are present: the reader is
             // ColumnExtractorAware AND the plan paired this source with an ExternalFieldExtractExec
             // (the context flag InsertExternalFieldExtraction sets). _rowPosition presence in the
@@ -383,6 +462,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.maxBufferSize(),
                 readExecutor
             )
+                .producerExecutor(producerExecutor)
                 .externalSourceMetrics(externalSourceMetrics)
                 .rowLimit(context.rowLimit())
                 .fileList(context.fileList())

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152857
+summary: Fix Parquet list-under-struct read as null
+type: enhancement

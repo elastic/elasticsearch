@@ -251,6 +251,24 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:stats.filterSometimesMatches}
   issue: https://github.com/elastic/elasticsearch/issues/152607
+- class: org.elasticsearch.search.suggest.CompletionSuggestSearchIT
+  method: testBigSizeCircuitBreak
+  issue: https://github.com/elastic/elasticsearch/issues/152785
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testReadBlobWithNoHttpResponse
+  issue: https://github.com/elastic/elasticsearch/issues/152911
+- class: org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests
+  method: testOverflowFails
+  issue: https://github.com/elastic/elasticsearch/issues/150455
+- class: org.elasticsearch.packaging.test.PackageUpgradeTests
+  method: test12SetupBwcVersion
+  issue: https://github.com/elastic/elasticsearch/issues/152819
+- class: org.elasticsearch.index.rankeval.RankEvalRequestIT
+  method: testIndicesOptions
+  issue: https://github.com/elastic/elasticsearch/issues/152936
+- class: org.elasticsearch.xpack.transform.integration.TransformIT
+  method: testStopWaitForCheckpoint
+  issue: https://github.com/elastic/elasticsearch/issues/149663
 
 # Examples:
 #

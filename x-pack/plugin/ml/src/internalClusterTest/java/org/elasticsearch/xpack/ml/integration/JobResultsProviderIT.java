@@ -256,7 +256,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         String sharedResultsPattern = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
             + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
             + "*";
-        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sharedResultsPattern);
+        GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsPattern);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
         Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);

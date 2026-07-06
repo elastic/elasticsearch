@@ -223,20 +223,7 @@ public interface VectorSimilarityFunctions {
          *     <li>Score results, as 4-byte floats</li>
          * </ol>
          */
-        BULK_SPARSE,
-        /**
-         * Scores 8 vectors against a single query vector.
-         * <p>
-         * Method handle takes arguments
-         * {@code (MemorySegment a0, a1, a2, a3, a4, a5, a6, a7, MemorySegment query, int dims, MemorySegment results)}:
-         * <ol>
-         *     <li>a0 through a7: the 8 vector segments to score</li>
-         *     <li>query: the query vector segment</li>
-         *     <li>dims: number of dimensions</li>
-         *     <li>results: segment of at least 8 floats receiving the scores</li>
-         * </ol>
-         */
-        BULK8
+        BULK_SPARSE
     }
 
     MethodHandle getHandle(Function function, DataType dataType, Operation operation);

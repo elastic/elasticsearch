@@ -17,10 +17,12 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -55,20 +57,23 @@ import java.util.function.IntFunction;
  * a {@code 1.5} token down to a truncated instant), while {@code supports(DOUBLE, DATETIME)} is
  * deliberately {@code false} because a fractional value has no unambiguous epoch reading:
  * <ul>
- *   <li><b>numeric targets</b> ({@code integer}/{@code long}/{@code double}/
- *       {@code unsigned_long}): any numeric or string source, with the exact
- *       {@link NumberFieldMapper.NumberType#parse(Object, boolean) NumberType.parse} semantics
- *       ({@code coerce=true}, the {@code index.mapping.coerce} default: numeric strings parse,
- *       decimals truncate toward zero on whole-number targets, out-of-range throws);</li>
+ *   <li><b>numeric targets</b> ({@code integer}/{@code long}/{@code double}): any numeric or
+ *       string source, reusing the ES|QL {@code ::} cast engine ({@link #numericCoercer}) so a
+ *       declared read is value-identical to an explicit {@code ::long}/{@code ::integer}/
+ *       {@code ::double} — numeric strings parse (fractional and scientific accepted), whole-number
+ *       targets <b>round</b> (not truncate), out-of-range throws {@link InvalidArgumentException}.
+ *       {@code unsigned_long} keeps its {@code ::}-faithful {@link #coerceToUnsignedLong} twin
+ *       (truncates toward zero, matching {@code ::unsigned_long});</li>
  *   <li><b>string targets</b> ({@code keyword}/{@code text}): any decodable scalar source —
  *       ingest stringifies the token (temporal sources render in the ISO form the default date
  *       format parses back; ip sources render as address text, never the encoded bytes). The
  *       source set is closed over exactly the types the readers can decode a block of (string,
  *       whole-number, double, boolean, temporal, ip) so a pair {@code supports} admits can never
  *       reach a value reader that has no arm for it;</li>
- *   <li><b>{@code boolean}</b>: string sources only ({@code "true"}/{@code "false"} via
- *       {@link Booleans#parseBoolean(String)}, the same strict-token primitive the boolean
- *       mapper delegates to — numbers do not ingest into a boolean field);</li>
+ *   <li><b>{@code boolean}</b>: string sources only, parsed strictly and case-insensitively
+ *       ({@link #strictParseBoolean}: only {@code true}/{@code false} in any case; every other token
+ *       fails loudly). This deliberately diverges from {@code ::boolean}, which maps a non-{@code true}
+ *       token silently to {@code false} — a silent wrong answer this read must not introduce;</li>
  *   <li><b>{@code datetime}</b>: string sources parse via {@link #parseDatetimeMillis} with the
  *       column's declared {@code format} (else the ISO default), whole-number sources
  *       reinterpret as epoch milliseconds (the {@code epoch_millis} half of the default date
@@ -244,7 +249,7 @@ public final class DeclaredTypeCoercions {
                     Object coerced;
                     try {
                         coerced = coercer.apply(read.apply(first));
-                    } catch (IllegalArgumentException | DateTimeException e) {
+                    } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
                         onCoercionFailure(columnName, from, to, e, warnings);
                         builder.appendNull();
                         continue;
@@ -261,7 +266,7 @@ public final class DeclaredTypeCoercions {
                     for (int v = 0; v < count && failed == false; v++) {
                         try {
                             scratch[v] = coercer.apply(read.apply(first + v));
-                        } catch (IllegalArgumentException | DateTimeException e) {
+                        } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
                             onCoercionFailure(columnName, from, to, e, warnings);
                             failed = true;
                         }
@@ -332,11 +337,9 @@ public final class DeclaredTypeCoercions {
                 case INTEGER, LONG, UNSIGNED_LONG, DOUBLE, BOOLEAN, KEYWORD, TEXT, IP -> String::valueOf;
                 default -> throw new IllegalArgumentException("cannot coerce from [" + from.typeName() + "] blocks");
             };
-            case LONG -> v -> NumberFieldMapper.NumberType.LONG.parse(v, true);
-            case INTEGER -> v -> NumberFieldMapper.NumberType.INTEGER.parse(v, true);
-            case DOUBLE -> v -> NumberFieldMapper.NumberType.DOUBLE.parse(v, true);
+            case LONG, INTEGER, DOUBLE -> numericCoercer(from, to);
             case UNSIGNED_LONG -> DeclaredTypeCoercions::coerceToUnsignedLong;
-            case BOOLEAN -> v -> Booleans.parseBoolean((String) v);
+            case BOOLEAN -> v -> strictParseBoolean((String) v);
             case DATETIME -> fromString
                 ? v -> parseDatetimeMillis((String) v, declaredFormat)
                 // Whole-number source: epoch-millis reinterpret; the mapper coercion supplies the range check.
@@ -360,6 +363,57 @@ public final class DeclaredTypeCoercions {
                 "cannot coerce from [" + from.typeName() + "] to [" + to.typeName() + "]; supports() must gate castBlock callers"
             );
         };
+    }
+
+    /**
+     * The per-value coercion into a whole/floating numeric target ({@code long}/{@code integer}/
+     * {@code double}), reusing the ES|QL {@code ::} cast engine so a declared read produces the
+     * identical value to an explicit {@code ::long} / {@code ::integer} / {@code ::double}. A string
+     * source runs the same {@link EsqlDataTypeConverter} string parse the cast uses (fractional and
+     * scientific tokens accepted; {@code long}/{@code integer} <b>round</b> via {@code safeDoubleToLong}/
+     * {@code safeToInt}); a numeric source runs {@link DataTypeConverter#converterFor(DataType, DataType)},
+     * the same core converter the cast dispatches to (so {@code double -> long} rounds, not truncates).
+     * Both throw {@link InvalidArgumentException} on an unparseable/overflowing value, which
+     * {@link #castBlock} routes through {@link #onCoercionFailure} (warn+null or fail-fast). Unlike the
+     * former {@code NumberType.parse} path this is not the ingest coercion — it is the query cast, which
+     * is what a user comparing a declared read to {@code ::} expects.
+     */
+    private static Function<Object, Object> numericCoercer(DataType from, DataType to) {
+        if (from == DataType.KEYWORD || from == DataType.TEXT) {
+            return switch (to) {
+                case LONG -> v -> EsqlDataTypeConverter.stringToLong((String) v);
+                case INTEGER -> v -> EsqlDataTypeConverter.stringToInt((String) v);
+                case DOUBLE -> v -> EsqlDataTypeConverter.stringToDouble((String) v);
+                default -> throw new IllegalArgumentException("numericCoercer handles long/integer/double, not [" + to.typeName() + "]");
+            };
+        }
+        Converter converter = DataTypeConverter.converterFor(from, to);
+        if (converter == null) {
+            throw new IllegalArgumentException(
+                "no cast converter from [" + from.typeName() + "] to [" + to.typeName() + "]; supports() must gate castBlock callers"
+            );
+        }
+        return converter::convert;
+    }
+
+    /**
+     * Strict, case-insensitive boolean parse for a declared {@code boolean} read. Accepts only
+     * {@code true}/{@code false} (any case) and fails every other token through
+     * {@link #onCoercionFailure} (warn+null or fail-fast). This deliberately diverges from
+     * {@code ::boolean} ({@link EsqlDataTypeConverter#stringToBoolean}, which maps every non-{@code true}
+     * token — {@code "yes"}, {@code "1"}, a typo — silently to {@code false}): a silent {@code false} on
+     * a bad boolean token is exactly the wrong-answer class this feature must not introduce, so the
+     * read-time coercion rejects the token loudly instead. The numeric arms still reuse {@code ::}
+     * verbatim; only boolean is stricter, and by design.
+     */
+    private static boolean strictParseBoolean(String value) {
+        if (value.equalsIgnoreCase("true")) {
+            return true;
+        }
+        if (value.equalsIgnoreCase("false")) {
+            return false;
+        }
+        throw new InvalidArgumentException("Cannot parse [{}] as boolean; expected [true] or [false]", value);
     }
 
     /**

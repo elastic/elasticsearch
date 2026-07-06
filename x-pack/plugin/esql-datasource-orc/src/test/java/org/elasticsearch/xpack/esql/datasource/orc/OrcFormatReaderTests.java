@@ -42,6 +42,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -1748,7 +1749,9 @@ public class OrcFormatReaderTests extends ESTestCase {
                 new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.STRICT)
             )
         ) {
-            expectThrows(IllegalArgumentException.class, () -> {
+            // Reusing the :: cast engine, an unparseable numeric token throws InvalidArgumentException
+            // (a QlClientException -> HTTP 400) under fail_fast, not a raw IllegalArgumentException.
+            expectThrows(InvalidArgumentException.class, () -> {
                 while (it.hasNext()) {
                     it.next().releaseBlocks();
                 }

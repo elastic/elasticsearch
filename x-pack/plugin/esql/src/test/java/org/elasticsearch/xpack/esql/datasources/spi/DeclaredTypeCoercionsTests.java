@@ -20,6 +20,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -288,6 +289,80 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    /**
+     * The convergence contract (audit F-NUM / F-CAST-INT): a declared numeric read is value-identical
+     * to the ES|QL {@code ::} cast, which <b>rounds</b> string&rarr;whole-number (the former
+     * {@code NumberType.parse} path truncated). Fractional, scientific, and signed tokens are accepted.
+     * {@code unsigned_long} truncates — the documented per-target split ({@code ::long} rounds,
+     * {@code ::unsigned_long} truncates).
+     */
+    public void testDeclaredNumericReadMatchesCastEngineRounding() {
+        assertLongCast("1.9", 2L);   // == "1.9"::long (was 1 under truncate)
+        assertLongCast("-1.9", -2L);
+        assertLongCast("2.5", 3L);
+        assertLongCast("1e3", 1000L);
+        assertLongCast("+5", 5L);
+        assertLongCast("42", 42L);
+        assertIntCast("1.9", 2);
+        assertIntCast("-2.6", -3);
+        try (Block src = bytesBlock("1.9"); Block d = castStrict(src, DataType.KEYWORD, DataType.DOUBLE)) {
+            assertThat(((DoubleBlock) d).getDouble(0), equalTo(1.9));
+        }
+        // unsigned_long truncates where long rounds (F-CAST-INT)
+        try (Block src = bytesBlock("2.5"); Block ul = castStrict(src, DataType.KEYWORD, DataType.UNSIGNED_LONG)) {
+            assertThat(NumericUtils.unsignedLongAsNumber(((LongBlock) ul).getLong(0)).longValue(), equalTo(2L));
+        }
+    }
+
+    /**
+     * The declared {@code boolean} read is STRICT and case-insensitive ({@code true}/{@code false} in
+     * any case; every other token fails). This deliberately diverges from {@code ::boolean}, which maps
+     * a non-{@code true} token silently to {@code false} — the read rejects the token loudly instead
+     * (lenient mode nulls the cell + warns; a silent {@code false} is the wrong-answer class we avoid).
+     */
+    public void testDeclaredBooleanReadIsStrictCaseInsensitive() {
+        for (String t : List.of("true", "TRUE", "True", "tRuE")) {
+            try (Block src = bytesBlock(t); Block b = castStrict(src, DataType.KEYWORD, DataType.BOOLEAN)) {
+                assertTrue("[" + t + "] -> true", ((BooleanBlock) b).getBoolean(0));
+            }
+        }
+        for (String f : List.of("false", "FALSE", "False")) {
+            try (Block src = bytesBlock(f); Block b = castStrict(src, DataType.KEYWORD, DataType.BOOLEAN)) {
+                assertFalse("[" + f + "] -> false", ((BooleanBlock) b).getBoolean(0));
+            }
+        }
+        for (String bad : List.of("yes", "1", "abc", "t", "")) {
+            List<String> warnings = new ArrayList<>();
+            try (
+                Block src = bytesBlock(bad);
+                Block b = DeclaredTypeCoercions.castBlock(
+                    src,
+                    DataType.KEYWORD,
+                    DataType.BOOLEAN,
+                    null,
+                    blockFactory,
+                    "col",
+                    capturing(warnings)
+                )
+            ) {
+                assertTrue("[" + bad + "] is not a boolean -> null (never silent false)", b.isNull(0));
+                assertThat(warnings, hasSize(1));
+            }
+        }
+    }
+
+    private void assertLongCast(String token, long expected) {
+        try (Block src = bytesBlock(token); Block longs = castStrict(src, DataType.KEYWORD, DataType.LONG)) {
+            assertThat("[" + token + "]::long", ((LongBlock) longs).getLong(0), equalTo(expected));
+        }
+    }
+
+    private void assertIntCast(String token, int expected) {
+        try (Block src = bytesBlock(token); Block ints = castStrict(src, DataType.KEYWORD, DataType.INTEGER)) {
+            assertThat("[" + token + "]::integer", ((org.elasticsearch.compute.data.IntBlock) ints).getInt(0), equalTo(expected));
+        }
+    }
+
     public void testCastStringToUnsignedLongSignFlipEncodes() {
         try (Block source = bytesBlock("18446744073709551615")) { // 2^64 - 1
             try (Block cast = castStrict(source, DataType.KEYWORD, DataType.UNSIGNED_LONG)) {
@@ -387,13 +462,17 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             }
         }
         assertThat(warnings, hasSize(1));
-        assertThat(warnings.get(0), containsString("out of range"));
+        // The overflow now flows through the :: cast engine's range check (safeToInt), whose
+        // message names the target type — declared read == ::integer.
+        assertThat(warnings.get(0), containsString("out of [integer] range"));
     }
 
     public void testStrictCoercionThrows() {
         try (Block source = bytesBlock("not-a-number")) {
+            // Reusing the :: cast engine, an unparseable token throws InvalidArgumentException
+            // (a QlClientException -> HTTP 400), not a raw IllegalArgumentException (500).
             expectThrows(
-                IllegalArgumentException.class,
+                InvalidArgumentException.class,
                 () -> DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, null, null).close()
             );
         }

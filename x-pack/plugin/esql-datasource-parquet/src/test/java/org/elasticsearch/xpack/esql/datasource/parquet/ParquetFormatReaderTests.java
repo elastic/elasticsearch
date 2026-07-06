@@ -3423,7 +3423,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
         List<String> warnings = drainWarnings();
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
-        assertTrue("Detail should mention the range failure, got: " + warnings.get(1), warnings.get(1).contains("out of range"));
+        assertTrue("Detail should mention the range failure, got: " + warnings.get(1), warnings.get(1).contains("out of [integer] range"));
     }
 
     public void testInt64InferredIntegerNullFillsWholeColumn() throws Exception {

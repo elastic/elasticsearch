@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
@@ -22,7 +24,6 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomList;
-import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 
 /**
  * Utility class providing factory and random-instance methods for EsField subtype testing.
@@ -37,12 +38,21 @@ public class EsFieldTestUtils {
      * Returns a random instance of any concrete serializable {@link EsField} subtype up to the given depth.
      */
     public static EsField randomSerializableEsField(int maxDepth) {
+        return randomSerializableEsField(maxDepth, null);
+    }
+
+    /**
+     * Version-aware variant of {@link #randomSerializableEsField(int)} that only generates fields whose
+     * data types (including nested properties) are serializable on {@code supportedOn}. Pass {@code null}
+     * to keep the unrestricted behavior.
+     */
+    public static EsField randomSerializableEsField(int maxDepth, TransportVersion supportedOn) {
         return switch (between(0, 4)) {
-            case 0 -> randomEsField(maxDepth);
-            case 1 -> randomDateEsField(maxDepth);
-            case 2 -> randomKeywordEsField(maxDepth);
-            case 3 -> randomTextEsField(maxDepth);
-            case 4 -> randomUnsupportedEsField(maxDepth);
+            case 0 -> randomEsField(maxDepth, supportedOn);
+            case 1 -> randomDateEsField(maxDepth, supportedOn);
+            case 2 -> randomKeywordEsField(maxDepth, supportedOn);
+            case 3 -> randomTextEsField(maxDepth, supportedOn);
+            case 4 -> randomUnsupportedEsField(maxDepth, supportedOn);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -51,12 +61,19 @@ public class EsFieldTestUtils {
      * Returns a random {@link EsField} instance with properties nested up to {@code maxPropertiesDepth}.
      */
     public static EsField randomEsField(int maxPropertiesDepth) {
+        return randomEsField(maxPropertiesDepth, null);
+    }
+
+    /**
+     * Version-aware variant of {@link #randomEsField(int)}. The generated data type is restricted to
+     * types that serialize on {@code supportedOn} (mirroring the gate in {@code DataType#writeTo}), or
+     * unconstrained when {@code null}; under-construction types are always excluded. See
+     * {@link RandomDataTypeUtils}.
+     */
+    public static EsField randomEsField(int maxPropertiesDepth, TransportVersion supportedOn) {
         String name = randomAlphaOfLength(4);
-        org.elasticsearch.xpack.esql.core.type.DataType esDataType = randomValueOtherThanMany(
-            t -> false == t.supportedVersion().supportedLocally(),
-            () -> randomFrom(org.elasticsearch.xpack.esql.core.type.DataType.types())
-        );
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
+        DataType esDataType = RandomDataTypeUtils.randomSerializableDataType(supportedOn);
+        Map<String, EsField> properties = randomProperties(maxPropertiesDepth, supportedOn);
         boolean aggregatable = randomBoolean();
         boolean isAlias = randomBoolean();
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
@@ -67,9 +84,17 @@ public class EsFieldTestUtils {
      * Returns a random {@link DateEsField} instance with properties nested up to {@code maxPropertiesDepth}.
      */
     public static DateEsField randomDateEsField(int maxPropertiesDepth) {
+        return randomDateEsField(maxPropertiesDepth, null);
+    }
+
+    /**
+     * Version-aware variant of {@link #randomDateEsField(int)} that restricts nested property types to those
+     * serializable on {@code supportedOn}.
+     */
+    public static DateEsField randomDateEsField(int maxPropertiesDepth, TransportVersion supportedOn) {
         return DateEsField.dateEsField(
             randomAlphaOfLength(5),
-            randomProperties(maxPropertiesDepth),
+            randomProperties(maxPropertiesDepth, supportedOn),
             randomBoolean(),
             randomFrom(EsField.TimeSeriesFieldType.values())
         );
@@ -79,8 +104,16 @@ public class EsFieldTestUtils {
      * Returns a random {@link KeywordEsField} instance with properties nested up to {@code maxPropertiesDepth}.
      */
     public static KeywordEsField randomKeywordEsField(int maxPropertiesDepth) {
+        return randomKeywordEsField(maxPropertiesDepth, null);
+    }
+
+    /**
+     * Version-aware variant of {@link #randomKeywordEsField(int)} that restricts nested property types to those
+     * serializable on {@code supportedOn}.
+     */
+    public static KeywordEsField randomKeywordEsField(int maxPropertiesDepth, TransportVersion supportedOn) {
         String name = randomAlphaOfLength(4);
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
+        Map<String, EsField> properties = randomProperties(maxPropertiesDepth, supportedOn);
         boolean hasDocValues = randomBoolean();
         int precision = org.elasticsearch.test.ESTestCase.randomInt();
         boolean normalized = randomBoolean();
@@ -93,8 +126,16 @@ public class EsFieldTestUtils {
      * Returns a random {@link TextEsField} instance with properties nested up to {@code maxPropertiesDepth}.
      */
     public static TextEsField randomTextEsField(int maxPropertiesDepth) {
+        return randomTextEsField(maxPropertiesDepth, null);
+    }
+
+    /**
+     * Version-aware variant of {@link #randomTextEsField(int)} that restricts nested property types to those
+     * serializable on {@code supportedOn}.
+     */
+    public static TextEsField randomTextEsField(int maxPropertiesDepth, TransportVersion supportedOn) {
         String name = randomAlphaOfLength(4);
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
+        Map<String, EsField> properties = randomProperties(maxPropertiesDepth, supportedOn);
         boolean hasDocValues = randomBoolean();
         boolean isAlias = randomBoolean();
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
@@ -105,10 +146,18 @@ public class EsFieldTestUtils {
      * Returns a random {@link UnsupportedEsField} instance with properties nested up to {@code maxPropertiesDepth}.
      */
     public static UnsupportedEsField randomUnsupportedEsField(int maxPropertiesDepth) {
+        return randomUnsupportedEsField(maxPropertiesDepth, null);
+    }
+
+    /**
+     * Version-aware variant of {@link #randomUnsupportedEsField(int)} that restricts nested property types to those
+     * serializable on {@code supportedOn}.
+     */
+    public static UnsupportedEsField randomUnsupportedEsField(int maxPropertiesDepth, TransportVersion supportedOn) {
         String name = randomAlphaOfLength(4);
         List<String> originalTypes = randomOriginalTypes();
         String inherited = randomBoolean() ? null : randomAlphaOfLength(5);
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
+        Map<String, EsField> properties = randomProperties(maxPropertiesDepth, supportedOn);
         return new UnsupportedEsField(name, originalTypes, inherited, properties);
     }
 
@@ -125,6 +174,17 @@ public class EsFieldTestUtils {
      * @param maxDepth the maximum number of levels of properties to make
      */
     public static Map<String, EsField> randomProperties(int maxDepth) {
+        return randomProperties(maxDepth, null);
+    }
+
+    /**
+     * Version-aware variant of {@link #randomProperties(int)} that restricts generated property types to those
+     * serializable on {@code supportedOn}.
+     *
+     * @param maxDepth the maximum number of levels of properties to make
+     * @param supportedOn if non-null, only generates property types supported on this transport version
+     */
+    public static Map<String, EsField> randomProperties(int maxDepth, TransportVersion supportedOn) {
         if (maxDepth < 0) {
             throw new IllegalArgumentException("depth must be >= 0");
         }
@@ -134,7 +194,7 @@ public class EsFieldTestUtils {
         int targetSize = between(1, 5);
         Map<String, EsField> properties = new TreeMap<>();
         while (properties.size() < targetSize) {
-            properties.put(randomAlphaOfLength(properties.size() + 1), randomSerializableEsField(maxDepth - 1));
+            properties.put(randomAlphaOfLength(properties.size() + 1), randomSerializableEsField(maxDepth - 1, supportedOn));
         }
         return properties;
     }

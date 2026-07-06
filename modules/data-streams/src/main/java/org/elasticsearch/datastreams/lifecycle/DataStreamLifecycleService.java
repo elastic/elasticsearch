@@ -78,7 +78,6 @@ import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLM
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -665,7 +664,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         for (Index index : targetIndices) {
             IndexMetadata backingIndex = project.index(index);
             assert backingIndex != null : "the data stream backing indices must exist";
-            if (IndexSettings.MODE.get(backingIndex.getSettings()) == IndexMode.TIME_SERIES) {
+            if (IndexSettings.MODE.get(backingIndex.getSettings()).isTsdb()) {
                 Instant configuredEndTime = IndexSettings.TIME_SERIES_END_TIME.get(backingIndex.getSettings());
                 assert configuredEndTime != null
                     : "a time series index must have an end time configured but [" + index.getName() + "] does not";

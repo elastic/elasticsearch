@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -28,6 +29,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.inference.ToXContentParams;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
@@ -44,6 +47,7 @@ import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicyDoc;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -52,10 +56,13 @@ import java.util.Optional;
 
 public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRegionPolicyAction.Request, RegionPolicyResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportPutRegionPolicyAction.class);
+
     private final OriginSettingClient client;
     private final Optional<SecurityContext> securityContext;
     private final ClusterService clusterService;
     private final FeatureService featureService;
+    private final InferencePreferencesCache inferencePreferencesCache;
 
     @Inject
     public TransportPutRegionPolicyAction(
@@ -65,7 +72,8 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         ActionFilters actionFilters,
         Client client,
         ClusterService clusterService,
-        FeatureService featureService
+        FeatureService featureService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         super(
             PutRegionPolicyAction.NAME,
@@ -80,6 +88,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             : Optional.empty();
         this.clusterService = clusterService;
         this.featureService = featureService;
+        this.inferencePreferencesCache = inferencePreferencesCache;
     }
 
     @Override
@@ -90,20 +99,20 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
     }
 
     private void getRegionPolicyOrNullWhenMissing(ActionListener<RegionPolicyDocWithSeqNo> listener) {
-        TransportGetRegionPolicyAction.doSearchRegionPolicy(client, true, ActionListener.wrap(searchResponse -> {
+        TransportGetRegionPolicyAction.doSearchRegionPolicy(client, true, listener.delegateResponse((l, e) -> {
+            if (e instanceof IndexNotFoundException) {
+                l.onResponse(null);
+            } else {
+                l.onFailure(e);
+            }
+        }).<SearchResponse>delegateFailureAndWrap((l, searchResponse) -> {
             SearchHit[] hits = searchResponse.getHits().getHits();
             assert hits.length <= 1 : "multiple region policies found when only one is expected";
             if (hits.length == 0) {
-                listener.onResponse(null);
+                l.onResponse(null);
             } else {
                 RegionPolicyDoc regionPolicyDoc = TransportGetRegionPolicyAction.parseRegionPolicy(hits[0]);
-                listener.onResponse(new RegionPolicyDocWithSeqNo(regionPolicyDoc, hits[0].getSeqNo(), hits[0].getPrimaryTerm()));
-            }
-        }, e -> {
-            if (e instanceof IndexNotFoundException) {
-                listener.onResponse(null);
-            } else {
-                listener.onFailure(e);
+                l.onResponse(new RegionPolicyDocWithSeqNo(regionPolicyDoc, hits[0].getSeqNo(), hits[0].getPrimaryTerm()));
             }
         }));
     }
@@ -143,7 +152,15 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         indexRequestBuilder.execute(new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
-                listener.onResponse(new RegionPolicyResponse(doc));
+                inferencePreferencesCache.invalidate(
+                    ActionListener.runAfter(
+                        ActionListener.wrap(
+                            ignored -> {},
+                            e -> logger.warn("Failed to invalidate inference preferences cache after updating region policy", e)
+                        ),
+                        () -> listener.onResponse(new RegionPolicyResponse(doc))
+                    )
+                );
             }
 
             @Override

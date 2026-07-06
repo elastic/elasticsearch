@@ -8,6 +8,7 @@
 #
 
 org.elasticsearch.action.bulk.BulkFeatures
+org.elasticsearch.action.fieldcaps.FieldCapabilitiesFeatures
 org.elasticsearch.features.InfrastructureFeatures
 org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures
 org.elasticsearch.rest.action.admin.cluster.GetSnapshotsFeatures

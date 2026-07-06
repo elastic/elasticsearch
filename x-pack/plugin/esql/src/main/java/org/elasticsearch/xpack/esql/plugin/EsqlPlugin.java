@@ -66,6 +66,8 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
@@ -93,6 +95,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
@@ -173,11 +176,47 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
     /**
-     * Shared bounded thread pool for blocking external-storage reads (GCS today; any future offloading blocking
-     * backend). Sized by {@code esql.external.max_connections}. The truly-async backends (S3, Azure) bound their
-     * read concurrency through their SDK connection pools instead and do not use this pool.
+     * Name of the dedicated thread pool backing all external blob-store access: metadata discovery (glob expansion,
+     * footer reads, and schema reconciliation performed by
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}) as well as the blocking data reads and
+     * the streaming parse pipeline (segmentator + parser tasks of
+     * {@link org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator}) routed through
+     * {@code OperatorFactoryRegistry#fileReadExecutor}.
+     * <p>
+     * This is a separate pool from {@link #computePool()} on purpose. These tasks block their thread on network I/O
+     * (a sequential decompressed stream read pulls compressed bytes from the object store) and on the parser's bounded
+     * hand-off queues; the compute {@code Driver} that consumes the parsed pages runs on {@link #computePool()}. If the
+     * two shared a fixed pool, the segmentator plus {@code parsing_parallelism} parser tasks would occupy every slot
+     * and starve their own consumer, deadlocking the query (observed as a stalled heap-attack external query). Keeping
+     * them apart also prevents a single heavy external query from starving compute. In-flight cloud API calls are still
+     * bounded by the per-scheme permit semaphore in {@code StorageProviderRegistry}; the permits and this pool solve
+     * different problems — concurrency fairness/back-pressure versus thread isolation.
+     * <p>
+     * Must never resolve to {@link ThreadPool.Names#SEARCH} or {@link ThreadPool.Names#GENERIC}: a single heavy
+     * external query would otherwise starve regular searches or the rest of the node.
      */
-    public static final String EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME = "esql_external_blocking_io";
+    public static String externalBlobStorePool() {
+        return EXTERNAL_IO_THREAD_POOL_NAME;
+    }
+
+    /**
+     * Name of the thread pool backing ES|QL compute — driver execution and the parallel worker fan-out. Returns the
+     * {@code esql_worker} pool. Distinct from {@link #externalBlobStorePool()} so the blocking external I/O and parse
+     * pipeline cannot starve the compute drivers that consume its output (and vice versa).
+     */
+    public static String computePool() {
+        return ESQL_WORKER_THREAD_POOL_NAME;
+    }
+
+    /**
+     * Name of the dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline. Sized
+     * {@code 0..}{@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#externalIoThreads(Settings)}
+     * — tracking the same single CPU-scaled knob ({@code snapshot_meta} shape, capped at 100, or the
+     * {@code esql.external.max_concurrent_requests} operator override) that sizes the permit semaphore and the S3/Azure
+     * SDK connection pools, so the pool cannot diverge from the concurrency the reads are permitted. Scales from 0 so
+     * idle nodes pay nothing. See {@link #externalBlobStorePool()} for why this is separate from {@code esql_worker}.
+     */
+    public static final String EXTERNAL_IO_THREAD_POOL_NAME = "esql_external_io";
 
     public static final Setting<Integer> ESQL_WORKER_THREAD_POOL_SIZE = Setting.intSetting(
         "esql.worker.thread_pool_size",
@@ -263,6 +302,22 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     /**
+     * Maximum time (in milliseconds) that a GROK matcher is allowed to run before being interrupted.
+     * Limits how long a GROK matcher can run to protect against expensive regex patterns. Read directly
+     * from each node's own {@link org.elasticsearch.common.settings.ClusterSettings} wherever the matcher
+     * is built for execution (see {@code LocalExecutionPlanner#planGrok}) rather than being carried in the
+     * ES|QL {@code Configuration} wire format, since every node can resolve this node-scoped setting on
+     * its own — including live updates, since it is also dynamic.
+     */
+    public static final Setting<TimeValue> GROK_WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
+        "esql.grok.watchdog.max_execution_time",
+        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Tuning parameter for deciding when to use the "merge" stored field loader.
      * Think of it as "how similar to a sequential block of documents do I have to
      * be before I'll use the merge reader?" So a value of {@code 1} means I have to
@@ -333,9 +388,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
-        // createComponents can't reach the encryption plugin's binding, so TransportPutDataSourceAction's
-        // ctor pushes the EncryptionService into this shared holder for the read-path wrappers.
-        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
+        EncryptionService encryptionService = EncryptionServiceRegistry.getEncryptionService();
+        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials(encryptionService);
 
         boolean isStateless = DiscoveryNode.isStateless(settings);
         // Read through MANAGED_IDENTITY_ENABLED, which falls back to the deprecated workload_identity key, so a
@@ -351,6 +405,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 v -> managedIdentityEnabled.set(isStateless == false && v)
             );
 
+        // Local-disk gate: parsed once at startup (NodeScope setting — no update consumer needed).
+        LocalFileAccess localFileAccess = LocalFileAccess.create(settings);
+
         // Kill switch for the flattened data type. The IndexResolver is a node-level singleton, so the dynamic
         // setting is tracked here in an AtomicBoolean and read (at field-caps resolution time) through a supplier.
         AtomicBoolean flattenedDataTypeEnabled = new AtomicBoolean(FLATTENED_ENABLED.get(settings));
@@ -358,8 +415,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         // Create DataSourceModule with all discovered plugins.
         // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP
-        // client) — NOT the file-read path. Blocking external reads are routed onto the dedicated
-        // esql_external_blocking_io pool via OperatorFactoryRegistry#fileReadExecutor (wired in TransportEsqlQueryAction).
+        // client) — NOT the file-read path. Blocking external reads run on the esql_worker pool via
+        // OperatorFactoryRegistry#fileReadExecutor (wired in TransportEsqlQueryAction), bounded by the per-scheme
+        // permit semaphore in StorageProviderRegistry rather than a dedicated thread pool.
         dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
             dataSourceCapabilities,
@@ -371,7 +429,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool(),
             services.environment(),
             services.resourceWatcherService(),
-            services.telemetryProvider().getMeterRegistry()
+            services.telemetryProvider().getMeterRegistry(),
+            localFileAccess
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -452,7 +511,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
                 if (effective instanceof FileDataSourceValidator fdv) {
-                    effective = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get);
+                    effective = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get)
+                        .withFederatedIdentityEnabled(
+                            FileDataSourceValidator.ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG::isEnabled
+                        );
                 }
                 if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);
@@ -495,7 +557,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider()
             ),
             new ViewService(services.clusterService(), parser),
-            new DataSourceService(services.clusterService(), crudValidators),
+            new DataSourceService(services.clusterService(), crudValidators, encryptionService),
             new DatasetService(services.clusterService(), crudValidators)
         );
     }
@@ -538,7 +600,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
                 DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING
+                DatasetService.MAX_DATASETS_COUNT_SETTING,
+                GROK_WATCHDOG_MAX_EXECUTION_TIME
             )
         );
         settings.addAll(PlannerSettings.settings());
@@ -705,12 +768,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ESQL_WORKER_THREAD_POOL_NAME,
                 EsExecutors.TaskTrackingConfig.DEFAULT
             ),
-            // Shared bounded pool for blocking external reads (GCS today; any future offloading blocking backend),
-            // sized by esql.external.max_connections. Scales from 0 so idle nodes pay nothing.
+            // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept
+            // separate from esql_worker so the segmentator/parser tasks cannot starve the compute drivers that
+            // consume their output. Max is the single CPU-scaled concurrency knob (snapshot_meta shape, capped at
+            // 100, or the esql.external.max_concurrent_requests override) that also sizes the permit semaphore, so
+            // pool capacity tracks the concurrency the reads are permitted. Scales from 0 so idle nodes pay nothing.
             new ScalingExecutorBuilder(
-                EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME,
+                EXTERNAL_IO_THREAD_POOL_NAME,
                 0,
-                ExternalSourceSettings.MAX_CONNECTIONS.get(settings),
+                ExternalSourceSettings.externalIoThreads(settings),
                 TimeValue.timeValueSeconds(30),
                 false
             )

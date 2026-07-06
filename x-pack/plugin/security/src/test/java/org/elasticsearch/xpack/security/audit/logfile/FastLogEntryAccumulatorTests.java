@@ -70,6 +70,28 @@ public class FastLogEntryAccumulatorTests extends ESTestCase {
         assertThat(entry().get("nonexistent"), nullValue());
     }
 
+    public void testGetRendersArrayFieldAsJsonFragment() {
+        // get() must return what %map{beta} would have read from the old StringMapMessage store: a ready-made JSON array fragment.
+        assertThat(entry().with("beta", new Object[] { "x", "y" }).get("beta"), equalTo("[\"x\",\"y\"]"));
+    }
+
+    public void testGetReturnsRawFieldVerbatim() {
+        assertThat(entry().with("gamma", "{\"k\":1}").get("gamma"), equalTo("{\"k\":1}"));
+    }
+
+    public void testGetReturnsScalarUnescaped() {
+        // Scalars are returned raw; the layout's %enc{...}{JSON} is what performs escaping for %map{field}.
+        assertThat(entry().with("alpha", "say \"hi\"").get("alpha"), equalTo("say \"hi\""));
+    }
+
+    public void testRemoveReturnsPreviousMapValue() {
+        assertThat(entry().with("alpha", "gone").remove("alpha"), equalTo("gone"));
+    }
+
+    public void testRemoveUnsetFieldReturnsNull() {
+        assertThat(entry().remove("alpha"), nullValue());
+    }
+
     public void testWithNullValueIsNoOp() {
         final FastLogEntryAccumulator acc = entry().with("alpha", "set").with("alpha", null);
         assertThat(acc.get("alpha"), equalTo("set"));
@@ -271,9 +293,15 @@ public class FastLogEntryAccumulatorTests extends ESTestCase {
 
     public void testGetDataContainsSetValues() {
         final FastLogEntryAccumulator acc = entry().with("alpha", "a").with("gamma", "{}");
-        final SortedMap<String, Object> data = acc.getData();
+        final Map<String, String> data = acc.getData();
         assertThat(data.get("alpha"), equalTo("a"));
         assertThat(data.get("gamma"), equalTo("{}"));
+    }
+
+    public void testGetDataRendersArrayFieldsAsJson() {
+        // getData() serves a bare %map{} lookup, so array/raw fields come back as the same JSON fragment %map would have emitted.
+        final FastLogEntryAccumulator acc = entry().with("beta", new Object[] { "x", "y" });
+        assertThat(acc.getData().get("beta"), equalTo("[\"x\",\"y\"]"));
     }
 
     public void testGetDataExcludesUnsetFields() {
@@ -284,10 +312,18 @@ public class FastLogEntryAccumulatorTests extends ESTestCase {
     public void testGetDataExcludesRemovedField() {
         final FastLogEntryAccumulator acc = entry().with("alpha", "a").with("delta", "d");
         acc.remove("alpha");
-        final SortedMap<String, Object> data = acc.getData();
+        final Map<String, String> data = acc.getData();
         assertThat(data, aMapWithSize(1));
         assertThat(data.containsKey("alpha"), is(false));
         assertThat(data.get("delta"), equalTo("d"));
+    }
+
+    public void testNestedObjectDataHoldsLiveReferences() {
+        // Unlike getData(), nestedObjectData() keeps the raw value types (e.g. String[]) so XContentBuilder#map can emit real JSON arrays.
+        final Object[] roles = new Object[] { "r1", "r2" };
+        final SortedMap<String, Object> data = entry().with("alpha", "a").with("beta", roles).nestedObjectData();
+        assertThat(data.get("alpha"), equalTo("a"));
+        assertThat(data.get("beta"), sameInstance(roles));
     }
 
     public void testCommonFieldsArePrePopulated() {

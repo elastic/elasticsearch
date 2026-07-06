@@ -1700,7 +1700,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     addAuthenticationFieldsToLogEntry(crossClusterAccessLogEntry, innerAuthentication);
                     try {
                         final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-                        builder.map(crossClusterAccessLogEntry.getData());
+                        builder.map(crossClusterAccessLogEntry.nestedObjectData());
                         logEntry.with(CROSS_CLUSTER_ACCESS_FIELD_NAME, Strings.toString(builder));
                     } catch (IOException e) {
                         throw new ElasticsearchSecurityException(

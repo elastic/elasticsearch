@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.audit.logfile;
 
 import org.apache.logging.log4j.message.Message;
-import org.apache.logging.log4j.util.StringBuilderFormattable;
+import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
@@ -77,8 +77,18 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.X
  * being eagerly rendered to JSON. Delaying serialization allows for future performance gains when paired with an async logger, i.e. it
  * allows for all JSON encoding (now relocated within {@link #formatTo}) to be done off the transport thread. The serialization code was
  * previously present in {@link LoggingAuditTrail} and tightly coupled with the transport thread.
+ *
+ * <p><b>Compatibility.</b> The default audit layout renders this message via {@code %m} (i.e. {@link #formatTo}), which is the fast path.
+ * However, the audit {@code log4j2.properties} is a user-owned config file that is preserved across upgrades and is documented as
+ * customizable, so existing clusters keep a layout that extracts individual fields with {@code %map{field}}. log4j's
+ * {@code MapPatternConverter} only serves {@code %map{...}} when the log event's message {@code instanceof MapMessage}. This class
+ * therefore extends {@link StringMapMessage} so that {@code instanceof} holds, while keeping {@link #values} as the sole backing store:
+ * it never populates the superclass map (so no per-field sorted-insert cost is reintroduced) and instead overrides the read methods
+ * ({@link #get}, {@link #getData}, {@link #formatTo}) to serve them from {@link #values}. Keyed {@code %map{field}} lookups thus remain
+ * O(1) and byte-for-byte compatible with the pre-change layout, so upgraded and customized deployments continue to emit populated
+ * audit lines.
  */
-final class FastLogEntryAccumulator implements Message, StringBuilderFormattable {
+final class FastLogEntryAccumulator extends StringMapMessage {
 
     private static final Object[] EMPTY_PARAMS = new Object[0];
 
@@ -188,6 +198,10 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
     }
 
     FastLogEntryAccumulator(LogFormat format, Map<String, String> commonFields) {
+        // Extend StringMapMessage purely so that this message is an `instanceof MapMessage`, which log4j's MapPatternConverter requires
+        // to serve `%map{field}` extractions used by pre-change (and user-customized) audit layouts. The superclass map is never
+        // populated — `values` is the sole store — so we ask for the smallest initial capacity to keep the unused allocation minimal.
+        super(1);
         this.format = format;
         this.values = new Object[format.fields().length];
         for (Map.Entry<String, String> commonField : commonFields.entrySet()) {
@@ -195,7 +209,17 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
         }
     }
 
-    FastLogEntryAccumulator with(String name, Object value) {
+    /**
+     * log4j's {@code StringMapMessage} exposes a {@code with(String, String)} overload in addition to {@code with(String, Object)};
+     * it is overridden here as well so that string-valued fields are routed to {@link #values} rather than to the (unused) superclass map.
+     */
+    @Override
+    public FastLogEntryAccumulator with(String name, String value) {
+        return with(name, (Object) value);
+    }
+
+    @Override
+    public FastLogEntryAccumulator with(String name, Object value) {
         if (value == null) {
             return this;
         }
@@ -206,24 +230,55 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
         return this;
     }
 
-    Object get(String name) {
+    /**
+     * Returns the value of {@code name} rendered exactly as {@code %map{name}} would have emitted it from the previous
+     * {@link StringMapMessage} store, i.e. the raw string for scalar fields (the layout's {@code %enc{...}{JSON}} does the escaping) and
+     * the ready-made JSON fragment for array/raw fields. This is what log4j's {@code MapPatternConverter} calls for keyed extraction, so
+     * custom or upgraded layouts that use {@code %map{field}} stay byte-for-byte compatible. Returns {@code null} for an absent field.
+     */
+    @Override
+    public String get(String name) {
         final int index = format.indexOf(name);
-        return index < 0 ? null : values[index];
+        if (index < 0) {
+            return null;
+        }
+        final Object value = values[index];
+        return value == null ? null : mapValue(format.fields()[index], value);
     }
 
-    void remove(String name) {
+    @Override
+    public String remove(String name) {
         final int index = format.indexOf(name);
-        if (index >= 0) {
-            values[index] = null;
+        if (index < 0) {
+            return null;
         }
+        final Object previous = values[index];
+        values[index] = null;
+        return previous == null ? null : mapValue(format.fields()[index], previous);
     }
 
     /**
-     * Returns the set fields as a key-sorted map. Used to serialize a nested audit object (the {@code cross_cluster_access}
-     * authentication) as a JSON object; the previous implementation derived this nested object from the sorted backing map of a
-     * {@link org.apache.logging.log4j.message.StringMapMessage}, so the sorted order is preserved here for compatibility.
+     * Returns every set field as a key&rarr;{@code %map}-value map, so a bare {@code %map} (no key) in a custom layout resolves as it did
+     * against the previous {@link StringMapMessage}. Values are the same strings {@link #get} would return.
      */
-    SortedMap<String, Object> getData() {
+    @Override
+    public Map<String, String> getData() {
+        final SortedMap<String, String> data = new TreeMap<>();
+        for (int i = 0; i < format.fields().length; i++) {
+            if (values[i] != null) {
+                data.put(format.fields()[i].name(), mapValue(format.fields()[i], values[i]));
+            }
+        }
+        return data;
+    }
+
+    /**
+     * Returns the set fields as a key-sorted map, holding each value <em>as its live reference</em> (e.g. a {@code String[]} for an array
+     * field) rather than a rendered string. Used to serialize a nested audit object (the {@code cross_cluster_access} authentication) via
+     * {@code XContentBuilder#map}, which needs the real types to emit arrays as JSON arrays. The previous implementation derived this
+     * nested object from the sorted backing map of a {@link StringMapMessage}, so the sorted order is preserved here for compatibility.
+     */
+    SortedMap<String, Object> nestedObjectData() {
         final SortedMap<String, Object> data = new TreeMap<>();
         for (int i = 0; i < format.fields().length; i++) {
             if (values[i] != null) {
@@ -231,6 +286,22 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
             }
         }
         return data;
+    }
+
+    /**
+     * Renders a field's value the way {@code %map{name}} would have read it from the previous {@link StringMapMessage} store: scalar
+     * fields as their raw (unquoted, unescaped) string — the layout's {@code %enc{...}{JSON}} performed escaping — array fields as a
+     * quoted-and-escaped JSON array, and raw fields as their already-well-formed JSON fragment.
+     */
+    private static String mapValue(LogField field, Object value) {
+        return switch (field.type()) {
+            case STRING, RAW -> value.toString();
+            case STRING_ARRAY -> {
+                final StringBuilder sb = new StringBuilder();
+                appendQuotedJsonArray(sb, (Object[]) value, JsonStringEncoder.getInstance());
+                yield sb.toString();
+            }
+        };
     }
 
     @Override
@@ -331,10 +402,5 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
     @Override
     public Object[] getParameters() {
         return EMPTY_PARAMS;
-    }
-
-    @Override
-    public Throwable getThrowable() {
-        return null;
     }
 }

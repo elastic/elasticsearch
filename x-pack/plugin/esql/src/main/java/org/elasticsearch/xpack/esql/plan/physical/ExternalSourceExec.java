@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -455,6 +456,33 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
 
     public Map<String, Object> sourceMetadata() {
         return sourceMetadata;
+    }
+
+    /**
+     * The effective per-source statistics for this exec, resolved from the typed per-split
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} carried on {@link #splits()} when
+     * available, falling back to the whole-file / anchor-file stats embedded in {@link #sourceMetadata()}
+     * (the legacy flat {@code _stats.*} map). Returns {@code null} when no complete stats are available
+     * (e.g. a multi-file glob marked {@code _stats.partial}, or a split missing stats).
+     * <p>
+     * Centralizes the {@code SplitStats.resolveEffectiveStats(splits(), sourceMetadata())} call so the
+     * optimizer's push rules read statistics through one typed accessor on the plan node rather than each
+     * re-deriving them from the flat map. This is the read-side seam for migrating stats off the flat map.
+     */
+    @Nullable
+    public org.elasticsearch.xpack.esql.datasources.spi.SplitStats effectiveSplitStats() {
+        return SplitStats.resolveEffectiveStats(splits, sourceMetadata);
+    }
+
+    /**
+     * The whole-file / anchor-file statistics parsed from {@link #sourceMetadata()}'s flat {@code _stats.*}
+     * keys, or {@code null} when the map carries none. Distinct from {@link #effectiveSplitStats()} in that
+     * it ignores per-split stats: callers use it only in the degenerate single-/no-split branch where the
+     * split itself carries no typed stats. Centralizes the {@code SplitStats.of(sourceMetadata())} read.
+     */
+    @Nullable
+    public org.elasticsearch.xpack.esql.datasources.spi.SplitStats sourceMetadataStats() {
+        return SplitStats.of(sourceMetadata);
     }
 
     public Object pushedFilter() {

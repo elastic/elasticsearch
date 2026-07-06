@@ -166,6 +166,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             computed columns produced by `EVAL`, `STATS`, or other commands.
             When the target is not an indexed field, the search evaluates by scanning
             values row by row, which may be slower on large datasets.
+            When searching expressions, <<esql-function-named-params,function named parameters>>
+            (match query options) are not supported.
+            Additionally, `MATCH` on an expression does not contribute to the relevance score
+            when using `METADATA _score`. This may change in a future release.
 
             Match can use <<esql-function-named-params,function named parameters>> to specify additional options
             for the match query.

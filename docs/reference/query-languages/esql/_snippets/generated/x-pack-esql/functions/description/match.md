@@ -13,6 +13,10 @@ When Match is used on a [semantic_text](/reference/elasticsearch/mapping-referen
 computed columns produced by `EVAL`, `STATS`, or other commands.
 When the target is not an indexed field, the search evaluates by scanning
 values row by row, which may be slower on large datasets.
+When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+(match query options) are not supported.
+Additionally, `MATCH` on an expression does not contribute to the relevance score
+when using `METADATA _score`. This may change in a future release.
 
 Match can use [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params) to specify additional options
 for the match query.

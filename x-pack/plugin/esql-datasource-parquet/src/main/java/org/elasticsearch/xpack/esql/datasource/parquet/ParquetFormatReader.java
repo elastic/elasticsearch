@@ -208,7 +208,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ColumnDescriptor descriptor = null;
         for (ColumnDescriptor desc : schema.getColumns()) {
             String[] path = desc.getPath();
-            if (isTopLevel ? (path.length > 0 && path[0].equals(columnName)) : String.join(".", path).equals(columnName)) {
+            // Non-top-level names are matched against the flattener's logical leaf name (which stops
+            // at an enclosing LIST/MAP group) rather than the raw descriptor path, so a struct-nested
+            // list leaf (answers.text -> answers.text.list.element) resolves instead of returning null.
+            if (isTopLevel ? (path.length > 0 && path[0].equals(columnName)) : logicalLeafName(schema, path).equals(columnName)) {
                 descriptor = desc;
                 break;
             }
@@ -566,7 +569,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         MessageType parquetSchema = footer.getFileMetaData().getSchema();
         validateFooterIntegrity(object.path().toString(), parquetSchema, footer.getBlocks());
         List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
-        SourceStatistics statistics = extractStatistics(footer.getBlocks(), schema);
+        SourceStatistics statistics = extractStatistics(footer.getBlocks(), schema, parquetSchema);
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
     }
 
@@ -912,8 +915,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
     }
 
+    /**
+     * Whether a repeated leaf is a <b>top-level</b> list — one addressable by the attribute name
+     * {@code path[0]} (a 3-level {@code LIST} group or a legacy 2-level {@code repeated} field). A list
+     * nested in a STRUCT is not: its attribute is the dotted {@code s.blist}, not {@code path[0] == "s"},
+     * so it is left to the struct-nested-list work (esql-planning#1055) rather than mis-keyed here.
+     */
+    private static boolean isTopLevelListLeaf(MessageType parquetSchema, String[] path) {
+        Type top = parquetSchema.getType(path[0]);
+        return top.isPrimitive() || top.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation;
+    }
+
     @SuppressWarnings("rawtypes")
-    private SourceStatistics extractStatistics(List<BlockMetaData> rowGroups, List<Attribute> attributes) {
+    private SourceStatistics extractStatistics(List<BlockMetaData> rowGroups, List<Attribute> attributes, MessageType parquetSchema) {
         if (rowGroups.isEmpty()) {
             return null;
         }
@@ -940,13 +954,38 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             totalRows += rowGroup.getRowCount();
             totalSize += rowGroup.getTotalByteSize();
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
-                String colName = col.getPath().toDotString();
+                String[] path = col.getPath().toArray();
+                ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
+                if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
+                    // Top-level list column: its leaf null_count/min/max are element-level and don't
+                    // answer row-level COUNT / IS NOT NULL. Publish only a size marker under the attribute
+                    // name (path[0]) so findColumn hits but the unknown null_count makes COUNT decline the
+                    // footer fast path and scan, rather than the absent-column contract answering 0.
+                    // esql-planning#1056.
+                    colSizes.merge(path[0], new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
+                        a[0] += b[0];
+                        return a;
+                    });
+                    continue;
+                }
+                // Key non-top-level leaves on the flattener's logical leaf name so the stats bind to the
+                // same attribute name the planner uses (a struct-nested list leaf answers.text.list.element
+                // is surfaced as answers.text). NB: a MAP's key and value leaves share this name (both stop
+                // at the enclosing MAP group), so their stats merge into one entry here. That is harmless
+                // while MAP is UNSUPPORTED downstream and never projected; revisit if MAP columns become
+                // readable.
+                String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
                 colSizes.merge(colName, new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
                     a[0] += b[0];
                     return a;
                 });
                 Statistics stats = col.getStatistics();
-                if (stats == null || stats.isNumNullsSet() == false) {
+                // A repeated (LIST) leaf carries several values per row, so a stats-based
+                // rowCount - nullCount is not a valid COUNT; treat its null count as unknown (as we
+                // do for a missing statistic) so COUNT(col) falls back to a scan. Its min/max still
+                // span every element, which matches ES|QL MIN/MAX over the multivalue, so those stay
+                // collected below and remain pushable.
+                if (stats == null || stats.isNumNullsSet() == false || isRepeatedLeaf(desc)) {
                     unknownNullCounts.add(colName);
                 } else {
                     nullCounts.merge(colName, new long[] { stats.getNumNulls() }, (a, b) -> {
@@ -1003,10 +1042,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // A poisoned temporal column has an out-of-range timestamp[us] stat: the scan nulls those
                 // values out, so both the physical min/max and the physical null count are unusable.
                 final boolean poisoned = poisonedTemporalStats.contains(name);
-                // The null count is only known when every covering row group recorded it. A missing
-                // statistic in any row group ({@code unknownNullCounts}) leaves the total unknown, so
-                // report {@link OptionalLong#empty()} and let COUNT(col) fall back to a scan rather
-                // than counting the missing nulls as zero (which would return the row count).
+                // The null count is only known when every covering row group recorded it and the leaf is
+                // not multivalue. A missing statistic or a repeated (LIST) leaf ({@code unknownNullCounts})
+                // leaves the total unknown, so report {@link OptionalLong#empty()} and let COUNT(col) fall
+                // back to a scan rather than counting the missing nulls as zero (which would return the row
+                // count).
                 final OptionalLong nullCount = nc != null && unknownNullCounts.contains(name) == false && poisoned == false
                     ? OptionalLong.of(nc[0])
                     : OptionalLong.empty();
@@ -1171,14 +1211,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (rowGroups.isEmpty()) {
                 return List.of();
             }
+            MessageType parquetSchema = reader.getFooter().getFileMetaData().getSchema();
             if (rowGroups.size() == 1) {
                 BlockMetaData block = rowGroups.getFirst();
-                Map<String, Object> stats = buildRowGroupStats(block);
+                Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
                 return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
             }
             List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
             for (BlockMetaData block : rowGroups) {
-                Map<String, Object> stats = buildRowGroupStats(block);
+                Map<String, Object> stats = buildRowGroupStats(block, parquetSchema);
                 // Use the compressed on-disk size for the SplitRange length: this value is fed to
                 // readRange() which builds a byte range end = startingPos + length for Parquet's
                 // withRange(rangeStart, rangeEnd) filter. That filter includes a row group when its
@@ -1195,12 +1236,30 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     @SuppressWarnings("rawtypes")
-    private static Map<String, Object> buildRowGroupStats(BlockMetaData rowGroup) {
+    private static Map<String, Object> buildRowGroupStats(BlockMetaData rowGroup, MessageType parquetSchema) {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowGroup.getRowCount());
         stats.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, rowGroup.getTotalByteSize());
         for (ColumnChunkMetaData col : rowGroup.getColumns()) {
-            String colName = col.getPath().toDotString();
+            String[] path = col.getPath().toArray();
+            ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
+            if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
+                // Top-level list column: size marker only under the attribute name (path[0]); the unknown
+                // null_count makes COUNT decline the footer fast path and scan. Mirrors extractStatistics.
+                // esql-planning#1056.
+                stats.merge(
+                    SourceStatisticsSerializer.columnSizeBytesKey(path[0]),
+                    col.getTotalUncompressedSize(),
+                    (a, b) -> ((Number) a).longValue() + ((Number) b).longValue()
+                );
+                continue;
+            }
+            // Publish non-top-level leaves under the flattener's logical leaf name (which stops at an
+            // enclosing LIST/MAP) so a COUNT/MIN/MAX(answers.text) lookup resolves. The raw leaf path
+            // "answers.text.list.element" would never be found by the planner's attribute name.
+            // See extractStatistics for the logical-name keying rationale and the MAP key/value
+            // stat-merge assumption (harmless while MAP is UNSUPPORTED).
+            String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
             stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), col.getTotalUncompressedSize());
             Statistics colStats = col.getStatistics();
             if (colStats == null) {
@@ -1209,8 +1268,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // Publish the null count ahead of the isEmpty() short-circuit, mirroring extractStatistics.
             // isNumNullsSet() implies isEmpty() == false, so this ordering is a clarity/consistency guard,
             // not a behaviour change. Omitting the key (unset) signals "unknown" downstream so COUNT(col)
-            // falls back to a scan instead of being answered as num_values.
-            if (colStats.isNumNullsSet()) {
+            // falls back to a scan instead of being answered as num_values. A repeated (LIST) leaf carries
+            // multiple values per row, so a stats-based {@code rowCount - nullCount} count is wrong: its
+            // null count is withheld (left unset) too. The leaf min/max span every element, which is
+            // exactly ES|QL MIN/MAX over the multivalue, so those stay published and remain pushable.
+            if (colStats.isNumNullsSet() && isRepeatedLeaf(desc) == false) {
                 stats.put(SourceStatisticsSerializer.columnNullCountKey(colName), colStats.getNumNulls());
             }
             if (colStats.isEmpty()) {
@@ -1844,6 +1906,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
             String[] path = desc.getPath();
             descByDottedPath.put(String.join(".", path), desc);
+            // A LIST/MAP leaf reached through a STRUCT (e.g. answers.text.list.element) is surfaced
+            // by the flattener at its parent dotted path (answers.text); register that logical name
+            // too so the attribute binds to its descriptor instead of being dropped as absent.
+            descByDottedPath.putIfAbsent(logicalLeafName(projectedSchema, path), desc);
             if (path.length > 0 && topLevelNames.contains(path[0])) {
                 descByTopLevel.putIfAbsent(path[0], desc);
             }
@@ -1973,6 +2039,56 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             return fullSchema;
         }
         return new MessageType(fullSchema.getName(), projectedFields);
+    }
+
+    /**
+     * Returns the dotted attribute name at which the schema flattener ({@link #collectAttributes})
+     * would surface the leaf reached by {@code descriptorPath}. It walks {@code schema} following
+     * the descriptor's path segments and stops at the first enclosing {@code LIST}/{@code MAP} group,
+     * returning that group's dotted path — because the flattener emits a {@code LIST}/{@code MAP} at
+     * its own dotted path and does not descend into the synthetic repetition wrapper (e.g. the
+     * {@code list.element} or {@code bag.array_element} suffix). For a leaf reached only through
+     * plain {@code STRUCT} groups the full descriptor path is returned unchanged.
+     * <p>
+     * This is the invariant that lets {@link #buildColumnInfos} and {@link #resolveColumnInfo} bind a
+     * {@code struct<list<...>>} leaf: the attribute name is {@code answers.text} but the leaf column
+     * descriptor's raw path is {@code answers.text.list.element}. Keying on the raw path alone drops
+     * the column (silent all-null in the iterators, a hard error in the two-phase extractor). Being
+     * driven off the schema's logical annotations rather than a fixed suffix count keeps it correct
+     * across 2-level and 3-level {@code LIST} encodings and non-standard element/wrapper names.
+     */
+    static String logicalLeafName(GroupType schema, String[] descriptorPath) {
+        StringBuilder name = new StringBuilder();
+        Type current = schema;
+        for (String segment : descriptorPath) {
+            // The descriptor path is always resolvable within the schema it came from, so every
+            // intermediate node is a group and getType() never throws here.
+            Type child = current.asGroupType().getType(segment);
+            if (name.length() > 0) {
+                name.append('.');
+            }
+            name.append(segment);
+            if (child.isPrimitive() == false) {
+                LogicalTypeAnnotation logical = child.asGroupType().getLogicalTypeAnnotation();
+                if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
+                    || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
+                    return name.toString();
+                }
+            }
+            current = child;
+        }
+        return name.toString();
+    }
+
+    /**
+     * Single source of truth for "this leaf is multivalue": a positive max repetition level means the
+     * leaf sits under at least one repeated (LIST) group. The statistics producers use this to
+     * withhold the null count (so a stats-based {@code rowCount - nullCount} count, wrong for a leaf
+     * with several values per row, cannot be pushed down). A {@code null} descriptor (path not in the
+     * schema) is treated as not repeated.
+     */
+    private static boolean isRepeatedLeaf(ColumnDescriptor desc) {
+        return desc != null && desc.getMaxRepetitionLevel() > 0;
     }
 
     /**

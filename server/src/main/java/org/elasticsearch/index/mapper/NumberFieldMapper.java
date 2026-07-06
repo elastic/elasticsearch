@@ -109,7 +109,9 @@ public class NumberFieldMapper extends FieldMapper {
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         boolean multiValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
             || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
+        boolean nullability = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
+            || FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability);
     }
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
@@ -200,7 +202,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                     return false;
                 }
-                if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+                if (indexSettings.getMode().isTsdb()) {
                     var metricType = getMetric().getValue();
                     return metricType != MetricType.COUNTER && metricType != MetricType.GAUGE;
                 } else {
@@ -2341,7 +2343,7 @@ public class NumberFieldMapper extends FieldMapper {
                 failIfNoDocValues();
             }
 
-            ValuesSourceType valuesSourceType = indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER
+            ValuesSourceType valuesSourceType = IndexMode.isTsdb(indexMode) && metricType == TimeSeriesParams.MetricType.COUNTER
                 ? TimeSeriesValuesSourceType.COUNTER
                 : type.numericType.getValuesSourceType();
 
@@ -2512,6 +2514,11 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return allowMultipleValues == false || docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    public boolean isNullable() {
+        return docValuesParameters.nullability() || nullValue != null;
     }
 
     @Override

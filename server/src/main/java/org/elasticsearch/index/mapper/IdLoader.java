@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.RoutingHashBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -51,7 +50,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
      * @return returns an {@link IdLoader} instance to load the value of the _id field.
      */
     static IdLoader create(IndexSettings indexSettings, MappingLookup mappingLookup) {
-        if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+        if (indexSettings.getMode().isTsdb()) {
             IndexRouting.ExtractFromSource.ForRoutingPath indexRouting = null;
             List<String> routingPaths = null;
             if (indexSettings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {

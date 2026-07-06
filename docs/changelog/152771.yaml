@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 152771
+summary: Unify external blob-store read concurrency under a single per-scheme permit
+  knob and isolate blocking external I/O on a dedicated thread pool
+type: enhancement

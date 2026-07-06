@@ -21,12 +21,13 @@ public record CentroidAssignments(
 
     public CentroidAssignments(int numCentroids, int[] assignments, OverspillAssignments overspillAssignments, float[] globalCentroid) {
         this(numCentroids, assignments, overspillAssignments, globalCentroid, null);
-        assert assignments.length == overspillAssignments.size() || overspillAssignments.size() == 0
-            : "assignments and overspillAssignments must have the same length";
-
     }
 
     public CentroidAssignments {
+        if (overspillAssignments == null) {
+            overspillAssignments = OverspillAssignments.NONE;
+        }
+
         assert assignments.length == overspillAssignments.size() || overspillAssignments.size() == 0
             : "assignments and overspillAssignments must have the same length";
         assert centroidSlices == null || Arrays.stream(centroidSlices.sliceNumVectors()).sum() == assignments.length;

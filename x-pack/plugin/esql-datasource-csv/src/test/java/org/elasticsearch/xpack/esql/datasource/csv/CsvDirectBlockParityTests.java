@@ -22,10 +22,12 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.After;
@@ -122,8 +124,20 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /** The cap is measured on the trimmed value, so surrounding whitespace does not push a field over. */
     public void testMaxFieldSizeTrimmedWithinCap() throws IOException {
-        List<List<Object>> rows = read(false, Map.of("max_field_size", 5), "k:keyword\n  abc  \n");
+        List<List<Object>> rows = read(false, Map.of("max_field_size", 5, "trim_spaces", true), "k:keyword\n  abc  \n");
         assertEquals(List.of(row(br("abc"))), rows);
+    }
+
+    /**
+     * Under no-trim the cap governs the RAW token, so a padded typed value whose raw length (9) exceeds the
+     * cap (5) is dropped even though its trimmed value (3) would fit — and identically whether the padded
+     * column is projected or not, so projection cannot change whether the row survives.
+     */
+    public void testMaxFieldSizePaddedTypedNoTrimDroppedRegardlessOfProjection() throws IOException {
+        Map<String, Object> config = Map.of("max_field_size", 5);
+        String content = "a:integer,b:integer\n   123   ,7\n";
+        assertEquals(List.of(), read(false, config, skipRow(), null, content));
+        assertEquals(List.of(), read(false, config, skipRow(), List.of("b"), content));
     }
 
     /** A doubled quote decodes to a single character, so {@code "a""b"} (decoded {@code a"b}) is within a cap of 5. */
@@ -260,8 +274,20 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testKeywordWhitespaceTrimmed() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\n  spaced  \n");
+        // Trimming a string column is opt-in now (default is no-trim, RFC 4180); with trim_spaces both the
+        // direct-block and Jackson paths trim to "spaced".
+        List<List<Object>> rows = read(false, Map.of("trim_spaces", true), "k:keyword\n  spaced  \n");
         assertEquals(List.of(row(br("spaced"))), rows);
+    }
+
+    public void testKeywordWhitespacePreservedByDefault() throws IOException {
+        // Default is no-trim: a string column keeps its surrounding whitespace, identically on both paths.
+        // Uses a second column so the value under test is not at column 0; column-0 leading-whitespace
+        // preservation is pinned separately by testColumnZeroLeadingWhitespaceCsv / ...TsvPlain, which now
+        // agree on both the direct and house arms under no-trim (QUOTED / PLAIN). (Escaped mode is the only
+        // dialect that still eats col-0 leading whitespace — it stays on Jackson; not exercised here.)
+        List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\nx,  spaced  \n");
+        assertEquals(List.of(row(br("x"), br("  spaced  "))), rows);
     }
 
     public void testQuotedFieldWithDelimiterAndDoubledQuote() throws IOException {
@@ -295,6 +321,17 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testCustomNullValue() throws IOException {
         List<List<Object>> rows = read(false, Map.of("null_value", "NULL"), "a:keyword,b:long\nNULL,NULL\nx,5\n");
         assertEquals(List.of(row(null, null), row(br("x"), 5L)), rows);
+    }
+
+    /**
+     * B1 inference parity: an untyped header forces inference, which under no-trim samples rows through the
+     * house record tokenizer. The configured {@code null_value} marker must map to null before the inferrer
+     * sees it (it only knows empty / {@code "null"}), so {@code score} infers INTEGER and the marker row reads
+     * back as null on both the direct-block and house arms.
+     */
+    public void testCustomNullValueInferredNumericUnderNoTrim() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("null_value", "NA"), "id,score\n1,NA\n2,7\n");
+        assertEquals(List.of(row(1, null), row(2, 7)), rows);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -405,7 +442,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testTsvPlainKeywordWhitespaceTrimmed() throws IOException {
-        List<List<Object>> rows = read(true, Map.of(), "k:keyword\n  spaced  \n");
+        List<List<Object>> rows = read(true, Map.of("trim_spaces", true), "k:keyword\n  spaced  \n");
         assertEquals(List.of(row(br("spaced"))), rows);
     }
 
@@ -733,7 +770,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testTrailingLoneEscapeDropped() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\nab\\\n");
+        List<List<Object>> rows = read(false, Map.of("trim_spaces", true), "k:keyword\nab\\\n");
         assertEquals(List.of(row(br("ab"))), rows);
     }
 
@@ -744,10 +781,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
      * The direct path must match that order.
      */
     public void testUnquotedEscapedTrailingSpaceTrimmedAfterDecode() throws IOException {
-        // Raw field: x\ (x + backslash + space). Jackson: skip-leading-ws, then decode \ → ' ',
-        // giving "x ", then trim trailing decoded ws → "x".
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\nx\\ \n");
-        assertEquals(List.of(row(br("x"))), rows);
+        // Raw field: x\ (x + backslash + space). With trim_spaces: skip-leading-ws, decode \ → ' ' giving
+        // "x ", then trim the trailing decoded ws → "x". Without trim_spaces the decoded "x " is kept.
+        assertEquals(List.of(row(br("x"))), read(false, Map.of("trim_spaces", true), "k:keyword\nx\\ \n"));
+        assertEquals(List.of(row(br("x "))), read(false, Map.of(), "k:keyword\nx\\ \n"));
     }
 
     /**
@@ -758,7 +795,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testUnquotedEscapedLeadingAndTrailingWhitespaceTrimOrder() throws IOException {
         // Raw field: " x\ " (two spaces + x + backslash + space).
         // Jackson: skip-leading-raw-ws → "x\ ", decode → "x ", trim-trailing-decoded → "x".
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\n  x\\ \n");
+        List<List<Object>> rows = read(false, Map.of("trim_spaces", true), "k:keyword\n  x\\ \n");
         assertEquals(List.of(row(br("x"))), rows);
     }
 
@@ -770,6 +807,155 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testTwoQuotedFieldsWithEmbeddedDelimiter() throws IOException {
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\n\"p,q\",\"r\"\n");
         assertEquals(List.of(row(br("p,q"), br("r"))), rows);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // B1: padded-quoted fields and column-0 whitespace. Under no-trim the fallback arm is now the house
+    // per-record tokenizer, so each read() below is a direct-vs-house differential; under trim both arms
+    // agree with Jackson (the quirks are masked). Every case is asserted in both polarities.
+    // ---------------------------------------------------------------------------------------------
+
+    public void testPaddedQuoteBeforeQuotedField() throws IOException {
+        assertEquals(List.of(row(br("x"), br("y"))), read(false, Map.of(), "a:keyword,b:keyword\nx,  \"y\"\n"));
+        assertEquals(List.of(row(br("x"), br("y"))), read(false, Map.of("trim_spaces", true), "a:keyword,b:keyword\nx,  \"y\"\n"));
+    }
+
+    public void testPaddedQuoteBeforeQuotedFieldTsvQuotedMode() throws IOException {
+        assertEquals(List.of(row(br("x"), br("y"))), read(true, Map.of("mode", "quoted"), "a:keyword\tb:keyword\nx\t  \"y\"\n"));
+        assertEquals(
+            List.of(row(br("x"), br("y"))),
+            read(true, Map.of("mode", "quoted", "trim_spaces", true), "a:keyword\tb:keyword\nx\t  \"y\"\n")
+        );
+    }
+
+    public void testPaddedQuoteWithEmbeddedDelimiterKeepsThreeColumns() throws IOException {
+        String csv = "a:keyword,b:keyword,c:keyword\nx, \"a,b\",z\n";
+        assertEquals(List.of(row(br("x"), br("a,b"), br("z"))), read(false, Map.of(), csv));
+        assertEquals(List.of(row(br("x"), br("a,b"), br("z"))), read(false, Map.of("trim_spaces", true), csv));
+    }
+
+    public void testPaddedQuoteTypedHeadlineRepro() throws IOException {
+        String csv = "id:integer,name:keyword\n1, \"Alice, PhD\"\n";
+        assertEquals(List.of(row(1, br("Alice, PhD"))), read(false, Map.of(), csv));
+        assertEquals(List.of(row(1, br("Alice, PhD"))), read(false, Map.of("trim_spaces", true), csv));
+    }
+
+    public void testColumnZeroLeadingWhitespaceCsv() throws IOException {
+        assertEquals(List.of(row(br("  a"), br("b"))), read(false, Map.of(), "a:keyword,b:keyword\n  a,b\n"));
+        assertEquals(List.of(row(br("a"), br("b"))), read(false, Map.of("trim_spaces", true), "a:keyword,b:keyword\n  a,b\n"));
+    }
+
+    public void testColumnZeroPaddedBeforeQuoteCsv() throws IOException {
+        assertEquals(List.of(row(br("q"), br("b"))), read(false, Map.of(), "a:keyword,b:keyword\n  \"q\",b\n"));
+        assertEquals(List.of(row(br("q"), br("b"))), read(false, Map.of("trim_spaces", true), "a:keyword,b:keyword\n  \"q\",b\n"));
+    }
+
+    public void testColumnZeroLeadingWhitespaceTsvPlain() throws IOException {
+        assertEquals(List.of(row(br("  a"), br("b"))), read(true, Map.of(), "a:keyword\tb:keyword\n  a\tb\n"));
+        assertEquals(List.of(row(br("a"), br("b"))), read(true, Map.of("trim_spaces", true), "a:keyword\tb:keyword\n  a\tb\n"));
+    }
+
+    public void testTrailingWhitespaceAfterCloseQuoteBothPolarities() throws IOException {
+        assertEquals(List.of(row(br("x"), br("y"))), read(false, Map.of(), "a:keyword,b:keyword\n\"x\"  ,y\n"));
+        assertEquals(List.of(row(br("x"), br("y"))), read(false, Map.of("trim_spaces", true), "a:keyword,b:keyword\n\"x\"  ,y\n"));
+    }
+
+    public void testWhitespaceOnlyLineBothPolarities() throws IOException {
+        assertEquals(List.of(row(br("x")), row(br("y"))), read(false, Map.of(), "a:keyword\nx\n   \ny\n"));
+        assertEquals(List.of(row(br("x")), row(br("y"))), read(false, Map.of("trim_spaces", true), "a:keyword\nx\n   \ny\n"));
+    }
+
+    /**
+     * Prefetch replay: with a tiny {@code schema_sample_size}, the inferred-schema sample rows are read
+     * via the house per-record path and replayed, while later rows flow through a fresh iterator. Padded
+     * quotes inside AND beyond the sample window must tokenize identically (3 columns, {@code a,b} intact)
+     * on both arms.
+     */
+    public void testPrefetchReplayPaddedQuotedAcrossSampleBoundary() throws IOException {
+        String csv = "h1,h2,h3\nx, \"a,b\",z\np, \"c,d\",q\nr, \"e,f\",s\nt, \"g,h\",u\n";
+        List<List<Object>> rows = read(false, Map.of("schema_sample_size", 2), null, null, csv);
+        assertEquals(
+            List.of(
+                row(br("x"), br("a,b"), br("z")),
+                row(br("p"), br("c,d"), br("q")),
+                row(br("r"), br("e,f"), br("s")),
+                row(br("t"), br("g,h"), br("u"))
+            ),
+            rows
+        );
+    }
+
+    /**
+     * {@code _rowPosition} misbind pin: projecting the synthetic offset column (which forces the
+     * recordReader path on both arms) must not change the tokenized value of a padded-quoted data column
+     * versus a read that does not project it.
+     */
+    public void testRowPositionProjectionDoesNotChangeValues() throws IOException {
+        String csv = "id:integer,name:keyword\n1, \"Alice, PhD\"\n2, \"Bob, MD\"\n";
+        assertEquals(List.of(row(br("Alice, PhD")), row(br("Bob, MD"))), read(false, Map.of(), null, List.of("name"), csv));
+        List<List<Object>> withPos = read(false, Map.of(), null, List.of("_rowPosition", "name"), csv);
+        List<Object> names = new ArrayList<>();
+        for (List<Object> r : withPos) {
+            names.add(r.get(1));
+        }
+        assertEquals(List.of(br("Alice, PhD"), br("Bob, MD")), names);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Bracket-mode quote-prefix alignment (B-5): both bracket walkers must drop the outer whitespace
+    // before a quote so ` "y"` yields `y`, matching the direct quoted grammar.
+    // ---------------------------------------------------------------------------------------------
+
+    /** Fused bracket path (splitAndConvertProjected, walker 2) — the default (non-ALL) scope. */
+    public void testBracketModePaddedQuoteFusedPath() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("multi_value_syntax", "brackets"), "a:keyword,b:keyword\nx,  \"y\"\n");
+        assertEquals(List.of(row(br("x"), br("y"))), rows);
+    }
+
+    /** Full-split bracket path (splitCommaDelimiterBracketAwareFields, walker 1) — reached via ALL scope. */
+    public void testBracketModePaddedQuoteAllScopeFullSplitPath() throws IOException {
+        List<List<Object>> rows = readAllScope(Map.of("multi_value_syntax", "brackets"), "a:keyword,b:keyword\nx,  \"y\"\n");
+        assertEquals(List.of(row(br("x"), br("y"))), rows);
+    }
+
+    /**
+     * Reads with an ALL stats scope bound to a throwaway sink, which routes bracket parsing through the
+     * full-split walker rather than the fused one. Only the direct-block arm is exercised (bracket mode is
+     * not direct-eligible, so both arms parse identically); the golden assertion pins the value.
+     */
+    private List<List<Object>> readAllScope(Map<String, Object> config, String content) throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(config);
+        StorageObject object = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1024)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, 1024, true)
+            .statsColumnScope(StripeColumnScope.ALL)
+            .build();
+        List<List<Object>> rows = new ArrayList<>();
+        try (
+            var handle = ExternalStatsCapture.bind(ExternalStatsCapture.newSink());
+            CloseableIterator<Page> pages = reader.read(object, ctx)
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        List<Object> r = new ArrayList<>(page.getBlockCount());
+                        for (int b = 0; b < page.getBlockCount(); b++) {
+                            r.add(valueAt(page.getBlock(b), p));
+                        }
+                        rows.add(r);
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        return rows;
     }
 
     // ---------------------------------------------------------------------------------------------

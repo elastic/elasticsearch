@@ -966,6 +966,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                null,
                 null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
@@ -1015,6 +1016,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                null,
                 null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
@@ -1046,6 +1048,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                null,
                 null
             );
             List<String> got = collectLines(lenientIterator);
@@ -1094,7 +1097,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                sink::add
+                sink::add,
+                null
             );
             List<String> got = collectLines(iterator);
             assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());
@@ -1143,6 +1147,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
+            null,
             null
         );
         List<String> got = collectLines(iterator);

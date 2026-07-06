@@ -143,11 +143,17 @@ public final class StreamingParallelParsingCoordinator {
      * {@link ParallelParsingCoordinator}).
      * <p>
      * {@code partialResultsWarningSink} receives a single client-visible message if a non-strict
-     * {@link ErrorPolicy} truncates the read at a {@code max_record_size} cap-hit. Production passes
-     * {@link AsyncExternalSourceBuffer#recordWarning} so the operator can re-emit it on the driver
-     * thread (the segmentator runs on a forked worker whose response headers never reach the client —
-     * see #835). Pass {@code null} to fall back to a direct {@link HeaderWarning} on the current thread
-     * (tests, benchmarks).
+     * {@link ErrorPolicy} truncates the read at a {@code max_record_size} cap-hit — a genuine partial-
+     * results signal. Production passes {@link AsyncExternalSourceBuffer#recordWarning} so the operator
+     * can re-emit it on the driver thread (the segmentator runs on a forked worker whose response
+     * headers never reach the client — see #835). Pass {@code null} to fall back to a direct
+     * {@link HeaderWarning} on the current thread (tests, benchmarks).
+     * <p>
+     * {@code warningSink} is the unrelated, generic per-format relay (see {@link
+     * FormatReadContext#warningSink()}) for warnings a chunk's own reader raises while decoding (e.g. a
+     * malformed row skipped or a field null-filled) — these do not carry the same "fewer records than
+     * the source held" guarantee, so they must not be conflated with {@code partialResultsWarningSink}.
+     * Production passes {@link AsyncExternalSourceBuffer#recordInformationalWarning}.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -165,6 +171,52 @@ public final class StreamingParallelParsingCoordinator {
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
         @Nullable Consumer<String> partialResultsWarningSink
+    ) throws IOException {
+        return parallelRead(
+            reader,
+            decompressedStream,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            readSchema,
+            baseFileOffset,
+            maxRecordBytes,
+            captureSink,
+            statsStripeSize,
+            statsColumnScope,
+            partialResultsWarningSink,
+            null
+        );
+    }
+
+    /**
+     * As the above, plus {@code warningSink} — see its Javadoc below. Kept as a separate overload so
+     * the many existing truncation-focused callers (tests, benchmarks) that don't care about generic
+     * per-format warnings are unaffected.
+     *
+     * @see #parallelRead(SegmentableFormatReader, InputStream, StorageObject, List, int, int, Executor,
+     *      ErrorPolicy, List, long, int, ConcurrentMap, long, StripeColumnScope, Consumer)
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        InputStream decompressedStream,
+        @Nullable StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        @Nullable List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxRecordBytes,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        @Nullable Consumer<String> partialResultsWarningSink,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -191,6 +243,7 @@ public final class StreamingParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(baseFileOffset, statsStripeSize, true)
                 .statsColumnScope(statsColumnScope)
+                .warningSink(warningSink)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -210,7 +263,8 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
-            partialResultsWarningSink
+            partialResultsWarningSink,
+            warningSink
         );
     }
 
@@ -252,6 +306,14 @@ public final class StreamingParallelParsingCoordinator {
          */
         @Nullable
         private final Consumer<String> partialResultsWarningSink;
+        /**
+         * Generic per-format warning relay (see {@link FormatReadContext#warningSink()}) for warnings a
+         * chunk's own reader raises while decoding (e.g. a malformed row skipped or a field
+         * null-filled). Distinct from {@link #partialResultsWarningSink}: these do not necessarily mean
+         * the read returned fewer records than the source held.
+         */
+        @Nullable
+        private final Consumer<String> warningSink;
         /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
         @Nullable
         private final StorageObject storageObject;
@@ -344,7 +406,8 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
-            @Nullable Consumer<String> partialResultsWarningSink
+            @Nullable Consumer<String> partialResultsWarningSink,
+            @Nullable Consumer<String> warningSink
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -358,6 +421,7 @@ public final class StreamingParallelParsingCoordinator {
             this.statsStripeSize = statsStripeSize;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.partialResultsWarningSink = partialResultsWarningSink;
+            this.warningSink = warningSink;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
@@ -759,6 +823,7 @@ public final class StreamingParallelParsingCoordinator {
                     .maxRecordBytes(maxRecordBytes)
                     .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
                     .statsColumnScope(statsColumnScope)
+                    .warningSink(warningSink)
                     .build();
                 // Bind the consumer-owned sink on this worker so the reader's close hook reaches the
                 // same map the consumer-thread StatsCapturingIterator binds. The pages iterator is

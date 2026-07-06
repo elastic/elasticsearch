@@ -52,6 +52,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Parses NDJSON into {@link Page}s for a single input stream.
@@ -272,6 +273,7 @@ public class NdJsonPageDecoder implements Closeable {
      */
     private final BytesRef keywordScratch = new BytesRef(BytesRef.EMPTY_BYTES);
 
+    /** Test-only: back-compat overload for callers that don't need sink-routed warnings. */
     NdJsonPageDecoder(
         InputStream input,
         DateFormatter datetimeFormatter,
@@ -282,6 +284,21 @@ public class NdJsonPageDecoder implements Closeable {
         ErrorPolicy errorPolicy,
         String sourceLocation,
         NdJsonReaderCounters counters
+    ) throws IOException {
+        this(input, datetimeFormatter, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation, counters, null);
+    }
+
+    NdJsonPageDecoder(
+        InputStream input,
+        DateFormatter datetimeFormatter,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         this(
             input,
@@ -296,7 +313,8 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             datetimeFormatter,
             counters,
-            NdJsonUtils.JSON_FACTORY
+            NdJsonUtils.JSON_FACTORY,
+            warningSink
         );
     }
 
@@ -306,6 +324,7 @@ public class NdJsonPageDecoder implements Closeable {
      * (no buffered-bytes shuttling through {@link NdJsonUtils#moveToNextLine}) by scanning for the
      * next {@code '\n'} from the parser's current byte offset.
      */
+    /** Test-only: back-compat overload for callers that don't need sink-routed warnings. */
     NdJsonPageDecoder(
         byte[] data,
         int offset,
@@ -320,6 +339,36 @@ public class NdJsonPageDecoder implements Closeable {
         NdJsonReaderCounters counters
     ) throws IOException {
         this(
+            data,
+            offset,
+            length,
+            datetimeFormatter,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            counters,
+            null
+        );
+    }
+
+    NdJsonPageDecoder(
+        byte[] data,
+        int offset,
+        int length,
+        DateFormatter datetimeFormatter,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
+        this(
             null,
             data,
             offset,
@@ -332,7 +381,8 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             datetimeFormatter,
             counters,
-            NdJsonUtils.JSON_FACTORY
+            NdJsonUtils.JSON_FACTORY,
+            warningSink
         );
     }
 
@@ -351,6 +401,21 @@ public class NdJsonPageDecoder implements Closeable {
         String sourceLocation,
         JsonFactory factory
     ) throws IOException {
+        this(input, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation, factory, null);
+    }
+
+    /** Test-only: like the above, but also allows asserting on the {@link SkipWarnings} sink. */
+    NdJsonPageDecoder(
+        InputStream input,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        JsonFactory factory,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
         this(
             input,
             null,
@@ -364,7 +429,8 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             null,
             new NdJsonReaderCounters(),
-            factory
+            factory,
+            warningSink
         );
     }
 
@@ -381,7 +447,8 @@ public class NdJsonPageDecoder implements Closeable {
         String sourceLocation,
         DateFormatter datetimeFormatter,
         NdJsonReaderCounters counters,
-        JsonFactory factory
+        JsonFactory factory,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         this.jsonFactory = factory;
         this.input = input;
@@ -414,7 +481,8 @@ public class NdJsonPageDecoder implements Closeable {
                 + sourceLocation
                 + "] encountered parse errors handled per policy (policy: "
                 + errorPolicy.modeName()
-                + "); affected rows are listed below"
+                + "); affected rows are listed below",
+            warningSink
         );
 
         List<Attribute> fullSchema = attributes;

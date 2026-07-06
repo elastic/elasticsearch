@@ -489,7 +489,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             context.statsBaseOffset(),
             context.statsStripeSize(),
             context.statsFileFinal(),
-            context.statsColumnScope()
+            context.statsColumnScope(),
+            context.warningSink()
         );
     }
 

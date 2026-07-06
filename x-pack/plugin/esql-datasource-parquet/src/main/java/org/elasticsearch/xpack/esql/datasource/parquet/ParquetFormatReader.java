@@ -43,6 +43,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -96,6 +97,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 /**
  * FormatReader implementation for Parquet files.
@@ -1157,7 +1159,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // Full-file reads need no per-block file-global offset override — the iterator's
                 // own row-group ordering already matches the file footer.
                 null,
-                filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build())
+                filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build()),
+                context.warningSink()
             );
         } finally {
             // read_nanos covers the synchronous setup phase only; per-page decode/decompress time
@@ -1481,7 +1484,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     parquetInputFile,
                     readOptionsBuilder().withRange(rangeStart, rangeEnd).withRecordFilter(filter).build(),
                     filterBlocksByRange(fullFooter, rangeStart, rangeEnd)
-                )
+                ),
+                context.warningSink()
             );
         } finally {
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
@@ -1540,7 +1544,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         List<Attribute> resolvedAttributes,
         ParquetMetadata fullFooter,
         long[] rangeBlockGlobalOffsets,
-        FilteredReopener reopener
+        FilteredReopener reopener,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         counters.setLateMaterializationEnabled(lateMaterializationEnabled);
         try {
@@ -1605,7 +1610,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     filterPredicate,
                     recordFilter,
                     rangeBlockGlobalOffsets,
-                    fullFooter
+                    fullFooter,
+                    warningSink
                 );
             }
             return new ParquetColumnIterator(
@@ -1619,7 +1625,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 object.path().toString(),
                 hasRecordFilter,
                 rangeBlockGlobalOffsets,
-                counters
+                counters,
+                warningSink
             );
         } catch (Throwable t) {
             reader.close();
@@ -1639,7 +1646,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         FilterPredicate filterPredicate,
         FilterCompat.Filter recordFilter,
         long[] rowGroupFirstRowGlobalOverride,
-        ParquetMetadata fullFooter
+        ParquetMetadata fullFooter,
+        @Nullable Consumer<String> warningSink
     ) {
         if (inputFile instanceof ParquetStorageObjectAdapter == false) {
             throw new ElasticsearchException(
@@ -1648,7 +1656,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
         ParquetStorageObjectAdapter adapter = (ParquetStorageObjectAdapter) inputFile;
         ColumnInfo[] columnInfos = buildColumnInfos(projectedSchema, projectedAttributes);
-        validatePlannerTypesAgainstFile(logger, storageObject.path().toString(), reader, projectedAttributes, columnInfos);
+        validatePlannerTypesAgainstFile(logger, storageObject.path().toString(), reader, projectedAttributes, columnInfos, warningSink);
 
         // Pass the predicate column names so the metadata preload also batch-fetches dictionary
         // pages (and bloom filters when their length is known) for those columns. Without this,
@@ -2375,7 +2383,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         String fileLocation,
         ParquetFileReader reader,
         List<Attribute> attributes,
-        ColumnInfo[] columnInfos
+        ColumnInfo[] columnInfos,
+        @Nullable Consumer<String> warningSink
     ) {
         MessageType fullSchema = reader.getFileMetaData().getSchema();
         SkipWarnings skipWarnings = null;
@@ -2398,7 +2407,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         "Parquet file ["
                             + fileLocation
                             + "] has columns whose on-disk type is incompatible with the planner type; "
-                            + "they are returned as null"
+                            + "they are returned as null",
+                        warningSink
                     );
                 }
                 skipWarnings.add(
@@ -2486,7 +2496,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             String fileLocation,
             boolean hasRecordFilter,
             long[] rowGroupFirstRowGlobalOverride,
-            ParquetReaderCounters counters
+            ParquetReaderCounters counters,
+            @Nullable Consumer<String> warningSink
         ) {
             this.reader = reader;
             this.projectedSchema = projectedSchema;
@@ -2548,7 +2559,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             } else {
                 this.rowGroupFirstRowGlobal = null;
             }
-            validatePlannerTypesAgainstFile(logger, fileLocation, reader, attributes, columnInfos);
+            validatePlannerTypesAgainstFile(logger, fileLocation, reader, attributes, columnInfos, warningSink);
         }
 
         @Override

@@ -63,6 +63,8 @@ final class CompositeTopNBlockHash extends BlockHash {
         BlockHash.SortKey primary = topNDef.primaryKey();
         this.primaryGroupingIndex = primary.groupingIndex();
         this.primaryAsc = primary.asc();
+        // primary.nullsFirst() is intentionally not stored: null primary key positions are always kept
+        // conservatively (see buildCompetitiveMask), so the enclosing TopNExec handles exact null ordering.
         this.primaryChannel = groups.get(primaryGroupingIndex).channel();
         this.primaryType = groups.get(primaryGroupingIndex).elementType();
         if (primaryType != ElementType.LONG && primaryType != ElementType.BYTES_REF) {

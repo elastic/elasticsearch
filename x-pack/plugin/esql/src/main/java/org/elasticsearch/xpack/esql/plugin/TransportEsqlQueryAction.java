@@ -69,7 +69,10 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContextBuilder;
@@ -448,10 +451,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActionListener<Result> listener
     ) {
         // The name is wire input spliced into query text; security authorized indices()=={name} as one opaque string.
-        // Reject ES|QL metacharacters so the splice cannot smuggle a second relation (e.g. "employees,secret_index"
-        // parses as two relations) or otherwise re-interpret past the authorized name. Identifier quoting is a follow-up;
-        // for now a name that would need it is rejected rather than silently mis-parsed.
-        if (containsEsqlMetacharacter(abstractionName)) {
+        // The identifier that actually executes must be exactly that authorized name, or the splice re-interprets past
+        // the grant. A character denylist alone is bypassable (ES|QL comment syntax "//" and "/* */", and quoted forms
+        // let a crafted string resolve to a different index), so we additionally parse "FROM <name>" and require it to
+        // yield a single relation whose pattern equals the name verbatim.
+        if (isAuthorizedAbstractionName(planExecutor.parser(), abstractionName) == false) {
             listener.onFailure(new VerificationException("illegal abstraction name [" + abstractionName + "]"));
             return;
         }
@@ -486,6 +490,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     /**
+     * Whether {@code name} is safe to splice into {@code FROM <name>} and execute as the single relation that security
+     * authorized. Two independent checks, both required: a fast character screen (below) rejects list/command/qualifier
+     * metacharacters that would parse to a <em>matching</em> pattern string and so slip past the parse check; and
+     * {@link #parsesToExactlyThisRelation} rejects the subtler re-interpretations (comment-truncated names, quoted forms)
+     * a character screen cannot see. The invariant: the identifier that runs equals the name that was authorized.
+     */
+    static boolean isAuthorizedAbstractionName(EsqlParser parser, String name) {
+        return containsEsqlMetacharacter(name) == false && parsesToExactlyThisRelation(parser, name);
+    }
+
+    /**
      * Rejects names that would parse as more than the single authorized relation when spliced into {@code FROM <name>}:
      * a comma (index list), a pipe (extra command), whitespace, a back-quote (quoted identifier), or a colon
      * (cluster-qualified name). Security authorized the raw name as one string; these characters let it re-interpret
@@ -499,6 +514,22 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             }
         }
         return false;
+    }
+
+    /**
+     * Parses {@code FROM <name>} and returns whether the result is a single relation whose pattern equals {@code name}
+     * verbatim. This is the robust half of {@link #isAuthorizedAbstractionName}: it defends against re-interpretations a
+     * character denylist misses — an ES|QL comment ({@code employees//x} truncates to {@code employees}), a
+     * {@code /* *}{@code /} block, or a quoted form that strips to a different index — because it validates the
+     * <em>parsed</em> identifier, not the input string. Any parse failure is treated as unsafe.
+     */
+    static boolean parsesToExactlyThisRelation(EsqlParser parser, String name) {
+        try {
+            LogicalPlan plan = parser.createStatement("FROM " + name).plan();
+            return plan instanceof UnresolvedRelation relation && name.equals(relation.indexPattern().indexPattern());
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {

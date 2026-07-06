@@ -9,11 +9,16 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME;
 
 public class TransportEsqlQueryActionTests extends ESTestCase {
+
+    private static final EsqlParser PARSER = new EsqlParser(new EsqlConfig(false, new EsqlFunctionRegistry()));
 
     /**
      * All external blob-store access — {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver} glob
@@ -54,5 +59,37 @@ public class TransportEsqlQueryActionTests extends ESTestCase {
             EsqlPlugin.externalBlobStorePool(),
             EsqlPlugin.computePool()
         );
+    }
+
+    /**
+     * A federation-execution abstraction name is spliced into {@code FROM <name>} and executed on the home cluster;
+     * security authorized exactly that string, so plain names must be accepted verbatim.
+     */
+    public void testAuthorizedAbstractionNameAcceptsPlainNames() {
+        for (String name : new String[] { "employees", "my_view", "logs-2024", "my.index", "a1" }) {
+            assertTrue("expected [" + name + "] to be authorized", TransportEsqlQueryAction.isAuthorizedAbstractionName(PARSER, name));
+        }
+    }
+
+    /**
+     * The guard must reject any name whose <em>executed</em> identifier would differ from the authorized string — both
+     * the character-class metacharacters (list/command/qualifier/whitespace/back-quote) and the subtler
+     * re-interpretations a denylist misses: an ES|QL line comment ({@code //}) or block comment ({@code /* *}{@code /})
+     * that truncates the name, and a quoted form that strips to a different index. Each of these would let a grant on
+     * the literal string read an index the grant does not cover.
+     */
+    public void testAuthorizedAbstractionNameRejectsInjection() {
+        for (String name : new String[] {
+            "employees//x",       // line comment truncates -> FROM employees
+            "employees/*x*/",     // block comment truncates -> FROM employees
+            "\"secret\"",         // quoted form strips to a different index
+            "a,b",                // index list
+            "a|LIMIT 1",          // extra command
+            "a b",                // whitespace
+            "remote:idx",         // cluster-qualified
+            "`quoted`" }          // back-quoted identifier
+        ) {
+            assertFalse("expected [" + name + "] to be rejected", TransportEsqlQueryAction.isAuthorizedAbstractionName(PARSER, name));
+        }
     }
 }

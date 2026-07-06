@@ -311,6 +311,10 @@ public class PlanExecutor {
         return dataSourceModule;
     }
 
+    public EsqlParser parser() {
+        return parser;
+    }
+
     public ExternalSourceCacheService cacheService() {
         return cacheService;
     }

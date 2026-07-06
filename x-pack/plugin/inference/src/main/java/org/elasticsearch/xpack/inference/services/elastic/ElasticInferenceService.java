@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
@@ -109,7 +108,6 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(SPARSE_EMBEDDING, COMPLETION, TEXT_EMBEDDING);
 
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
-    private final CompletionCompatibilityService completionCompatibilityService;
     private final InferencePreferencesCache inferencePreferencesCache;
     private ElasticInferenceServiceActionCreator actionCreator;
 
@@ -148,7 +146,6 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             initModelCreators(elasticInferenceServiceSettings, completionCompatibilityService)
         );
         this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
-        this.completionCompatibilityService = completionCompatibilityService;
         this.inferencePreferencesCache = inferencePreferencesCache;
     }
 
@@ -275,17 +272,6 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     @Override
     protected boolean supportsChatCompletionReasoning() {
         return true;
-    }
-
-    @Override
-    public ClusterCompatibility checkClusterCompatibility(ClusterState state, Model model) {
-        if (model instanceof ElasticInferenceServiceModel == false) {
-            return ClusterCompatibility.unsupported(
-                Strings.format("Invalid model type [%s] for service [%s]", model.getClass().getSimpleName(), NAME)
-            );
-        }
-
-        return completionCompatibilityService.clusterCompatibility(state, (ElasticInferenceServiceModel) model);
     }
 
     @Override

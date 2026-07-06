@@ -44,9 +44,12 @@ import static org.hamcrest.Matchers.is;
  * <p>The test is gated by the cluster feature {@link InferenceFeatures#INFERENCE_ELASTIC_REASONING_TASK_SETTINGS}:
  * when the old cluster does not yet have that feature, the test verifies that:
  * <ul>
- *   <li>In old/mixed phases, a PUT with {@code task_settings.reasoning} is rejected (HTTP 400) by the
- *       cluster-feature gate ({@code CompletionsCompatibilityService}) or by the transport-version guard
- *       in {@code ElasticInferenceServiceChatCompletionTaskSettings.writeTo}.</li>
+ *   <li>In old/mixed phases, a PUT with {@code task_settings.reasoning} is rejected (HTTP 400): a
+ *       current-node master rejects via {@code EnforcingEmptyTaskSettings} / {@code EnforceEmptyTaskSettingsStrategy}
+ *       (since {@code CompletionCompatibilityService#getTaskSettingsStrategy} returns that strategy while the
+ *       feature is not yet cluster-wide); an old-node master never parses {@code reasoning} into a settings
+ *       object at all, so the field survives into the generic leftover-map check and is rejected there
+ *       instead.</li>
  *   <li>Once the cluster is fully upgraded, the PUT is accepted, and {@code task_settings.reasoning}
  *       round-trips correctly on a subsequent GET.</li>
  * </ul>
@@ -150,19 +153,17 @@ public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRoll
                 resetEndpoint(inferenceId);
             }
         } else {
-            // Old or mixed cluster: the feature gate (CompletionsCompatibilityService) fires on a new
-            // master, or the transport-version guard / unknown-settings check fires on an old master.
-            // Both produce a 400; the exact message is version-dependent, hence the broad anyOf.
+            // Old or mixed cluster: a new-node master rejects via EnforceEmptyTaskSettingsStrategy /
+            // EnforcingEmptyTaskSettings (unknown-settings-in-task_settings message); an old-node master
+            // never parses reasoning into a settings object at all, so it survives into the generic
+            // leftover-map check and is rejected as unknown to the service instead. Both produce a 400;
+            // the exact message depends on which node is master, hence the broad anyOf.
             var putRequest = buildPutRequest(inferenceId, config, TaskType.CHAT_COMPLETION);
             var e = expectThrows(ResponseException.class, () -> client().performRequest(putRequest));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
             assertThat(
                 e.getMessage(),
-                anyOf(
-                    containsString("not supported by all nodes in the cluster"),
-                    containsString("unknown to the [elastic] service"),
-                    containsString("Configuration contains unknown settings")
-                )
+                anyOf(containsString("unknown to the [elastic] service"), containsString("Configuration contains unknown settings"))
             );
         }
     }

@@ -7,16 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.compatibility;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
@@ -39,19 +36,6 @@ public class CompletionCompatibilityService {
     public CompletionCompatibilityService(ClusterService clusterService, FeatureService featureService) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.featureService = Objects.requireNonNull(featureService);
-    }
-
-    /**
-     * Checks whether the provided cluster state supports the model's task settings.
-     */
-    public InferenceService.ClusterCompatibility clusterCompatibility(ClusterState state, ElasticInferenceServiceModel model) {
-        if (model.getTaskSettings() instanceof ElasticInferenceServiceChatCompletionTaskSettings ts
-            && ts.isEmpty() == false
-            && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS) == false) {
-            return InferenceService.ClusterCompatibility.unsupported(REASONING_FIELD_UNSUPPORTED_MESSAGE);
-        }
-
-        return InferenceService.ClusterCompatibility.supported();
     }
 
     /**

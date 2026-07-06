@@ -40,8 +40,6 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EFFO
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SUMMARY_FIELD;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS;
-import static org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService.REASONING_FIELD_UNSUPPORTED_MESSAGE;
-import static org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests.createModel;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -50,10 +48,7 @@ import static org.mockito.Mockito.when;
 
 public class CompletionCompatibilityServiceTests extends ESTestCase {
 
-    private static final String INFERENCE_ENTITY_ID = "test-id";
-    private static final String MODEL_ID = "test-model";
     private static final String NODE_ID = "node-1";
-    private static final String URL = "http://localhost";
 
     private static final Reasoning MEDIUM_DETAILED_REASONING = new Reasoning(ReasoningEffort.MEDIUM, ReasoningSummary.DETAILED, null, null);
     private static final ElasticInferenceServiceChatCompletionTaskSettings NON_EMPTY_TASK_SETTINGS =
@@ -64,81 +59,6 @@ public class CompletionCompatibilityServiceTests extends ESTestCase {
     );
 
     private static final FeatureService FEATURE_SERVICE = new FeatureService(List.of(new InferenceFeatures()));
-
-    // clusterCompatibility(...) checks the ClusterState passed in, not the ClusterService's own state, so an arbitrary
-    // ClusterService state is used to build the compatibility service under test for these cases.
-    private final CompletionCompatibilityService compatibilityService = createCompatibilityService(true);
-
-    public void testClusterCompatibility_NonChatCompletionTaskType_NonEmptyReasoning_FeatureAbsent_ReturnsUnsupported() {
-        var taskType = randomValueOtherThanMany(
-            t -> t == TaskType.CHAT_COMPLETION || t == TaskType.ANY,
-            () -> randomFrom(TaskType.values())
-        );
-        var model = createModel(URL, INFERENCE_ENTITY_ID, MODEL_ID, taskType, NON_EMPTY_TASK_SETTINGS);
-
-        var result = compatibilityService.clusterCompatibility(clusterState(false), model);
-
-        assertFalse(result.isSupported());
-        assertThat(result.errorMessage(), is(REASONING_FIELD_UNSUPPORTED_MESSAGE));
-    }
-
-    public void testClusterCompatibility_NonChatCompletionTaskType_NonEmptyReasoning_FeaturePresent_ReturnsSupported() {
-        var taskType = randomValueOtherThanMany(
-            t -> t == TaskType.CHAT_COMPLETION || t == TaskType.ANY,
-            () -> randomFrom(TaskType.values())
-        );
-        var model = createModel(URL, INFERENCE_ENTITY_ID, MODEL_ID, taskType, NON_EMPTY_TASK_SETTINGS);
-
-        var result = compatibilityService.clusterCompatibility(clusterState(true), model);
-
-        assertTrue(result.isSupported());
-        assertNull(result.errorMessage());
-    }
-
-    public void testClusterCompatibility_EmptyTaskSettings_ReturnsSupported() {
-        var model = createModel(URL, INFERENCE_ENTITY_ID, MODEL_ID, TaskType.CHAT_COMPLETION, EmptyTaskSettings.INSTANCE);
-
-        var result = compatibilityService.clusterCompatibility(clusterState(false), model);
-
-        assertTrue(result.isSupported());
-        assertNull(result.errorMessage());
-    }
-
-    public void testClusterCompatibility_EmptyReasoningTaskSettings_ReturnsSupported() {
-        var model = createModel(
-            URL,
-            INFERENCE_ENTITY_ID,
-            MODEL_ID,
-            TaskType.CHAT_COMPLETION,
-            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
-        );
-
-        // Empty task settings carry no reasoning field, so older nodes are unaffected.
-        var result = compatibilityService.clusterCompatibility(clusterState(false), model);
-
-        assertTrue(result.isSupported());
-        assertNull(result.errorMessage());
-    }
-
-    public void testClusterCompatibility_NonEmptyReasoning_FeaturePresent_ReturnsSupported() {
-        var model = createModel(URL, INFERENCE_ENTITY_ID, MODEL_ID, TaskType.CHAT_COMPLETION, NON_EMPTY_TASK_SETTINGS);
-
-        // The whole cluster understands the reasoning field, so the request is allowed.
-        var result = compatibilityService.clusterCompatibility(clusterState(true), model);
-
-        assertTrue(result.isSupported());
-        assertNull(result.errorMessage());
-    }
-
-    public void testClusterCompatibility_NonEmptyReasoning_FeatureAbsent_ReturnsUnsupported() {
-        var model = createModel(URL, INFERENCE_ENTITY_ID, MODEL_ID, TaskType.CHAT_COMPLETION, NON_EMPTY_TASK_SETTINGS);
-
-        // A non-empty reasoning field cannot be honored while some nodes lack the feature.
-        var result = compatibilityService.clusterCompatibility(clusterState(false), model);
-
-        assertFalse(result.isSupported());
-        assertThat(result.errorMessage(), is(REASONING_FIELD_UNSUPPORTED_MESSAGE));
-    }
 
     public void testGetTaskSettingsStrategy_FeatureAbsent_ReturnsEnforceEmptyTaskSettingsStrategy() {
         var strategy = createCompatibilityService(false).getTaskSettingsStrategy(randomFrom(TaskType.values()));

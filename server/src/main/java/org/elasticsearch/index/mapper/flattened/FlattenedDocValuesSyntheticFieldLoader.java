@@ -477,23 +477,23 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
 
         private void decodeSlots(BytesRef bytes, int slotCount) throws IOException {
             in.reset(bytes.bytes, bytes.offset, bytes.length);
-            int bufEnd = bytes.offset + bytes.length;
             for (int i = 0; i < slotCount; i++) {
                 int prefix = in.readVInt();
-                int slotKeyAbsStart = in.getPosition();
-                int keyLen = ESVectorUtil.indexOf(bytes.bytes, slotKeyAbsStart, bufEnd - slotKeyAbsStart, (byte) 0);
-                String key = new String(bytes.bytes, slotKeyAbsStart, keyLen, StandardCharsets.UTF_8);
+                int slotKeyStart = in.getPosition();
+                int remaining = bytes.length - (slotKeyStart - bytes.offset);
+                int keyLen = ESVectorUtil.indexOf(bytes.bytes, slotKeyStart, remaining, (byte) 0);
+                String key = new String(bytes.bytes, slotKeyStart, keyLen, StandardCharsets.UTF_8);
                 if (prefix == 0) {
                     // Null slot: [0]key\0
-                    in.setPosition(slotKeyAbsStart + keyLen + 1);
+                    in.setPosition(slotKeyStart + keyLen + 1);
                     slotsByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(null);
                 } else {
                     // Non-null slot: [valueLen+1]key\0value
                     int valueLen = prefix - 1;
-                    int valueAbsOffset = slotKeyAbsStart + keyLen + 1;
-                    in.setPosition(valueAbsOffset + valueLen);
+                    int valueStart = slotKeyStart + keyLen + 1;
+                    in.setPosition(valueStart + valueLen);
                     slotsByKey.computeIfAbsent(key, k -> new ArrayList<>())
-                        .add(new BytesRef(bytes.bytes, valueAbsOffset, valueLen).utf8ToString());
+                        .add(new BytesRef(bytes.bytes, valueStart, valueLen).utf8ToString());
                 }
             }
         }

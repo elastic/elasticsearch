@@ -103,14 +103,19 @@ public class CsvStatsCaptureTests extends ESTestCase {
         assertEquals(3L, SplitStats.of(c).rowCount());
     }
 
-    /** SKIP_ROW drops a malformed row → rowsSkipped > 0 → whole-file write suppressed (count is policy-dependent). */
-    public void testSkipRowWithDroppedRowsPublishesNothing() throws Exception {
+    /** SKIP_ROW drops a malformed row, but the stats over the surviving rows are exact (fingerprint pins error_mode), so they commit. */
+    public void testSkipRowWithDroppedRowsCommitsStatsOverSurvivors() throws Exception {
         ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
         StorageObject o = obj("id:integer,n:integer\n1,10\nnot-an-integer,20\n3,30\n");
-        assertNull(
-            "SKIP_ROW with dropped rows must not publish (count is policy-dependent)",
-            capture(o, FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build())
-        );
+        Map<String, Object> published = capture(o, FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build());
+        assertNotNull("SKIP_ROW now commits the stats over surviving rows instead of publishing nothing", published);
+        SplitStats stats = SplitStats.of(published);
+        assertNotNull(stats);
+        // The cache fingerprint pins error_mode, so a full scan drops the SAME row -- every statistic over the
+        // survivors (id in {1,3}, 2 rows) is exact vs that scan, so all commit and serve.
+        assertEquals("row count over survivors", 2L, stats.rowCount());
+        assertEquals(1, ((Number) stats.columnMin("id")).intValue());
+        assertEquals(3, ((Number) stats.columnMax("id")).intValue());
     }
 
     public void testWholeFileCleanDrainPublishesColumnStats() throws Exception {
@@ -183,7 +188,8 @@ public class CsvStatsCaptureTests extends ESTestCase {
     /**
      * NULL_FIELD null-fills a malformed field but PRESERVES the row, so a parallel chunk's row count
      * stays accurate. The chunk must still publish its partial (so the file's COUNT(*) sum stays
-     * complete) and must NOT poison the file — poison is reserved for SKIP_ROW, which drops rows.
+     * complete). Poison is reserved for a scan cut short (LIMIT / error / truncation), not for a
+     * row drop -- a dropped row still commits exact stats over the survivors.
      */
     public void testNullFieldChunkPublishesFullCountWithoutPoison() throws Exception {
         ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 10, 1.0, false);
@@ -198,6 +204,54 @@ public class CsvStatsCaptureTests extends ESTestCase {
         assertFalse("NULL_FIELD preserves rows, so the chunk must not poison the file", anyPoison);
         long published = contributions.stream().mapToLong(c -> SplitStats.of(c).rowCount()).max().orElse(-1L);
         assertEquals("the chunk's published row count must include the null-filled row", 3L, published);
+    }
+
+    public void testReproFfwTypeDriftValueCount() throws Exception {
+        // File a: untyped header, 3 valid integer col values. Reconciled/anchor schema col:INTEGER pushed as readSchema.
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 1.0, false);
+        StorageObject fileA = obj("id,col,note\n1,123,alpha\n2,456,gamma\n3,789,delta\n");
+        List<org.elasticsearch.xpack.esql.core.expression.Attribute> readSchema = List.of(
+            attr("id", org.elasticsearch.xpack.esql.core.type.DataType.INTEGER),
+            attr("col", org.elasticsearch.xpack.esql.core.type.DataType.INTEGER),
+            attr("note", org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD)
+        );
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(10)
+            .projectedColumns(List.of("id", "col", "note"))
+            .readSchema(readSchema)
+            .errorPolicy(nullField)
+            .build();
+        Map<String, Object> c = capture(fileA, ctx);
+        assertNotNull(c);
+        SplitStats stats = SplitStats.of(c);
+        assertEquals("rows", 3L, stats.rowCount());
+        assertEquals("file a col value_count", 3L, stats.columnValueCount("col"));
+    }
+
+    public void testReproControlTypedHeaderNoReadSchema() throws Exception {
+        // Control: typed header, NO readSchema (the path the passing tests use). Does value_count harvest at all?
+        StorageObject o = obj("id:integer,col:integer,note:keyword\n1,123,alpha\n2,456,gamma\n3,789,delta\n");
+        Map<String, Object> c = capture(
+            o,
+            FormatReadContext.builder().batchSize(10).projectedColumns(List.of("id", "col", "note")).build()
+        );
+        assertNotNull(c);
+        SplitStats stats = SplitStats.of(c);
+        assertEquals("rows", 3L, stats.rowCount());
+        assertEquals("control col nullCount", 0L, stats.columnNullCount("col"));
+        assertEquals("control col min", 123, ((Number) stats.columnMin("col")).intValue());
+        assertEquals("control col value_count", 3L, stats.columnValueCount("col"));
+    }
+
+    private static org.elasticsearch.xpack.esql.core.expression.Attribute attr(
+        String name,
+        org.elasticsearch.xpack.esql.core.type.DataType type
+    ) {
+        return new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
+            org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+            name,
+            type
+        );
     }
 
     /** Binds a capture sink, drains the reader to EOF, returns the single contribution for the path (or null). */

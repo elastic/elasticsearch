@@ -1320,6 +1320,10 @@ public class ExternalSourceResolver {
         Exception lastFailure = null;
         for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
             if (factory.canHandle(path, config)) {
+                // Validate outside the try block so a user config error (unknown key) propagates
+                // immediately rather than being swallowed as a factory failure and retried against
+                // the next factory in the registry.
+                factory.validateConfig(path, config);
                 try {
                     return factory.resolveMetadata(path, config);
                 } catch (Exception e) {

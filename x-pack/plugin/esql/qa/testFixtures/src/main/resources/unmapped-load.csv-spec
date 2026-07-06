@@ -2,6 +2,8 @@
 # No loading tests #
 ####################
 // Reproducer for #151525: a partially unmapped small numeric field is implicitly widened (short -> integer) without a cast.
+// FIXME(gal, nocommit): Add issue number. The [short] warning below is a known limitation: small numerics never implicitly load
+// because the KEYWORD converter is looked up for the raw type (short) before widening to integer, so [id] stays null where unmapped.
 partiallyUnmappedSmallNumericFieldIsWidened
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_small_numeric
@@ -45,12 +47,14 @@ count:long | integer:integer | short_int:integer
 partiallyUnmappedDenseVectorIsNotAutoCast
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_dense_vector
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM dense_vector, dense_vector_unmapped METADATA _index
 | KEEP _index, id, float_vector
 | SORT _index, id
 ;
+warning:Field [float_vector] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 _index: keyword       | id:l | float_vector:dense_vector
 dense_vector          | 0    | [1.0, 2.0, 3.0]

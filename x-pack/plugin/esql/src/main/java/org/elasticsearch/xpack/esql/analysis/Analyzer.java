@@ -329,7 +329,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public LogicalPlan analyze(LogicalPlan plan) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
         LogicalPlan analyzed = execute(plan);
-        return verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
+        LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
+        // verify throws on failure, so we only reach here once the plan is valid: flush the warnings deferred during analysis.
+        context().deferredHeaderWarnings().forEach(HeaderWarning::addWarning);
+        return verified;
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
@@ -3180,7 +3183,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     // visible for testing
     static String nonLoadablePunkWarning(String fieldName, String mappedTypeName) {
         return Strings.format(
-            "Field [{}] of type [{}] is unmapped in some indices and has no implicit "
+            "Field [%s] of type [%s] is unmapped in some indices and has no implicit "
                 + "conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices",
             fieldName,
             mappedTypeName
@@ -3189,12 +3192,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     /**
      * {@code dense_vector} has a {@link DataType#KEYWORD} converter, but it reads hexadecimal strings whereas an unmapped
-     * {@code dense_vector} loads from {@code _source} as an array of numbers (#152184).
-     * For a partially unmapped {@code dense_vector} we therefore neither implicitly cast it (that would produce
-     * garbage) nor warn about a missing {@link DataType#KEYWORD} conversion (that wording would be misleading).
+     * {@code dense_vector} loads from {@code _source} as an array of numbers (#152184). Implicitly casting a partially unmapped
+     * {@code dense_vector} from KEYWORD would therefore produce garbage, so we exclude it from auto-casting; it then falls back to
+     * {@code null} where unmapped and warns like any other non-loadable PUNK.
      */
     // Visible for testing.
-    static boolean isValidConversionFromKeyword(DataType mappedType) {
+    static boolean castsCleanlyFromKeyword(DataType mappedType) {
         return mappedType != DENSE_VECTOR;
     }
 
@@ -3218,7 +3221,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it into a
                 // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once for each such field whose value the user
                 // can actually observe (it reaches the final output or is consumed by some, non-conversion expression).
-                warnObservedNonLoadablePunks(cleanPlan);
+                warnObservedNonLoadablePunks(cleanPlan, context);
             }
 
             // If not, we apply checkUnresolved to the field attributes of the original plan, resulting in unsupported attributes
@@ -3235,18 +3238,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        private static void warnObservedNonLoadablePunks(LogicalPlan plan) {
-            Set<NameId> observedFieldIds = new HashSet<>();
-            plan.output().forEach(a -> observedFieldIds.add(a.id()));
-            plan.forEachDown(p -> p.references().forEach(a -> observedFieldIds.add(a.id())));
+        private static void warnObservedNonLoadablePunks(LogicalPlan plan, AnalyzerContext context) {
+            AttributeSet.Builder observed = AttributeSet.builder();
+            plan.output().forEach(observed::add);
+            plan.forEachDown(p -> observed.addAll(p.references()));
+            AttributeSet observedFields = observed.build();
 
             Set<NameId> warned = new HashSet<>();
             plan.forEachExpressionDown(FieldAttribute.class, fa -> {
-                if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk && observedFieldIds.contains(fa.id())) {
+                if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk && observedFields.contains(fa) && warned.add(fa.id())) {
                     DataType mappedType = punk.mappedField().getDataType();
-                    if (isValidConversionFromKeyword(mappedType) && warned.add(fa.id())) {
-                        HeaderWarning.addWarning(nonLoadablePunkWarning(fa.name(), mappedType.typeName()));
-                    }
+                    context.deferredHeaderWarnings().add(nonLoadablePunkWarning(fa.name(), mappedType.typeName()));
                 }
             });
         }
@@ -3395,6 +3397,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (context.unmappedResolution() != UnmappedResolution.LOAD) {
                 return plan;
             }
+
             return plan.transformUp(EsRelation.class, esRelation -> {
                 if (esRelation.indexMode() == IndexMode.LOOKUP) {
                     return esRelation;
@@ -3405,10 +3408,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk) {
                         DataType mappedType = punk.mappedField().getDataType();
 
-                        if (isValidConversionFromKeyword(mappedType) == false) {
+                        if (castsCleanlyFromKeyword(mappedType) == false) {
                             return fa;
                         }
 
+                        // FIXME(gal, nocommit): Add issue number. Small numerics (e.g. SHORT) never auto-cast because the converter is
+                        // looked up for the raw mapped type before widening to INTEGER, so there is no KEYWORD->SHORT converter; the PUNK
+                        // survives to UnionTypesCleanup and warns as non-loadable even though it could be loaded via the widened type.
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         ConvertFunction convert = convertFactory == null
                             ? null

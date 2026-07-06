@@ -1187,9 +1187,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             }
         }
         assertThat(noConverterTypes, equalTo(NO_IMPLICIT_KEYWORD_CONVERTER_PUNK_TYPES));
+        // Every surviving single-type PUNK falls back to null where unmapped, so all of them warn (including dense_vector).
         assertWarnings(
             noConverterTypes.stream()
-                .filter(Analyzer::isValidConversionFromKeyword)
                 .map(dt -> nonLoadablePunkWarning("test_field", dt.widenSmallNumeric().typeName()))
                 .toArray(String[]::new)
         );
@@ -1575,18 +1575,18 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
         );
 
-        var kept = new EsField("kept_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
-        var excluded = new EsField("excluded_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var kept = new EsField("kept_agg", DataType.AGGREGATE_METRIC_DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var excluded = new EsField("excluded_agg", DataType.AGGREGATE_METRIC_DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
         var esIndex = partialIndex(
-            Map.of("kept_text", kept, "excluded_text", excluded, "common", keywordField("common")),
-            Set.of("kept_text", "excluded_text")
+            Map.of("kept_agg", kept, "excluded_agg", excluded, "common", keywordField("common")),
+            Set.of("kept_agg", "excluded_agg")
         );
         var analyzer = analyzer().addIndex(esIndex);
 
-        var plan = analyzer.statement(setUnmappedLoad("FROM idx* | KEEP kept_text, common"));
-        var keptAttr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("kept_text")).toList());
-        assertThat(keptAttr.dataType(), equalTo(DataType.TEXT));
-        assertWarnings(nonLoadablePunkWarning("kept_text", "text"));
+        var plan = analyzer.statement(setUnmappedLoad("FROM idx* | KEEP kept_agg, common"));
+        var keptAttr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("kept_agg")).toList());
+        assertThat(keptAttr.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
+        assertWarnings(nonLoadablePunkWarning("kept_agg", "aggregate_metric_double"));
     }
 
     public void testNonLoadablePunkWarnsUnderBareFrom() {
@@ -1660,6 +1660,39 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             unionFields(plan).stream().anyMatch(u -> u.getDataType() == DataType.KEYWORD && u.getUnmappedConversionExpression() != null)
         );
         assertWarnings(nonLoadablePunkWarning(field, "text"));
+    }
+
+    public void testNonLoadablePunkDenseVectorWarnsAndIsNotCast() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        // dense_vector has a KEYWORD converter but it reads hex strings while an unmapped vector loads as an array of numbers (#152184),
+        // so we neither implicitly cast it nor turn it into a union type; it falls back to null where unmapped and warns.
+        var vector = new EsField("partial_vector", DataType.DENSE_VECTOR, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var esIndex = partialIndex(Map.of("partial_vector", vector), Set.of("partial_vector"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx*"));
+        var attr = as(
+            EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_vector")).toList()),
+            FieldAttribute.class
+        );
+        assertThat(attr.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(attr.field().getClass(), equalTo(EsField.class));
+        assertWarnings(nonLoadablePunkWarning("partial_vector", "dense_vector"));
+    }
+
+    public void testNonLoadablePunkEvalSameNameOverrideDoesNotWarn() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        // EVAL replaces partial_text with a new attribute of the same name without referencing the PUNK, so the original is no longer
+        // observed and must not warn. An unasserted warning would fail the test teardown.
+        var plan = analyzer().addIndex(partialTextAndCommonIndex()).statement(setUnmappedLoad("FROM idx* | EVAL partial_text = \"x\""));
+        var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_text")).toList());
+        assertThat(attr.dataType(), equalTo(DataType.KEYWORD));
     }
 
     public void testLoadWithPartiallyMappedNonKeywordInSortAutoCast() {

@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
 
@@ -134,6 +135,13 @@ public abstract class DocumentParserContext {
         }
 
         @Override
+        public FieldArrayContext getOffSetContext(String key, Supplier<? extends FieldArrayContext> factory) {
+            FieldArrayContext offsetContext = in.getOffSetContext(key, factory);
+            offsetContext.setCurrentDoc(doc());
+            return offsetContext;
+        }
+
+        @Override
         public void setImmediateXContentParent(XContentParser.Token token) {
             in.setImmediateXContentParent(token);
         }
@@ -226,6 +234,7 @@ public abstract class DocumentParserContext {
     private final Set<String> fieldsAppliedFromTemplates;
 
     private FieldArrayContext fieldArrayContext;
+    private Map<String, FieldArrayContext> namedFieldArrayContexts;
 
     private final ObjectArrayElementCounter objectArrayElementCounter;
 
@@ -668,6 +677,11 @@ public abstract class DocumentParserContext {
         if (fieldArrayContext != null) {
             fieldArrayContext.addToLuceneDocument(context);
         }
+        if (namedFieldArrayContexts != null) {
+            for (FieldArrayContext arrayContext : namedFieldArrayContexts.values()) {
+                arrayContext.addToLuceneDocument(context);
+            }
+        }
     }
 
     public FieldArrayContext getOffSetContext() {
@@ -676,6 +690,24 @@ public abstract class DocumentParserContext {
         }
         fieldArrayContext.setCurrentDoc(doc());
         return fieldArrayContext;
+    }
+
+    /**
+     * Like {@link #getOffSetContext()}, but for mappers — such as flattened — that need a dedicated
+     * {@link FieldArrayContext} per mapped field rather than sharing the single document-wide one, because they encode
+     * multiple keys into one sidecar doc-values field named after the mapped field itself. The context for {@code key} is
+     * created via {@code factory} on first access and reused by every subsequent call with the same {@code key} for the
+     * rest of this document, so offset ordinals stay consistent with the document-wide value set the field writes even
+     * when a field's {@code parseCreateField} runs more than once for the same document (e.g. field supplied as an array
+     * of objects).
+     */
+    public FieldArrayContext getOffSetContext(String key, Supplier<? extends FieldArrayContext> factory) {
+        if (namedFieldArrayContexts == null) {
+            namedFieldArrayContexts = new HashMap<>();
+        }
+        FieldArrayContext arrayContext = namedFieldArrayContexts.computeIfAbsent(key, ignored -> factory.get());
+        arrayContext.setCurrentDoc(doc());
+        return arrayContext;
     }
 
     private XContentParser.Token lastSetToken;

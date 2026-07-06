@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldArrayContext;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -53,13 +54,18 @@ public final class FlattenedFieldArrayContext extends FieldArrayContext {
 
     @Override
     public void addToLuceneDocument(DocumentParserContext context) throws IOException {
-        // Offset ordinals are only valid relative to the values this context instance observed. A second write would mean
-        // parseCreateField ran more than once for this field in the same document (e.g. field supplied as an array of
-        // objects), which silently corrupts array reconstruction since offsets from different instances target the same
-        // document-wide sorted-unique value set. See https://github.com/elastic/elasticsearch/issues/153014.
-        assert context.doc().getField(offsetsFieldName) == null;
-        for (var docOffsets : offsetsPerDoc.values()) {
-            for (var entry : docOffsets.entrySet()) {
+        // This context instance is shared by every parseCreateField call for this field within the document (see
+        // DocumentParserContext#getOffSetContext(String, java.util.function.Supplier)) and flushed exactly once, after all
+        // of them have run. That keeps offset ordinals consistent with the document-wide sorted-unique value set they are
+        // decoded against; flushing per call (one context per call) previously encoded ordinals relative to only the
+        // values a single call observed, silently corrupting reconstruction when a field's value was an array of objects.
+        // See https://github.com/elastic/elasticsearch/issues/153014.
+        for (var docEntry : offsetsPerDoc.entrySet()) {
+            // A null key means no document was set while recording (e.g. direct unit-test usage); fall back to the document
+            // being flushed.
+            LuceneDocument doc = docEntry.getKey() != null ? docEntry.getKey() : context.doc();
+            assert doc.getField(offsetsFieldName) == null;
+            for (var entry : docEntry.getValue().entrySet()) {
                 String fieldName = entry.getKey();
                 var offsets = entry.getValue();
 
@@ -67,7 +73,7 @@ public final class FlattenedFieldArrayContext extends FieldArrayContext {
 
                 if (encoded != null) {
                     MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-                        context.doc(),
+                        doc,
                         offsetsFieldName,
                         encoded,
                         MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE

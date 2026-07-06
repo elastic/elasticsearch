@@ -109,7 +109,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.StringJoiner;
-import java.util.regex.Pattern;
 
 /**
  * CSV/TSV format reader for external datasources.
@@ -1882,7 +1881,57 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ',') {
             return splitHeaderCommaDelimiterBracketAware(line, options.quoteChar(), options.escapeChar());
         }
-        return line.split(Pattern.quote(Character.toString(options.delimiter())));
+        // A quote/escape-aware split, not a naive line.split(delimiter): a quoted field may embed the
+        // delimiter (a header {@code "a,b",c} is two columns, not three), and the read-side Jackson
+        // parser honours quoting — so a naive split mis-counts the header width and (Julian's report)
+        // the declared-schema width tripwire wrongly rejects or admits a file. Mirrors
+        // splitHeaderCommaDelimiterBracketAware for the non-bracket delimiters (comma, tab).
+        return splitFieldsQuoteAware(line, options.delimiter(), options.quoteChar(), options.escapeChar());
+    }
+
+    /**
+     * General quote- and escape-aware field split for a single header/schema line over an arbitrary
+     * delimiter (comma, tab). A quote opens only at a field boundary (leading, ignoring whitespace);
+     * a doubled quote inside a quoted field is a literal quote; an escape char before the delimiter
+     * inside quotes keeps the delimiter literal. Fields are trimmed, matching
+     * {@link #splitHeaderCommaDelimiterBracketAware}; quotes are retained in the token exactly as that
+     * bracket-aware sibling retains them, so the two paths agree on width and shape.
+     */
+    private static String[] splitFieldsQuoteAware(String line, char delim, char quote, char esc) {
+        List<String> entries = new ArrayList<>();
+        int start = 0;
+        boolean inQuotes = false;
+        boolean fieldHasNonWhitespace = false;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (inQuotes) {
+                if (c == quote) {
+                    if (i + 1 < line.length() && line.charAt(i + 1) == quote) {
+                        i++; // doubled quote inside a quoted field is a literal quote
+                        continue;
+                    }
+                    inQuotes = false;
+                } else if (c == esc && i + 1 < line.length() && line.charAt(i + 1) == delim) {
+                    i++; // escaped delimiter inside quotes stays literal
+                }
+                continue;
+            }
+            if (c == delim) {
+                entries.add(line.substring(start, i).trim());
+                start = i + 1;
+                fieldHasNonWhitespace = false;
+                continue;
+            }
+            if (c == quote && fieldHasNonWhitespace == false) {
+                inQuotes = true;
+                continue;
+            }
+            if (Character.isWhitespace(c) == false) {
+                fieldHasNonWhitespace = true;
+            }
+        }
+        entries.add(line.substring(start).trim());
+        return entries.toArray(String[]::new);
     }
 
     /**
@@ -4945,7 +4994,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // the identical instant regardless of source format. It is zone-aware (defaults a missing zone to UTC),
             // unlike the LocalDateTime.parse path below which discards any parsed offset. Other columns keep today's
             // behavior.
-            if (columnIndex >= 0 && declaredFormatters != null && columnIndex < declaredFormatters.length && declaredFormatters[columnIndex] != null) {
+            if (columnIndex >= 0
+                && declaredFormatters != null
+                && columnIndex < declaredFormatters.length
+                && declaredFormatters[columnIndex] != null) {
                 try {
                     return DeclaredTypeCoercions.parseDatetimeMillis(value, declaredFormatters[columnIndex]);
                 } catch (Exception e) {

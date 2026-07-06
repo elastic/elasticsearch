@@ -2946,6 +2946,56 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Julian's report: a header {@code "a,b",c} has TWO columns — the first field is quoted and embeds
+     * the delimiter — but a naive comma split counts three. The declared-schema width tripwire and the
+     * inferred-schema column count both go through {@code splitFieldsForOptions}; with the naive split a
+     * 3-column declaration was wrongly admitted over a 2-column file and then null-spliced every row.
+     * The quote-aware split counts two, so the tripwire fires and inference reports two columns.
+     */
+    public void testDeclaredWidthTripwireCountsQuotedHeaderFieldsCorrectly() throws IOException {
+        String csv = "\"a,b\",c\n1,2\n";
+        StorageObject object = createStorageObject(csv);
+
+        // Inferred-schema count (the metadata caller): two columns, not three.
+        assertEquals(2, new CsvFormatReader(blockFactory).metadata(object).schema().size());
+
+        // Width tripwire (the declared caller): a 3-column declaration cannot bind a 2-column file. The
+        // declared positional schema is plumbed through FormatReadContext.readSchema.
+        List<Attribute> tooWide = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "x", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "y", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "z", DataType.KEYWORD)
+        );
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(tooWide).build()
+            ).close()
+        );
+        assertThat(e.getMessage(), Matchers.containsString("declared schema has 3 columns"));
+        assertThat(e.getMessage(), Matchers.containsString("] has 2"));
+
+        // A 2-column declaration matches the two real columns and reads.
+        List<Attribute> exact = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "first", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "second", DataType.KEYWORD)
+        );
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(exact).build()
+            )
+        ) {
+            assertTrue(it.hasNext());
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            page.releaseBlocks();
+        }
+    }
+
+    /**
      * Nested {@code [[…]]} must not close the MVC cell on the inner {@code ]} — otherwise an extra column appears.
      * With {@code multi_value_syntax=brackets}, the outer MV strips once; the inner {@code [37]} is the single keyword element.
      */

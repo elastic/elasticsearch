@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -137,6 +138,9 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
         String oneHourAgo = now.minus(1, ChronoUnit.HOURS).toString();
         String halfHourAgo = now.minus(30, ChronoUnit.MINUTES).toString();
 
+        String writeIndexName;
+        String sixDaysAgoIndexName;
+        String thirtyDaysAgoIndexName;
         try (var limitedWriterClient = buildClient(tsdbLimitedWriterRestClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
             // No retention configured — but the writer doesn't have enough privileges to create past indices
             Map<String, Object> response = entityAsMap(
@@ -146,8 +150,9 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
             List<Map<String, Object>> responseItems = getResponseItems(response);
             assertThat(responseItems.size(), is(3));
             assertThat(((Map<String, String>) responseItems.get(0).get("error")).get("type"), equalTo("security_exception"));
-            assertThat((String) responseItems.get(1).get("_index"), endsWith("-000001"));
-            assertThat((String) responseItems.get(2).get("_index"), endsWith("-000001"));
+            writeIndexName = (String) responseItems.get(1).get("_index");
+            assertThat(writeIndexName, endsWith("-000001"));
+            assertThat((String) responseItems.get(2).get("_index"), equalTo(writeIndexName));
         }
 
         try (var writerClient = buildClient(tsdbWriterRestClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
@@ -158,9 +163,10 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
             assertThat(response.get("errors"), is(false));
             List<Map<String, Object>> responseItems = getResponseItems(response);
             assertThat(responseItems.size(), is(3));
-            assertThat((String) responseItems.get(0).get("_index"), endsWith("-000002"));
-            assertThat((String) responseItems.get(1).get("_index"), endsWith("-000001"));
-            assertThat((String) responseItems.get(2).get("_index"), endsWith("-000001"));
+            thirtyDaysAgoIndexName = (String) responseItems.get(0).get("_index");
+            assertThat(thirtyDaysAgoIndexName, endsWith("-000002"));
+            assertThat((String) responseItems.get(1).get("_index"), equalTo(writeIndexName));
+            assertThat((String) responseItems.get(2).get("_index"), equalTo(writeIndexName));
 
             // Set 7-day DLM retention.
             Request putLifecycle = new Request("PUT", "/_data_stream/" + TSDB_DATA_STREAM_NAME + "/_lifecycle");
@@ -174,8 +180,9 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
             assertThat(response.get("errors"), is(true));
             responseItems = getResponseItems(response);
             assertThat(responseItems.size(), is(3));
-            assertThat((String) responseItems.get(0).get("_index"), endsWith("-000003"));
-            assertThat((String) responseItems.get(1).get("_index"), endsWith("-000002"));
+            sixDaysAgoIndexName = (String) responseItems.get(0).get("_index");
+            assertThat(sixDaysAgoIndexName, endsWith("-000003"));
+            assertThat((String) responseItems.get(1).get("_index"), equalTo(thirtyDaysAgoIndexName));
             assertThat(((Map<String, String>) responseItems.get(2).get("error")).get("type"), equalTo("timestamp_error"));
 
             // Disable past index creation
@@ -190,9 +197,9 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
             responseItems = getResponseItems(response);
             assertThat(responseItems.size(), is(5));
             assertThat(((Map<String, String>) responseItems.get(0).get("error")).get("type"), equalTo("timestamp_error"));
-            assertThat((String) responseItems.get(1).get("_index"), endsWith("-000003"));
-            assertThat((String) responseItems.get(2).get("_index"), endsWith("-000002"));
-            assertThat((String) responseItems.get(3).get("_index"), endsWith("-000001"));
+            assertThat((String) responseItems.get(1).get("_index"), equalTo(sixDaysAgoIndexName));
+            assertThat((String) responseItems.get(2).get("_index"), equalTo(thirtyDaysAgoIndexName));
+            assertThat((String) responseItems.get(3).get("_index"), equalTo(writeIndexName));
             assertThat(((Map<String, String>) responseItems.get(4).get("error")).get("type"), equalTo("timestamp_error"));
         }
 
@@ -206,10 +213,17 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
             List<Map<String, Object>> responseItems = getResponseItems(response);
             assertThat(responseItems.size(), is(4));
             assertThat(((Map<String, String>) responseItems.get(0).get("error")).get("type"), equalTo("timestamp_error"));
-            assertThat((String) responseItems.get(1).get("_index"), endsWith("-000003"));
-            assertThat((String) responseItems.get(2).get("_index"), endsWith("-000002"));
-            assertThat((String) responseItems.get(3).get("_index"), endsWith("-000001"));
+            assertThat((String) responseItems.get(1).get("_index"), equalTo(sixDaysAgoIndexName));
+            assertThat((String) responseItems.get(2).get("_index"), equalTo(thirtyDaysAgoIndexName));
+            assertThat((String) responseItems.get(3).get("_index"), equalTo(writeIndexName));
         }
+
+        // Now let's change the DLM poll interval so it can apply retention
+        updateClusterSettings(adminClient(), Settings.builder().put("data_streams.lifecycle.poll_interval", "1s").build());
+        awaitIndexDoesNotExist(thirtyDaysAgoIndexName);
+        List<String> backingIndexNames = getDataStreamBackingIndexNames(TSDB_DATA_STREAM_NAME);
+        assertThat(backingIndexNames.size(), is(2));
+        assertThat(backingIndexNames, containsInAnyOrder(writeIndexName, sixDaysAgoIndexName));
     }
 
     private static Request bulkCreateRequest(String... timestamps) {

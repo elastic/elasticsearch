@@ -9,9 +9,14 @@ package org.elasticsearch.xpack.kibana;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,7 +52,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("feature_observability_cases_read", "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, hasSize(1));
 
         RoleDescriptor.IndicesPrivileges privilege = result.iterator().next();
@@ -68,7 +75,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("cases_read", "space:foo", "space:bar", "space:baz");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, hasSize(1));
 
         String query = result.iterator().next().getQuery().utf8ToString();
@@ -89,7 +98,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("feature_security_cases_read", "*");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, hasSize(1));
 
         RoleDescriptor.IndicesPrivileges privilege = result.iterator().next();
@@ -107,7 +118,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("cases_read", "*", "space:foo");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, hasSize(1));
         assertFalse(result.iterator().next().getQuery().utf8ToString().contains("space_id"));
     }
@@ -148,7 +161,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
             null
         );
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, hasSize(2));
 
         boolean sawObservabilityMarketing = false;
@@ -182,7 +197,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("feature_observability_cases_read", "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, hasSize(1));
 
         String query = result.iterator().next().getQuery().utf8ToString();
@@ -210,7 +227,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
             null
         );
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, is(empty()));
     }
 
@@ -220,7 +239,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("cases_write", "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, is(empty()));
     }
 
@@ -230,35 +251,24 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("cases_read", "no-prefix-resource");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, is(empty()));
     }
 
     public void testEmptyStoredPrivilegesReturnsEmpty() {
         RoleDescriptor roleDescriptor = role("cases_read", "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, List.of());
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(resolve(roleDescriptor, List.of()));
         assertThat(result, is(empty()));
     }
 
-    public void testEmptyApplicationPrivilegesReturnsEmpty() {
-        // A role with no application-privilege blocks at all (e.g. an index-privileges-only role)
-        // must short-circuit without scanning the stored privileges.
-        RoleDescriptor roleDescriptor = new RoleDescriptor(
-            "test_role",
-            null,
-            null,
-            new RoleDescriptor.ApplicationResourcePrivileges[0],
-            null,
-            null,
-            null,
-            null
-        );
-        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "cases_read", Set.of(GET_CASE_ACTION_CASES), Map.of())
-        );
-
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+    public void testEmptyResolvedApplicationPrivilegesReturnsEmpty() {
+        // Mirrors what CompositeRolesStore passes when a role has no application privileges at
+        // all (e.g. an index-privileges-only role) - the provider isn't even invoked in
+        // production for that case, but it must degrade gracefully regardless.
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(List.of());
         assertThat(result, is(empty()));
     }
 
@@ -273,7 +283,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("feature_all_cases", "space:marketing");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, hasSize(1));
         assertThat(result.iterator().next().getQuery().utf8ToString(), containsString("marketing"));
     }
@@ -290,7 +302,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("feature_multi_owner_cases", "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, hasSize(2));
         boolean sawObservability = false;
         boolean sawSecuritySolution = false;
@@ -339,7 +353,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("feature_security_cases_all", "space:marketing");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, hasSize(1));
         assertThat(result.iterator().next().getQuery().utf8ToString(), containsString("marketing"));
     }
@@ -351,7 +367,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = roleWithApplication("kibana-*", "feature_cases_read", "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, hasSize(1));
         assertThat(result.iterator().next().getQuery().utf8ToString(), containsString("default"));
     }
@@ -361,7 +379,7 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         // but the raw-pattern branch should still pick this up.
         RoleDescriptor roleDescriptor = role(GET_CASE_ACTION_CASES, "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, List.of());
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(resolve(roleDescriptor, List.of()));
         assertThat(result, hasSize(1));
         assertThat(result.iterator().next().getQuery().utf8ToString(), containsString("default"));
     }
@@ -370,7 +388,7 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         // privileges=["cases:*"] matches all three owners' getCase actions.
         RoleDescriptor roleDescriptor = role("cases:*", "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, List.of());
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(resolve(roleDescriptor, List.of()));
         assertThat(result, hasSize(3));
     }
 
@@ -379,7 +397,7 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         // entry still carries its own owner filter.
         RoleDescriptor roleDescriptor = role("*", "*");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, List.of());
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(resolve(roleDescriptor, List.of()));
         assertThat(result, hasSize(3));
         for (RoleDescriptor.IndicesPrivileges privilege : result) {
             assertThat(privilege.getQuery(), is(notNullValue()));
@@ -391,7 +409,7 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         // Combined: application wildcard + privilege pattern, no stored descriptors needed.
         RoleDescriptor roleDescriptor = roleWithApplication("kibana-*", "cases:observability/*", "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, List.of());
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(resolve(roleDescriptor, List.of()));
         assertThat(result, hasSize(1));
         assertThat(result.iterator().next().getQuery().utf8ToString(), containsString("default"));
     }
@@ -400,7 +418,7 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         // "shield*" must not match "kibana-.kibana" even when the privilege pattern would otherwise match.
         RoleDescriptor roleDescriptor = roleWithApplication("shield*", "cases:*", "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, List.of());
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(resolve(roleDescriptor, List.of()));
         assertThat(result, is(empty()));
     }
 
@@ -410,7 +428,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("feature_alerts_only", "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, is(empty()));
     }
 
@@ -420,9 +440,29 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         );
         RoleDescriptor roleDescriptor = role("cases_read", "space:default");
 
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
         assertThat(result, hasSize(1));
         assertThat(result.iterator().next().getIndices(), arrayContainingInAnyOrder(CASES_INDICES));
+    }
+
+    /**
+     * Resolves a role's declared application privileges into {@link ResolvedApplicationPrivilege}s exactly as
+     * {@code CompositeRolesStore} does before invoking the provider: each {@code (application, privileges[])} grant is
+     * resolved against the stored descriptors (which builds the action automaton), paired with the block's resources.
+     */
+    private static Collection<ResolvedApplicationPrivilege> resolve(
+        RoleDescriptor roleDescriptor,
+        Collection<ApplicationPrivilegeDescriptor> stored
+    ) {
+        final List<ResolvedApplicationPrivilege> resolved = new ArrayList<>();
+        for (RoleDescriptor.ApplicationResourcePrivileges arp : roleDescriptor.getApplicationPrivileges()) {
+            final Set<String> resources = new HashSet<>(Arrays.asList(arp.getResources()));
+            ApplicationPrivilege.get(arp.getApplication(), new HashSet<>(Arrays.asList(arp.getPrivileges())), stored)
+                .forEach(privilege -> resolved.add(new ResolvedApplicationPrivilege(privilege, resources)));
+        }
+        return resolved;
     }
 
     private static RoleDescriptor role(String privilegeName, String... resources) {

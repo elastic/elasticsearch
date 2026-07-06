@@ -11,15 +11,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
-import org.elasticsearch.xpack.core.security.support.StringMatcher;
+import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -90,17 +90,9 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
 
     @Override
     public Collection<RoleDescriptor.IndicesPrivileges> getImplicitIndicesPrivileges(
-        RoleDescriptor roleDescriptor,
-        Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
+        Collection<ResolvedApplicationPrivilege> applicationPrivileges
     ) {
-        // This provider derives privileges from the role's application privileges, so there is
-        // nothing to contribute (and no need to scan the stored privileges) when the role has none.
-        RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = roleDescriptor.getApplicationPrivileges();
-        if (applicationPrivileges.length == 0) {
-            return List.of();
-        }
-
-        Map<String, Set<String>> resourcesByOwner = collectResourcesByOwner(applicationPrivileges, storedApplicationPrivileges);
+        Map<String, Set<String>> resourcesByOwner = collectResourcesByOwner(applicationPrivileges);
         if (resourcesByOwner.isEmpty()) {
             return List.of();
         }
@@ -141,79 +133,46 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
     }
 
     /**
-     * Union of resources, grouped by owner, from every role application-privilege block that
-     * targets the Kibana application <i>and</i> grants that owner's {@code getCase} action. A
-     * block grants an owner's action if either:
-     *
-     * <ol>
-     *   <li><b>Resolved-name path</b>: the role's {@code privileges[]} names a stored Kibana
-     *       {@link ApplicationPrivilegeDescriptor} whose {@code actions} set matches the owner's
-     *       {@code cases:<owner>/getCase} action. The {@code actions} set may be a list of
-     *       concrete entries or contain wildcard patterns; either form qualifies.</li>
-     *   <li><b>Raw-pattern path</b>: the role's {@code privileges[]} entries are themselves
-     *       action patterns rather than stored privilege names, and at least one of them matches
-     *       the owner's action directly (e.g. {@code "cases:securitySolution/*"} or
-     *       {@code "*"} written directly under {@code privileges[]}). {@code
-     *       NativePrivilegeStore#getPrivileges} returns no descriptors for entries that do not
-     *       name a stored privilege, so the role descriptor itself is the only signal we have for
-     *       this case.</li>
-     * </ol>
-     *
-     * Both paths honor wildcard application names on the role descriptor (e.g. {@code
-     * "kibana-*"}, {@code "*"}). A single block whose privileges match more than one owner's
-     * action (e.g. a {@code "*"} pattern, or a stored privilege bundling multiple owners)
-     * contributes its resources to every matching owner independently.
+     * Union of resources, grouped by owner, from every resolved application-privilege grant that
+     * targets the Kibana application <i>and</i> authorizes that owner's {@code getCase} action.
+     * <p>
+     * Each {@link ResolvedApplicationPrivilege} carries a resolved {@link ApplicationPrivilege}
+     * whose {@link ApplicationPrivilege#predicate() predicate} already matches every action the
+     * grant authorizes &mdash; both the actions of any stored privilege the role referenced by
+     * name <em>and</em> any raw action patterns written directly under {@code privileges[]} (e.g.
+     * {@code "cases:securitySolution/*"} or {@code "*"}) &mdash; so a single
+     * {@code predicate().test(...)} per owner action settles whether the grant authorizes it. A
+     * single grant whose predicate matches more than one owner's action (e.g. a {@code "*"}
+     * pattern, or a stored privilege bundling multiple owners) contributes its resources to every
+     * matching owner independently.
      */
-    private static Map<String, Set<String>> collectResourcesByOwner(
-        RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges,
-        Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
-    ) {
-        Map<String, Set<String>> kibanaPrivilegeNamesGrantingActionByOwner = new HashMap<>();
-        for (String action : GET_CASE_ACTIONS_BY_OWNER.keySet()) {
-            Set<String> names = storedApplicationPrivileges.stream()
-                .filter(d -> KIBANA_APPLICATION.equals(d.getApplication()))
-                .filter(d -> StringMatcher.of(d.getActions()).test(action))
-                .map(ApplicationPrivilegeDescriptor::getName)
-                .collect(Collectors.toSet());
-            kibanaPrivilegeNamesGrantingActionByOwner.put(action, names);
-        }
-
+    private static Map<String, Set<String>> collectResourcesByOwner(Collection<ResolvedApplicationPrivilege> applicationPrivileges) {
         Map<String, Set<String>> resourcesByOwner = new HashMap<>();
-        for (RoleDescriptor.ApplicationResourcePrivileges arp : applicationPrivileges) {
-            // Application field may be a literal ("kibana-.kibana") or a wildcard ("kibana-*", "*");
-            // StringMatcher handles both: it matches a literal with an exact-string predicate and only
-            // builds an automaton for entries that actually contain wildcard characters.
-            if (StringMatcher.of(arp.getApplication()).test(KIBANA_APPLICATION) == false) {
+        for (ResolvedApplicationPrivilege resolved : applicationPrivileges) {
+            final ApplicationPrivilege privilege = resolved.privilege();
+            if (applicationMatchesKibana(privilege.getApplication()) == false) {
                 continue;
             }
 
-            String[] privileges = arp.getPrivileges();
-            // Built once per block and reused across all three owner actions below, rather than
-            // rebuilding it per action - StringMatcher.of constructs an Automaton for wildcard
-            // patterns, and that cost shouldn't be paid three times for the same privileges array.
-            StringMatcher privilegeMatcher = StringMatcher.of(privileges);
             for (Map.Entry<String, String> actionAndOwner : GET_CASE_ACTIONS_BY_OWNER.entrySet()) {
-                String action = actionAndOwner.getKey();
-                String owner = actionAndOwner.getValue();
-                Set<String> namesGrantingAction = kibanaPrivilegeNamesGrantingActionByOwner.get(action);
-
-                // Short-circuit on the resolved-name path (cheap set lookup) before matching the
-                // raw-pattern path with StringMatcher.
-                boolean grantsActionByName = false;
-                for (String privilege : privileges) {
-                    if (namesGrantingAction.contains(privilege)) {
-                        grantsActionByName = true;
-                        break;
-                    }
-                }
-
-                if (grantsActionByName || privilegeMatcher.test(action)) {
-                    Collections.addAll(resourcesByOwner.computeIfAbsent(owner, k -> new HashSet<>()), arp.getResources());
+                if (privilege.predicate().test(actionAndOwner.getKey())) {
+                    resourcesByOwner.computeIfAbsent(actionAndOwner.getValue(), k -> new HashSet<>()).addAll(resolved.resources());
                 }
             }
         }
-
         return resourcesByOwner;
+    }
+
+    /**
+     * Whether a resolved privilege's application targets the Kibana application. Resolution
+     * expands wildcard application names against the stored privileges, so the value is normally
+     * concrete and settled by equality; a residual wildcard (e.g. {@code "kibana-*"} or
+     * {@code "*"} with no matching stored descriptor) is matched with an automaton.
+     */
+    private static boolean applicationMatchesKibana(String application) {
+        return application.contains("*")
+            ? Automatons.predicate(application).test(KIBANA_APPLICATION)
+            : KIBANA_APPLICATION.equals(application);
     }
 
     // Both query builders below are hand-rolled rather than QueryBuilders.termQuery/termsQuery so

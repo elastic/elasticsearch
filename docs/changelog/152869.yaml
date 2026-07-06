@@ -1,0 +1,5 @@
+pr: 152869
+summary: Update the rerank endpoint for the Elastic inference service
+area: Inference
+type: enhancement
+issues: []

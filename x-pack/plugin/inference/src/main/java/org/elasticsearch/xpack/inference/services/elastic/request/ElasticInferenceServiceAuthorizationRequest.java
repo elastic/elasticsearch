@@ -11,8 +11,10 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
@@ -33,9 +35,10 @@ public class ElasticInferenceServiceAuthorizationRequest extends ElasticInferenc
         String url,
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata requestMetadata,
-        CCMAuthenticationApplierFactory.AuthApplier authApplier
+        CCMAuthenticationApplierFactory.AuthApplier authApplier,
+        @Nullable InferencePreferences preferences
     ) {
-        super(requestMetadata, authApplier);
+        super(requestMetadata, preferences, authApplier);
         this.uri = createUri(Objects.requireNonNull(url));
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }

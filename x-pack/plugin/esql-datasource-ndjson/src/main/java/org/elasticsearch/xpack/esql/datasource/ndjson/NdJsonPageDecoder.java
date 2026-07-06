@@ -111,6 +111,31 @@ public class NdJsonPageDecoder implements Closeable {
      * {@link #recoverFromParseException} restarts the parser at a later offset.
      */
     private int parserSliceStart;
+
+    /**
+     * Record-offset tracking for the orthogonal per-stripe stats path. Enabled by
+     * {@link #enableRecordOffsetTracking(long)}: {@link #decodePage()} then records every decoded record's
+     * own file-global start offset (the byte of its opening brace, scan-invariant) into
+     * {@link #lastPageRecordOffsets} so the iterator can attribute each row to its canonical stripe
+     * ({@code floor(offset / B)}) — exactly as the CSV reader uses its per-row {@code rowStartBytes}. The
+     * page is NOT capped at stripe lines: byte-range cover attribution by record offset needs no page
+     * alignment. {@code baseOffset} is this read's first byte in file/decompressed coordinates; the absolute
+     * offset of the START of the parser's current token (a record's opening brace) is {@code baseOffset +
+     * parserSliceStart + parser.getTokenLocation().getByteOffset()} — see {@link #tokenStartOffset()}, which
+     * uses the token-start location (not the current/end location) so attribution is scan-invariant. Disabled
+     * by default — a pure stats overlay, never affecting page contents.
+     */
+    private long statsBaseOffset = 0L;
+    private boolean recordOffsetTracking = false;
+    /**
+     * Per-record file-global start offsets of the page {@link #decodePage()} last returned, filled positionally
+     * with the page's rows when {@link #recordOffsetTracking} is on. Reused across pages; only the first
+     * {@link #lastPageRecordCount} entries are meaningful.
+     */
+    private long[] lastPageRecordOffsets = new long[0];
+    /** Number of meaningful entries in {@link #lastPageRecordOffsets} for the last page. */
+    private int lastPageRecordCount;
+
     private final BlockDecoder decoder;
     private final int batchSize;
     private final BlockFactory blockFactory;
@@ -160,6 +185,25 @@ public class NdJsonPageDecoder implements Closeable {
     private boolean truncated = false;
     /** File-global byte offset where the oversized record that triggered {@link #truncated} began. */
     private long truncatedAtByte = -1L;
+    /**
+     * Set when the BYTE-ARRAY path drops an oversized record and keeps decoding. Unlike {@link #truncated}
+     * (streaming, which stops at the record), the byte-array path recovers, so the emitted rows are complete
+     * EXCEPT the dropped one — a {@code max_record_size}-dependent under-count. Since {@code max_record_size}
+     * is a query pragma and not in the cache fingerprint ({@code SchemaCacheKey.FORMAT_AFFECTING_PARAMS}), a
+     * warm aggregate under a different cap would count differently, so {@link NdJsonPageIterator} must keep
+     * this scan out of the stats cache (safe-miss). Mirrors CSV's {@code recordCapDropped} guard.
+     */
+    private boolean capDropped = false;
+    /**
+     * Set when a lenient-mode parse-error recovery on the STREAMING ({@link InputStream}) path rebuilt the parser
+     * over the remaining stream ({@link #recoverFromParseException}'s {@code sourceBytes == null} branch): the new
+     * parser's byte offsets restart at the recovery point while {@link #parserSliceStart} stays 0, so every
+     * subsequent {@link #tokenStartOffset()} is short by the bytes consumed before recovery — record offsets are no
+     * longer file-global. Per-stripe attribution derived from them would commit records to EARLIER stripes, and
+     * NDJSON has no emit-time byte-exactness tripwire (unlike CSV), so {@link NdJsonPageIterator} must safe-miss
+     * stripe capture. The byte-array recovery path re-anchors {@link #parserSliceStart} exactly and is immune.
+     */
+    private boolean offsetBaselineLost = false;
 
     /** Page block layout: index {@code i} corresponds to {@code projectedAttributes().get(i)}. */
     List<Attribute> projectedAttributes() {
@@ -179,6 +223,35 @@ public class NdJsonPageDecoder implements Closeable {
     /** Number of malformed records observed during decoding (lenient policies swallow these). */
     long errorCount() {
         return errorCount;
+    }
+
+    /**
+     * Enables per-record offset tracking so {@link #decodePage()} fills {@link #lastPageRecordOffsets} with
+     * each row's own file-global start byte. Does NOT cap pages at stripe lines — the iterator attributes
+     * rows to stripes by their recorded offsets via the byte-range cover model.
+     */
+    void enableRecordOffsetTracking(long baseOffset) {
+        this.statsBaseOffset = baseOffset;
+        this.recordOffsetTracking = true;
+    }
+
+    /**
+     * Absolute file offset of the START of the most recently read token — for a record's {@code START_OBJECT}
+     * this is the byte of its opening brace. A record's own start is independent of how the file is chunked,
+     * so {@code floor(thisOffset / B)} attributes the record to the same stripe under every scan.
+     */
+    private long tokenStartOffset() {
+        return statsBaseOffset + parserSliceStart + parser.getTokenLocation().getByteOffset();
+    }
+
+    /** Per-record file-global start offsets of the last decoded page; valid for the first {@link #lastPageRecordCount()} rows. */
+    long[] lastPageRecordOffsets() {
+        return lastPageRecordOffsets;
+    }
+
+    /** Number of meaningful entries in {@link #lastPageRecordOffsets()} (== the last page's row count when tracking is on). */
+    int lastPageRecordCount() {
+        return lastPageRecordCount;
     }
 
     /**
@@ -404,6 +477,11 @@ public class NdJsonPageDecoder implements Closeable {
         } else {
             this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
             this.parser = jsonFactory.createParser(this.input);
+            // The fresh parser's byte offsets restart at the recovery point while parserSliceStart stays 0, so
+            // every subsequent tokenStartOffset() is short by the pre-recovery bytes. Record offsets are no longer
+            // file-global — any per-stripe attribution derived from them is skewed; NdJsonPageIterator safe-misses
+            // stripe capture. (The byte-array branch above re-anchors parserSliceStart exactly, so it is immune.)
+            this.offsetBaselineLost = true;
         }
     }
 
@@ -456,6 +534,33 @@ public class NdJsonPageDecoder implements Closeable {
                 + "): "
                 + e.getOriginalMessage()
         );
+        checkErrorBudgetOrThrow();
+        logger.log(
+            errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
+            // The (Object) cast on the first vararg is required: a String-typed first vararg makes this
+            // call ambiguously resolve to the unrelated format(String prefix, String pattern, Object...
+            // args) overload instead of format(String pattern, Object... args), silently discarding the
+            // pattern and every argument but the first (confirmed empirically; not exercised by any
+            // existing assertion since this is a log-only message).
+            LoggerMessageFormat.format(
+                "{} NDJSON at logical row [{}] ({}): {}",
+                (Object) (e instanceof JsonEOFException ? "Truncated" : "Malformed"),
+                logicalRowIndex,
+                phaseLabel,
+                e.getOriginalMessage()
+            )
+        );
+    }
+
+    /**
+     * Throws when the non-strict error budget ({@code max_errors}/{@code max_error_ratio}) has been
+     * exceeded, after first surfacing a client warning describing what tripped it. Shared by every
+     * non-strict error path ({@link #onNdjsonLineParseError} and {@link BlockDecoder#shapeConflict})
+     * so the budget is enforced consistently regardless of which kind of error incremented
+     * {@link #errorCount}. Callers must have already incremented {@link #errorCount} for the
+     * current error.
+     */
+    private void checkErrorBudgetOrThrow() {
         if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
             // Surface the budget-exceeded condition as a warning so clients see exactly what tripped it.
             skipWarnings.add(
@@ -477,16 +582,6 @@ public class NdJsonPageDecoder implements Closeable {
                 errorPolicy.maxErrorRatio()
             );
         }
-        logger.log(
-            errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
-            LoggerMessageFormat.format(
-                "{} NDJSON at logical row [{}] ({}): {}",
-                e instanceof JsonEOFException ? "Truncated" : "Malformed",
-                logicalRowIndex,
-                phaseLabel,
-                e.getOriginalMessage()
-            )
-        );
     }
 
     /**
@@ -536,6 +631,19 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
+     * True when the byte-array path dropped an oversized record and kept decoding — a
+     * {@code max_record_size}-dependent under-count that must not be cached. See {@link #capDropped}.
+     */
+    boolean capDropped() {
+        return capDropped;
+    }
+
+    /** Whether a streaming-path recovery reset the parser byte baseline (record offsets no longer file-global). */
+    boolean offsetBaselineLost() {
+        return offsetBaselineLost;
+    }
+
+    /**
      * Parser byte offset relative to its current slice. Stable to subtract between two points within
      * a single record's decode (no recovery happens between {@code nextToken} and a successful
      * {@code decodeObject}), so {@code endOffset - startOffset} is the record's parsed JSON span.
@@ -575,6 +683,14 @@ public class NdJsonPageDecoder implements Closeable {
         long startTotalRowCount = totalRowCount;
         long startErrorCount = errorCount;
         var blockBuilders = new Block.Builder[projectedAttributes.size()];
+        // Per-record offset tracking: each decoded record's own start offset is recorded into
+        // lastPageRecordOffsets so the iterator can attribute rows to canonical stripes by the byte-range
+        // cover model. Pages are NOT capped at stripe lines — a page may span stripes; the iterator splits
+        // its rows by their recorded offsets. Reset the per-page count before decoding.
+        lastPageRecordCount = 0;
+        if (recordOffsetTracking && lastPageRecordOffsets.length < batchSize) {
+            lastPageRecordOffsets = new long[batchSize];
+        }
         // Setting up builders may trip the circuit breaker. Make sure they're all always closed
         try {
             decoder.setupBuilders(blockBuilders);
@@ -602,8 +718,12 @@ public class NdJsonPageDecoder implements Closeable {
                 }
             } catch (JsonParseException e) {
                 totalRowCount++;
-                onNdjsonLineParseError(e, totalRowCount, "nextToken");
+                onNdjsonLineParseError(e, totalRowCount, "nextToken"); // FAIL_FAST: throws
             }
+            // Record-canonical stripe attribution: this record belongs to floor(itsOwnStart / B), captured
+            // from its START_OBJECT byte before decodeObject advances the parser. Pages are not capped at
+            // stripe lines; the iterator splits the page's rows by their offsets (byte-range cover model).
+            long stripeRecordStart = recordOffsetTracking ? tokenStartOffset() : 0L;
 
             totalRowCount++;
             this.blockTracker.clear();
@@ -641,12 +761,18 @@ public class NdJsonPageDecoder implements Closeable {
                 blockTracker.set(rowPositionSlot);
             }
 
+            if (recordOffsetTracking) {
+                lastPageRecordOffsets[lineCount] = stripeRecordStart;
+            }
             lineCount++;
             for (int i = 0; i < blockBuilders.length; i++) {
                 if (blockTracker.get(i) == false) {
                     blockBuilders[i].appendNull();
                 }
             }
+        }
+        if (recordOffsetTracking) {
+            lastPageRecordCount = lineCount;
         }
         return buildPageFromBuildersOrNull(blockBuilders, lineCount);
     }
@@ -674,6 +800,9 @@ public class NdJsonPageDecoder implements Closeable {
                 recoverFromParseException(parser);
                 continue;
             }
+            // Record-canonical stripe attribution (see decodePageFailFast): the record's own START_OBJECT byte,
+            // captured before decodeObject / recovery advance the parser. Recorded only for committed rows.
+            long stripeRecordStart = recordOffsetTracking ? tokenStartOffset() : 0L;
 
             totalRowCount++;
             this.blockTracker.clear();
@@ -724,7 +853,10 @@ public class NdJsonPageDecoder implements Closeable {
                             truncatedAtByte = recordOffset;
                             break;
                         }
-                        // Byte-array: the oversized record is fully buffered, so drop it and keep decoding.
+                        // Byte-array: the oversized record is fully buffered, so drop it and keep decoding. The
+                        // dropped record makes the row count max_record_size-dependent, so mark the scan
+                        // uncacheable (the iterator safe-misses on capDropped) — the cap is not fingerprinted.
+                        capDropped = true;
                         continue;
                     }
                 }
@@ -742,7 +874,13 @@ public class NdJsonPageDecoder implements Closeable {
                 Releasables.close(rowScratch);
             }
 
+            if (recordOffsetTracking) {
+                lastPageRecordOffsets[lineCount] = stripeRecordStart;
+            }
             lineCount++;
+        }
+        if (recordOffsetTracking) {
+            lastPageRecordCount = lineCount;
         }
         return buildPageFromBuildersOrNull(blockBuilders, lineCount);
     }
@@ -1093,16 +1231,24 @@ public class NdJsonPageDecoder implements Closeable {
         /**
          * Decodes the current JSON value into this decoder's block (or, for a structural prefix node, recurses into
          * its children). NDJSON is schema-on-read: the inferred/bound schema flattens nested objects to dotted leaf
-         * columns, so a value whose shape does not match the schema is not a hard error. Type mismatches are
-         * null-filled for the affected column(s) rather than failing the query:
+         * columns, so most value/schema shape mismatches are not a hard error and are null-filled for the affected
+         * column(s) rather than failing the query:
          * <ul>
-         *   <li>a JSON {@code null} (or a scalar) where an object was expected on a structural prefix node leaves its
-         *       leaf columns null for that row;</li>
+         *   <li>a JSON {@code null} where an object was expected on a structural prefix node leaves its leaf columns
+         *       null for that row (e.g. an intermittently-null nested object across millions of records) — logged at
+         *       {@code DEBUG} only, never {@code WARN}, since surfacing it by default would flood the log without
+         *       giving the cluster admin an actionable signal;</li>
+         *   <li>a stray scalar among a heterogeneous array of objects is likewise null-filled and {@code DEBUG}-logged
+         *       (a distinct, supported shape from the point below), and symmetrically a stray object among a
+         *       heterogeneous array of scalars is simply omitted from that column's multi-value entry and
+         *       {@code DEBUG}-logged — neither direction is the record-level conflict below;</li>
          *   <li>a scalar of the wrong primitive type is reported via {@link #unexpectedValue} and null-filled.</li>
          * </ul>
-         * These mismatches are logged at {@code DEBUG} only, never {@code WARN}: they are per-row data-shape quirks
-         * (e.g. an intermittently-null nested object across millions of records), so surfacing them at a
-         * default-enabled level would flood the log without giving the cluster admin an actionable signal.
+         * The one genuine hard-error case is a top-level (non-array) scalar/object shape conflict — a field that is a
+         * scalar in some records and an object in others — handled by {@link #shapeConflict}: this is routed through
+         * {@link ErrorPolicy} like any other unparseable value ({@code FAIL_FAST} fails the query, other modes
+         * null-fill and warn) rather than silently decoded, because core ES dynamic mapping treats the same ambiguity
+         * as a hard document-parsing conflict. See elastic/esql-planning#1028.
          */
         private void decodeValue(JsonParser parser, boolean inArray) throws IOException {
             JsonToken token = parser.currentToken();
@@ -1122,19 +1268,32 @@ public class NdJsonPageDecoder implements Closeable {
                     // `includeChildren` gates opening the child MV entries and must reflect whether the array
                     // actually contains an object: otherwise later objects append into never-opened child builders,
                     // misaligning rows across columns. Skip leading elements that cannot open this node's MV entry:
-                    // - a leaf node only skips leading JSON nulls (its scalars are real values);
-                    // - a structural (prefix) node carries no scalar values of its own, so it also skips leading
-                    // stray scalars (e.g. [null, "x", {"type":"a"}]) until the first object or the array end.
+                    // - a structural (prefix) node carries no scalar values of its own, so it skips leading
+                    // stray scalars (e.g. [null, "x", {"type":"a"}]) until the first object or the array end;
+                    // - symmetrically, a scalar leaf skips leading stray objects (e.g. [null, {"x":1}, "a"]) until
+                    // the first scalar or the array end: without this, an all-object array on a scalar leaf would
+                    // call beginPositionEntry() and then never append a value before endPositionEntry(), which
+                    // AbstractBlockBuilder#endPositionEntry() asserts against (see appendNullsForEmptyArray).
                     JsonToken first = parser.nextToken();
                     while (first == JsonToken.VALUE_NULL
-                        || (blockBuilder == null && first != null && first != JsonToken.START_OBJECT && first != JsonToken.END_ARRAY)) {
-                        if (blockBuilder == null && first != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
-                            logger.debug(
-                                "Expected object in array for nested field [{}] but got {} at {}",
-                                parser.getParsingContext().pathAsPointer(),
-                                first,
-                                parser.getTokenLocation()
-                            );
+                        || (blockBuilder == null && first != null && first != JsonToken.START_OBJECT && first != JsonToken.END_ARRAY)
+                        || (dataType != null && first == JsonToken.START_OBJECT)) {
+                        if (first != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
+                            if (blockBuilder == null) {
+                                logger.debug(
+                                    "Expected object in array for nested field [{}] but got {} at {}",
+                                    parser.getParsingContext().pathAsPointer(),
+                                    first,
+                                    parser.getTokenLocation()
+                                );
+                            } else {
+                                logger.debug(
+                                    "Expected scalar type [{}] for attribute [{}] but got object at {}",
+                                    dataType.typeName(),
+                                    name,
+                                    parser.getTokenLocation()
+                                );
+                            }
                         }
                         parser.skipChildren(); // no-op for scalar/null tokens; safe to call here
                         first = parser.nextToken();
@@ -1159,27 +1318,71 @@ public class NdJsonPageDecoder implements Closeable {
             }
 
             if (token == JsonToken.START_OBJECT) {
+                if (dataType != null) {
+                    if (inArray) {
+                        // A stray object among a heterogeneous array of scalars is a distinct, supported shape
+                        // (mirrors the stray-scalar-among-objects case below), not the record-level scalar/object
+                        // conflict this issue targets: the array's other scalar elements still decode and
+                        // contribute to this column's multi-value entry, this element is simply omitted from it.
+                        // Guarded by isDebugEnabled() so the JsonLocation allocation is skipped when DEBUG is off,
+                        // since this can fire per-element across millions of records.
+                        if (logger.isDebugEnabled()) {
+                            logger.debug(
+                                "Expected scalar type [{}] for attribute [{}] but got object at {}",
+                                dataType.typeName(),
+                                name,
+                                parser.getTokenLocation()
+                            );
+                        }
+                        parser.skipChildren();
+                        return;
+                    }
+                    // Scalar leaf receiving an object value outside an array: a genuine scalar/object schema
+                    // conflict (elastic/esql-planning#1028), not routine schema-on-read flattening. With
+                    // single-shape schema inference (see NdJsonSchemaInferrer) this can only happen when
+                    // the actual data diverges from the shape observed during sampling, so — unlike the
+                    // routine mismatches above — it is routed through ErrorPolicy instead of silently
+                    // decoded (which would otherwise skip the object's fields with no trace).
+                    shapeConflict(parser, name, "an object", "scalar type [" + dataType.typeName() + "]");
+                    return;
+                }
                 decodeObject(parser, inArray);
                 return;
             }
 
             if (blockBuilder == null) {
                 // Structural (prefix) node with no scalar builder of its own: the schema only knows dotted leaf
-                // columns for this field (e.g. "address.city"/"address.zip"), but this row holds a JSON null or a
-                // scalar where an object was expected. Leave the leaf descendants untracked so the end-of-row fill
-                // assigns them null, mirroring how missing fields and empty arrays are handled. This keeps datasets
-                // with occasionally-null nested objects (e.g. CloudTrail "responseElements": null) queryable.
-                if (token != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
-                    // Structural nodes never receive setAttribute(), so `name` is null here; derive the JSON path
-                    // (e.g. /userIdentity/sessionContext) from the parser context so large files can be diagnosed.
-                    // Guarded by isDebugEnabled() so the JsonPointer/JsonLocation allocations are skipped when DEBUG
-                    // is off, since this can fire per-row across millions of records.
-                    logger.debug(
-                        "Expected object for nested field [{}] but got {} at {}",
-                        parser.getParsingContext().pathAsPointer(),
-                        token,
-                        parser.getTokenLocation()
-                    );
+                // columns for this field (e.g. "address.city"/"address.zip"). A JSON null is the common,
+                // legitimate case (e.g. CloudTrail "responseElements": null) and stays silent either way.
+                if (token != JsonToken.VALUE_NULL) {
+                    if (inArray) {
+                        // A stray scalar among a heterogeneous array of objects is a distinct, supported
+                        // shape (see the array-handling block above), not the record-level scalar/object
+                        // conflict this issue targets. Leave the leaf descendants untracked so the
+                        // end-of-row fill assigns them null, mirroring missing fields/empty arrays.
+                        // Guarded by isDebugEnabled() so the JsonPointer/JsonLocation allocations are
+                        // skipped when DEBUG is off, since this can fire per-row across millions of records.
+                        if (logger.isDebugEnabled()) {
+                            logger.debug(
+                                "Expected object for nested field [{}] but got {} at {}",
+                                parser.getParsingContext().pathAsPointer(),
+                                token,
+                                parser.getTokenLocation()
+                            );
+                        }
+                    } else {
+                        // Genuine scalar/object schema conflict (elastic/esql-planning#1028): route
+                        // through ErrorPolicy instead of silently null-filling. Structural nodes never
+                        // receive setAttribute(), so `name` is null here; derive the JSON path (e.g.
+                        // /userIdentity/sessionContext) from the parser context to identify the field.
+                        shapeConflict(
+                            parser,
+                            parser.getParsingContext().pathAsPointer().toString(),
+                            describeScalarShape(token),
+                            "an object"
+                        );
+                        return;
+                    }
                 }
                 parser.skipChildren();
                 return;
@@ -1268,5 +1471,62 @@ public class NdJsonPageDecoder implements Closeable {
             // Ignore any children to keep reading other values
             parser.skipChildren();
         }
+
+        /**
+         * Handles a value whose JSON shape (scalar vs. object) conflicts with the shape {@code fieldLabel}
+         * resolved to from earlier records: a scalar-typed leaf receiving {@code START_OBJECT}, or an
+         * object-shaped (structural) node receiving a non-null scalar. Core ES dynamic mapping treats this
+         * as a hard document-parsing conflict; here it is routed through {@link ErrorPolicy} instead of the
+         * pre-#1028 silent {@code skipChildren()}: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with
+         * an actionable message naming both shapes; other modes null-fill this field only (the row's other
+         * columns already decoded) and surface the same message as a client warning. See
+         * elastic/esql-planning#1028.
+         */
+        private void shapeConflict(JsonParser parser, String fieldLabel, String actualShape, String resolvedShape) throws IOException {
+            // Built via concatenation, not LoggerMessageFormat.format: a String-typed first vararg
+            // would resolve to the ambiguous format(String prefix, String pattern, Object... args)
+            // overload instead of format(String pattern, Object... args), silently mangling the message.
+            String message = "field ["
+                + fieldLabel
+                + "] at line ["
+                + totalRowCount
+                + "]: value is "
+                + actualShape
+                + ", but ["
+                + fieldLabel
+                + "] resolved to "
+                + resolvedShape
+                + " from earlier records — this record's ["
+                + fieldLabel
+                + "] is null. A field that appears as both a scalar and an object across NDJSON "
+                + "records cannot be represented as one type; make the field's shape consistent, or "
+                + "model it as separate fields.";
+            parser.skipChildren();
+            if (errorPolicy.isStrict()) {
+                throw new EsqlIllegalArgumentException(message);
+            }
+            errorCount++;
+            skipWarnings.add(message);
+            checkErrorBudgetOrThrow();
+            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);
+        }
+    }
+
+    /**
+     * Short description of a scalar {@link JsonToken}'s JSON type, for {@link BlockDecoder#shapeConflict} messages.
+     * Only called for a token that reached the structural-node scalar branch of {@link BlockDecoder#decodeValue},
+     * which has already excluded {@code VALUE_NULL}, {@code START_ARRAY}/{@code START_OBJECT} (handled earlier) and
+     * {@code END_ARRAY}/{@code END_OBJECT}/{@code FIELD_NAME} (never the current token where a value is expected);
+     * {@code VALUE_EMBEDDED_OBJECT} cannot occur either, since {@link NdJsonUtils#JSON_FACTORY} only ever parses
+     * text JSON, never a binary format (CBOR/Smile) that could produce one. The remaining {@link JsonToken} values
+     * are exactly the five enumerated below, so the {@code default} is unreachable.
+     */
+    private static String describeScalarShape(JsonToken token) {
+        return switch (token) {
+            case VALUE_STRING -> "a string";
+            case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT -> "a number";
+            case VALUE_TRUE, VALUE_FALSE -> "a boolean";
+            default -> throw new AssertionError("Unreachable: unexpected scalar token [" + token + "]");
+        };
     }
 }

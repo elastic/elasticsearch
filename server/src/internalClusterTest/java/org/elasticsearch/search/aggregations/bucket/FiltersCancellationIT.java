@@ -110,6 +110,10 @@ public class FiltersCancellationIT extends ESIntegTestCase {
                 bulk.add(prepareIndex(INDEX).setId(Integer.toString(docId)).setSource(NUMERIC_FIELD, docId));
             }
             bulk.get();
+            // Wait for all shard copies to be started so the flush below reaches every copy in the replication
+            // group. Right after the index is created a replica can still be initializing, which would make the
+            // broadcast flush report fewer successful shards than the total (with no failures) and trip the assertion.
+            ensureGreen(INDEX);
             // Flush to clear all the assertion translog *stuff*. Else we can oom the cluster.
             assertAllSuccessful(client().admin().indices().prepareFlush(INDEX).get());
         }

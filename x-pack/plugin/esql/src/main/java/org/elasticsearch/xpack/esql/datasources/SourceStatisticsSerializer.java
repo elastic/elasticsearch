@@ -356,9 +356,9 @@ public final class SourceStatisticsSerializer {
      * and ORC always writes {@code null_count}, so any column-family key in a per-file map is
      * sufficient to mark the column as physically present in that file. The rare exception is
      * Parquet writing a column with stats disabled — present, with {@code size_bytes}, but no
-     * {@code null_count}. We refuse to fabricate a null count in that case: the merged map
-     * drops the {@code null_count} entry entirely (via {@code poisonedNullCounts}), so
-     * downstream consumers see "unknown" and fall back rather than under-count.
+     * {@code null_count}. We refuse to fabricate a null count in that case: the cross-file fold marks the
+     * column's {@code null_count} poisoned and drops the entry, so downstream consumers see "unknown" and fall
+     * back rather than under-count.
      * <p>
      * Min/max/size_bytes accumulators are unchanged: they only sum across files where the
      * column is present, which is the correct semantics regardless of implicit nulls.

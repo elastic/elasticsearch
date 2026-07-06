@@ -251,14 +251,15 @@ final class SplitFilterClassifier {
      * would MATCH {@code IS NULL} (serving a count of N where the truth is 0) or MISS {@code IS NOT NULL}
      * (serving 0 where the truth is N). When the format does not apply implicit nulls and the column was
      * not observed, the classification is unknowable from stats — AMBIGUOUS, so the engine re-scans.
-     * This mirrors {@link ExternalSourceAggregatePushdown#columnStatUnservable} on the aggregate side.
+     * This delegates to {@link ExternalSourceAggregatePushdown#columnStatUnservable} — the single owner of the
+     * "unharvested text column is unservable" rule, shared with the aggregate side.
      */
     private static SplitMatch classifyIsNull(IsNull isNull, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
         String columnName = extractColumnName(isNull.field());
         if (columnName == null) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (implicitNullsForAbsentColumn == false && splitStats.hasColumn(columnName) == false) {
+        if (ExternalSourceAggregatePushdown.columnStatUnservable(splitStats, columnName, implicitNullsForAbsentColumn)) {
             return SplitMatch.AMBIGUOUS;
         }
         long nullCount = splitStats.columnNullCount(columnName);
@@ -284,7 +285,7 @@ final class SplitFilterClassifier {
         if (columnName == null) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (implicitNullsForAbsentColumn == false && splitStats.hasColumn(columnName) == false) {
+        if (ExternalSourceAggregatePushdown.columnStatUnservable(splitStats, columnName, implicitNullsForAbsentColumn)) {
             return SplitMatch.AMBIGUOUS;
         }
         long nullCount = splitStats.columnNullCount(columnName);
@@ -503,10 +504,6 @@ final class SplitFilterClassifier {
         return SplitMatch.AMBIGUOUS;
     }
 
-    /**
-     * Returns true when the column has zero null values in this split.
-     * When null_count is unavailable, assumes nulls may exist (conservative).
-     */
     /**
      * A comparison/IN MATCH may only be served from min/max stats when EVERY row contributes exactly one value
      * the bound describes: no nulls AND single-valued. A null row's comparison is NULL (not true), and a

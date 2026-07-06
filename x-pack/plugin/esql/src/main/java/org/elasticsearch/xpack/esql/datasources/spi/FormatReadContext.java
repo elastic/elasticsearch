@@ -49,17 +49,19 @@ import java.util.List;
  *                         (the substrate of {@code _file.record_ref} / {@code _id}). {@code 0} for the
  *                         whole-file (non-split) case and for columnar formats, which derive a file-global
  *                         row index from their own footer/stripe metadata rather than from a byte anchor.
- *                         <p>Note: this denotes the same file-global base offset that {@code statsBaseOffset}
- *                         carries for the canonical-stripe overlay. They are threaded separately today but
- *                         are one quantity — a candidate for unification (see the external-source caching
- *                         architecture notes).
+ *                         <p>Note: this carries the SAME VALUE as {@code statsBaseOffset} at every current call
+ *                         site, but they are distinct CONTRACTS, not one quantity: {@code splitStartByte} may be a
+ *                         COMPRESSED coordinate under compressed-offset splits ({@code COMPRESSED_OFFSET_SPLIT_KEY}),
+ *                         whereas {@code statsBaseOffset} is decompressed-stream only. Stripe capture is disabled
+ *                         exactly where the two would diverge, so they must stay separate — a blind unification
+ *                         would mis-address stripes on compressed splits.
  * @param maxRecordBytes   maximum bytes a single text record may occupy while split/trim code
  *                         scans for a record boundary.
- * @param statsBaseOffset  the byte offset (file / decompressed-stream coordinate) of this read's first
- *                         byte, used by the reader to address records to canonical stripes
+ * @param statsBaseOffset  the DECOMPRESSED-stream byte offset of this read's first byte, used by the reader to
+ *                         address records to canonical stripes
  *                         ({@code ordinal = floor((statsBaseOffset + recordOffsetInRead) / statsStripeSize)}).
- *                         Ignored when {@code statsStripeSize <= 0}. Denotes the same quantity as
- *                         {@code splitStartByte} (see its note).
+ *                         Ignored when {@code statsStripeSize <= 0}. Same value as {@code splitStartByte} at every
+ *                         current call site, but a distinct contract under compressed-offset splits (see its note).
  * @param statsStripeSize  canonical-stripe grid in bytes for per-stripe stats attribution, or
  *                         {@code <= 0} to disable stripe addressing (the reader then emits no
  *                         stripe-addressed contributions and the warm short-circuit safe-misses). A

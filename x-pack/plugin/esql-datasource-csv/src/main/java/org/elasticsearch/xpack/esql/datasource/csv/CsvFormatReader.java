@@ -3252,7 +3252,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (rowStartBytes == null || stripeCaptureDisabled || rowIdx >= rowStartBytes.length) {
                     return; // stripe attribution unavailable -> safe miss (a warm aggregate re-scans)
                 }
-                long ordinal = Math.floorDiv(rowStartBytes[rowIdx], statsStripeSize);
+                long ordinal = stripeHarvester.ordinalOf(rowStartBytes[rowIdx]);
                 StripeStatsHarvester.StripeAccum stripe = stripeHarvester.getOrCreate(ordinal);
                 if (stripe.allCols == null) {
                     stripe.allCols = ColumnStatsAccumulator.forSchema(schema);

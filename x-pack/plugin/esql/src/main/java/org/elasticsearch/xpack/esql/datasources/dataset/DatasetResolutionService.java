@@ -89,7 +89,9 @@ public class DatasetResolutionService {
                     .indices()
                     .stream()
                     .map(indicesLookup::get)
-                    .noneMatch(indexAbstraction -> indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATASET)) {
+                    .noneMatch(
+                        indexAbstraction -> indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATASET
+                    )) {
                 throw new IndexNotFoundException(expression.original());
             }
         }

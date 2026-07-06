@@ -395,6 +395,18 @@ public class SearchEngine extends Engine {
         }
     }
 
+    /**
+     * Returns the number of distinct {@link DirectoryReader}s currently open for relocated PIT contexts.
+     * On a healthy node this equals the number of distinct commits referenced by open PITs. Currently,
+     * because {@link #acquireSearcherForCommit} opens a fresh reader per PIT regardless of commit, this
+     * equals the total number of open relocated PITs — see the SharedPITCommitReader fix plan.
+     */
+    public int getOpenReaderCount() {
+        synchronized (openReaders) {
+            return openReaders.size();
+        }
+    }
+
     // Reserve bytes for a non-refresh reader (engine open, PIT relocation) using the no-break path so the caller's
     // open never fails on budget pressure. The returned Reservation must be paired with registerReaderHeapRelease
     // so the close listener decrements both the ledger and the breaker.

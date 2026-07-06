@@ -33,7 +33,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -275,54 +274,33 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         );
     }
 
-    /**
-     * {@link IndexMode#TSDB} must be handled identically to {@link IndexMode#TIME_SERIES} at both
-     * {@code IndexMode.isTsdb(...)} call sites in {@link TransportGetDataStreamsAction#innerOperation}.
-     * {@link org.elasticsearch.cluster.metadata.DataStreamTestHelper#getClusterStateWithDataStream}
-     * hardcodes {@link IndexMode#TIME_SERIES}, so the data stream and backing indices are built by
-     * hand here so the mode can be randomized.
-     */
     public void testGetTimeSeriesDataStreamWithOutOfOrderIndices() {
-        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        String dataStreamName = "ds-1";
+        String dataStream = "ds-1";
         Instant sixHoursAgo = now.minus(6, ChronoUnit.HOURS);
         Instant fourHoursAgo = now.minus(4, ChronoUnit.HOURS);
         Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
         Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
 
-        List<Tuple<Instant, Instant>> timeSlices = List.of(
-            new Tuple<>(fourHoursAgo, twoHoursAgo),
-            new Tuple<>(sixHoursAgo, fourHoursAgo),
-            new Tuple<>(twoHoursAgo, twoHoursAhead)
-        );
-
-        ProjectMetadata.Builder mBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
-        List<IndexMetadata> backingIndices = new ArrayList<>();
-        long generation = 1L;
-        for (Tuple<Instant, Instant> tuple : timeSlices) {
-            Instant start = tuple.v1();
-            Instant end = tuple.v2();
-            Settings settings = Settings.builder()
-                .put("index.mode", mode.getName())
-                .put("index.routing_path", "uid")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
-                .build();
-            var im = createIndexMetadata(getDefaultBackingIndexName(dataStreamName, generation, start.toEpochMilli()), true, settings, 0);
-            mBuilder.put(im, true);
-            backingIndices.add(im);
-            generation++;
+        var projectId = randomProjectIdOrDefault();
+        ClusterState state;
+        {
+            var mBuilder = ProjectMetadata.builder(projectId);
+            DataStreamTestHelper.getClusterStateWithDataStream(
+                mBuilder,
+                dataStream,
+                List.of(
+                    new Tuple<>(fourHoursAgo, twoHoursAgo),
+                    new Tuple<>(sixHoursAgo, fourHoursAgo),
+                    new Tuple<>(twoHoursAgo, twoHoursAhead)
+                )
+            );
+            state = ClusterState.builder(new ClusterName("_name")).putProjectMetadata(mBuilder.build()).build();
         }
-        DataStream dataStream = DataStream.builder(
-            dataStreamName,
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
-        ).setGeneration(generation).setIndexMode(mode).build();
-        mBuilder.put(dataStream);
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            projectStateFromProject(mBuilder),
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,
@@ -337,7 +315,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             response.getDataStreams(),
             contains(
                 allOf(
-                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStreamName)),
+                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream)),
                     transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
                 )
             )

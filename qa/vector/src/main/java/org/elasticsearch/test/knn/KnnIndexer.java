@@ -22,16 +22,19 @@ package org.elasticsearch.test.knn;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Sort;
@@ -55,6 +58,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -195,6 +199,37 @@ public class KnnIndexer {
         logger.debug("Indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), totalDocs);
         result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
         result.numDocs = totalDocs;
+    }
+
+    void deleteDocuments(Directory dir, KnnIndexTester.Results result, int totalDocs, int numDeletedDocs, long deleteSeed)
+        throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig();
+        iwc.setCodec(codec);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (IndexWriter iw = new IndexWriter(dir, iwc)) {
+            int[] docIds = new int[totalDocs];
+            for (int i = 0; i < totalDocs; i++) {
+                docIds[i] = i;
+            }
+            Random random = new Random(deleteSeed);
+            for (int i = 0; i < numDeletedDocs; i++) {
+                int j = i + random.nextInt(totalDocs - i);
+                int tmp = docIds[i];
+                docIds[i] = docIds[j];
+                docIds[j] = tmp;
+            }
+            for (int i = 0; i < numDeletedDocs; i++) {
+                iw.deleteDocuments(new Term(ID_FIELD, Integer.toString(docIds[i])));
+            }
+            logger.info("KnnIndexer: deleted {} of {} documents (delete_seed={})", numDeletedDocs, totalDocs, deleteSeed);
+            result.numDeletedDocs = numDeletedDocs;
+        }
+    }
+
+    void deleteDocuments(KnnIndexTester.Results result, int totalDocs, int numDeletedDocs, long deleteSeed) throws IOException {
+        try (Directory dir = getDirectory(indexPath)) {
+            deleteDocuments(dir, result, totalDocs, numDeletedDocs, deleteSeed);
+        }
     }
 
     private IndexWriterConfig createIndexWriterConfig(Sort indexSort) {
@@ -348,7 +383,7 @@ public class KnnIndexer {
         public Document createDocument(IndexableField vectorField, int docOrd) {
             Document doc = new Document();
             doc.add(vectorField);
-            doc.add(new StoredField(ID_FIELD, docOrd));
+            doc.add(new StringField(ID_FIELD, Integer.toString(docOrd), Field.Store.YES));
             return doc;
         }
     }
@@ -369,7 +404,7 @@ public class KnnIndexer {
         public Document createDocument(IndexableField vectorField, int docOrd) {
             Document doc = new Document();
             doc.add(vectorField);
-            doc.add(new StoredField(ID_FIELD, docOrdinals[docOrd]));
+            doc.add(new StringField(ID_FIELD, Integer.toString(docOrdinals[docOrd]), Field.Store.YES));
             doc.add(SortedDocValuesField.indexedField(PARTITION_ID_FIELD, new BytesRef(docPartitionIds[docOrd])));
             return doc;
         }

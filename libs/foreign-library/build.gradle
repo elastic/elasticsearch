@@ -11,10 +11,12 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.mrjar'
+apply plugin: 'elasticsearch.foreign-api'
 
 dependencies {
   api project(':libs:core')
   api project(':libs:logging')
+  api project(':libs:foreign-adapter')
 
   testImplementation buildLibs.junit
 }

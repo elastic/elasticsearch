@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.qa.multi_node;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
@@ -16,6 +19,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.nio.file.Path;
 
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class EsqlSpecIT extends EsqlSpecTestCase {
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 

@@ -159,6 +159,10 @@ gradlePlugin {
       id = 'elasticsearch.foreign-library'
       implementationClass = 'org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin'
     }
+    foreignApi {
+      id = 'elasticsearch.foreign-api'
+      implementationClass = 'org.elasticsearch.gradle.internal.ForeignApiPlugin'
+    }
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
@@ -371,8 +375,8 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
-  integTestImplementation(buildLibs.archunit) {
-    because 'architecture rules enforcing test coverage of plugins and tasks'
+  testImplementation(buildLibs.archunit) {
+    because 'architecture rules enforcing Gradle best practices on build logic'
   }
 
 }

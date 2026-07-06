@@ -40,8 +40,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.QuerySettings.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -1388,7 +1388,7 @@ public abstract class DocsV3Support {
 
             if (mapParam != null) {
                 EsqlFunctionRegistry.ArgSignature arg = EsqlFunctionRegistry.mapParam(mapParam);
-                builder.append("Map entries: \n    ");
+                builder.append("Map entries:\n");
 
                 Collection<EsqlFunctionRegistry.MapEntryArgSignature> mapParams = arg.mapParams().values();
                 for (EsqlFunctionRegistry.MapEntryArgSignature mapArgSignature : mapParams) {
@@ -1847,6 +1847,13 @@ public abstract class DocsV3Support {
                                 builder.field(constraint.getKey(), constraint.getValue());
                             }
                             builder.endObject();
+                        }
+                        if (arg.hint.allowedValues() != null && arg.hint.allowedValues().isEmpty() == false) {
+                            builder.startArray("allowedValues");
+                            for (String v : arg.hint.allowedValues()) {
+                                builder.value(v);
+                            }
+                            builder.endArray();
                         }
                         builder.endObject();
                     }

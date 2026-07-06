@@ -13,7 +13,9 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -72,6 +74,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         throttlingRecoveryService = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
             clusterService,
             RecoverySchedulingListener.NOOP
         );
@@ -96,6 +99,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         // running recovery
         final var recoveryState0 = newRecoveryState(shardId0);
         throttlingRecoveryService.enqueue(
+            ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState0,
             allocationId0,
@@ -109,6 +113,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         // queued recovery
         final var recoveryState1 = newRecoveryState(shardId1);
         throttlingRecoveryService.enqueue(
+            ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState1,
             allocationId1,
@@ -119,6 +124,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         // queued recovery
         final var recoveryState2 = newRecoveryState(shardId2);
         throttlingRecoveryService.enqueue(
+            ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState2,
             allocationId2,
@@ -157,6 +163,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         // running recovery
         final var recoveryState0 = newRecoveryState(shardId0);
         throttlingRecoveryService.enqueue(
+            ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState0,
             allocationId0,
@@ -170,6 +177,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         // queued recovery
         final var recoveryState1 = newRecoveryState(shardId1);
         throttlingRecoveryService.enqueue(
+            ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState1,
             allocationId1,
@@ -244,6 +252,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         // running recovery
         final var recoveryState0 = newRecoveryState(shardId0);
         throttlingRecoveryService.enqueue(
+            ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState0,
             allocationId0,
@@ -256,7 +265,14 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
 
         // queued recovery
         final var recoveryState1 = newRecoveryState(shardId1);
-        throttlingRecoveryService.enqueue(RecoveryListener.NOOP, recoveryState1, allocationId1, new RecoveryStats(), ignored -> {});
+        throttlingRecoveryService.enqueue(
+            ProjectId.DEFAULT,
+            RecoveryListener.NOOP,
+            recoveryState1,
+            allocationId1,
+            new RecoveryStats(),
+            ignored -> {}
+        );
 
         taskQueue.runAllRunnableTasks();
         assertThat(throttlingRecoveryService.currentQueueSize(), equalTo(1));
@@ -298,6 +314,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         // running recovery
         final var recoveryState0 = newRecoveryState(shardId0);
         throttlingRecoveryService.enqueue(
+            ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState0,
             allocationId0,
@@ -311,6 +328,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         // queued recovery
         final var recoveryState2 = newRecoveryState(shardId2);
         throttlingRecoveryService.enqueue(
+            ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState2,
             allocationId2,
@@ -394,7 +412,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         assertTrue(response.cancelledInQueue().isEmpty());
 
         final var cancelled = new AtomicBoolean();
-        throttlingRecoveryService.enqueue(new RecoveryListener() {
+        throttlingRecoveryService.enqueue(ProjectId.DEFAULT, new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,

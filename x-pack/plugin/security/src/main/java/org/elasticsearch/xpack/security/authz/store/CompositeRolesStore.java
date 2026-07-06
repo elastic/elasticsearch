@@ -49,12 +49,12 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
@@ -70,7 +70,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -80,7 +79,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -610,7 +608,7 @@ public class CompositeRolesStore {
             builder.workflows(workflows);
         }
         if (applicationPrivilegesMap.isEmpty()) {
-            addImplicitPrivileges(roleDescriptors, fieldPermissionsCache, implicitPrivilegesProviders, List.of(), builder, dlsFlsEnabled);
+            // No application privileges means implicit-privilege providers have nothing to resolve against, so skip them.
             listener.onResponse(builder.build());
         } else {
             final Set<String> applicationNames = applicationPrivilegesMap.keySet().stream().map(Tuple::v1).collect(Collectors.toSet());
@@ -623,15 +621,20 @@ public class CompositeRolesStore {
                 applicationPrivilegeNames,
                 false, // TODO revisit if we should also wait for an available security index here
                 listener.delegateFailureAndWrap((delegate, appPrivileges) -> {
+                    // Resolve each (application, resources) grant once, add it to the builder, and reuse the very same
+                    // resolved ApplicationPrivilege instances (which already carry the cached action automaton) for the
+                    // implicit-privilege providers, so providers need not rebuild a matcher over the stored actions.
+                    final List<ResolvedApplicationPrivilege> resolvedApplicationPrivileges = new ArrayList<>();
                     applicationPrivilegesMap.forEach(
-                        (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
-                            .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
+                        (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges).forEach(priv -> {
+                            builder.addApplicationPrivilege(priv, key.v2());
+                            resolvedApplicationPrivileges.add(new ResolvedApplicationPrivilege(priv, key.v2()));
+                        })
                     );
                     addImplicitPrivileges(
-                        roleDescriptors,
+                        resolvedApplicationPrivileges,
                         fieldPermissionsCache,
                         implicitPrivilegesProviders,
-                        appPrivileges,
                         builder,
                         dlsFlsEnabled
                     );
@@ -678,19 +681,19 @@ public class CompositeRolesStore {
     }
 
     /**
-     * Invokes each {@link ImplicitPrivilegesProvider} once per role descriptor and folds the
+     * Invokes each {@link ImplicitPrivilegesProvider} once with the resolved application-privilege grants and folds the
      * returned {@link IndicesPrivileges} into {@code builder} as implicit grants.
      *
-     * <p>Each provider is passed the subset of resolved {@link ApplicationPrivilegeDescriptor}s
-     * that the role actually references, so providers can condition their grants on which
-     * application privileges the role holds. If {@code dlsFlsEnabled} is {@code false}, any
-     * returned privilege that uses DLS or FLS is suppressed.
+     * <p>On this runtime path the provided {@link ResolvedApplicationPrivilege}s are the union across all of the user's
+     * role descriptors, which are being combined into one effective role. This is the whole-role counterpart to the
+     * per-descriptor invocation performed by {@link #addImplicitPrivilegesToRoles}. Each grant carries the already-built
+     * action automaton, so providers can test the actions a role is authorized for without reconstructing a matcher. If
+     * {@code dlsFlsEnabled} is {@code false}, any returned privilege that uses DLS or FLS is suppressed.
      */
     private static void addImplicitPrivileges(
-        Collection<RoleDescriptor> roleDescriptors,
+        Collection<ResolvedApplicationPrivilege> resolvedApplicationPrivileges,
         FieldPermissionsCache fieldPermissionsCache,
         List<ImplicitPrivilegesProvider> implicitPrivilegesProviders,
-        Collection<ApplicationPrivilegeDescriptor> appPrivileges,
         Role.Builder builder,
         boolean dlsFlsEnabled
     ) {
@@ -699,60 +702,60 @@ public class CompositeRolesStore {
         }
         final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
         final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
-        final Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName = appPrivileges.stream()
-            .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getName));
-        for (RoleDescriptor rd : roleDescriptors) {
-            final List<ApplicationPrivilegeDescriptor> roleAppPrivs = getApplicationPrivilegeDescriptors(rd, appPrivsByName);
-            for (ImplicitPrivilegesProvider provider : implicitPrivilegesProviders) {
-                final Collection<IndicesPrivileges> implicit = provider.getImplicitIndicesPrivileges(rd, roleAppPrivs);
-                final IndicesPrivileges[] kept = implicit.stream()
-                    .filter(ip -> dlsFlsEnabled || !ip.isUsingDocumentOrFieldLevelSecurity())
-                    .toArray(IndicesPrivileges[]::new);
-                final int suppressed = implicit.size() - kept.length;
-                if (suppressed > 0) {
-                    logger.debug(
-                        "Suppressed [{}] implicit privilege(s) on role [{}] from provider [{}] because DLS/FLS is disabled",
-                        suppressed,
-                        rd.getName(),
-                        provider.getClass().getName()
-                    );
-                }
-                MergeableIndicesPrivilege.collatePrivilegesByIndices(kept, true, restrictedIndicesPrivilegesMap);
-                MergeableIndicesPrivilege.collatePrivilegesByIndices(kept, false, indicesPrivilegesMap);
+        for (ImplicitPrivilegesProvider provider : implicitPrivilegesProviders) {
+            final Collection<IndicesPrivileges> implicit = provider.getImplicitIndicesPrivileges(resolvedApplicationPrivileges);
+            final IndicesPrivileges[] kept = implicit.stream()
+                .filter(ip -> dlsFlsEnabled || !ip.isUsingDocumentOrFieldLevelSecurity())
+                .toArray(IndicesPrivileges[]::new);
+            final int suppressed = implicit.size() - kept.length;
+            if (suppressed > 0) {
+                logger.debug(
+                    "Suppressed [{}] implicit privilege(s) from provider [{}] because DLS/FLS is disabled",
+                    suppressed,
+                    provider.getClass().getName()
+                );
             }
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(kept, true, restrictedIndicesPrivilegesMap);
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(kept, false, indicesPrivilegesMap);
         }
         addIndicesPrivilegesToBuilder(builder, fieldPermissionsCache, indicesPrivilegesMap, restrictedIndicesPrivilegesMap, true);
     }
 
-    static List<ApplicationPrivilegeDescriptor> getApplicationPrivilegeDescriptors(
-        RoleDescriptor rd,
-        Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName
+    /**
+     * Resolves a single role descriptor's declared application privileges into {@link ResolvedApplicationPrivilege}s,
+     * pairing each resolved {@link ApplicationPrivilege} with the resources of the block it came from. This exists for the
+     * role-decoration path, which needs the resolved privileges purely to feed the implicit-privilege providers;
+     * {@link #buildRoleFromDescriptors} instead resolves them inline while building the role.
+     */
+    static List<ResolvedApplicationPrivilege> resolveApplicationPrivileges(
+        RoleDescriptor roleDescriptor,
+        Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
     ) {
-        if (rd.getApplicationPrivileges().length == 0) {
+        if (roleDescriptor.getApplicationPrivileges().length == 0) {
             return List.of();
         }
-        final Set<ApplicationPrivilegeDescriptor> roleAppPrivs = new LinkedHashSet<>();
-        for (RoleDescriptor.ApplicationResourcePrivileges ap : rd.getApplicationPrivileges()) {
-            final Predicate<String> appMatches = ap.getApplication().contains("*")
-                ? Automatons.predicate(ap.getApplication())
-                : ap.getApplication()::equals;
-            for (String priv : ap.getPrivileges()) {
-                final List<ApplicationPrivilegeDescriptor> candidates = appPrivsByName.get(priv);
-                if (candidates == null) {
-                    // Either an action pattern (e.g. "data:read/*") or a reference to an undefined stored privilege; silently skip.
-                    // Providers that need action-pattern visibility can read RoleDescriptor#getApplicationPrivileges() directly.
-                    continue;
-                }
-                for (ApplicationPrivilegeDescriptor apd : candidates) {
-                    if (appMatches.test(apd.getApplication())) {
-                        roleAppPrivs.add(apd);
-                    }
-                }
-            }
+        final List<ResolvedApplicationPrivilege> resolved = new ArrayList<>();
+        for (RoleDescriptor.ApplicationResourcePrivileges arp : roleDescriptor.getApplicationPrivileges()) {
+            final Set<String> resources = newHashSet(arp.getResources());
+            ApplicationPrivilege.get(arp.getApplication(), newHashSet(arp.getPrivileges()), storedApplicationPrivileges)
+                .forEach(priv -> resolved.add(new ResolvedApplicationPrivilege(priv, resources)));
         }
-        return new ArrayList<>(roleAppPrivs);
+        return resolved;
     }
 
+    /**
+     * Decorates each of the given role descriptors with the implicit index privileges its own application privileges
+     * would yield, returning a descriptor per input role. This backs the {@code include_implicit} option of the get-role
+     * API, whose response lists each role separately, so implicit privileges must be attributable to an individual role.
+     * <p>
+     * Accordingly, {@link ImplicitPrivilegesProvider}s are invoked <em>per role descriptor</em> here — each sees only that
+     * descriptor's resolved application privileges. This differs from runtime role building (see
+     * {@link #buildRoleFromDescriptors}), where a provider is invoked once with the union of application privileges across
+     * all of the user's roles. For a provider whose grants depend on combining application privileges from different
+     * roles, the implicit privileges reported for a role in isolation may therefore be a subset of what the user is
+     * granted at runtime. This divergence is intentional and part of the get-role API contract; see
+     * {@link ImplicitPrivilegesProvider}.
+     */
     public void addImplicitPrivilegesToRoles(
         Collection<RoleDescriptor> roleDescriptors,
         ActionListener<Collection<RoleDescriptor>> listener
@@ -770,25 +773,30 @@ public class CompositeRolesStore {
             .flatMap(arp -> Stream.of(arp.getPrivileges()))
             .collect(Collectors.toSet());
         if (applicationNames.isEmpty() || privilegeNames.isEmpty()) {
-            listener.onResponse(decorateWithImplicitPrivileges(roleDescriptors, Map.of()));
+            // No application privileges to resolve means providers can grant nothing, so return the roles undecorated.
+            listener.onResponse(roleDescriptors);
             return;
         }
-        privilegeStore.getPrivileges(applicationNames, privilegeNames, false, ActionListener.wrap(appPrivileges -> {
-            final Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName = appPrivileges.stream()
-                .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getName));
-            listener.onResponse(decorateWithImplicitPrivileges(roleDescriptors, appPrivsByName));
-        }, listener::onFailure));
+        privilegeStore.getPrivileges(
+            applicationNames,
+            privilegeNames,
+            false,
+            ActionListener.wrap(
+                appPrivileges -> listener.onResponse(decorateWithImplicitPrivileges(roleDescriptors, appPrivileges)),
+                listener::onFailure
+            )
+        );
     }
 
     private Collection<RoleDescriptor> decorateWithImplicitPrivileges(
         Collection<RoleDescriptor> roleDescriptors,
-        Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName
+        Collection<ApplicationPrivilegeDescriptor> appPrivileges
     ) {
         List<RoleDescriptor> result = new ArrayList<>();
         for (RoleDescriptor rd : roleDescriptors) {
-            List<ApplicationPrivilegeDescriptor> roleAppPrivs = getApplicationPrivilegeDescriptors(rd, appPrivsByName);
+            List<ResolvedApplicationPrivilege> resolvedAppPrivs = resolveApplicationPrivileges(rd, appPrivileges);
             List<IndicesPrivileges> implicitPrivileges = implicitPrivilegesProviders.stream()
-                .flatMap(p -> p.getImplicitIndicesPrivileges(rd, roleAppPrivs).stream())
+                .flatMap(p -> p.getImplicitIndicesPrivileges(resolvedAppPrivs).stream())
                 .<IndicesPrivileges>map(IndicesPrivileges.ImplicitlyGranted::new)
                 // always include implicit permissions that do not rely on DLS/FLS; omit ones that do if DLS/FLS is disabled
                 .filter(ip -> dlsFlsEnabled || !ip.isUsingDocumentOrFieldLevelSecurity())

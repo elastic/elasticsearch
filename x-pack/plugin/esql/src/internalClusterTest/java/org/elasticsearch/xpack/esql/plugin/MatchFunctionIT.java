@@ -22,7 +22,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -182,34 +181,22 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("Unknown column [something]"));
     }
 
-    public void testWhereMatchEvalColumn() {
-        var query = """
-            FROM test
-            | EVAL upper_content = to_upper(content)
-            | WHERE match(upper_content, "FOX")
-            | KEEP id
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[MATCH] function cannot operate on [upper_content], which is not a field from an index mapping")
-        );
-    }
-
     public void testWhereMatchOverWrittenColumn() {
         var query = """
             FROM test
             | DROP content
-            | EVAL content = CONCAT("document with ID ", to_str(id))
+            | EVAL content = to_text(CONCAT("document with ID ", to_str(id)))
             | WHERE match(content, "document")
+            | KEEP id, content
+            | SORT id
+            | LIMIT 2
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[MATCH] function cannot operate on [content], which is not a field from an index mapping")
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(resp.values(), List.of(List.of(1, "document with ID 1"), List.of(2, "document with ID 2")));
+        }
     }
 
     public void testWhereMatchAfterStats() {
@@ -236,19 +223,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             assertColumnTypes(resp.columns(), List.of("integer"));
             assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
         }
-    }
-
-    public void testWhereMatchWithRow() {
-        var query = """
-            ROW content = "a brown fox"
-            | WHERE match(content, "fox")
-            """;
-
-        var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("line 2:15: [MATCH] function cannot operate on [content], which is not a field from an index mapping")
-        );
     }
 
     public void testMatchWithStats() {
@@ -288,8 +262,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSimpleWhereRuntimeMatchWithScore() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
-
         var query = """
             FROM test METADATA _score
             | WHERE match(to_text(concat(content, " extra")), "fox")
@@ -297,9 +269,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
 
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
-
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
             assertValues(resp.values(), List.of(List.of(1, 0.0), List.of(6, 0.0)));
@@ -320,30 +290,20 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | MV_EXPAND content
+            | EVAL content = to_text(content)
             | WHERE match(content, "fox")
+            | SORT id, content
+            | KEEP id, content
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
-    }
-
-    public void testMatchAfterMvExpandWithIntermediateCommands() {
-        var error = expectThrows(VerificationException.class, () -> run("""
-            FROM test
-            | MV_EXPAND content
-            | EVAL upper_content = to_upper(content)
-            | WHERE match(content, "fox")
-            """));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
-
-        error = expectThrows(VerificationException.class, () -> run("""
-            FROM test
-            | MV_EXPAND content
-            | SORT id
-            | KEEP id, content
-            | WHERE match(content, "fox")
-            """));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, "This is a brown fox"), List.of(6, "The quick brown fox jumps over the lazy dog"))
+            );
+        }
     }
 
     public void testMatchWithLookupJoin() {
@@ -369,14 +329,23 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | EVAL x = 123
             | RENAME x AS id
             | LOOKUP JOIN test_lookup ON id
-            | WHERE id > 0 AND MATCH(id, "fox")
+            | WHERE id > 0 AND MATCH(id, "123")
+            | KEEP id, content
+            | SORT content
+            | LIMIT 2
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("line 5:26: [MATCH] function cannot operate on [id], which is not a field from an index mapping")
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(123, "The dog is brown but this document is very very long"),
+                    List.of(123, "The quick brown fox jumps over the lazy dog")
+                )
+            );
+        }
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatch() {
@@ -452,16 +421,13 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeEvalWithOptionsThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | EVAL new_content = to_text(concat(content, " extra"))
             | WHERE match(new_content, "fox", {"analyzer": "standard"})
             | KEEP new_content
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
-
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
             containsString("Options are not supported for [MATCH] function call on non-index-mapped field [new_content]")
@@ -469,14 +435,11 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeRowWithOptionsThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             ROW content = to_text("This is a brown fox")
             | WHERE match(content, "fox AND brown", {"operator": "AND"})
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
-
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
             containsString("Options are not supported for [MATCH] function call on non-index-mapped field [content]")
@@ -484,15 +447,13 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeEvalWithIncompatibleLongValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | EVAL new_id = to_long(id)
             | WHERE match(new_id, "not_a_number")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([long]) of non-index-mapped field [new_id]",
@@ -501,14 +462,12 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeRowWithIncompatibleIpValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             ROW my_ip = to_ip("192.168.1.1")
             | WHERE match(my_ip, "not_an_ip")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 2:22: [MATCH] query value [\"not_an_ip\"] does not match the type ([ip]) of non-index-mapped field [my_ip]",
@@ -517,15 +476,13 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeEvalWithIncompatibleIntegerValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | EVAL new_id = to_integer(id)
             | WHERE match(new_id, "not_a_number")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([integer]) of non-index-mapped field "
@@ -535,15 +492,13 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeEvalWithIncompatibleDoubleValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | EVAL new_id = to_double(id)
             | WHERE match(new_id, "not_a_number")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([double]) of non-index-mapped field [new_id]",
@@ -552,15 +507,13 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeEvalWithIncompatibleUnsignedLongValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | EVAL new_id = to_unsigned_long(id)
             | WHERE match(new_id, "not_a_number")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([unsigned_long]) of non-index-mapped field "
@@ -570,14 +523,12 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeRowWithIncompatibleDatetimeValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             ROW my_date = to_datetime("2024-01-01")
             | WHERE match(my_date, "not_a_date")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 2:24: [MATCH] query value [\"not_a_date\"] does not match the type ([datetime]) of non-index-mapped field "
@@ -587,14 +538,12 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeRowWithIncompatibleDateNanosValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             ROW my_date = to_date_nanos("2024-01-01")
             | WHERE match(my_date, "not_a_date")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 2:24: [MATCH] query value [\"not_a_date\"] does not match the type ([date_nanos]) of non-index-mapped field "

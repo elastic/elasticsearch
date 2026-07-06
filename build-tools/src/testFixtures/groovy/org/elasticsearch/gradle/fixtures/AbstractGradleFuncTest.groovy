@@ -40,9 +40,6 @@ abstract class AbstractGradleFuncTest extends Specification {
     @Rule
     TemporaryFolder testProjectDir = new TemporaryFolder()
 
-    @TempDir
-    File gradleUserHome
-
     File settingsFile
     File buildFile
     File propertiesFile
@@ -134,20 +131,34 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
+        def runner = GradleRunner.create()
+                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
+                        .toString().indexOf("-agentlib:jdwp") > 0
+                )
+                .withProjectDir(projectDir)
+                .withPluginClasspath()
+                .forwardOutput()
+        File userHome = customGradleUserHome()
+        if (userHome != null) {
+            runner = runner.withTestKitDir(userHome)
+        }
         return new NormalizeOutputGradleRunner(
             new BuildConfigurationAwareGradleRunner(
-                    new InternalAwareGradleRunner(
-                        GradleRunner.create()
-                                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
-                                        .toString().indexOf("-agentlib:jdwp") > 0
-                                )
-                                .withProjectDir(projectDir)
-                                .withPluginClasspath()
-                                .withTestKitDir(gradleUserHome)
-                                .forwardOutput()
-            ), configurationCacheCompatible,
-                buildApiRestrictionsDisabled)
+                    new InternalAwareGradleRunner(runner),
+                    configurationCacheCompatible,
+                    buildApiRestrictionsDisabled)
         ).withArguments(arguments.collect { it.toString() } + "--full-stacktrace")
+    }
+
+    /**
+     * Override to supply a custom Gradle user home directory for the TestKit runner.
+     * TestKit will set {@code GRADLE_USER_HOME} to this directory for every forked
+     * Gradle process, including any {@code ./gradlew} subprocesses spawned by build
+     * logic.  Returns {@code null} by default, letting TestKit manage its own
+     * temporary directory.
+     */
+    protected File customGradleUserHome() {
+        return null
     }
 
     def assertOutputContains(String givenOutput, String expected) {
@@ -278,7 +289,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     void withVersionCatalogue() {
         file('build.versions.toml') << '''\
 [libraries]
-checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
+checkstyle = "com.puppycrawl.tools:checkstyle:11.1"
 '''
         settingsFile << '''
             dependencyResolutionManagement {

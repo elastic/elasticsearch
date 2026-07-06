@@ -107,7 +107,17 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         "nestedWhereEquals",
         "nestedWhereIsNull",
         "nestedStatsMinMax",
-        "nestedFilterAndProjectMixed"
+        "nestedFilterAndProjectMixed",
+        // A LIST leaf reached through a STRUCT (e.g. answers.text where answers is struct<text: list<...>>)
+        // is bound by its flattened logical name only by the Java parquet reader; parquet-rs does not yet
+        // flatten struct schemas, so the leaf resolves to no column descriptor and reads as all-null
+        // (COUNT returns 0, values/min/max are null). Re-enable once parquet-rs binds list-under-struct
+        // leaves by their flattened name in both the read and aggregate-statistics paths.
+        "listUnderStructCount",
+        "listUnderStructValues",
+        "listUnderStructMvCount",
+        "listUnderStructIsNull",
+        "listUnderStructMinMax"
     );
 
     @Override

@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -22,9 +26,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,6 +39,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end coverage that the profile-observability fields added to {@code AsyncExternalSourceOperator.Status}
@@ -51,6 +58,22 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
     @Override
     protected QueryPragmas getPragmas() {
         return QueryPragmas.EMPTY;
+    }
+
+    /**
+     * Pins every query to one coordinator. {@code ExternalSourceCacheService} is a per-node singleton, so the
+     * cold scan's harvested stripes are reconciled into that coordinator's cache and a warm COUNT(*)/MIN/MAX is
+     * served from stripes only by the SAME coordinator. The default {@code run()} routes through {@code client()},
+     * which picks a random node per call, so the warm query could land on a different coordinator with an empty
+     * cache and re-scan (flaky {@code filesScanned() == 0} assertions). Mirrors {@link ExternalMultiFileWarmAggregateFoldIT}.
+     */
+    @Override
+    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
+        try {
+            return client(internalCluster().getMasterName()).execute(EsqlQueryAction.INSTANCE, request).actionGet(timeout);
+        } catch (ElasticsearchTimeoutException e) {
+            throw new AssertionError("timeout", e);
+        }
     }
 
     public void testExternalQueryProfileFieldsArePopulated() throws Exception {
@@ -131,19 +154,37 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * CSV has no embedded row count, so the first {@code COUNT(*)} must scan the whole file (the scan
-     * counters are populated). After execution the row count is reconciled into the coordinator's
-     * source-stats cache, so a second identical {@code COUNT(*)} is answered from metadata and scans
-     * nothing, so the counters return to zero. This is the "read it once, then never again" behavior.
+     * The three-state warm-aggregate profiling signal, end to end over CSV.
+     * CSV has no embedded row count, so the first {@code COUNT(*)} must scan the whole file. The scan
+     * harvests canonical-stripe statistics and reconciles them into the coordinator's source-stats cache;
+     * a second identical {@code COUNT(*)} is then answered purely from those stats with the scan
+     * short-circuited away. The query profile distinguishes the two outcomes positively:
+     * <ul>
+     *   <li><b>cold-harvest</b> — the scan ran ({@code splits_scanned > 0}) and harvested stripes into the
+     *   coordinator cache; {@code external_warm_aggregates == 0} (no short-circuit). The harvest is proven
+     *   end-to-end by the subsequent pass going warm. (The per-scan {@code stripesCommitted()} accessor on
+     *   the operator status carries the same signal and is unit-tested in
+     *   {@code AsyncExternalSourceOperatorStatusTests}, but on the COUNT short-circuit path the consumer
+     *   reaches EOF before the producer's close-time stripe commit lands — the documented async hop also
+     *   affecting {@code bytes_read} / {@code format_reader} — so it is not asserted here.)</li>
+     *   <li><b>warm</b> — the aggregate was served from stripes ({@code external_warm_aggregates > 0})
+     *   with ZERO scan ({@code splits_scanned == 0}, no {@code AsyncExternalSourceOperator} in the
+     *   profile). The positive "served from stripes" signal — not inferred from latency.</li>
+     * </ul>
+     * The <b>miss</b> third state — a scan that ran but committed no usable stripes
+     * ({@code stripesCommitted() == 0}) — is covered at the unit level in
+     * {@code AsyncExternalSourceOperatorStatusTests}; it is exactly the {@code stripesCommitted() == 0}
+     * arm, distinct from cold-harvest's positive count.
      */
-    public void testCsvCountStarScansColdThenSkipsWarm() throws Exception {
+    public void testCsvCountStarColdHarvestThenWarmServedFromStripes() throws Exception {
         int rowCount = 200;
         Path csvFile = writeCsvFile(rowCount);
         try {
             String dataset = registerDataset("profile_csv", StoragePath.fileUri(csvFile), Map.of());
             String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
-            // COLD: no cached row count yet, so the file is scanned to answer COUNT(*).
+            // COLD-HARVEST: no cached stats yet, so the file is scanned to answer COUNT(*); the scan
+            // harvests canonical stripes into the coordinator cache for the next query.
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCountValue(response, rowCount);
                 EsqlQueryProfile profile = response.getExecutionInfo().queryProfile();
@@ -154,19 +195,94 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
                 // fragment discovery paths ever both counted this source, splitsScanned would read 2.
                 assertEquals("cold COUNT(*) scans exactly one split", 1, profile.splitsScanned());
                 assertEquals("cold COUNT(*) reads the whole CSV file", Files.size(csvFile), profile.bytesScanned());
+                assertEquals("cold COUNT(*) does not short-circuit warm", 0, profile.externalWarmAggregates());
             }
 
-            // WARM: the row count was reconciled into the coordinator cache, so COUNT(*) is served
-            // from metadata and no file is scanned.
+            // WARM: the harvested stats were reconciled into the coordinator cache, so COUNT(*) is served
+            // from stripes and no file is scanned. external_warm_aggregates carries the affirmative signal.
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCountValue(response, rowCount);
                 EsqlQueryProfile profile = response.getExecutionInfo().queryProfile();
                 assertEquals("warm COUNT(*) scans no files", 0, profile.filesScanned());
                 assertEquals("warm COUNT(*) scans no splits", 0, profile.splitsScanned());
                 assertEquals("warm COUNT(*) scans no bytes", 0L, profile.bytesScanned());
+                assertEquals("warm COUNT(*) must report exactly one aggregate served from stripes", 1, profile.externalWarmAggregates());
+                assertThat(
+                    "warm short-circuit runs no external-source operator",
+                    findAsyncExternalSourceStatusOrNull(response),
+                    nullValue()
+                );
             }
         } finally {
             Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /**
+     * union_by_name zero-split recurrence guard (end-to-end, {@code FROM <dataset>}). A union_by_name multi-file CSV glob whose
+     * shared column type-disagrees across files is reconciled to KEYWORD (a NON-identity per-file
+     * {@code ColumnMapping} at unified width). A COLD {@code COUNT(*)} harvests complete per-file row counts
+     * but leaves {@code col}'s stats unservable (never projected). A subsequent WARM {@code MIN(col)} then
+     * exercises the aggregate short-circuit gate: {@code MIN(keyword)} is type-pushable so
+     * {@code ComputeService.canSkipSplitDiscovery} would skip discovery, but the fold rule safe-misses on the
+     * unservable column. Before the gate consulted servability, the two diverged: discovery was skipped (zero
+     * splits) yet the fold bailed, so the query ran a zero-split multi-file scan whose un-pruned unified-width
+     * mapping tripped {@code SchemaAdaptingIterator}'s width guard (`output schema size [1] does not match
+     * mapping width [N]`). With the gate aligned to the fold's servability check, discovery is NOT skipped, the
+     * per-split mappings are pruned to the projection, and the query serves the correct answer.
+     */
+    public void testCsvUnionByNameWarmMinUnservableColumnServesInsteadOfCrashing() throws Exception {
+        Path dir = createTempDir().resolve("ubn985");
+        Files.createDirectories(dir);
+        // col: integer in a.csv, non-numeric string in b.csv -> reconciles to KEYWORD under union_by_name.
+        Files.writeString(dir.resolve("a.csv"), "id,col,note\n1,123,alpha\n2,456,gamma\n", StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("b.csv"), "id,col,note\n4,abc,beta\n5,def,epsilon\n", StandardCharsets.UTF_8);
+        String glob = StoragePath.fileUri(dir) + "/*.csv";
+
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "profile_src", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "profile_ds",
+                    "profile_src",
+                    glob,
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "schema_resolution", "union_by_name"))
+                )
+            )
+        );
+
+        // COLD COUNT(*): scans the glob, harvests complete per-file row counts; col is not projected so its
+        // per-column stats stay unservable. This is what flips the warm resolve to complete-but-unservable.
+        try (var cold = run(syncEsqlQueryRequest("FROM profile_ds | STATS c = COUNT(*)").profile(true), TIMEOUT)) {
+            assertThat(((Number) getValuesList(cold).get(0).get(0)).longValue(), equalTo(4L));
+            assertEquals("cold COUNT(*) does not short-circuit warm", 0, cold.getExecutionInfo().queryProfile().externalWarmAggregates());
+        }
+
+        // WARM MIN(col): the divergence case. Must serve the correct KEYWORD minimum, not crash.
+        try (var warm = run(syncEsqlQueryRequest("FROM profile_ds | STATS lo = MIN(col)").profile(true), TIMEOUT)) {
+            assertThat(
+                "MIN over the KEYWORD-widened union_by_name column",
+                String.valueOf(getValuesList(warm).get(0).get(0)),
+                equalTo("123")
+            );
+            // The gate declined (unservable column) -> discovery ran -> served from a scan, not warm-short-circuit.
+            assertEquals("warm MIN(unservable col) is not served warm", 0, warm.getExecutionInfo().queryProfile().externalWarmAggregates());
+            assertThat("warm MIN(unservable col) scanned", warm.getExecutionInfo().queryProfile().splitsScanned(), greaterThan(0));
+        }
+
+        // Regression control: COUNT(*) still short-circuits warm on the same dataset (row count IS servable).
+        try (var warmCount = run(syncEsqlQueryRequest("FROM profile_ds | STATS c = COUNT(*)").profile(true), TIMEOUT)) {
+            assertThat(((Number) getValuesList(warmCount).get(0).get(0)).longValue(), equalTo(4L));
+            assertEquals("warm COUNT(*) still short-circuits", 1, warmCount.getExecutionInfo().queryProfile().externalWarmAggregates());
         }
     }
 
@@ -303,6 +419,17 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
     }
 
     private static AsyncExternalSourceOperator.Status findAsyncExternalSourceStatus(EsqlQueryResponse response) {
+        AsyncExternalSourceOperator.Status found = findAsyncExternalSourceStatusOrNull(response);
+        assertThat("expected at least one AsyncExternalSourceOperator.Status in the driver profiles", found, notNullValue());
+        return found;
+    }
+
+    /**
+     * Same scan over the driver profiles as {@link #findAsyncExternalSourceStatus} but returns {@code null}
+     * rather than asserting presence — used to assert the warm short-circuit ran NO external-source
+     * operator (and therefore could not have scanned).
+     */
+    private static AsyncExternalSourceOperator.Status findAsyncExternalSourceStatusOrNull(EsqlQueryResponse response) {
         AsyncExternalSourceOperator.Status found = null;
         assertThat(response.profile(), notNullValue());
         for (var driver : response.profile().drivers()) {
@@ -312,7 +439,6 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
                 }
             }
         }
-        assertThat("expected at least one AsyncExternalSourceOperator.Status in the driver profiles", found, notNullValue());
         return found;
     }
 

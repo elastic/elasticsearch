@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -99,8 +98,8 @@ public enum FeatureMetric {
     MV_EXPAND(MvExpand.class::isInstance),
     SHOW(ShowInfo.class::isInstance),
     ROW(Row.class::isInstance),
-    FROM(x -> x instanceof EsRelation relation && relation.indexMode() != IndexMode.TIME_SERIES),
-    TS(x -> x instanceof EsRelation relation && relation.indexMode() == IndexMode.TIME_SERIES),
+    FROM(x -> x instanceof EsRelation relation && relation.indexMode().isTsdb() == false),
+    TS(x -> x instanceof EsRelation relation && relation.indexMode().isTsdb()),
     EXTERNAL(plan -> plan instanceof org.elasticsearch.xpack.esql.plan.logical.ExternalRelation),
     DROP(Drop.class::isInstance),
     KEEP(Keep.class::isInstance),

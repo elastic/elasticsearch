@@ -14,16 +14,11 @@ teardown:
                 region: us-east-1
               - csp: aws
                 region: eu-west-1
-            fallback_region:
-              csp: aws
-              region: us-east-1
 
   - match: { region_policy.allowed_regions.0.csp: aws }
   - match: { region_policy.allowed_regions.0.region: us-east-1 }
   - match: { region_policy.allowed_regions.1.csp: aws }
   - match: { region_policy.allowed_regions.1.region: eu-west-1 }
-  - match: { region_policy.fallback_region.csp: aws }
-  - match: { region_policy.fallback_region.region: us-east-1 }
   - is_true: created_at
   - is_false: created_by
   - is_false: updated_at
@@ -61,17 +56,12 @@ teardown:
             allowed_regions:
               - csp: gcp
                 region: us-central1
-            fallback_region:
-              csp: gcp
-              region: us-central1
 
   - do:
       inference.get_region_policy: {}
 
   - match: { region_policy.allowed_regions.0.csp: gcp }
   - match: { region_policy.allowed_regions.0.region: us-central1 }
-  - match: { region_policy.fallback_region.csp: gcp }
-  - match: { region_policy.fallback_region.region: us-central1 }
   - is_true: created_at
   - is_false: created_by
   - is_false: updated_at

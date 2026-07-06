@@ -424,7 +424,7 @@ public class DatafeedManagerTests extends ESTestCase {
         stubGetDatafeedConfig(datafeedConfigProvider, storedConfig);
         stubUpdateDatefeedConfigCapturesUpdateAndInvokesMintHook(datafeedConfigProvider, storedConfig, capturedUpdate);
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = invocation.getArgument(1);
+            ActionListener<Boolean> listener = invocation.getArgument(2);
             listener.onResponse(Boolean.TRUE);
             return null;
         }).when(jobConfigProvider).validateDatafeedJob(any(), any());
@@ -550,7 +550,7 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
         }).when(jobConfigProvider).validateDatafeedJob(any(), any());
@@ -627,7 +627,7 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
         }).when(jobConfigProvider).validateDatafeedJob(any(), any());
@@ -928,7 +928,7 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
         }).when(jobConfigProvider).validateDatafeedJob(any(), any());
@@ -990,7 +990,7 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
         }).when(jobConfigProvider).validateDatafeedJob(any(), any());

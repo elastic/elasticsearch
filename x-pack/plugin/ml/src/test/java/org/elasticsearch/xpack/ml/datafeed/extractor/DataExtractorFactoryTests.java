@@ -662,8 +662,6 @@ public class DataExtractorFactoryTests extends ESTestCase {
     }
 
     public void testCreateDataExtractorFactoryGivenEsqlQueryRoutesToChunkedEsqlFactory() {
-        // An ES|QL datafeed bypasses rollup/agg/scroll selection and routes to EsqlDataExtractorFactory,
-        // which is then wrapped in ChunkedDataExtractorFactory (ESQL defaults to ChunkingConfig.newAuto()).
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
@@ -671,7 +669,6 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("esql-datafeed", "foo");
         datafeedConfigBuilder.setEsqlQuery("FROM myIndex");
-        // ChunkingConfig.newAuto() is the default for ESQL; set it explicitly for clarity
         datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newAuto());
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
 
@@ -690,7 +687,6 @@ public class DataExtractorFactoryTests extends ESTestCase {
     }
 
     public void testCreateDataExtractorFactoryGivenEsqlQueryWithChunkingOffRoutesToBareEsqlFactory() {
-        // When chunking_config.mode is off, the EsqlDataExtractorFactory should be returned unwrapped.
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
@@ -716,8 +712,6 @@ public class DataExtractorFactoryTests extends ESTestCase {
     }
 
     public void testCreateDataExtractorFactoryGivenEsqlQueryBypassesRollupCheck() {
-        // ES|QL datafeeds skip the GetRollupIndexCaps check entirely.
-        // Verify that even with rollup capabilities configured, the ESQL path is taken.
         givenAggregatableRollup("myField", "max", 5, "termField");
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
@@ -730,8 +724,6 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
 
         ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
-            // Should still be ChunkedDataExtractorFactory wrapping EsqlDataExtractorFactory,
-            // not a RollupDataExtractorFactory or AggregationDataExtractorFactory.
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
         );
 

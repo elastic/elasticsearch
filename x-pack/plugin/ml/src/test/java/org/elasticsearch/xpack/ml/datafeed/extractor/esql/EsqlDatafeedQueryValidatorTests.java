@@ -131,21 +131,17 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(validator.capturedQuery, equalTo(ESQL_QUERY + " | LIMIT 0"));
     }
 
-    // ---- checkRequiredColumns unit tests ----
-
     public void testCheckRequiredColumnsGivenAllPresentSucceeds() {
         List<ColumnInfo> columns = List.of(
             mockColumn(TIME_FIELD, "date"),
             mockColumn(SUMMARY_COUNT_FIELD, "long"),
             mockColumn("other", "keyword")
         );
-        // Should not throw.
         EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD);
     }
 
     public void testCheckRequiredColumnsGivenNoSummaryCountFieldRequiredSucceeds() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
-        // summaryCountField = null means not required — should not throw.
         EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null);
     }
 
@@ -185,8 +181,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(TIME_FIELD));
     }
 
-    // ---- requiredSummaryCountField helper tests ----
-
     public void testRequiredSummaryCountFieldWhenDelayedCheckEnabledAndFieldSet() {
         Job job = buildJob("job-1", SUMMARY_COUNT_FIELD);
         DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.defaultDelayedDataCheckConfig());
@@ -214,8 +208,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertThat(EsqlDatafeedQueryValidator.requiredSummaryCountField(datafeed, job), nullValue());
     }
-
-    // ---- helpers ----
 
     private static Job buildJob(String jobId, String summaryCountFieldName) {
         Detector.Builder detector = new Detector.Builder("count", null);

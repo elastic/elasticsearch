@@ -138,7 +138,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             false
         );
 
-        Query expected = new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"));
+        Query expected = new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false);
         assertEquals(expected, ft.termQuery("value", null));
     }
 
@@ -179,7 +179,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         );
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value")), BooleanClause.Occur.SHOULD);
+        builder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false), BooleanClause.Occur.SHOULD);
         Query expected = new ConstantScoreQuery(builder.build());
         assertEquals(expected, ft.termsQuery(List.of("value"), null));
     }

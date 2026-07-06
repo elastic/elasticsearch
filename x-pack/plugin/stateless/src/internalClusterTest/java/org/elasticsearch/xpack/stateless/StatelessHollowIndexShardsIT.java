@@ -89,6 +89,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -174,7 +175,6 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
@@ -814,6 +814,14 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs + moreDocs);
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction:TRACE", reason = """
+        We have seen flakes in this test where assertRequestsFinished() fails during test teardown.
+        See https://github.com/elastic/elasticsearch/issues/151861 for details.
+        In the instance captured there, an internal:index/shard/recovery/stateless_primary_relocation/start task is running during teardown.
+        It seems likely that the race between the index close and the relocation that hollows shards is leaving some asynchronous process
+        hanging so that it never completes its listener chain. This would be a genuine race condition.
+        By enabling trace logging on TransportStatelessPrimaryRelocationAction, we should get more detail about where that task got to.
+        """)
     public void testCloseWhileShardsAreHollowed() throws Exception {
         startMasterOnlyNode();
         final var indexNodeSettings = Settings.builder()

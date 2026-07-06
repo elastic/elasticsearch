@@ -1,0 +1,197 @@
+teardown:
+  - do:
+      catch: missing
+      inference.delete_region_policy: {}
+
+---
+"Put region policy with allowed_regions":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_regions:
+              - csp: aws
+                region: us-east-1
+              - csp: aws
+                region: eu-west-1
+
+  - match: { region_policy.allowed_regions.0.csp: aws }
+  - match: { region_policy.allowed_regions.0.region: us-east-1 }
+  - match: { region_policy.allowed_regions.1.csp: aws }
+  - match: { region_policy.allowed_regions.1.region: eu-west-1 }
+  - is_true: created_at
+  - is_false: created_by
+  - is_false: updated_at
+  - is_false: updated_by
+
+  - do:
+      inference.delete_region_policy: {}
+
+---
+"Put region policy with allowed_geos":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos:
+              - us
+              - eu
+
+  - match: { region_policy.allowed_geos.0: us }
+  - match: { region_policy.allowed_geos.1: eu }
+  - is_true: created_at
+  - is_false: created_by
+  - is_false: updated_at
+  - is_false: updated_by
+
+  - do:
+      inference.delete_region_policy: {}
+
+---
+"Get region policy":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_regions:
+              - csp: gcp
+                region: us-central1
+
+  - do:
+      inference.get_region_policy: {}
+
+  - match: { region_policy.allowed_regions.0.csp: gcp }
+  - match: { region_policy.allowed_regions.0.region: us-central1 }
+  - is_true: created_at
+  - is_false: created_by
+  - is_false: updated_at
+  - is_false: updated_by
+
+  - do:
+      inference.delete_region_policy: {}
+
+---
+"Delete region policy":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos:
+              - us
+
+  - do:
+      inference.delete_region_policy: {}
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      inference.get_region_policy: {}
+  - match: { error.reason: "No region policy is configured for this deployment" }
+
+---
+"Get region policy when none exists":
+  - do:
+      catch: missing
+      inference.get_region_policy: {}
+  - match: { error.reason: "No region policy is configured for this deployment" }
+
+---
+"Put region policy replaces existing":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos:
+              - us
+
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_regions:
+              - csp: azure
+                region: eastus
+
+  - do:
+      inference.get_region_policy: {}
+
+  - is_false: region_policy.allowed_geos
+  - match: { region_policy.allowed_regions.0.csp: azure }
+  - match: { region_policy.allowed_regions.0.region: eastus }
+  - is_true: created_at
+  - is_false: created_by
+  - is_true: updated_at
+  - is_false: updated_by
+
+  - do:
+      inference.delete_region_policy: {}
+
+---
+"Put region policy rejects unknown top-level field":
+  - do:
+      catch: bad_request
+      inference.put_region_policy:
+        body:
+          allowed_geos:
+            - us
+  - match:
+      error.reason: /.*unknown\ field\ \[allowed_geos\].*/
+
+---
+"Put region policy rejects both allowed_geos and allowed_regions":
+  - do:
+      catch: bad_request
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos:
+              - us
+            allowed_regions:
+              - csp: aws
+                region: us-east-1
+  - match:
+      error.reason: /.*failed\ to\ parse\ field\ \[region_policy\].*/
+  - match: { error.caused_by.reason: /.*not\ allowed\ together.*/ }
+
+---
+"Put region policy rejects empty allowed_geos":
+  - do:
+      catch: bad_request
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos: []
+  - match:
+      error.reason: /.*\[region_policy\.allowed_geos\]\ must\ not\ be\ empty.*/
+
+---
+"Put region policy rejects empty allowed_regions":
+  - do:
+      catch: bad_request
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_regions: []
+  - match:
+      error.reason: /.*\[region_policy\.allowed_regions\]\ must\ not\ be\ empty.*/
+
+---
+"Delete region policy when none exists":
+  - do:
+      catch: missing
+      inference.delete_region_policy: {}
+  - match: { error.reason: "No region policy is configured for this deployment" }
+
+---
+"Putting a region policy does not break the get inference api":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_regions:
+              - csp: csp
+                region: region
+
+  - do:
+      inference.get: {}

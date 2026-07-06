@@ -696,6 +696,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         when(task.setAuthState(any(AuthorizationState.class))).thenReturn(task);
         when(task.setNumFailureRetries(anyInt())).thenReturn(task);
         when(task.getParentTaskId()).thenReturn(TaskId.EMPTY_TASK_ID);
+        when(task.getProjectId()).thenReturn(projectId.id());
         when(task.getContext()).thenReturn(mock());
         doAnswer(a -> fail(a.getArgument(0, Throwable.class))).when(task).fail(any(Throwable.class), any(String.class), any());
         when(task.getState()).thenReturn(
@@ -916,7 +917,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         var clusterService = mock(ClusterService.class);
         var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(Transform.NUM_FAILURE_RETRIES_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
-        when(clusterService.state()).thenReturn(TransformInternalIndexTests.randomTransformClusterState());
+        when(clusterService.state()).thenReturn(TransformInternalIndexTests.randomTransformClusterState(projectId));
         return clusterService;
     }
 }

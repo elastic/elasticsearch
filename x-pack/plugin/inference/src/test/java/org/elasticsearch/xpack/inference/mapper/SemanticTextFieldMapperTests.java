@@ -403,6 +403,21 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Object getSampleObjectForDocument() {
+        // Only consulted by testSupportsParsingObject, and only for the legacy format (supportsParsingObject() is true only then). A
+        // legacy value is the {text, inference} object; a minimal one with the resolved inference id and no inference results parses.
+        final String expectedInferenceId = testIndexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
+            ? DEFAULT_EIS_JINA_V5_INFERENCE_ID
+            : DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
+        return Map.of(
+            SemanticTextField.TEXT_FIELD,
+            randomAlphaOfLength(10),
+            SemanticTextField.INFERENCE_FIELD,
+            Map.of(SemanticTextField.INFERENCE_ID_FIELD, expectedInferenceId, SemanticTextField.CHUNKS_FIELD, List.of())
+        );
+    }
+
+    @Override
     protected boolean supportsIgnoreMalformed() {
         return false;
     }
@@ -1884,8 +1899,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testMultimodalChunksNotSupported() throws Exception {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         // Exclude dot product because the randomly generated embedding may not have unit length
         Model model = TestModel.createRandomInstance(TaskType.EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
         MapperService mapperService = createMapperService(

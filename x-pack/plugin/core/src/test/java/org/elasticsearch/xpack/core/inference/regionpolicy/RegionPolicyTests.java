@@ -50,7 +50,6 @@ public class RegionPolicyTests extends AbstractBWCSerializationTestCase<RegionPo
     public static RegionPolicy createRandom() {
         List<String> allowedGeos = null;
         List<CspRegion> allowedRegions = null;
-        CspRegion fallbackRegion = null;
 
         boolean useGeos = randomBoolean();
         if (useGeos) {
@@ -59,10 +58,7 @@ public class RegionPolicyTests extends AbstractBWCSerializationTestCase<RegionPo
             allowedRegions = randomList(1, 10, () -> CspRegionTests.createRandom());
         }
 
-        if (randomBoolean()) {
-            fallbackRegion = CspRegionTests.createRandom();
-        }
-        return new RegionPolicy(allowedGeos, allowedRegions, fallbackRegion);
+        return new RegionPolicy(allowedGeos, allowedRegions);
     }
 
     @Override
@@ -72,19 +68,11 @@ public class RegionPolicyTests extends AbstractBWCSerializationTestCase<RegionPo
         boolean useGeos = allowedGeos != null;
         boolean useRegions = allowedRegions != null;
         assertThat(useGeos, not(equalTo(useRegions)));
-        CspRegion fallbackRegion = instance.fallbackRegion();
-        switch (randomInt(1)) {
-            case 0 -> {
-                // either allowedGeos or allowedRegions is not null
-                if (useGeos) {
-                    allowedGeos = randomValueOtherThan(allowedGeos, () -> randomList(10, () -> randomAlphaOfLength(10)));
-                } else if (useRegions) {
-                    allowedRegions = randomValueOtherThan(allowedRegions, () -> randomList(10, () -> CspRegionTests.createRandom()));
-                }
-            }
-            case 1 -> fallbackRegion = randomValueOtherThan(fallbackRegion, CspRegionTests::createRandom);
-            default -> throw new IllegalStateException("Illegal randomisation branch");
+        if (useGeos) {
+            allowedGeos = randomValueOtherThan(allowedGeos, () -> randomList(10, () -> randomAlphaOfLength(10)));
+        } else {
+            allowedRegions = randomValueOtherThan(allowedRegions, () -> randomList(10, () -> CspRegionTests.createRandom()));
         }
-        return new RegionPolicy(allowedGeos, allowedRegions, fallbackRegion);
+        return new RegionPolicy(allowedGeos, allowedRegions);
     }
 }

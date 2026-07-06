@@ -365,11 +365,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 final int targetBitSetSizeInBytes = bitSetBuffer.sizeInBytes;
 
                 RandomAccessInput bloomFilterData = bloomFilterFieldReader.bloomFilterIn;
-                if (isAllZeros(bloomFilterData)) {
-                    throw new IllegalStateException(
-                        "Expected at least one non-zero page in bloom filter " + bloomFilterFieldReader.bloomFilterIn + " but got none"
-                    );
-                }
+                assert isAllZeros(bloomFilterData) == false : "Expected non-zero bloom filter bitset";
                 final int sourceSizeInBytes = bloomFilterFieldReader.getBloomFilterBitSetSizeInBytes();
                 if (sourceSizeInBytes >= targetBitSetSizeInBytes) {
                     // Fold: source is larger (or equal), so we partition it into chunks

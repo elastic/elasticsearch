@@ -376,6 +376,49 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    public void testCastTemporalToWholeNumber() {
+        // A temporal source arrives as a raw epoch Long; supports(DATETIME/DATE_NANOS, long/integer) is true,
+        // so castBlock MUST coerce it — identity to long, range-checked narrow to int — with no structural
+        // failure. Regression for the numericCoercer ClassCastException (DATETIME converter expected a
+        // ZonedDateTime) and the missing-DATE_NANOS-converter IAE.
+        long epochMillis = 1704067200000L; // 2024-01-01, well above Integer.MAX_VALUE
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { epochMillis }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DATETIME, DataType.LONG)
+        ) {
+            assertEquals(epochMillis, ((LongBlock) cast).getLong(0));
+        }
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { epochMillis }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DATE_NANOS, DataType.LONG)
+        ) {
+            assertEquals(epochMillis, ((LongBlock) cast).getLong(0));
+        }
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 42L }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DATETIME, DataType.INTEGER)
+        ) {
+            assertEquals(42, ((org.elasticsearch.compute.data.IntBlock) cast).getInt(0));
+        }
+        // A real epoch overflows int: a per-value coercion failure (warn+null), NOT a structural throw.
+        List<String> warnings = new ArrayList<>();
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { epochMillis }, 1).asBlock();
+            Block cast = DeclaredTypeCoercions.castBlock(
+                src,
+                DataType.DATETIME,
+                DataType.INTEGER,
+                null,
+                blockFactory,
+                "col",
+                capturing(warnings)
+            )
+        ) {
+            assertTrue("epoch overflows int -> null", cast.isNull(0));
+            assertThat(warnings, hasSize(1));
+        }
+    }
+
     private void assertLongCast(String token, long expected) {
         try (Block src = bytesBlock(token); Block longs = castStrict(src, DataType.KEYWORD, DataType.LONG)) {
             assertThat("[" + token + "]::long", ((LongBlock) longs).getLong(0), equalTo(expected));

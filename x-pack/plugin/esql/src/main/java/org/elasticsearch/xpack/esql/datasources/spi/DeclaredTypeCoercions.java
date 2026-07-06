@@ -401,6 +401,18 @@ public final class DeclaredTypeCoercions {
                 default -> throw new IllegalArgumentException("numericCoercer handles long/integer, not [" + to.typeName() + "]");
             };
         }
+        if (from == DataType.DATETIME || from == DataType.DATE_NANOS) {
+            // Temporal sources arrive from valueReader as a raw epoch Long (millis for datetime, nanos for
+            // date_nanos), NOT the ZonedDateTime the :: cast engine's DATETIME converter expects — and
+            // DataTypeConverter has no DATE_NANOS numeric converter at all. Coerce the epoch value directly,
+            // matching TO_LONG(datetime)/TO_INTEGER(datetime): identity to long, range-checked narrow to int
+            // (a real epoch overflows int, so the narrow warn+nulls via onCoercionFailure like any overflow).
+            return switch (to) {
+                case LONG -> v -> ((Number) v).longValue();
+                case INTEGER -> v -> DataTypeConverter.safeToInt(((Number) v).longValue());
+                default -> throw new IllegalArgumentException("numericCoercer handles long/integer, not [" + to.typeName() + "]");
+            };
+        }
         Converter converter = DataTypeConverter.converterFor(from, to);
         if (converter == null) {
             throw new IllegalArgumentException(

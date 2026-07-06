@@ -656,6 +656,35 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         assertThat("circuitBreaker should have 0 tracked bytes after the publisher failed", circuitBreaker.getTracked(), equalTo(0L));
     }
 
+    public void testFailedBeforeSubscribeReleasesCircuitBreakerBytes() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+
+        assertThat(
+            "circuitBreaker should have tracked bytes after consuming content",
+            circuitBreaker.getTracked(),
+            equalTo((long) message.length)
+        );
+
+        // Apache fails the response before any subscriber has attached
+        var exception = new NullPointerException("test");
+        publisher.failed(exception);
+
+        assertThat(
+            "circuitBreaker should have 0 tracked bytes when the publisher fails without a subscriber",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+
+        // a late subscriber still receives the error, and the error path must not release bytes a second time
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+        subscriber.requestData();
+
+        assertThat("subscriber receives the exception", subscriber.throwable, is(exception));
+        assertThat("bytes should not be released twice", circuitBreaker.getTracked(), equalTo(0L));
+    }
+
     public void testCancelledSubscriberReleasesCircuitBreakerBytes() throws IOException {
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));

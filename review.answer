@@ -1,0 +1,608 @@
+diff --git a/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-load.csv-spec b/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-load.csv-spec
+index 5e2fb6826a43..fe025345cac2 100644
+--- a/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-load.csv-spec
++++ b/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-load.csv-spec
+@@ -5,6 +5,7 @@
+ partiallyUnmappedSmallNumericFieldIsWidened
+ required_capability: optional_fields_v5
+ required_capability: optional_fields_fix_partially_unmapped_small_numeric
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM apps_short, partial_mapping_sample_data
+@@ -12,6 +13,7 @@ FROM apps_short, partial_mapping_sample_data
+ | SORT name DESC NULLS LAST
+ | LIMIT 3
+ ;
++warning:Field [id] of type [short] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ id:integer | name:keyword
+ 14         | mmmmm
+@@ -221,6 +223,7 @@ qstrTextMappedUnmappedAndNonExistentUnderLoad
+ required_capability: optional_fields_unmapped_load_null_fallback
+ required_capability: qstr_function
+ required_capability: fix_unmapped_fields_in_esrelation
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+@@ -228,6 +231,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
+ | KEEP _index, doc_id, txt
+ | SORT _index
+ ;
++warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ _index:keyword          | doc_id:keyword | txt:text
+ text_state_mapped       | mapped-1       | William Faulkner
+@@ -239,6 +243,7 @@ kqlTextMappedUnmappedAndNonExistentUnderLoad
+ required_capability: optional_fields_unmapped_load_null_fallback
+ required_capability: kql_function
+ required_capability: fix_unmapped_fields_in_esrelation
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+@@ -246,6 +251,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
+ | KEEP _index, doc_id, txt
+ | SORT _index
+ ;
++warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ _index:keyword          | doc_id:keyword | txt:text
+ text_state_mapped       | mapped-1       | William Faulkner
+@@ -257,6 +263,7 @@ matchTextMappedUnmappedAndNonExistentUnderLoad
+ required_capability: optional_fields_unmapped_load_null_fallback
+ required_capability: match_function
+ required_capability: fix_unmapped_fields_in_esrelation
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+@@ -264,6 +271,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
+ | KEEP _index, doc_id, txt
+ | SORT _index
+ ;
++warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ _index:keyword          | doc_id:keyword | txt:text
+ text_state_mapped       | mapped-1       | William Faulkner
+@@ -275,6 +283,7 @@ matchOperatorTextMappedUnmappedAndNonExistentUnderLoad
+ required_capability: optional_fields_unmapped_load_null_fallback
+ required_capability: match_operator_colon
+ required_capability: fix_unmapped_fields_in_esrelation
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+@@ -282,6 +291,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
+ | KEEP _index, doc_id, txt
+ | SORT _index
+ ;
++warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ _index:keyword          | doc_id:keyword | txt:text
+ text_state_mapped       | mapped-1       | William Faulkner
+@@ -291,6 +301,7 @@ text_state_unmapped     | unmapped-1     | null
+
+ renameTextMappedUnmappedAndNonExistentUnderLoad
+ required_capability: optional_fields_unmapped_load_null_fallback
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+@@ -298,6 +309,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
+ | KEEP _index, doc_id, renamed_txt
+ | SORT _index, doc_id
+ ;
++warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ _index:keyword          | doc_id:keyword | renamed_txt:text
+ text_state_mapped       | mapped-1       | William Faulkner
+diff --git a/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-punk-singles.csv-spec b/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-punk-singles.csv-spec
+index 8da71445a4c5..26d5df13883a 100644
+--- a/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-punk-singles.csv-spec
++++ b/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-punk-singles.csv-spec
+@@ -9,6 +9,7 @@ aggregateMetricDoubleUnmappedToGauge
+ required_capability: optional_fields_unmapped_load_null_fallback
+ required_capability: aggregate_metric_double_v0
+ required_capability: to_gauge
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM k8s-downsampled, k8s_unmapped METADATA _index
+@@ -16,6 +17,7 @@ FROM k8s-downsampled, k8s_unmapped METADATA _index
+ | EVAL tx = TO_GAUGE(network.eth0.tx)
+ | STATS rows = COUNT(*), tx_count = COUNT(tx)
+ ;
++warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ rows:long | tx_count:long
+ 200       | 0
+@@ -27,11 +29,13 @@ rows:long | tx_count:long
+ aggregateMetricDoubleUnmappedStatsNoCast
+ required_capability: optional_fields_unmapped_load_null_fallback
+ required_capability: aggregate_metric_double_v0
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
+ | STATS avg_tx = AVG(network.eth0.tx), sum_tx = SUM(network.eth0.tx), tx_count = COUNT(network.eth0.tx), rows = COUNT(*)
+ ;
++warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ avg_tx:double     | sum_tx:double | tx_count:long | rows:long
+ 575.8033707865169 | 102493.0      | 178           | 229
+@@ -41,12 +45,14 @@ avg_tx:double     | sum_tx:double | tx_count:long | rows:long
+ aggregateMetricDoubleUnmappedStatsNoCastByIndex
+ required_capability: optional_fields_unmapped_load_null_fallback
+ required_capability: aggregate_metric_double_v0
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
+ | STATS avg_tx = AVG(network.eth0.tx), sum_tx = SUM(network.eth0.tx), tx_count = COUNT(network.eth0.tx), rows = COUNT(*) BY _index
+ | SORT _index
+ ;
++warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ avg_tx:double     | sum_tx:double | tx_count:long | rows:long | _index:keyword
+ 575.8033707865169 | 102493.0      | 178           | 27        | k8s-downsampled
+@@ -59,12 +65,14 @@ null              | null          | 0             | 200       | k8s_unmapped
+ aggregateMetricDoubleUnmappedRenameNoCast
+ required_capability: optional_fields_unmapped_load_null_fallback
+ required_capability: aggregate_metric_double_v0
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent
+ | RENAME network.eth0.tx AS renamed_tx
+ | STATS avg_tx = AVG(renamed_tx), sum_tx = SUM(renamed_tx), tx_count = COUNT(renamed_tx), rows = COUNT(*)
+ ;
++warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ avg_tx:double     | sum_tx:double | tx_count:long | rows:long
+ 575.8033707865169 | 102493.0      | 178           | 229
+@@ -74,6 +82,7 @@ avg_tx:double     | sum_tx:double | tx_count:long | rows:long
+ aggregateMetricDoubleUnmappedRenameNoCastByIndex
+ required_capability: optional_fields_unmapped_load_null_fallback
+ required_capability: aggregate_metric_double_v0
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
+@@ -81,6 +90,7 @@ FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
+ | STATS avg_tx = AVG(renamed_tx), sum_tx = SUM(renamed_tx), tx_count = COUNT(renamed_tx), rows = COUNT(*) BY _index
+ | SORT _index
+ ;
++warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ avg_tx:double     | sum_tx:double | tx_count:long | rows:long | _index:keyword
+ 575.8033707865169 | 102493.0      | 178           | 27        | k8s-downsampled
+diff --git a/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-type-conflicts.csv-spec b/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-type-conflicts.csv-spec
+index 9c4bf6fe6341..16abc9b14b0d 100644
+--- a/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-type-conflicts.csv-spec
++++ b/x-pack/plugin/esql/qa/testFixtures/src/main/resources/unmapped-type-conflicts.csv-spec
+@@ -436,6 +436,7 @@ c:long | last_name:keyword
+ typeConflictPartiallyUnmappedTextFieldNotLoaded
+ required_capability: optional_fields_v5
+ required_capability: optional_fields_fix_load_partially_mapped
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM employees_gender_text, employees_no_gender METADATA _index
+@@ -443,6 +444,7 @@ FROM employees_gender_text, employees_no_gender METADATA _index
+ | SORT emp_no, _index
+ | LIMIT 6
+ ;
++warning:Field [gender] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ emp_no:integer | gender:text           | _index:keyword
+ 10001          | M                     | employees_gender_text
+@@ -457,6 +459,7 @@ emp_no:integer | gender:text           | _index:keyword
+ typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop
+ required_capability: optional_fields_v5
+ required_capability: optional_fields_fix_load_partially_mapped
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM employees_gender_text, employees_no_gender METADATA _index
+@@ -465,6 +468,7 @@ FROM employees_gender_text, employees_no_gender METADATA _index
+ | LIMIT 6
+ ;
+
++warning:Field [gender] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+ emp_no:integer | gender:text           | _index:keyword
+ 10001          | M                     | employees_gender_text
+ 10001          | null                  | employees_no_gender
+@@ -2768,12 +2772,14 @@ addresses_no_continent  | Tokyo             | Milky Way
+ deeplyNestedNonKeywordSubfieldUnderPartiallyUnmappedParentNotCast
+ required_capability: optional_fields_v5
+ required_capability: optional_fields_fix_load_partially_mapped
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM addresses_text, addresses_no_continent METADATA _index
+ | KEEP _index, city.country.continent.planet.galaxy
+ | SORT _index
+ ;
++warning:Field [city.country.continent.planet.galaxy] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+ _index:keyword           | city.country.continent.planet.galaxy:text
+ addresses_no_continent   | null
+@@ -2790,12 +2796,14 @@ addresses_text           | Milky Way
+ deeplyNestedNonKeywordSubfieldPartiallyUnmappedNotCast
+ required_capability: optional_fields_v5
+ required_capability: optional_fields_fix_load_partially_mapped
++required_capability: optional_fields_warn_non_loadable_punk
+
+ SET unmapped_fields="load"\;
+ FROM addresses_text, addresses_no_continent METADATA _index
+ | KEEP _index, city.country.continent.name
+ | SORT _index
+ ;
++warning:Field [city.country.continent.name] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+ ignoreOrder:true
+
+ _index:keyword           | city.country.continent.name:text
+diff --git a/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/action/EsqlCapabilities.java b/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/action/EsqlCapabilities.java
+index 202393f6c3a6..204f41145c89 100644
+--- a/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/action/EsqlCapabilities.java
++++ b/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/action/EsqlCapabilities.java
+@@ -335,6 +335,12 @@ public class EsqlCapabilities {
+          */
+         OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_DENSE_VECTOR,
+
++        /**
++         * Warn when a partially unmapped field with a single non-KEYWORD mapped type is referenced explicitly, but its type has no
++         * KEYWORD converter and so cannot be loaded from _source: it falls back to null in the indices where it is unmapped.
++         */
++        OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
++
+         /**
+          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
+          * supported.
+diff --git a/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/analysis/Analyzer.java b/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/analysis/Analyzer.java
+index da52275f98a0..8b0021e769db 100644
+--- a/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/analysis/Analyzer.java
++++ b/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/analysis/Analyzer.java
+@@ -3187,12 +3187,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
+      * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
+      * This should not spill into the query output, so we drop such attributes at the end.
+      */
+-    private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
+-        public LogicalPlan apply(LogicalPlan plan) {
++    private static class UnionTypesCleanup extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
++        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+
+             // We start by dropping synthetic attributes if the plan is resolved
+             LogicalPlan cleanPlan = plan.resolved() ? planWithoutSyntheticAttributes(plan) : plan;
+
++            // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it into a
++            // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once for each such field whose value the user can
++            // actually observe (it reaches the final output or is consumed by some expression). Loadable casts produced a separate
++            // attribute with its own id (see ResolveUnionTypes#createIfDoesNotAlreadyExist), so matching by id excludes them for free.
++            //
++            // The LOAD gate looks redundant — a PUNK is only ever created when unmapped-field-index tracking is on — but it isn't, because
++            // that tracking keys off the *raw* unmapped_fields setting while the analyzer may run with a different resolution. Concretely,
++            // a
++            // query carrying a PROMQL command is forced to NULLIFY (EsqlSession#analyzeWithRetry), yet if the raw setting was "load" the
++            // indices were still tracked, so PUNKs reach cleanup under NULLIFY. Warning there would be wrong (we're nullifying, not failing
++            // to load). Tracking-despite-nullify is arguably an EsqlSession bug (see the #145920 TODO there); until it's fixed this gate
++            // keeps the warning honest. Analyzer/golden tests also build PUNK indices directly and run them under NULLIFY.
++            if (context.unmappedResolution() == UnmappedResolution.LOAD && cleanPlan.resolved()) {
++                warnObservedNonLoadablePunks(cleanPlan);
++            }
++
+             // If not, we apply checkUnresolved to the field attributes of the original plan, resulting in unsupported attributes
+             // This removes attributes such as converted types if they are aliased, but retains them otherwise, while also guaranteeing that
+             // unsupported / unresolved fields can be explicitly retained
+@@ -3207,6 +3223,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
+             );
+         }
+
++        private static void warnObservedNonLoadablePunks(LogicalPlan plan) {
++            Set<NameId> observedFieldIds = observedFieldIds(plan);
++            Set<NameId> warned = new HashSet<>();
++            plan.forEachExpressionDown(FieldAttribute.class, fa -> {
++                if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk && observedFieldIds.contains(fa.id())) {
++                    DataType mappedType = punk.mappedField().getDataType();
++                    // dense_vector has a KEYWORD converter, but it reads hexadecimal strings while an unmapped dense_vector loads from
++                    // _source as an array of numbers (#152184), so the "no implicit conversion from KEYWORD" wording would be misleading.
++                    if (mappedType != DENSE_VECTOR && warned.add(fa.id())) {
+#>> A: This check of DENSE_VECTOR already appears elsewhere. That's not very DRY.
+#<< Action Item: AI #1
++                        HeaderWarning.addWarning(
++                            "Field [{}] of type [{}] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will "
++                                + "not be loaded from _source; values will be null in those indices",
++                            fa.name(),
++                            mappedType.typeName()
++                        );
++                    }
++                }
++            });
++        }
++
++        /** Ids of every attribute that reaches the final output or is referenced by some node — i.e. whose value the user can observe. */
+#>> PM: What about attributes that are used in conversion functions? We shouldn't warn about those.
+#<< A loadable conversion (one whose converter accepts KEYWORD, e.g. `client_ip::keyword`) is rewritten into a
+#<< UnionTypeEsField by ResolveUnionTypes *before* cleanup, and that union gets a brand-new NameId (see
+#<< ResolveUnionTypes#createIfDoesNotAlreadyExist). The original PUNK's own id is then no longer referenced, so it is
+#<< absent from observedFieldIds and we do NOT warn — see testNoConverterPunkDirectCastLoadsUnmapped (KEEP x only ->
+#<< no warning).
+#<< We only warn when the PUNK itself stays referenced, which is exactly when the conversion is NOT loadable: the type
+#<< has no KEYWORD converter (TO_GAUGE over aggregate_metric_double -> aggregateMetricDoubleUnmappedToGauge warns), or
+#<< the cast targets a renamed alias rather than the field's own attribute
+#<< (testNoConverterPunkRenameThenCastDoesNotLoadUnmapped / the renameThenCast case at line 488 warn). In those cases
+#<< the value genuinely falls back to null, so warning is correct. So "used in a conversion function" does not by
+#<< itself trigger a warning.
+#<< You're right that the javadoc is inaccurate: it says these are the ids of "every attribute that reaches the final
+#<< output or is referenced by some node, i.e. whose value the user can observe", but a field referenced only inside a
+#<< conversion function is "referenced" yet is not necessarily warned/observed in the intended sense. The wording
+#<< should be corrected.
+#<< Action Item: AI #9
++        private static Set<NameId> observedFieldIds(LogicalPlan plan) {
++            Set<NameId> ids = new HashSet<>();
++            plan.output().forEach(a -> ids.add(a.id()));
++            plan.forEachDown(p -> p.references().forEach(a -> ids.add(a.id())));
++            return ids;
++        }
++
+         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
+             // Virtual columns (today: _file.* and the standard metadata names on external datasets)
+             // are kept out of default output, the same way the implicit `*` expansion drops them via
+@@ -3351,7 +3395,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
+             if (context.unmappedResolution() != UnmappedResolution.LOAD) {
+                 return plan;
+             }
+-
+             return plan.transformUp(EsRelation.class, esRelation -> {
+                 if (esRelation.indexMode() == IndexMode.LOOKUP) {
+                     return esRelation;
+diff --git a/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/analysis/AnalyzerUnmappedTests.java b/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/analysis/AnalyzerUnmappedTests.java
+index 9b8275113666..18c84a38c73a 100644
+--- a/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/analysis/AnalyzerUnmappedTests.java
++++ b/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/analysis/AnalyzerUnmappedTests.java
+@@ -1186,6 +1186,13 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
+             }
+         }
+         assertThat(noConverterTypes, equalTo(NO_IMPLICIT_KEYWORD_CONVERTER_PUNK_TYPES));
++        // Each non-loadable PUNK reaches the default output (bare FROM) and warns; dense_vector is deliberately excluded.
++        assertWarnings(
++            noConverterTypes.stream()
++                .filter(dt -> dt.widenSmallNumeric() != DataType.DENSE_VECTOR)
++                .map(dt -> nonLoadablePunkWarning("test_field", dt.widenSmallNumeric().typeName()))
++                .toArray(String[]::new)
++        );
+     }
+
+     private static boolean supportsKeywordConversionUnderLoad(DataType mappedType) {
+@@ -1562,6 +1569,115 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
+         assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
+     }
+
++    public void testNonLoadablePunkWarnsWhenInOutputNotWhenExcluded() {
++        assumeTrue(
++            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
++            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
++        );
++
++        var kept = new EsField("kept_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
++        var excluded = new EsField("excluded_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
++        var esIndex = partialIndex(
++            Map.of("kept_text", kept, "excluded_text", excluded, "common", keywordField("common")),
++            Set.of("kept_text", "excluded_text")
++        );
++        var analyzer = analyzer().addIndex(esIndex);
++
++        // excluded_text never reaches the output, so it produces no warning; kept_text does.
+#>> A: Redundant comment
+#<< Action Item: AI #2
++        var plan = analyzer.statement(setUnmappedLoad("FROM idx* | KEEP kept_text, common"));
++        var keptAttr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("kept_text")).toList());
++        assertThat(keptAttr.dataType(), equalTo(DataType.TEXT));
++        assertWarnings(nonLoadablePunkWarning("kept_text", "text"));
++    }
++
++    public void testNonLoadablePunkWarnsUnderBareFrom() {
++        assumeTrue(
++            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
++            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
++        );
++
++        var esIndex = partialIndex(
++            Map.of("partial_text", textField("partial_text"), "common", keywordField("common")),
++            Set.of("partial_text")
++        );
++        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx*"));
++        var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_text")).toList());
++        assertThat(attr.dataType(), equalTo(DataType.TEXT));
++        assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
++    }
++
++    public void testNonLoadablePunkWarnsUnderKeepWildcard() {
++        assumeTrue(
++            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
++            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
++        );
++
++        var esIndex = partialIndex(
++            Map.of("partial_text", textField("partial_text"), "common", keywordField("common")),
++            Set.of("partial_text")
++        );
++        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | KEEP *"));
++        var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_text")).toList());
++        assertThat(attr.dataType(), equalTo(DataType.TEXT));
++        assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
++    }
++
++    public void testNonLoadablePunkNoWarnWhenExcludedByKeepWildcard() {
++        assumeTrue(
++            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
++            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
++        );
++
++        var esIndex = partialIndex(
++            Map.of("partial_text", textField("partial_text"), "common", keywordField("common")),
++            Set.of("partial_text")
++        );
++        // partial_text is excluded by the wildcard, so it never reaches the output and must not warn.
++        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | KEEP comm*"));
++        var attr = EsqlTestUtils.singleValue(plan.output());
++        assertThat(attr.name(), equalTo("common"));
+#>> Q: Where is the lack of warning check here? Is it implicit since we always check for warnings and if we don't assert them they would fail if they appear?
+#<< Yes — it's implicit. ESTestCase#after runs ensureNoWarnings(), which fails the test if the response carried any
+#<< warning that wasn't consumed by an assertWarnings(...) call. A test that emits no assertWarnings therefore
+#<< implicitly asserts that no warning fired.
++    }
++
++    public void testNonLoadablePunkNoWarnWhenDropped() {
++        assumeTrue(
++            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
++            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
++        );
++
++        var esIndex = partialIndex(
++            Map.of("partial_text", textField("partial_text"), "common", keywordField("common")),
++            Set.of("partial_text")
++        );
+#>> A: This setup repeats multiple times. Extract it.
+#<< Action Item: AI #3
++        // A dropped PUNK, whether named explicitly or matched by a wildcard, leaves the output and must not warn.
++        for (String query : List.of("FROM idx* | DROP partial_text", "FROM idx* | DROP partial*")) {
++            var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad(query));
++            var attr = EsqlTestUtils.singleValue(plan.output());
++            assertThat("query [" + query + "]", attr.name(), equalTo("common"));
+#>> Q: On failure, won't just show the query, but not the failed equality check?
+#<< Both are shown. assertThat(String reason, T actual, Matcher) prepends `reason` and still appends the matcher's
+#<< "Expected: ... but: was ..." description, so the failure message contains the query *and* the expected/actual
+#<< mismatch.
++        }
++    }
++
++    public void testNonLoadablePunkDirectCastLeavesKeptRawFieldAsFallback() {
++        assumeTrue(
++            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
++            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
++        );
++
++        var esIndex = partialIndex(Map.of("partial_text", textField("partial_text")), Set.of("partial_text"));
+#>> A: Extract "partial_text" to a variable.
+#<< Action Item: AI #4
++        var plan = analyzer().addIndex(esIndex)
++            .statement(setUnmappedLoad("FROM idx* | EVAL x = partial_text::keyword | KEEP x, partial_text"));
++        // The cast loads into a separate KEYWORD attribute (x); the kept raw field keeps its own identity, stays a TEXT null fallback,
++        // and therefore still warns.
++        var x = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("x")).toList());
++        assertThat(x.dataType(), equalTo(DataType.KEYWORD));
++        var raw = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_text")).toList());
++        assertThat(raw.dataType(), equalTo(DataType.TEXT));
++        assertTrue(
++            "Expected x to load unmapped rows from _source via a KEYWORD union",
++            unionFields(plan).stream().anyMatch(u -> u.getDataType() == DataType.KEYWORD && u.getUnmappedConversionExpression() != null)
+#>> QD: Why "anyMatch"? Don't you know which entry it will be?
+#<< On reflection, disagree. The single KEYWORD conversion union surfaces via more than one FieldAttribute occurrence, so
+#<< unionFields(plan) returns two entries and singleValue(...) throws "collection size was <2>". anyMatch is the right
+#<< tool here (added a one-line comment explaining why). No action item.
++        );
++        assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
++    }
++
+     public void testLoadWithPartiallyMappedNonKeywordInSortAutoCast() {
+         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+@@ -1820,6 +1936,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
+         assertThat(attr.name(), equalTo("x"));
+         assertThat(attr.dataType(), equalTo(DataType.KEYWORD));
+         assertThat(unionFields(plan), Matchers.empty());
++        // The cast targets the renamed alias, not the field itself, so the unmapped leg is not loaded and partial_text falls back to null.
++        assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
+     }
+
+     private static final List<DataType> SMALL_NUMERIC_TYPES = List.of(
+@@ -1875,6 +1993,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
+                 ((AbstractConvertFunction) compact.getUnmappedConversionExpression()).field().dataType(),
+                 is(DataType.KEYWORD)
+             );
++            // The raw (uncast) field reaches the default output and falls back to null where unmapped.
++            assertWarnings(nonLoadablePunkWarning(smallTypeField, dt.typeName()));
+         }
+     }
+
+@@ -1897,6 +2017,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
+         return new EsField(name, DataType.TEXT, emptyMap(), false, EsField.TimeSeriesFieldType.NONE);
+     }
+
++    private static String nonLoadablePunkWarning(String field, String type) {
+#>> A: Bad idea to copy paste this message from production. If the production code changes this will need to change too.
+#<< Action Item: AI #6
++        return Strings.format(
++            "Field [%s] of type [%s] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be "
++                + "loaded from _source; values will be null in those indices",
++            field,
++            type
++        );
++    }
++
+     private static List<UnionTypeEsField> unionFields(LogicalPlan plan) {
+         List<UnionTypeEsField> unions = new ArrayList<>();
+         plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+diff --git a/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/optimizer/UnmappedGoldenTestCase.java b/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/optimizer/UnmappedGoldenTestCase.java
+index 7fa4835ac453..30b3395e5ae9 100644
+--- a/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/optimizer/UnmappedGoldenTestCase.java
++++ b/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/optimizer/UnmappedGoldenTestCase.java
+@@ -12,12 +12,25 @@ import org.elasticsearch.common.util.ArrayUtils;
+ import org.elasticsearch.test.TransportVersionUtils;
+ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+
++import java.util.ArrayList;
+ import java.util.EnumSet;
++import java.util.List;
+ import java.util.Map;
+ import java.util.Optional;
+
+ /** Base for golden tests that run with both unmapped_fields=nullify and unmapped_fields=load. */
+ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
++    @Override
++    protected List<String> filteredWarnings() {
++        List<String> filtered = new ArrayList<>(super.filteredWarnings());
+#>> A: Can use var here.
+#<< Action Item: AI #7
++        // Golden tests compare plan structure, not warnings; the non-loadable PUNK warning is asserted in AnalyzerUnmappedTests and the
++        // csv-spec tests. Match the field/type-agnostic tail of that message.
+#>> A: Redundant comment.
+#<< Action Item: AI #8
++        filtered.add(
++            "has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
++        );
++        return filtered;
++    }
++
+     /** Runs the query with both {@code NULLIFY} and {@code LOAD}; throws if either fails. */
+     protected void runTestsNullifyAndLoad(
+         String query,
+#<< ################
+#<< # Action items #
+#<< ################
+#<< 1. Analyzer.java (~lines 3234 and 3408): the `mappedType == DENSE_VECTOR` special-case, with its #152184 rationale
+#<<    comment, is duplicated in UnionTypesCleanup#warnObservedNonLoadablePunks and ResolveTwoLeggedPunksInEsRelation.
+#<<    Extract it into one documented helper/predicate used by both sites.
+#<< 2. AnalyzerUnmappedTests.java (~line 381, testNonLoadablePunkWarnsWhenInOutputNotWhenExcluded): remove the
+#<<    redundant "excluded_text never reaches the output..." comment.
+#<< 3. AnalyzerUnmappedTests.java (new tests ~lines 388-455): extract the repeated
+#<<    `partialIndex(Map.of("partial_text", textField("partial_text"), "common", keywordField("common")),
+#<<    Set.of("partial_text"))` setup into a shared helper (e.g. partialTextAndCommonIndex()).
+#<< 4. AnalyzerUnmappedTests.java (~line 464, testNonLoadablePunkDirectCastLeavesKeptRawFieldAsFallback): extract the
+#<<    repeated "partial_text" string literal into a local variable/constant.
+#<< 5. WITHDRAWN. Attempted to replace anyMatch with singleValue(unionFields(plan)), but the single KEYWORD union
+#<<    surfaces via two attribute occurrences, so unionFields returns two entries. Kept anyMatch and added a one-line
+#<<    comment explaining why.
+#<< 6. AnalyzerUnmappedTests.java (~line 506, nonLoadablePunkWarning): stop copying the production warning text into the
+#<<    test. Extract the message into a shared production location (a helper/constant next to the addWarning call in
+#<<    Analyzer.java) and reference it from the test.
+#<< 7. UnmappedGoldenTestCase.java (~line 537): use `var filtered = new ArrayList<>(super.filteredWarnings());`.
+#<< 8. UnmappedGoldenTestCase.java (~lines 539-540): trim the redundant comment above filtered.add(...) to at most a
+#<<    one-line "why".
+#<< 9. Analyzer.java (~line 3224, observedFieldIds javadoc): the sentence "Ids of every attribute that reaches the
+#<<    final output or is referenced by some node, i.e. whose value the user can observe" is inaccurate. A field
+#<<    referenced only inside a conversion function is still "referenced by some node" but is not warned/observed in
+#<<    the intended sense. Reword the javadoc to describe accurately what the set contains (and no em dashes).

@@ -1201,13 +1201,6 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Aggregates statistics from all files' metadata into a single merged flat stats map.
-     * For each file, embeds its per-file statistics into its flat sourceMetadata map,
-     * then merges all maps using {@link SourceStatisticsSerializer#mergeStatistics}.
-     * Returns {@code null} if any file lacks statistics (prevents incorrect partial results).
-     */
-    @Nullable
-    /**
      * Reconciliation-path aggregate: normalizes each file's per-column min/max to the reconciled unified type
      * ({@link SourceStatisticsSerializer#normalizeStatsToReconciled}) BEFORE the cross-file fold, so a column that
      * mixes units/representations across files (DATETIME epoch-millis vs DATE_NANOS epoch-nanos; numeric vs the
@@ -1216,6 +1209,7 @@ public class ExternalSourceResolver {
      * types; {@code reconciledTypes} is the unified schema's types. Without this, the source-level warm
      * MIN/MAX/COUNT would compare raw file-local values unit-blind (a wrong answer).
      */
+    @Nullable
     static Map<String, Object> aggregateFileStatistics(
         Map<StoragePath, SourceMetadata> allMetadata,
         Map<StoragePath, Map<String, DataType>> perFileTypes,
@@ -1245,6 +1239,7 @@ public class ExternalSourceResolver {
      * data is itself misread under the anchor schema, so no warm extremum can match a scan. We cannot normalize to
      * a common unit (the cold path is already wrong), so we POISON such columns' extrema — safe-miss to a scan.
      */
+    @Nullable
     static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         Map<String, DataType> anchorTypes = null;

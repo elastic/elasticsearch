@@ -235,14 +235,14 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();
         Map<String, List<Instant>> tsdbPastTimestampsToCover = pastTsdbIndexCreationEnabled ? new HashMap<>() : Map.of();
-        long requestStartTime = threadPool.absoluteTimeInMillis();
+        long absoluteStartTimeMillis = threadPool.absoluteTimeInMillis();
         populateMissingTargets(
             bulkRequest,
             indicesToAutoCreate,
             dataStreamsToBeRolledOver,
             failureStoresToBeRolledOver,
             tsdbPastTimestampsToCover,
-            requestStartTime
+            absoluteStartTimeMillis
         );
         createMissingIndicesAndIndexData(
             task,
@@ -253,7 +253,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             dataStreamsToBeRolledOver,
             failureStoresToBeRolledOver,
             tsdbPastTimestampsToCover,
-            requestStartTime
+            absoluteStartTimeMillis,
+            relativeStartTimeNanos
         );
     }
 
@@ -296,7 +297,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * rolled over now
      * @param tsdbPastTimestampsToCover a map of tsdb data stream names and the timestamps that need to be covered by new
      * backing indices
-     * @param requestStartTime the start time of the request used to calculate the eligible window start and define future timestamps
+     * @param absoluteStartTimeMillis the start time of the request used to calculate the eligible window start and define future timestamps
      */
     private void populateMissingTargets(
         BulkRequest bulkRequest,
@@ -304,7 +305,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Set<String> dataStreamsToBeRolledOver,
         Set<String> failureStoresToBeRolledOver,
         Map<String, List<Instant>> tsdbPastTimestampsToCover,
-        long requestStartTime
+        long absoluteStartTimeMillis
     ) {
         populateMissingTargets(
             bulkRequest,
@@ -313,7 +314,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             dataStreamsToBeRolledOver,
             failureStoresToBeRolledOver,
             tsdbPastTimestampsToCover,
-            requestStartTime
+            absoluteStartTimeMillis
         );
     }
 
@@ -324,7 +325,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Set<String> dataStreamsToBeRolledOver,
         Set<String> failureStoresToBeRolledOver,
         Map<String, List<Instant>> tsdbPastTimestampsToCover,
-        long requestStartTime
+        long absoluteStartTimeMillis
     ) {
         // A map for memorizing which indices exist.
         Map<String, Boolean> indexExistence = new HashMap<>();
@@ -400,7 +401,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                             dataStream,
                             request,
                             tsdbWriteWindowStart,
-                            requestStartTime,
+                            absoluteStartTimeMillis,
                             tsdbPastTimestampsToCover
                         );
                     }
@@ -416,7 +417,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * @param dataStream                            the data stream to inspect for start window
      * @param request                               the write request to inspect for timestamp
      * @param tsdbWriteWindowStart                  any previously located tsds start windows
-     * @param requestStartTimestamp                 the timestamp of the request, we use it to calculate the eligible write window
+     * @param absoluteStartTimeMillisstamp                 the timestamp of the request, we use it to calculate the eligible write window
      * @param tsdbPastTimestampsToCover             tracks the timestamps that need to be covered by new indices per tsdb
      */
     private void maybeQueueTimeSeriesCreateIndexOperation(
@@ -424,7 +425,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStream dataStream,
         DocWriteRequest<?> request,
         Map<String, Long> tsdbWriteWindowStart,
-        long requestStartTimestamp,
+        long absoluteStartTimeMillisstamp,
         Map<String, List<Instant>> tsdbPastTimestampsToCover
     ) {
         Instant documentTimestamp;
@@ -440,7 +441,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 dataStream,
                 projectMetadata,
                 documentTimestamp,
-                requestStartTimestamp,
+                absoluteStartTimeMillisstamp,
                 tsdbWriteWindowStart
             ) == false) {
             return;
@@ -456,11 +457,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStream dataStream,
         ProjectMetadata projectMetadata,
         Instant documentTimestamp,
-        long requestStartTimestamp,
+        long absoluteStartTimeMillisstamp,
         Map<String, Long> tsdbWriteWindowStart
     ) {
         long documentTimestampMillis = documentTimestamp.toEpochMilli();
-        if (documentTimestampMillis > requestStartTimestamp) {
+        if (documentTimestampMillis > absoluteStartTimeMillisstamp) {
             logger.trace("Timestamp [{}] is in the future, skipping backing index creation", documentTimestamp);
             return false;
         }
@@ -471,7 +472,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 dataStream,
                 projectMetadata,
                 dataStreamGlobalRetentionSettings.get(),
-                requestStartTimestamp
+                absoluteStartTimeMillisstamp
             )
         );
         if (documentTimestampMillis < windowStart) {
@@ -497,6 +498,9 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     /**
      * This method is responsible for creating any missing indices, rolling over data streams and their failure stores when needed, and then
      * indexing the data in the BulkRequest.
+     *
+     * @param absoluteStartTimeMillis the wall-clock start time of the request, used only for past-tsdb-index eligibility calculations
+     * @param relativeStartTimeNanos the monotonic start time of the request, used for computing the BulkResponse's took time
      */
     protected void createMissingIndicesAndIndexData(
         Task task,
@@ -507,7 +511,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Set<String> dataStreamsToBeRolledOver,
         Set<String> failureStoresToBeRolledOver,
         Map<String, List<Instant>> tsdbPastTimestampsToCover,
-        long requestStartTime
+        long absoluteStartTimeMillis,
+        long relativeStartTimeNanos
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         // Optimizing when there are no prerequisite actions
@@ -515,7 +520,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             && dataStreamsToBeRolledOver.isEmpty()
             && failureStoresToBeRolledOver.isEmpty()
             && tsdbPastTimestampsToCover.isEmpty()) {
-            executeBulk(task, bulkRequest, requestStartTime, listener, executor, responses);
+            executeBulk(task, bulkRequest, relativeStartTimeNanos, listener, executor, responses);
             return;
         }
         Map<String, Exception> indicesExceptions = new ConcurrentHashMap<>();
@@ -533,14 +538,14 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                     bulkRequest,
                     responses
                 );
-                executeBulk(task, bulkRequest, requestStartTime, listener, executor, responses);
+                executeBulk(task, bulkRequest, relativeStartTimeNanos, listener, executor, responses);
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
             createIndices(indicesToAutoCreate, refs, indicesExceptions);
             rollOverDataStreams(bulkRequest, dataStreamsToBeRolledOver, false, refs, dataStreamExceptions);
             rollOverDataStreams(bulkRequest, failureStoresToBeRolledOver, true, refs, failureStoreExceptions);
-            createPastTimeSeriesIndices(bulkRequest, tsdbPastTimestampsToCover, refs, pastTsdbIndicesExceptions, requestStartTime);
+            createPastTimeSeriesIndices(bulkRequest, tsdbPastTimestampsToCover, refs, pastTsdbIndicesExceptions, absoluteStartTimeMillis);
         }
     }
 
@@ -549,12 +554,17 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Map<String, List<Instant>> tsdbPastTimestampsToCover,
         RefCountingRunnable refs,
         Map<String, Map<Instant, Exception>> pastTsdbIndicesExceptions,
-        long requestStartTime
+        long absoluteStartTimeMillis
     ) {
         for (Map.Entry<String, List<Instant>> entry : tsdbPastTimestampsToCover.entrySet()) {
             String dataStreamName = entry.getKey();
             createPastTimeSeriesIndex(
-                new PastTimeSeriesIndexCreationAction.Request(bulkRequest.timeout(), dataStreamName, entry.getValue(), requestStartTime),
+                new PastTimeSeriesIndexCreationAction.Request(
+                    bulkRequest.timeout(),
+                    dataStreamName,
+                    entry.getValue(),
+                    absoluteStartTimeMillis
+                ),
                 ActionListener.releaseAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(PastTimeSeriesIndexCreationAction.Response response) {

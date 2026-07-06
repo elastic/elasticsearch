@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 152476
-summary: Fix assertion
+summary: Return a 400 (Bad Request) for invalid tokens in a `script` query
 type: bug

@@ -573,6 +573,7 @@ tasks.named('yamlRestTest') {
   if (buildParams.snapshotBuild == false) {
     // The columnar index mode is not available in release builds.
     def snapshotOnlyTests = [
+      'inference/173_semantic_field_columnar_source/*',
       'inference/181_semantic_text_columnar_source/*'
     ]
     systemProperty 'tests.rest.blacklist', snapshotOnlyTests.join(',')

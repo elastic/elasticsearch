@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -212,7 +213,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     private void initializeTestEnvironment() {
         threadPool = createThreadPool();
         var clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        var modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool));
+        var modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool), new FeatureService(List.of()));
         globalModelRegistry = spy(modelRegistry);
         globalModelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
             @Override
@@ -399,6 +400,21 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected Object getSampleValueForDocument() {
         return null;
+    }
+
+    @Override
+    protected Object getSampleObjectForDocument() {
+        // Only consulted by testSupportsParsingObject, and only for the legacy format (supportsParsingObject() is true only then). A
+        // legacy value is the {text, inference} object; a minimal one with the resolved inference id and no inference results parses.
+        final String expectedInferenceId = testIndexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
+            ? DEFAULT_EIS_JINA_V5_INFERENCE_ID
+            : DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
+        return Map.of(
+            SemanticTextField.TEXT_FIELD,
+            randomAlphaOfLength(10),
+            SemanticTextField.INFERENCE_FIELD,
+            Map.of(SemanticTextField.INFERENCE_ID_FIELD, expectedInferenceId, SemanticTextField.CHUNKS_FIELD, List.of())
+        );
     }
 
     @Override

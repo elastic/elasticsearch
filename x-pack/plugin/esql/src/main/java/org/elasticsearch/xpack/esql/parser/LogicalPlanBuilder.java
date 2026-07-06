@@ -251,7 +251,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 // as multiple invalid patterns could be combined to form a valid one
                 // see https://github.com/elastic/elasticsearch/issues/136750
                 try {
-                    Grok.pattern(source, pattern, context.grokMatcherWatchdog());
+                    Grok.pattern(source, pattern);
                 } catch (SyntaxException e) {
                     throw new ParsingException(source(ctx.string(i)), "Invalid GROK pattern [{}]: [{}]", pattern, e.getMessage());
                 }
@@ -259,7 +259,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             String combinePattern = org.elasticsearch.grok.Grok.combinePatterns(patterns);
 
-            Grok.Parser grokParser = Grok.pattern(source, combinePattern, context.grokMatcherWatchdog());
+            Grok.Parser grokParser = Grok.pattern(source, combinePattern);
 
             validateGrokPattern(source, grokParser, combinePattern, patterns);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
@@ -729,7 +729,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
             boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
-            boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES);
+            boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode().isTsdb());
             boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
 
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {

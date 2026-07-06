@@ -1023,9 +1023,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
             @Override
             public Map<ShardId, IndexMetadata> targetShards() {
                 var indexMetadata = IndexMetadata.builder("test_index")
-                    .settings(
-                        ESTestCase.indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), mode.getName())
-                    )
+                    .settings(ESTestCase.indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), mode.getName()))
                     .build();
                 return Map.of(new ShardId(new Index("id", "n/a"), 1), indexMetadata);
             }

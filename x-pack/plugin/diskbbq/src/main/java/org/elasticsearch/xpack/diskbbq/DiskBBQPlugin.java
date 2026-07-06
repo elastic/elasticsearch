@@ -97,7 +97,6 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                                 doPrecondition,
                                 ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                                 flatIndexThreshold,
-                                sliceField,
                                 IvfFlushConfigSource.empty(),
                                 IvfAutoCalibration.mergeConfigResolver(clusterSize)
                             );
@@ -112,8 +111,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             maxMergingWorkers,
                             doPrecondition,
                             ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                            flatIndexThreshold,
-                            sliceField
+                            flatIndexThreshold
                         );
                     } else if (Build.current().isSnapshot()) {
                         if (diskbbq.isAutoCalibrate()) {

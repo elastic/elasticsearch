@@ -2733,7 +2733,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         doPrecondition,
                         ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                         flatIndexThreshold,
-                        sliceField,
                         IvfFlushConfigSource.empty(),
                         IvfAutoCalibration.mergeConfigResolver(clusterSize)
                     );
@@ -2748,8 +2747,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     numMergeWorkers,
                     doPrecondition,
                     ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                    flatIndexThreshold,
-                    sliceField
+                    flatIndexThreshold
                 );
             } else if (indexVersionCreated.onOrAfter(DISK_BBQ_QUANTIZE_BITS) && experimentalFeaturesEnabled) {
                 if (autoCalibrate) {

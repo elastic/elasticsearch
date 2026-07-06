@@ -109,19 +109,17 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
     private final int flatVectorThreshold;
-    private final String sliceField;
     private final IvfFlushConfigSource ivfFlushConfigSource;
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
 
-    public ES950DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
-        this(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster, sliceField);
+    public ES950DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
+        this(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
     }
 
     public ES950DiskBBQVectorsFormat(
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
         int vectorPerCluster,
-        int centroidsPerParentCluster,
-        String sliceField
+        int centroidsPerParentCluster
     ) {
         this(
             quantEncoding,
@@ -134,7 +132,6 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             defaultFlatThreshold(vectorPerCluster),
-            sliceField,
             IvfFlushConfigSource.empty(),
             IvfMergeConfigResolver.useCodecDefault()
         );
@@ -149,8 +146,7 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
         ExecutorService mergingExecutorService,
         int maxMergingWorkers,
         boolean doPrecondition,
-        int preconditioningBlockDimension,
-        String sliceField
+        int preconditioningBlockDimension
     ) {
         this(
             quantEncoding,
@@ -163,7 +159,6 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             preconditioningBlockDimension,
             defaultFlatThreshold(vectorPerCluster),
-            sliceField,
             IvfFlushConfigSource.empty(),
             IvfMergeConfigResolver.useCodecDefault()
         );
@@ -179,8 +174,7 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
         int maxMergingWorkers,
         boolean doPrecondition,
         int preconditioningBlockDimension,
-        int flatVectorThreshold,
-        String sliceField
+        int flatVectorThreshold
     ) {
         this(
             quantEncoding,
@@ -193,7 +187,6 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             preconditioningBlockDimension,
             flatVectorThreshold,
-            sliceField,
             IvfFlushConfigSource.empty(),
             IvfMergeConfigResolver.useCodecDefault()
         );
@@ -214,7 +207,6 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
         boolean doPrecondition,
         int preconditioningBlockDimension,
         int flatVectorThreshold,
-        String sliceField,
         IvfFlushConfigSource ivfFlushConfigSource,
         IvfMergeConfigResolver ivfMergeConfigResolver
     ) {
@@ -270,14 +262,13 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
-        this.sliceField = sliceField;
         this.ivfFlushConfigSource = ivfFlushConfigSource;
         this.ivfMergeConfigResolver = ivfMergeConfigResolver;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
     public ES950DiskBBQVectorsFormat() {
-        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, null);
+        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
     }
 
     @Override
@@ -296,7 +287,6 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             doPrecondition,
             flatVectorThreshold,
-            sliceField,
             ivfFlushConfigSource,
             ivfMergeConfigResolver
         );
@@ -318,16 +308,7 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return "ES950DiskBBQVectorsFormat("
-            + "vectorPerCluster="
-            + vectorPerCluster
-            + ", "
-            + "mergeExec="
-            + (mergeExec != null)
-            + ", "
-            + "sliceField="
-            + sliceField
-            + ')';
+        return "ES950DiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ", " + "mergeExec=" + (mergeExec != null) + ')';
     }
 
 }

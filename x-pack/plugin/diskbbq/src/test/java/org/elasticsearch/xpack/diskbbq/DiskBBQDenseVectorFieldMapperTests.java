@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
@@ -30,6 +32,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -66,7 +69,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
             }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-            String expectedString = "ES950DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ", sliceField=null)";
+            String expectedString = "ES950DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")";
             assertEquals(expectedString, knnVectorsFormat.toString());
         }
     }
@@ -116,11 +119,13 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
     public void testSliceSettingControlsSliceFieldForDiskBBQESNextFormat() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assumeTrue("ESNext DiskBBQ format is only used in snapshots", Build.current().isSnapshot());
+        // Use a pre-ES950 version to get the ESNext format path (slice is not part of ES950)
+        IndexVersion preEs950Version = IndexVersions.DISK_BBQ_QUANTIZE_BITS;
         final Settings enabledSettings = IndexSettingsModule.newIndexSettings(
             "foo",
             Settings.builder()
                 .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-
+                .put(SETTING_INDEX_VERSION_CREATED.getKey(), preEs950Version)
                 .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
                 .build()
         ).getSettings();
@@ -128,10 +133,11 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
             "foo",
             Settings.builder()
                 .put(IndexSettings.SLICE_ENABLED.getKey(), false)
+                .put(SETTING_INDEX_VERSION_CREATED.getKey(), preEs950Version)
                 .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
                 .build()
         ).getSettings();
-        MapperService enabledMapperService = createMapperService(getVersion(), enabledSettings, () -> true, fieldMapping(b -> {
+        MapperService enabledMapperService = createMapperService(preEs950Version, enabledSettings, () -> true, fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", 64);
             b.field("index", true);
@@ -140,7 +146,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
             b.field("type", "bbq_disk");
             b.endObject();
         }));
-        MapperService disabledMapperService = createMapperService(getVersion(), disabledSettings, () -> true, fieldMapping(b -> {
+        MapperService disabledMapperService = createMapperService(preEs950Version, disabledSettings, () -> true, fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", 64);
             b.field("index", true);

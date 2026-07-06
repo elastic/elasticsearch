@@ -59,8 +59,7 @@ public class ES950DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                 null,
                 1,
                 false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                null
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
             );
         } else if (rarely()) {
             format = new ES950DiskBBQVectorsFormat(
@@ -72,8 +71,7 @@ public class ES950DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                 null,
                 1,
                 true,
-                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
-                null
+                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS)
             );
         } else {
             // run with low numbers to force many clusters with parents
@@ -86,8 +84,7 @@ public class ES950DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                 null,
                 1,
                 false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                null
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
             );
         }
         super.setUp();

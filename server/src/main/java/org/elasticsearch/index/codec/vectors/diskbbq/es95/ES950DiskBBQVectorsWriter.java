@@ -9,23 +9,14 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.es95;
 
-import org.apache.lucene.codecs.DocValuesConsumer;
-import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -94,8 +85,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
     private final int numMergeWorkers;
     private final int blockDimension;
     private final boolean doPrecondition;
-    // field for slicing, null for no slicing
-    private final String sliceField;
     private final IvfFlushConfigSource flushConfigSource;
     private final IvfMergeConfigResolver mergeConfigResolver;
 
@@ -113,7 +102,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         int blockDimension,
         boolean doPrecondition,
         int flatVectorThreshold,
-        String sliceField,
         IvfFlushConfigSource flushConfigSource,
         IvfMergeConfigResolver mergeConfigResolver
     ) throws IOException {
@@ -138,22 +126,8 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         this.numMergeWorkers = numMergeWorkers;
         this.blockDimension = blockDimension;
         this.doPrecondition = doPrecondition;
-        this.sliceField = sliceField;
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
-        if (sliceField != null) {
-            Sort sort = state.segmentInfo.getIndexSort();
-            if (sort == null || sort.getSort().length == 0) {
-                throw new IllegalStateException("sliceField requires index sort");
-            }
-            SortField primary = sort.getSort()[0];
-            if (sliceField.equals(primary.getField()) == false) {
-                throw new IllegalStateException("sliceField must be primary index sort");
-            }
-            if (primary.getType() != SortField.Type.STRING) {
-                throw new IllegalStateException("sliceField requires primary index sort");
-            }
-        }
     }
 
     @Override
@@ -362,17 +336,10 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
             onHeapQuantizedVectors.reset(centroid, centroidClusters.getCentroid(c), size, ord -> cluster[clusterOrds[ord]]);
             byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
             postingsOutput.writeByte(encoding);
-            if (sliceField != null) {
-                // We are not writing the docIds as we know they are writing in vector ord order.
-                // we will ise the delegated FloatVectorValue instance on read to do the translation for us.
-                assert centroidSupplier.size() == 1;
-                bulkWriter.writeVectors(onHeapQuantizedVectors, null);
-            } else {
-                bulkWriter.writeVectors(onHeapQuantizedVectors, i -> {
-                    // for vector i we write `bulk` size docs or the remaining docs
-                    idsWriter.writeDocIds(d -> docDeltas[i + d], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
-                });
-            }
+            bulkWriter.writeVectors(onHeapQuantizedVectors, i -> {
+                // for vector i we write `bulk` size docs or the remaining docs
+                idsWriter.writeDocIds(d -> docDeltas[i + d], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
+            });
             lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
         }
 
@@ -711,15 +678,8 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         if (preconditionerLength > 0) {
             metaOutput.writeLong(preconditionerOffset);
         }
-        if (sliceField == null) {
-            assert numberOfSlices == 0;
-            metaOutput.writeInt(-1);
-        } else {
-            metaOutput.writeInt(numberOfSlices);
-            if (numberOfSlices > 0) {
-                metaOutput.writeVInt(maxSliceSize);
-            }
-        }
+        assert numberOfSlices == 0;
+        metaOutput.writeInt(-1);
         metaOutput.writeInt(Float.floatToIntBits(segmentConfig.rescoreOversample()));
     }
 
@@ -759,14 +719,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#closeWhileHandlingException(...)")
     public CentroidInformation calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
         throws IOException {
-        // Sliced indices treat each slice as an independent partition that must be clustered on its
-        // own. The tiered merge strategy operates on the merged segment as a flat whole, which would
-        // silently collapse slice boundaries, so always fall back to the sliced full rebuild here.
-        // TODO: teach the tiered strategy about slices and reuse per-slice priors.
-        if (sliceField != null) {
-            return calculateCentroidsFullRebuildSliced(floatVectorValues, fieldInfo, mergeState);
-        }
-
         // Gather prior segment statistics for tiered merge strategy selection
         int numSegments = mergeState.knnVectorsReaders.length;
         int[] segmentSizes = new int[numSegments];
@@ -850,129 +802,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         }
     }
 
-    private CentroidInformation calculateCentroidsFullRebuildSliced(
-        KMeansFloatVectorValues floatVectorValues,
-        FieldInfo fieldInfo,
-        MergeState mergeState
-    ) throws IOException {
-        HierarchicalKMeans<float[]> hierarchicalKMeans;
-        if (mergeExec != null) {
-            hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(
-                CentroidOps.FLOAT,
-                floatVectorValues.dimension(),
-                mergeExec,
-                numMergeWorkers
-            );
-        } else {
-            hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
-        }
-        final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
-        assert slicedFieldInfo != null;
-        assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED : "sliceField must be SortedDocValues";
-        final SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
-        final int numSlices = values.getValueCount();
-        final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
-        iterator.advance(0);
-        values.nextDoc();
-        // slice field must be dense populated, but we might have documents without a vector.
-        final int[] sliceOffsets = new int[numSlices];
-        final int[] sliceLengths = new int[numSlices];
-        List<KMeansWithOverspill<float[]>> kmeansResults = new ArrayList<>();
-        for (int i = 0; i < numSlices; i++) {
-            if (iterator.docID() == DocIdSetIterator.NO_MORE_DOCS) {
-                // no more vectors, we are done
-                sliceLengths[i] = 0;
-                sliceOffsets[i] = i == 0 ? 0 : sliceOffsets[i - 1];
-                continue;
-            }
-            // get start and end of an slice
-            int sliceDocStart = values.docID();
-            while (values.docID() != DocIdSetIterator.NO_MORE_DOCS && values.ordValue() == i) {
-                values.nextDoc();
-            }
-            final int sliceDocEnd = values.docID();
-            // get the vector ordinals for the slice
-            int vectorDocStart = iterator.docID();
-            if (vectorDocStart < sliceDocStart) {
-                // advance iterator to the beginning of the slice
-                vectorDocStart = iterator.advance(sliceDocStart);
-            }
-            if (vectorDocStart > sliceDocEnd) {
-                // no vectors in this slice
-                sliceLengths[i] = 0;
-                sliceOffsets[i] = i == 0 ? 0 : sliceOffsets[i - 1];
-                continue;
-            }
-            final int vectorOrdStart = iterator.index();
-            final int docEnd = vectorDocStart == sliceDocEnd ? sliceDocEnd : iterator.advance(sliceDocEnd);
-            final int vectorOrdEnd = docEnd == KnnVectorValues.DocIndexIterator.NO_MORE_DOCS ? floatVectorValues.size() : iterator.index();
-            final int sliceNumVectors = vectorOrdEnd - vectorOrdStart;
-            final ClusteringFloatVectorValuesSlice slice = new ClusteringFloatVectorValuesSlice(
-                floatVectorValues,
-                j -> vectorOrdStart + j,
-                sliceNumVectors
-            );
-            final KMeansWithOverspill<float[]> kMeansResult = calculateCentroids(hierarchicalKMeans, slice);
-            kmeansResults.add(kMeansResult);
-            sliceLengths[i] = sliceNumVectors;
-            sliceOffsets[i] = i == 0 ? kMeansResult.centroids().length : sliceOffsets[i - 1] + kMeansResult.centroids().length;
-        }
-        final KMeansWithOverspill<float[]> merged = KMeansWithOverspill.merge(kmeansResults, CentroidOps.FLOAT);
-        if (logger.isDebugEnabled()) {
-            logger.debug("final centroid count: {}", merged.centroids().length);
-        }
-        final CentroidSlices centroidSlices = new CentroidSlices(sliceOffsets, sliceLengths);
-        return new CentroidInformation(
-            floatVectorValues.dimension(),
-            merged.centroids(),
-            merged.assignments(),
-            new SoarAssignments(merged.soarAssignments()),
-            centroidSlices
-        );
-    }
-
-    // This class helps to access the merged view of a slice.
-    private static class DocValueConsumerHelper extends DocValuesConsumer {
-
-        static final DocValueConsumerHelper INSTANCE = new DocValueConsumerHelper();
-
-        public SortedDocValues getMergeSortedField(FieldInfo fieldInfo, final MergeState mergeState) throws IOException {
-            // This is the magic to get a merged view from the segments.
-            final OrdinalMap map = createOrdinalMapForSortedDV(fieldInfo, mergeState);
-            return getMergedSortedSetDocValues(fieldInfo, mergeState, map);
-        }
-
-        @Override
-        public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) {
-            throw new AssertionError("Method should not be called");
-        }
-
-        @Override
-        public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) {
-            throw new AssertionError("Method should not be called");
-        }
-
-        @Override
-        public void addSortedField(FieldInfo field, DocValuesProducer valuesProducer) {
-            throw new AssertionError("Method should not be called");
-        }
-
-        @Override
-        public void addSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer) {
-            throw new AssertionError("Method should not be called");
-        }
-
-        @Override
-        public void addSortedSetField(FieldInfo field, DocValuesProducer valuesProducer) {
-            throw new AssertionError("Method should not be called");
-        }
-
-        @Override
-        public void close() {
-            throw new AssertionError("Method should not be called");
-        }
-    }
-
     /**
      * Calculate the centroids for the given field.
      * We use the {@link HierarchicalKMeans} algorithm to partition the space of all vectors across merging segments
@@ -984,10 +813,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
      */
     @Override
     public CentroidInformation calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
-        if (sliceField != null) {
-            // for sliced indexed, we don't cluster the data during flush so we can search our vectors by docId range
-            return buildFlatCentroidAssignments(fieldInfo, floatVectorValues);
-        }
         HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
         KMeansWithOverspill<float[]> kMeansResult = calculateCentroids(hierarchicalKMeans, floatVectorValues);
         if (logger.isDebugEnabled()) {

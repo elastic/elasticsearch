@@ -1226,10 +1226,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
      */
     public void testBase64InputWithEmptyPayloadIsRejected() throws Exception {
         assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
-        assumeTrue(
-            "Multimodal base64 inputs require the semantic field feature",
-            SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-        );
 
         // A valid data URI prefix with no base64 payload after the comma.
         InferenceString emptyPayload = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;base64,");

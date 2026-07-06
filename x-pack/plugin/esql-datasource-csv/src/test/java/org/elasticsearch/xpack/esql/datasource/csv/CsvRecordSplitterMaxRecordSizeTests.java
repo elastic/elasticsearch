@@ -37,7 +37,9 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
 
     public void testQuotedFieldsOnlyReturnsRecordTooLargeForUnclosedQuote() throws IOException {
         int maxRecordBytes = 32;
-        RecordSplitter splitter = new CsvRecordSplitter(CsvFormatOptions.TSV, maxRecordBytes);
+        // Quoting on (DEFAULT): the leading quote opens a field that never closes, so no unquoted terminator
+        // is ever seen and the scan hits the cap. TSV is now a plain preset and would not open a quote here.
+        RecordSplitter splitter = new CsvRecordSplitter(CsvFormatOptions.DEFAULT, maxRecordBytes);
         byte[] bytes = bytes("\"" + "x".repeat(maxRecordBytes + 1));
 
         assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findNextRecordBoundary(new ByteArrayInputStream(bytes)));

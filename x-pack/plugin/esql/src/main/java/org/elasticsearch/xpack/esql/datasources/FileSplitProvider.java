@@ -400,11 +400,16 @@ public class FileSplitProvider implements SplitProvider {
     private List<ExternalSplit> processFileForSplits(FileTask task, @Nullable StorageProvider hoistedProvider) throws IOException {
         List<ExternalSplit> fileSplits = new ArrayList<>();
 
-        // Quoted CSV/TSV cannot be probed at arbitrary offsets (an in-quote newline would be misread as a
-        // record terminator), so no start-anywhere splitting is safe: not newline-aligned macro-splits, nor
-        // compressed block/frame-aligned splits. Emit a single whole-file split (identical to the fallback
-        // below); the reader consumes it as one sequential stream and finds boundaries quote-aware.
-        if (requiresSequentialWholeFileRead(task.filePath(), task.config())) {
+        // Resolve the config-aware reader once and reuse it for both the sequential-whole-file gate and the
+        // newline-aligned macro-split attempt below, which would otherwise each resolve it independently.
+        FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
+
+        // Quoted or escaped CSV/TSV cannot be probed at arbitrary offsets (an in-quote newline, or a
+        // backslash-escaped raw newline, would be misread as a record terminator), so no start-anywhere
+        // splitting is safe: not newline-aligned macro-splits, nor compressed block/frame-aligned splits.
+        // Emit a single whole-file split (identical to the fallback below); the reader consumes it as one
+        // sequential stream and finds boundaries quote/escape-aware.
+        if (requiresSequentialWholeFileRead(configuredReader)) {
             fileSplits.add(
                 FileSplit.withReadSchema(
                     "file",
@@ -472,7 +477,8 @@ public class FileSplitProvider implements SplitProvider {
             effectiveTargetSplitBytes,
             task.maxRecordBytes(),
             fileSplits,
-            hoistedProvider
+            hoistedProvider,
+            configuredReader
         )) {
             return fileSplits;
         }
@@ -485,26 +491,42 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Whether the file's config-resolved record splitter cannot be probed at arbitrary offsets (quoted
-     * CSV/TSV, whose quoted fields may embed newlines), so every start-anywhere splitting strategy must be
-     * disabled and the file read as one sequential stream. Returns {@code false} when splitting is safe, or
-     * when the reader cannot be resolved (no {@code formatRegistry}, unknown extension), preserving prior
-     * behavior. The compression suffix is stripped by {@link FormatNameResolver}, so this resolves the inner
-     * text reader for compressed files (e.g. {@code .csv.bz2}) too.
+     * Resolves the config-aware {@link FormatReader} for a file, or {@code null} when it cannot be resolved
+     * (no {@code formatRegistry}, no object name, or an unknown extension). Config-aware so a {@code WITH}
+     * override (e.g. {@code mode=plain}, {@code quote=none}) selects the same reader/splitter the read path
+     * will actually use: {@code byExtension} alone yields the extension default (quoted for {@code .csv}),
+     * whose non-strided splitter would trip {@link #computeRecordAlignedMacroSplitStarts}' guard for a
+     * plain-mode file. {@code withConfig} returns {@code null} only for test mocks; the base reader is used
+     * in that case. The compression suffix is stripped by {@link FormatNameResolver}, so this resolves the
+     * inner text reader for compressed files (e.g. {@code .csv.bz2}) too.
      */
-    private boolean requiresSequentialWholeFileRead(StoragePath filePath, Map<String, Object> config) {
+    @Nullable
+    private FormatReader resolveConfiguredReader(StoragePath filePath, Map<String, Object> config) {
         if (formatRegistry == null) {
-            return false;
+            return null;
         }
         String objectName = filePath.objectName();
         if (objectName == null) {
-            return false;
+            return null;
         }
-        final FormatReader reader;
         try {
-            reader = FormatNameResolver.resolveReader(config, objectName, formatRegistry).withConfig(config);
+            FormatReader base = FormatNameResolver.resolveReader(config, objectName, formatRegistry);
+            FormatReader configured = base.withConfig(config);
+            return configured != null ? configured : base;
         } catch (RuntimeException e) {
-            LOGGER.debug(() -> "Cannot resolve reader for [" + objectName + "]; assuming strided probing is safe", e);
+            LOGGER.debug(() -> "Cannot resolve reader for [" + objectName + "]; treating it as non-segmentable", e);
+            return null;
+        }
+    }
+
+    /**
+     * Whether the file's config-resolved record splitter cannot be probed at arbitrary offsets (quoted or
+     * escaped CSV/TSV, whose records may span a raw newline), so every start-anywhere splitting strategy
+     * must be disabled and the file read as one sequential stream. Returns {@code false} when splitting is
+     * safe, or when the reader could not be resolved, preserving prior behavior.
+     */
+    private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
+        if (reader == null) {
             return false;
         }
         SegmentableFormatReader seg = AsyncExternalSourceOperatorFactory.resolveSegmentableReader(reader);
@@ -745,7 +767,8 @@ public class FileSplitProvider implements SplitProvider {
         long targetStrideBytes,
         int maxRecordBytes,
         List<ExternalSplit> splits,
-        @Nullable StorageProvider hoistedProvider
+        @Nullable StorageProvider hoistedProvider,
+        @Nullable FormatReader reader
     ) throws IOException {
         if (formatRegistry == null || storageRegistry == null || targetStrideBytes <= 0 || fileLength <= targetStrideBytes) {
             return false;
@@ -753,21 +776,8 @@ public class FileSplitProvider implements SplitProvider {
         if (isNewlineMacroSplitCandidateExtension(format) == false) {
             return false;
         }
-        String objectName = filePath.objectName();
-        if (objectName == null) {
-            return false;
-        }
-        final FormatReader reader;
-        try {
-            // Config-aware so a WITH override (e.g. mode=plain, quote=none) selects the same splitter the
-            // reader will actually use. byExtension alone yields the extension default (quoted for .csv), whose
-            // non-strided splitter would trip computeRecordAlignedMacroSplitStarts' guard for a plain-mode file.
-            // withConfig returns null only for test mocks; fall back to the base reader in that case.
-            FormatReader base = FormatNameResolver.resolveReader(config, objectName, formatRegistry);
-            FormatReader configured = base.withConfig(config);
-            reader = configured != null ? configured : base;
-        } catch (RuntimeException e) {
-            LOGGER.debug(() -> "Skipping newline-aligned macro splits: cannot resolve reader for [" + objectName + "]", e);
+        // Reuses the reader resolved once in processFileForSplits (config-aware; see resolveConfiguredReader).
+        if (reader == null) {
             return false;
         }
         if (reader instanceof CompressionDelegatingFormatReader) {

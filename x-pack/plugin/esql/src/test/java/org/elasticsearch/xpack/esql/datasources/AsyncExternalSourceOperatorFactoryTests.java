@@ -2631,6 +2631,57 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
+     * A quoted/escaped (non-strided) uncompressed reader must only ever be handed a whole-file split: split
+     * discovery routes such files through {@code requiresSequentialWholeFileRead} to a single leader-bearing
+     * split at offset 0. A partial split (no file leader, a non-zero offset, or a record-aligned macro-split
+     * that covers only part of the file) can only arrive from an older coordinator in a mixed-version
+     * cluster. Reading one mid-file would misread an in-quote newline as a record terminator, so the
+     * sequential branch fails loud rather than resurrecting the silent wrong-count bug the whole-file gate
+     * removes.
+     */
+    public void testOpenWithParallelismQuotedSequentialRejectsPartialSplits() throws IOException {
+        AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+            new NonStridedSegmentableFormatReader(),
+            Runnable::run
+        );
+        byte[] payload = "\"a\nb\",c\nd,e\n".getBytes(StandardCharsets.UTF_8);
+
+        // recordAlignedMacroSplit, splitIncludesFileLeader, baseFileOffset: each of the three
+        // whole-file invariants, violated in isolation, must be rejected.
+        assertRejectsNonWholeFileSplit(factory, payload, false, false, 0L); // no file leader
+        assertRejectsNonWholeFileSplit(factory, payload, false, true, 128L); // non-zero file offset
+        assertRejectsNonWholeFileSplit(factory, payload, true, true, 0L); // record-aligned macro-split
+    }
+
+    private static void assertRejectsNonWholeFileSplit(
+        AsyncExternalSourceOperatorFactory factory,
+        byte[] payload,
+        boolean recordAlignedMacroSplit,
+        boolean splitIncludesFileLeader,
+        long baseFileOffset
+    ) {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> factory.openWithParallelism(
+                new NonStridedSegmentableFormatReader(),
+                bytesStorageObject(payload),
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                recordAlignedMacroSplit,
+                splitIncludesFileLeader,
+                null,
+                baseFileOffset,
+                null,
+                null
+            )
+        );
+        assertTrue(
+            "unexpected message: " + e.getMessage(),
+            e.getMessage().startsWith("quoted uncompressed reads must be whole-file splits")
+        );
+    }
+
+    /**
      * Minimal splittable codec stub so dispatch tests avoid wiring real bzip2 parallel scanners.
      */
     private static final class StubSplittableCodec implements SplittableDecompressionCodec {

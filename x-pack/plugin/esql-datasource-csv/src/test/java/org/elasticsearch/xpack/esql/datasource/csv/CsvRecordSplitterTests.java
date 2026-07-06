@@ -33,7 +33,7 @@ public class CsvRecordSplitterTests extends ESTestCase {
     }
 
     public void testTsvFindLastRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
-        RecordSplitter splitter = splitter(CsvFormatOptions.TSV);
+        RecordSplitter splitter = splitter(quotedTsv());
         String data = "1\ta\"b\tc\n2\td\"e\"f\"g\th\n";
         byte[] buf = bytes(data);
 
@@ -43,7 +43,7 @@ public class CsvRecordSplitterTests extends ESTestCase {
     }
 
     public void testTsvFindLastRecordBoundaryClickBenchShaped() throws IOException {
-        RecordSplitter splitter = splitter(CsvFormatOptions.TSV);
+        RecordSplitter splitter = splitter(quotedTsv());
         String row = clickBenchShapedTsvRow();
         byte[] buf = bytes(row + row);
 
@@ -53,7 +53,7 @@ public class CsvRecordSplitterTests extends ESTestCase {
     }
 
     public void testTsvFindNextRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
-        RecordSplitter splitter = splitter(CsvFormatOptions.TSV);
+        RecordSplitter splitter = splitter(quotedTsv());
         String row1 = "1\ta\"b\tc\n";
         byte[] buf = bytes(row1 + "2\td\te\n");
 
@@ -62,7 +62,7 @@ public class CsvRecordSplitterTests extends ESTestCase {
     }
 
     public void testTsvDoubledQuoteInQuotedFieldIsLiteral() throws IOException {
-        RecordSplitter splitter = splitter(CsvFormatOptions.TSV);
+        RecordSplitter splitter = splitter(quotedTsv());
         String row1 = "\"a\"\"b\"\tc\n";
         byte[] buf = bytes(row1 + "d\te\n");
 
@@ -106,6 +106,95 @@ public class CsvRecordSplitterTests extends ESTestCase {
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );
+    }
+
+    /** Tab-delimited, quoting on, escaping off - the quote-aware TSV shape these boundary tests target. */
+    private static CsvFormatOptions quotedTsv() {
+        return new CsvFormatOptions(
+            '\t',
+            '"',
+            '\\',
+            "//",
+            "",
+            StandardCharsets.UTF_8,
+            null,
+            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
+            CsvFormatOptions.MultiValueSyntax.NONE,
+            true,
+            CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
+            true,
+            false
+        );
+    }
+
+    /** No quoting, escaping on - the {@code mode=escaped} shape where a backslash carries the next byte verbatim. */
+    private static CsvFormatOptions escaped() {
+        return new CsvFormatOptions(
+            ',',
+            '"',
+            '\\',
+            "//",
+            "",
+            StandardCharsets.UTF_8,
+            null,
+            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
+            CsvFormatOptions.MultiValueSyntax.NONE,
+            true,
+            CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
+            false,
+            true
+        );
+    }
+
+    public void testEscapedModeDisablesStridedProbing() {
+        // mode=escaped has quoting off but escaping on: a backslash-escaped raw newline is in-field content,
+        // so a mid-file probe could land right after a lone escape and misread the newline as a terminator.
+        // The reader must therefore hand out the non-strided splitter, not the plain newline splitter.
+        assertFalse(productionSplitter(escaped()).supportsStridedProbing());
+    }
+
+    public void testEscapedNewlineDoesNotTerminateRecord() throws IOException {
+        RecordSplitter splitter = splitter(escaped());
+        // x \ <NL> y <NL> z <NL> : the backslash escapes the first newline, so the first record is
+        // "x\<NL>y" and the file holds two records, not three physical lines.
+        byte[] buf = bytes("x\\\ny\nz\n");
+
+        assertEquals("x\\\ny\n".length(), splitter.findNextRecordBoundary(new ByteArrayInputStream(buf)));
+        assertEquals(buf.length - 1, splitter.findLastRecordBoundary(buf, buf.length));
+    }
+
+    public void testEscapedModeBoundaryCountAgreesWithReadRecord() throws IOException {
+        CsvFormatOptions options = escaped();
+        RecordSplitter splitter = splitter(options);
+        // Rows whose fields carry backslash-escaped newlines, plain newlines, and escaped backslashes.
+        String data = "a\\\nb\nc,d\ne\\\\\nf\\\ng\\\nh\n";
+        byte[] buf = bytes(data);
+
+        int parserRecords = 0;
+        try (BufferedReader br = new BufferedReader(new StringReader(data))) {
+            CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
+                br,
+                options.quoteChar(),
+                options.delimiter(),
+                options.escapeChar(),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                options.encoding(),
+                options.quoting(),
+                options.escaping()
+            );
+            while (recordReader.readRecord(false) != null) {
+                parserRecords++;
+            }
+        }
+
+        int scannerRecords = 0;
+        BufferedInputStream in = new BufferedInputStream(new ByteArrayInputStream(buf));
+        while (splitter.findNextRecordBoundary(in) >= 0) {
+            scannerRecords++;
+        }
+
+        assertEquals("record count mismatch for escaped data:\n" + data, parserRecords, scannerRecords);
+        assertEquals(buf.length - 1, splitter.findLastRecordBoundary(buf, buf.length));
     }
 
     public void testMultiValueSyntaxNoneDoesNotTreatBracketsAsMvc() throws IOException {
@@ -152,12 +241,17 @@ public class CsvRecordSplitterTests extends ESTestCase {
 
             int parserRecords = 0;
             try (BufferedReader br = new BufferedReader(new StringReader(data))) {
+                // The reader's quote/escape awareness must match the options the splitter reads, so the two
+                // agree on where records end (TSV is now plain, DEFAULT is quoted).
                 CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
                     br,
                     options.quoteChar(),
                     delim,
+                    options.escapeChar(),
                     SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                    options.encoding()
+                    options.encoding(),
+                    options.quoting(),
+                    options.escaping()
                 );
                 while (recordReader.readRecord(bracketAware) != null) {
                     parserRecords++;

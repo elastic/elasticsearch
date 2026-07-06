@@ -766,6 +766,24 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
+    public void testEscapedModeIsNotMacroSplit() {
+        // mode=escaped keeps quoting off but escaping on: a backslash-escaped raw newline is in-field
+        // content, so the file cannot be probed at arbitrary offsets and must collapse to a single
+        // whole-file sequential split, not macro-splits that would mis-count escaped multi-line records.
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(
+            Map.of("mode", "escaped"),
+            "escaped.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n"
+        );
+
+        assertEquals(1, splits.size());
+        FileSplit whole = (FileSplit) splits.get(0);
+        assertEquals(0, whole.offset());
+        assertNull(whole.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+    }
+
     public void testQuotedModeOverrideOnTsvIsNotMacroSplit() {
         // The gate keys off the config-resolved reader, not the extension: mode=quoted turns quoting on for a
         // .tsv whose baseline is plain, so the file must collapse to a single whole-file sequential split.

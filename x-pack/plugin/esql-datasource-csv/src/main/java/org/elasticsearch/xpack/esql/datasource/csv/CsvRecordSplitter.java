@@ -66,10 +66,13 @@ final class CsvRecordSplitter implements RecordSplitter {
     }
 
     /**
-     * Quoted fields (and bracketed multi-value cells) can carry a record across a raw newline, so a probe
-     * that starts at an arbitrary offset can land mid-construct and misread an embedded newline as a record
-     * terminator. This splitter must therefore be driven sequentially from a known record start; the plain
-     * {@code NewlineRecordSplitter} used when {@code quoting == false} keeps the strided default.
+     * A quoted field (or a bracketed multi-value cell) can carry a record across a raw newline, and a
+     * backslash-escaped raw newline is likewise in-field content, so a probe that starts at an arbitrary
+     * offset can land mid-construct and misread an embedded newline as a record terminator. This splitter
+     * therefore handles every non-plain combination (quoting on, escaping on, or both) and must be driven
+     * sequentially from a known record start. Only the plain no-quote/no-escape case (which
+     * {@code CsvFormatReader.recordSplitter} routes to {@code NewlineRecordSplitter}) keeps the strided
+     * default.
      */
     @Override
     public boolean supportsStridedProbing() {
@@ -97,13 +100,17 @@ final class CsvRecordSplitter implements RecordSplitter {
     }
 
     /**
-     * Quoting rule mirrors the tokenizer {@link CsvFormatReader#readCsvRecord}: a {@code quoteChar} opens a quoted field
-     * only at field start (after an unquoted {@code delimiter} or {@code \n}, optionally past field-leading
-     * whitespace); a mid-field {@code quoteChar} is a literal and does not toggle quote state.
+     * Quoting and escaping rules mirror the tokenizer {@link CsvLogicalRecordReader#readRecord}: when quoting is on a
+     * {@code quoteChar} opens a quoted field only at field start (after an unquoted {@code delimiter} or {@code \n},
+     * optionally past field-leading whitespace), and a mid-field {@code quoteChar} is a literal that does not toggle
+     * quote state; when escaping is on, an {@code escapeChar} (inside or outside a quoted field) carries the byte that
+     * follows it into the field verbatim, so a backslash-escaped raw terminator is never a record boundary. When both
+     * knobs are off this method is not used - {@link CsvFormatReader#recordSplitter} routes plain data to the strided
+     * {@code NewlineRecordSplitter} instead.
      * <p>
      * Best-effort/open-tail contract: the scan assumes the buffer begins at a record boundary and advances
-     * {@code lastBoundary} only on a true unquoted record terminator. So a chunk the segmentator cut mid-record
-     * yields no boundary inside that leading partial, and a genuinely unterminated quoted field keeps
+     * {@code lastBoundary} only on a true unquoted, unescaped record terminator. So a chunk the segmentator cut
+     * mid-record yields no boundary inside that leading partial, and a genuinely unterminated quoted field keeps
      * {@code inQuotes == true} so its trailing {@code \n}s are skipped - the rule the grow loop requires.
      */
     private int findLastRecordBoundaryQuotedFieldsOnly(byte[] buf, int offset, int length) {
@@ -115,10 +122,23 @@ final class CsvRecordSplitter implements RecordSplitter {
         int recordStart = offset;
         boolean inQuotes = false;
         boolean fieldHasNonWhitespace = false;
+        boolean quoteAware = options.quoting();
+        boolean escapeAware = options.escaping();
         byte quoteAsByte = (byte) options.quoteChar();
+        byte escAsByte = (byte) options.escapeChar();
         byte delimAsByte = (byte) options.delimiter();
         for (int i = offset; i < end; i++) {
             byte b = buf[i];
+            if (escapeAware && b == escAsByte) {
+                // The escape and the byte it escapes (a raw terminator, a quote, or the escape itself) are
+                // in-field content, so skip the escaped byte; it can never be a record boundary. A lone
+                // trailing escape at the buffer end simply consumes itself.
+                i++;
+                if (inQuotes == false) {
+                    fieldHasNonWhitespace = true;
+                }
+                continue;
+            }
             if (inQuotes) {
                 if (b == quoteAsByte) {
                     if (i + 1 < end && buf[i + 1] == quoteAsByte) {
@@ -150,7 +170,7 @@ final class CsvRecordSplitter implements RecordSplitter {
                 fieldHasNonWhitespace = false;
             } else if (b == delimAsByte) {
                 fieldHasNonWhitespace = false;
-            } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
+            } else if (quoteAware && b == quoteAsByte && fieldHasNonWhitespace == false) {
                 inQuotes = true;
             } else if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(b & 0xff) == false) {
                 fieldHasNonWhitespace = true;
@@ -307,18 +327,23 @@ final class CsvRecordSplitter implements RecordSplitter {
     /**
      * Per-byte scan over a {@link BufferedInputStream} - no per-call bulk read buffer is allocated;
      * an existing {@link BufferedInputStream} input is reused, otherwise the stream is wrapped once.
-     * Applies the same field-start quoting rule as the actual tokenizer {@link CsvFormatReader#readCsvRecord}
-     * and as {@link #findNextRecordBoundaryBracketCommaMvc}: a {@code quoteChar} opens a quoted field only at
-     * field start (optionally after field-leading whitespace); a mid-field {@code quoteChar} is a
-     * literal and does not toggle quote state. Returns the byte count up to and including the first
-     * record-terminating {@code \n} that is outside a quoted field, or {@code -1} at EOF.
+     * Applies the same field-start quoting and escaping rules as the actual tokenizer
+     * {@link CsvLogicalRecordReader#readRecord} and as {@link #findNextRecordBoundaryBracketCommaMvc}: when quoting is
+     * on a {@code quoteChar} opens a quoted field only at field start (optionally after field-leading whitespace) and
+     * a mid-field {@code quoteChar} is a literal; when escaping is on an {@code escapeChar} carries the byte that
+     * follows it into the field verbatim (inside or outside a quoted field), so an escaped raw terminator does not end
+     * the record. Returns the byte count up to and including the first unquoted, unescaped record-terminating
+     * {@code \n}, or {@code -1} at EOF.
      */
     private long findNextRecordBoundaryQuotedFieldsOnly(InputStream stream) throws IOException {
         BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
         long consumed = 0;
         boolean inQuotes = false;
         boolean fieldHasNonWhitespace = false;
+        boolean quoteAware = options.quoting();
+        boolean escapeAware = options.escaping();
         byte quoteAsByte = (byte) options.quoteChar();
+        byte escAsByte = (byte) options.escapeChar();
         byte delimAsByte = (byte) options.delimiter();
         while (true) {
             int ib = bis.read();
@@ -330,6 +355,21 @@ final class CsvRecordSplitter implements RecordSplitter {
                 return RECORD_TOO_LARGE;
             }
             byte b = (byte) ib;
+            if (escapeAware && b == escAsByte) {
+                // Consume the escaped byte verbatim (a raw terminator or quote here is in-field content). A
+                // lone escape at EOF just consumes itself.
+                int esc = bis.read();
+                if (esc != -1) {
+                    consumed++;
+                    if (consumed > maxRecordBytes) {
+                        return RECORD_TOO_LARGE;
+                    }
+                }
+                if (inQuotes == false) {
+                    fieldHasNonWhitespace = true;
+                }
+                continue;
+            }
             if (inQuotes) {
                 if (b == quoteAsByte) {
                     // A doubled "" is a literal (stay in quotes); a lone " closes the field. peekByte
@@ -354,7 +394,7 @@ final class CsvRecordSplitter implements RecordSplitter {
             }
             if (b == delimAsByte) {
                 fieldHasNonWhitespace = false;
-            } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
+            } else if (quoteAware && b == quoteAsByte && fieldHasNonWhitespace == false) {
                 inQuotes = true;
             } else if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
                 fieldHasNonWhitespace = true;

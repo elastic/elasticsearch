@@ -1621,7 +1621,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                         .getResponseHeaders()
                         .getOrDefault("Warning", List.of())
                         .stream()
-                        .filter(w -> w.contains("could not be parsed to the declared type"))
+                        .filter(w -> w.contains("could not be coerced to type"))
                         .forEach(coercionWarnings::add);
                 } finally {
                     latch.countDown();

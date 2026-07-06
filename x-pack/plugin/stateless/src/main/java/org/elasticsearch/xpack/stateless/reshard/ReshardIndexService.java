@@ -137,7 +137,7 @@ public class ReshardIndexService {
             return ValidationError.INVALID_INDEX_VERSION;
         }
         IndexMode indexMode = indexMetadata.getIndexMode();
-        if (indexMode != null && indexMode != IndexMode.STANDARD) {
+        if (indexMode != null && indexMode != IndexMode.STANDARD && indexMode != IndexMode.VECTORDB_DOCUMENT) {
             return ValidationError.INVALID_INDEX_MODE;
         }
 

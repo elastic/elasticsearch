@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.util.hnsw.IntToIntFunction;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Intermediate object for clustering (partitioning) a set of vectors.
@@ -17,23 +17,19 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
  * @param <V> the array type for centroids ({@code float[]} or {@code byte[]})
  */
 class KMeansIntermediate<V> extends KMeansResult<V> {
-    private final IntToIntFunction assignmentOrds;
+    private final IntUnaryOperator assignmentOrds;
 
-    KMeansIntermediate(V[] centroids, int[] assignments, IntToIntFunction assignmentOrds) {
+    KMeansIntermediate(V[] centroids, int[] assignments, IntUnaryOperator assignmentOrds) {
         super(centroids, assignments);
         assert assignmentOrds != null;
         this.assignmentOrds = assignmentOrds;
     }
 
     public static <V> KMeansIntermediate<V> empty(CentroidOps<V> ops) {
-        return new KMeansIntermediate<>(ops.newCentroidArray(0, 0), new int[0], i -> i);
-    }
-
-    KMeansIntermediate(V[] centroids, int[] assignments) {
-        this(centroids, assignments, i -> i);
+        return new KMeansIntermediate<>(ops.newCentroidArray(0, 0), new int[0], IntUnaryOperator.identity());
     }
 
     public int ordToDoc(int ord) {
-        return assignmentOrds.apply(ord);
+        return assignmentOrds.applyAsInt(ord);
     }
 }

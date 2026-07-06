@@ -58,29 +58,33 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      * Plain TSDB index. {@link IndexMode#TIME_SERIES} defaults {@code _source.mode} to
      * {@link SourceFieldMapper.Mode#SYNTHETIC}, so synthetic source reconstructs {@code _source} as JSON.
      */
-    private static final Settings TSDB_SYNTHETIC_SETTINGS = tsdbSettings(IndexMode.TIME_SERIES, null, "host");
+    private Settings tsdbSyntheticSettings() {
+        return tsdbSettings(null, "host");
+    }
 
     /**
      * TSDB index with {@code index.mapping.source.mode: stored}. Stored source preserves the raw
      * indexed bytes (e.g. CBOR for Prometheus remote-write documents), so the {@code _timeseries} loader must explicitly normalize to JSON.
      */
-    private static final Settings TSDB_STORED_SETTINGS = tsdbSettings(IndexMode.TIME_SERIES, SourceFieldMapper.Mode.STORED, "host");
+    private Settings tsdbStoredSettings() {
+        return tsdbSettings(SourceFieldMapper.Mode.STORED, "host");
+    }
 
     /**
      * TSDB index that mirrors the Prometheus mapping: a {@code labels} {@code passthrough} object marked as
      * {@code time_series_dimension: true}. Dimension fields show up under {@code labels.*} and the index uses stored source.
      */
-    private static final Settings TSDB_PROMETHEUS_LIKE_SETTINGS = tsdbSettings(
-        IndexMode.TIME_SERIES,
-        SourceFieldMapper.Mode.STORED,
-        "labels.*"
-    );
+    private Settings tsdbPrometheusLikeSettings() {
+        return tsdbSettings(SourceFieldMapper.Mode.STORED, "labels.*");
+    }
 
     /**
      * OTel-like TSDB index: an {@code attributes} passthrough object. Dimension fields show up under
      * {@code attributes.*} and also as root-level aliases. Synthetic source (JSON) is used.
      */
-    private static final Settings TSDB_OTEL_LIKE_SETTINGS = tsdbSettings(IndexMode.TIME_SERIES, null, "attributes.*");
+    private Settings tsdbOtelLikeSettings() {
+        return tsdbSettings(null, "attributes.*");
+    }
 
     private static final String MAPPING = """
         {
@@ -157,9 +161,13 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         }
         """;
 
-    private static Settings tsdbSettings(IndexMode mode, SourceFieldMapper.Mode sourceMode, String routingPath) {
+    /**
+     * Randomizes between {@link IndexMode#TIME_SERIES} and {@link IndexMode#TSDB} so callers exercise both,
+     * since {@link TimeSeriesMetadataFieldBlockLoader} must be selected and behave identically for either.
+     */
+    private Settings tsdbSettings(SourceFieldMapper.Mode sourceMode, String routingPath) {
         Settings.Builder builder = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), mode.getName())
+            .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB).getName())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z");
@@ -169,15 +177,9 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         return builder.build();
     }
 
-    /**
-     * The {@code tsdb} index mode is equivalent to {@code time_series} (see {@link IndexMode#isTsdb()})
-     * so {@link TimeSeriesMetadataFieldBlockLoader} must be selected and behave identically regardless of
-     * which of the two mode names configured the index.
-     */
     public void testDimensionsOnly() throws IOException {
-        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         BlockLoader loader = createBlockLoader(
-            tsdbSettings(mode, null, "host"),
+            tsdbSettings(null, "host"),
             MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())
         );
@@ -187,7 +189,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
 
     public void testDimensionsAndMetrics() throws IOException {
         BlockLoader loader = createBlockLoader(
-            TSDB_SYNTHETIC_SETTINGS,
+            tsdbSyntheticSettings(),
             MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of())
         );
@@ -197,7 +199,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
 
     public void testExcludedDimensions() throws IOException {
         BlockLoader loader = createBlockLoader(
-            TSDB_SYNTHETIC_SETTINGS,
+            tsdbSyntheticSettings(),
             MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("host", "region"))
         );
@@ -207,7 +209,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
 
     public void testExcludedDimensionsWithMetrics() throws IOException {
         BlockLoader loader = createBlockLoader(
-            TSDB_SYNTHETIC_SETTINGS,
+            tsdbSyntheticSettings(),
             MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of("env"))
         );
@@ -224,7 +226,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     public void testExcludedDimensionsWithWildcardDimensionSetting() throws IOException {
         Settings settings = Settings.builder()
-            .put(TSDB_PROMETHEUS_LIKE_SETTINGS)
+            .put(tsdbPrometheusLikeSettings())
             .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "labels.*")
             .build();
         BlockLoader loader = createBlockLoader(
@@ -237,7 +239,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     public void testNoConfigReturnSourceBlockLoader() throws IOException {
-        MapperService mapperService = createMapperService(TSDB_SYNTHETIC_SETTINGS, MAPPING);
+        MapperService mapperService = createMapperService(tsdbSyntheticSettings(), MAPPING);
         BlockLoader loader = mapperService.documentMapper()
             .sourceMapper()
             .fieldType()
@@ -252,7 +254,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     public void testReadEmitsJsonForSyntheticSourceIndex() throws IOException {
         BytesReference json = bytes(XContentType.JSON, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
-        BytesRef value = readTimeSeriesValue(TSDB_SYNTHETIC_SETTINGS, MAPPING, sourceToParse(json, XContentType.JSON));
+        BytesRef value = readTimeSeriesValue(tsdbSyntheticSettings(), MAPPING, sourceToParse(json, XContentType.JSON));
         assertThat(parseJsonObject(value), equalTo(Map.of("host", "host-1", "env", "prod", "region", "us-east-1")));
     }
 
@@ -264,7 +266,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     public void testReadConvertsCborStoredSourceToJson() throws IOException {
         BytesReference cbor = bytes(XContentType.CBOR, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
-        BytesRef value = readTimeSeriesValue(TSDB_STORED_SETTINGS, MAPPING, sourceToParse(cbor, XContentType.CBOR));
+        BytesRef value = readTimeSeriesValue(tsdbStoredSettings(), MAPPING, sourceToParse(cbor, XContentType.CBOR));
         assertThat(parseJsonObject(value), equalTo(Map.of("host", "host-1", "env", "prod", "region", "us-east-1")));
     }
 
@@ -274,7 +276,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     public void testReadPassesThroughJsonStoredSource() throws IOException {
         BytesReference json = bytes(XContentType.JSON, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
-        BytesRef value = readTimeSeriesValue(TSDB_STORED_SETTINGS, MAPPING, sourceToParse(json, XContentType.JSON));
+        BytesRef value = readTimeSeriesValue(tsdbStoredSettings(), MAPPING, sourceToParse(json, XContentType.JSON));
         assertThat(parseJsonObject(value), equalTo(Map.of("host", "host-1", "env", "prod", "region", "us-east-1")));
     }
 
@@ -295,11 +297,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
             b.field("go_gc_cleanups_executed_cleanups_total", 1.0);
             b.endObject();
         });
-        BytesRef value = readTimeSeriesValue(
-            TSDB_PROMETHEUS_LIKE_SETTINGS,
-            PROMETHEUS_LIKE_MAPPING,
-            sourceToParse(cbor, XContentType.CBOR)
-        );
+        BytesRef value = readTimeSeriesValue(tsdbPrometheusLikeSettings(), PROMETHEUS_LIKE_MAPPING, sourceToParse(cbor, XContentType.CBOR));
         Map<String, Object> parsed = parseJsonObject(value);
         assertThat(parsed.keySet(), equalTo(Set.of("labels")));
         @SuppressWarnings("unchecked")
@@ -328,7 +326,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
             b.endObject();
         });
         BytesRef value = readTimeSeriesValue(
-            TSDB_PROMETHEUS_LIKE_SETTINGS,
+            tsdbPrometheusLikeSettings(),
             PROMETHEUS_LIKE_MAPPING,
             sourceToParse(cbor, XContentType.CBOR),
             Set.of("labels.instance")
@@ -350,7 +348,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     public void testOtelPassthroughAliasExcludedByShortName() throws IOException {
         BlockLoader loader = createBlockLoader(
-            TSDB_OTEL_LIKE_SETTINGS,
+            tsdbOtelLikeSettings(),
             OTEL_LIKE_MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("cpu"))
         );
@@ -365,7 +363,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     public void testPrometheusPassthroughAliasExcludedByShortName() throws IOException {
         BlockLoader loader = createBlockLoader(
-            TSDB_PROMETHEUS_LIKE_SETTINGS,
+            tsdbPrometheusLikeSettings(),
             PROMETHEUS_LIKE_MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("job"))
         );
@@ -378,7 +376,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     public void testWithoutAllDimensionsYieldsEmptySourcePaths() throws IOException {
         BlockLoader loader = createBlockLoader(
-            TSDB_SYNTHETIC_SETTINGS,
+            tsdbSyntheticSettings(),
             MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("host", "env", "region"))
         );
@@ -392,7 +390,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     public void testWithoutUnknownFieldIsIgnored() throws IOException {
         BlockLoader loader = createBlockLoader(
-            TSDB_SYNTHETIC_SETTINGS,
+            tsdbSyntheticSettings(),
             MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("does_not_exist"))
         );
@@ -406,7 +404,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     public void testExcludedDimensionsWithMetricsAndExclusion() throws IOException {
         BlockLoader loader = createBlockLoader(
-            TSDB_SYNTHETIC_SETTINGS,
+            tsdbSyntheticSettings(),
             MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of("host"))
         );
@@ -420,7 +418,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     public void testOtelPassthroughConcreteNameExcludesCorrectly() throws IOException {
         BlockLoader loader = createBlockLoader(
-            TSDB_OTEL_LIKE_SETTINGS,
+            tsdbOtelLikeSettings(),
             OTEL_LIKE_MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("attributes.cpu"))
         );

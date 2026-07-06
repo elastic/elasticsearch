@@ -51,7 +51,7 @@ public class ClearInferencePreferencesCacheActionTests extends ESTestCase {
     }
 
     public void testReceiveMessage_InvalidatesLocalCacheEntry() {
-        var regionPolicy = new RegionPolicy(List.of("eu"), null, null);
+        var regionPolicy = new RegionPolicy(List.of("eu"), null);
         var callCount = new AtomicInteger();
         var clusterService = mockClusterService();
         var cache = new InferencePreferencesCache(
@@ -86,7 +86,7 @@ public class ClearInferencePreferencesCacheActionTests extends ESTestCase {
     }
 
     public void testGettingTwiceWithoutClearingDoesNotRefetch() {
-        var regionPolicy = new RegionPolicy(List.of("eu"), null, null);
+        var regionPolicy = new RegionPolicy(List.of("eu"), null);
         var callCount = new AtomicInteger();
         var cache = new InferencePreferencesCache(
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,

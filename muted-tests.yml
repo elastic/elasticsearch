@@ -734,9 +734,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search only}
   issue: https://github.com/elastic/elasticsearch/issues/152784
-- class: org.elasticsearch.search.suggest.CompletionSuggestSearchIT
-  method: testBigSizeCircuitBreak
-  issue: https://github.com/elastic/elasticsearch/issues/152785
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search plus query}
   issue: https://github.com/elastic/elasticsearch/issues/152786

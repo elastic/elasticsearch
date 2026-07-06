@@ -103,7 +103,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
-        action.doExecute(mock(Task.class), new PutRegionPolicyAction.Request(new RegionPolicy(List.of("eu"), null, null)), listener);
+        action.doExecute(mock(Task.class), new PutRegionPolicyAction.Request(new RegionPolicy(List.of("eu"), null)), listener);
 
         listener.actionGet(TEST_REQUEST_TIMEOUT);
         assertThat(invalidateCount.get(), is(1));

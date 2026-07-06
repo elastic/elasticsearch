@@ -1079,14 +1079,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertNotNull("dashboard should resolve without circular reference errors", result);
 
         // The wildcard svc-auth-* inside error_view's subquery matches the view svc-auth-failures,
-        // creating a nested ViewUnionAll inside the pipeline chain. This produces a "nested subqueries"
+        // creating a nested ViewUnionAll inside the pipeline chain. This produces a branching-view
         // error — which is the correct behavior (not a false circular reference).
         Failures failures = new Failures();
         Failures depFailures = new Failures();
         LogicalVerifier.INSTANCE.checkPlanConsistency(result, failures, depFailures);
-        assertTrue("Expected nested subquery failure", failures.hasFailures());
+        assertTrue("Expected nested branching-view failure", failures.hasFailures());
         for (Failure failure : failures.failures()) {
-            assertThat(failure.failMessage(), containsString("Nested subqueries are not supported"));
+            assertThat(
+                failure.failMessage(),
+                containsString("A pattern that matches a view together with other indices or views cannot be combined with subqueries")
+            );
         }
     }
 
@@ -1893,7 +1896,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                                 // Each nested ViewUnionAll failure should reference the view that created it.
                                 // The ViewUnionAlls at depths 2..N have view names v_2_1..v_N_1.
                                 for (Failure failure : failures.failures()) {
-                                    assertThat(failure.failMessage(), containsString("Nested subqueries are not supported"));
+                                    assertThat(
+                                        failure.failMessage(),
+                                        containsString(
+                                            "A pattern that matches a view together with other indices or views cannot be combined "
+                                                + "with subqueries"
+                                        )
+                                    );
                                     assertThat(failure.failMessage(), containsString("(in view [v_"));
                                 }
                             } else {

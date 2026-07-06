@@ -140,19 +140,33 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
      */
     private static void checkNestedUnionAlls(LogicalPlan logicalPlan, Failures failures) {
         if (logicalPlan instanceof UnionAll unionAll) {
-            unionAll.forEachDown(Fork.class, otherForkOrUnionAll -> {
-                if (unionAll == otherForkOrUnionAll) {
+            unionAll.forEachDown(Fork.class, nested -> {
+                if (unionAll == nested) {
                     return;
                 }
-                failures.add(
-                    Failure.fail(
-                        otherForkOrUnionAll,
-                        otherForkOrUnionAll instanceof UnionAll
-                            ? "Nested subqueries are not supported"
-                            : "FORK inside subquery is not supported"
-                    )
-                );
+                failures.add(Failure.fail(nested, nestedUnionAllMessage(nested)));
             });
         }
+    }
+
+    /**
+     * Error message for a {@link Fork}/{@link UnionAll} found nested below another {@link UnionAll} at post-optimization.
+     * <p>
+     * A {@link ViewUnionAll} is never written by the user: it is added when a {@code FROM} pattern resolves, during view resolution, to
+     * more than one source where at least one is a view — for example a wildcard matching a view together with a concrete index, a pattern
+     * matching several views, or a view whose body references multiple sources. The multiplicity comes from the pattern matching a view
+     * alongside other sources, not necessarily from a single view expanding to many indices, so the generic "Nested subqueries are not
+     * supported" wording is misleading - the query the user wrote contains no nested subquery. We describe the real cause instead. A
+     * plain {@link UnionAll} is a genuine user-written (or dataset-expanded) nested subquery, and a bare {@link Fork} is a {@code FORK}
+     * inside a subquery.
+     */
+    private static String nestedUnionAllMessage(LogicalPlan nested) {
+        if (nested instanceof ViewUnionAll) {
+            return "A pattern that matches a view together with other indices or views cannot be combined with subqueries";
+        }
+        if (nested instanceof UnionAll) {
+            return "Nested subqueries are not supported";
+        }
+        return "FORK inside subquery is not supported";
     }
 }

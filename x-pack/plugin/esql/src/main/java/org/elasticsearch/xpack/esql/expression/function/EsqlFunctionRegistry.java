@@ -585,6 +585,7 @@ public class EsqlFunctionRegistry {
                 ToRange.DEFINITION,
                 ToString.DEFINITION,
                 ToTDigest.DEFINITION,
+                ToText.DEFINITION,
                 ToTimeDuration.DEFINITION,
                 ToUnsignedLong.DEFINITION,
                 ToVersion.DEFINITION, },
@@ -663,8 +664,7 @@ public class EsqlFunctionRegistry {
                 // TSTEP is new enough that we only want to expose it on snapshot builds for now.
                 TStep.DEFINITION,
                 // dense vector functions
-                Magnitude.DEFINITION,
-                ToText.DEFINITION } };
+                Magnitude.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

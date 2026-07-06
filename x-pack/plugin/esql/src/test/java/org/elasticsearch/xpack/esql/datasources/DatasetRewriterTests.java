@@ -768,6 +768,23 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("Unknown index [ds2]"));
     }
 
+    public void testHeterogeneousFromUnauthorizedDatasetDoesNotBleed() {
+        // A readable index co-located in the FROM does not let an unauthorized dataset through: the explicit unauthorized
+        // dataset still fails as Unknown index, exactly as it would alone (no existence oracle). Mirrors
+        // testExplicitUnauthorizedAmongAuthorizedThrows with a plain index in place of the authorized dataset. The
+        // per-target classification this relies on is asserted by testResolveClassifiesIndexAndUnauthorizedDatasetPerTarget
+        // (below).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset secret = new Dataset("secret_ds", new DataSourceReference("s3_parent"), "s3://secret/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("secret_ds", secret), Set.of("some_idx"));
+
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> rewriteWithAuthorized(relationOf("some_idx,secret_ds"), project, Set.of("some_idx"))
+        );
+        assertThat(ex.getMessage(), containsString("Unknown index [secret_ds]"));
+    }
+
     // ---- resolve(): the engine-side, per-relation expansion that the action body runs ----
 
     public void testResolveEmptyWithoutDatasets() {
@@ -814,6 +831,20 @@ public class DatasetRewriterTests extends ESTestCase {
         DatasetRewriter.DatasetResolution r = resolve("logs_*", project, Set.of("logs_dataset"));
         assertThat(r.authorizedDatasets(), equalTo(Set.of("logs_dataset")));
         assertFalse(r.nonDatasetNames().isEmpty());
+    }
+
+    public void testResolveClassifiesIndexAndUnauthorizedDatasetPerTarget() {
+        // Mixed FROM: the index and the unauthorized dataset are classified independently in one pass — the index is a
+        // readable non-dataset target (drives the heterogeneous-FROM UnionAll index branch), the dataset is flagged
+        // unauthorized. The enforcement of that flag is asserted by testHeterogeneousFromUnauthorizedDatasetDoesNotBleed
+        // (above).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset secret = new Dataset("secret_ds", new DataSourceReference("s3_parent"), "s3://secret/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("secret_ds", secret), Set.of("some_idx"));
+
+        DatasetRewriter.DatasetResolution r = resolve("some_idx,secret_ds", project, Set.of("some_idx"));
+        assertThat(r.nonDatasetNames(), containsInAnyOrder("some_idx"));
+        assertThat(r.explicitUnauthorized(), containsInAnyOrder("secret_ds"));
     }
 
     // --

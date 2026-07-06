@@ -928,9 +928,10 @@ public class EsqlCapabilities {
         BUCKET_WHOLE_NUMBER_AS_SPAN,
 
         /**
-         * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns.
+         * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns, gated behind the
+         * {@code SET column_metadata=true} setting. Without the setting, non-approximation metadata is omitted.
          */
-        COLUMN_METADATA_BUCKET(Build.current().isSnapshot()),
+        COLUMN_METADATA_BUCKET_V2(Build.current().isSnapshot()),
 
         /**
          * Allow mixed numeric types in coalesce

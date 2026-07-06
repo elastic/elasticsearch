@@ -9,9 +9,17 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
+
+import java.util.Map;
+
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Runs the shared {@link AbstractTracesIT} test suite against the OTel SDK export path.
@@ -66,5 +74,37 @@ public class OtelSdkTracesIT extends AbstractTracesIT {
 
     public void testResourceCarriesAffix() throws Exception {
         assertSdkResourceAttributes(EXPECTED_PROJECT_ID, EXPECTED_PROJECT_TYPE, EXPECTED_NODE_TIER);
+    }
+
+    public void testDynamicTracingSettingsUpdatableAtRuntime() throws Exception {
+        updatePersistentSettings("""
+            {"telemetry.tracing.max_depth": 5, "telemetry.tracing.record_exception_stacks": true}""");
+
+        Map<String, Object> persistent = persistentSettings();
+        assertThat(persistent.get("telemetry.tracing.max_depth"), is("5"));
+        assertThat(persistent.get("telemetry.tracing.record_exception_stacks"), is("true"));
+
+        updatePersistentSettings("""
+            {"telemetry.tracing.max_depth": null, "telemetry.tracing.record_exception_stacks": null}""");
+        assertThat(persistentSettings().get("telemetry.tracing.max_depth"), nullValue());
+        assertThat(persistentSettings().get("telemetry.tracing.record_exception_stacks"), nullValue());
+        expectThrows(ResponseException.class, () -> updatePersistentSettings("""
+            {"telemetry.tracing.sample_rate": 0.5}"""));
+    }
+
+    private void updatePersistentSettings(String settingsJson) throws Exception {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("{\"persistent\": " + settingsJson + "}");
+        try (RestClient client = client()) {
+            assertOK(client.performRequest(request));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> persistentSettings() throws Exception {
+        try (RestClient client = client()) {
+            Map<String, Object> response = entityAsMap(client.performRequest(new Request("GET", "/_cluster/settings?flat_settings=true")));
+            return (Map<String, Object>) response.get("persistent");
+        }
     }
 }

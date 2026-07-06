@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.heap_attack;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -142,7 +141,7 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
      */
     private void initHugeSourceTinyUnmappedIndex(String index, int docs, int sourceSizeMb) throws IOException {
         logger.info("loading {} documents with one {}MB source-only payload", docs, sourceSizeMb);
-        CreateIndexResponse response = createIndex(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(), """
+        CreateIndexResponse response = createIndex(index, Settings.EMPTY, """
             {
               "dynamic": false,
               "properties": {
@@ -180,7 +179,7 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
         logger.info("loading {} documents with {} 1KB source-only fields", docs, fields);
         CreateIndexResponse response = createIndex(
             MANY_SOURCE_ONLY_FIELDS_INDEX,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+            Settings.EMPTY,
             """
                 {
                   "dynamic": false,
@@ -225,7 +224,6 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
         CreateIndexResponse response = createIndex(
             MULTI_SEGMENT_SOURCE_INDEX,
             Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 // Keep the fixture multi-segment instead of letting background merges collapse it.
                 .put("index.merge.policy.segments_per_tier", 1000)
                 .build(),

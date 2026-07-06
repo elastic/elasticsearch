@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.heap_attack;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -54,7 +53,7 @@ public class HeapAttackUnmappedLoadSyntheticSourceIT extends HeapAttackTestCase 
         logger.info("loading {} documents with {} 1KB synthetic source-only fields", docs, fields);
         CreateIndexResponse response = createIndex(
             MANY_SYNTHETIC_SOURCE_ONLY_FIELDS_INDEX,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.mapping.source.mode", "synthetic").build(),
+            Settings.builder().put("index.mapping.source.mode", "synthetic").build(),
             """
                 {
                   "dynamic": false,

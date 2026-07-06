@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.heap_attack;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -56,7 +55,7 @@ public class HeapAttackUnmappedLoadPunkIT extends HeapAttackTestCase {
     private void initPunkIndices(int sourceOnlyDocs, int sourceFieldSizeMb) throws IOException {
         CreateIndexResponse mappedResponse = createIndex(
             MAPPED_LONG_INDEX,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+            Settings.EMPTY,
             """
                 {
                   "properties": {
@@ -77,7 +76,7 @@ public class HeapAttackUnmappedLoadPunkIT extends HeapAttackTestCase {
 
         CreateIndexResponse sourceOnlyResponse = createIndex(
             SOURCE_ONLY_INDEX,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+            Settings.EMPTY,
             """
                 {
                   "dynamic": false,

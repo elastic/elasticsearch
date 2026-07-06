@@ -292,6 +292,28 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TSDB));
     }
 
+    /**
+     * {@link IndexMode#TIME_SERIES} and {@link IndexMode#TSDB} behave identically, so a data stream
+     * already using one of them must also be able to roll over into the other - not just upgrade from
+     * {@code standard} - covering both directions of the switch.
+     */
+    public void testRolloverBetweenTimeSeriesAndTsdbDataStreamModes() {
+        for (IndexMode fromMode : List.of(IndexMode.TIME_SERIES, IndexMode.TSDB)) {
+            IndexMode toMode = fromMode == IndexMode.TIME_SERIES ? IndexMode.TSDB : IndexMode.TIME_SERIES;
+            DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(fromMode).build();
+            final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+            var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+            var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), toMode, null);
+            assertThat(rolledDs.getName(), equalTo(ds.getName()));
+            assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+            assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+            assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
+            assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
+            assertThat(rolledDs.getIndexMode(), equalTo(toMode));
+        }
+    }
+
     public void testRolloverUpgradeToLogsdbDataStream() {
         DataStream ds = DataStreamTestHelper.randomInstance()
             .copy()

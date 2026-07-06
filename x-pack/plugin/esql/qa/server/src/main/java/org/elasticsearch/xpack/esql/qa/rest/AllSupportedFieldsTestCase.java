@@ -277,7 +277,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             );
         }
         if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
-            assumeTrue("Columnar index modes require a snapshot build", Build.current().isSnapshot());
+            // Gate on the cluster capability rather than the test runner build: columnar index modes are only available when the
+            // feature flag is enabled on the nodes (e.g. they are disabled in upgrade clusters), in which case these tests skip.
+            assumeTrue(
+                "Cluster does not have columnar index modes enabled",
+                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false)
+            );
             assumeTrue(
                 "Cluster has nodes that do not support columnar index modes",
                 minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
@@ -1167,7 +1172,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield nullValue();
             }
             case FLATTENED -> {
-                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
                     MapMatcher values = matchesMap().entry("a.c", "bar")
                         .entry("b", "foo")
                         .entry("d", "baz")
@@ -1190,11 +1195,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     }
                     if (isSingleNodeSnapshot()) {
                         /*
-                         * Only assert that keys come back in sorted order because
-                         * this was added after the first release of flattened. We
-                         * *did* do this while it was under snapshot, so we should
-                         * be able to enable this if all versions have the flattened
-                         * field released. But we'll worry about that when we release it.
+                         * Only assert sorted key order on a single snapshot node. Sorted keys
+                         * were added after flattened first shipped, so a mixed cluster with an
+                         * older node may still return them unsorted; the FLATTENED_DATATYPE_SORTED_KEYS
+                         * capability (see flattenedSortedKeys) governs the cross-version case.
                          */
                         yield allOf(values, hasKeys("a.c", "b", "d", "e", "j"));
                     }
@@ -1382,10 +1386,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo("histogram");
             }
             case FLATTENED -> {
-                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
-                    yield anyOf(equalTo("flattened"), equalTo("unsupported"));
+                // Support for flattened was added later. Mirror IndexResolver's gating, which treats the type as supported
+                // once the minimum version reaches the under-construction created version on snapshot builds, but requires the
+                // release version on release builds. Hardcoding release semantics here would wrongly expect "unsupported" in a
+                // snapshot mixed cluster whose oldest node predates the release transport version.
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot()) == false) {
+                    yield equalTo("unsupported");
                 }
-                yield equalTo("unsupported");
+                yield equalTo("flattened");
             }
             default -> equalTo(type.esType());
         };

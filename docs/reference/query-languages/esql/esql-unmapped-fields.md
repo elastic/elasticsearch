@@ -8,7 +8,7 @@ description: How ES|QL queries fields that aren't in the index mapping, using th
 
 # Query unmapped fields without reindexing [esql-unmapped-fields]
 
-{{esql}} can query fields that are not defined in your index mapping, with no reindex and no change to the mapping. The [`SET unmapped_fields`](commands/set.md#esql-unmapped_fields) directive controls how each query handles them.
+{{esql}} can query fields that are not defined in your index mapping, with no reindex and no change to the mapping. The [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) directive controls how each query handles them.
 
 An unmapped field is a field in indexed documents that the index' mapping does not define. By default, {{esql}} treats such fields as `null` and returns an error if a referenced field is not mapped in any index.
 
@@ -36,7 +36,7 @@ The `unmapped_fields` setting accepts three values, which range from strict to p
 | `NULLIFY` | Fields that are not mapped in any queried index return `null`. Partially mapped fields behave as they do in `DEFAULT`: documents from indices where the field is not mapped return `null`. | You want a reusable query to continue when a field is not available in a dataset. |
 | `LOAD` {applies_to}`stack: preview 9.4` | {{esql}} loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) at search time and treats them as `keyword`. For partially mapped fields, it loads values from `_source` in indices where the field is not mapped. Fields absent from `_source` return `null`. | You need the real values of a fully or partially unmapped field, so that you can filter or aggregate on it. |
 
-For the full syntax, refer to the [`SET unmapped_fields`](commands/set.md#esql-unmapped_fields) reference.
+For the full syntax, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 
 :::{tip}
 :applies_to: stack: preview 9.4
@@ -46,7 +46,7 @@ Reading the real values of an unmapped field with `LOAD` is newer than the other
 
 ## Limitations [esql-unmapped-fields-limitations]
 
-`LOAD` does not support every command, function, and field type. For the current restrictions, refer to the [`SET unmapped_fields`](commands/set.md#esql-unmapped_fields) reference.
+`LOAD` does not support every command, function, and field type. For the current restrictions, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 
 One restriction worth planning around is performance: reading from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) is slower than querying a mapped field, because the values aren't stored in a data structure optimized for fast access. The trade-off is that the data is available immediately without a full reindex.
 
@@ -58,7 +58,7 @@ Unmapped fields differ from runtime fields. A runtime field is a computed field 
 
 To go deeper on unmapped fields and related capabilities, refer to these pages:
 
-- [`SET unmapped_fields`](commands/set.md#esql-unmapped_fields): the directive syntax, accepted values, and `LOAD` limitations.
+- [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields): the directive syntax, accepted values, and `LOAD` limitations.
 - [`JSON_EXTRACT`](functions-operators/string-functions/json_extract.md): extract values from JSON strings and `_source`.
 - [Retrieve unmapped fields](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#retrieve-unmapped-fields): the equivalent `include_unmapped` option in the search `fields` API.
 - [ES|QL unmapped fields on Elastic Search Labs](https://www.elastic.co/search-labs/blog/esql-unmapped-fields): the blog post that introduces the feature.

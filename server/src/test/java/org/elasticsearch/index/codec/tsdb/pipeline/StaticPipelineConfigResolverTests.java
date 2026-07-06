@@ -17,7 +17,9 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
 
     public void testResolvesBaselinePipelineShapeForNonTimestampField() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
-        final PipelineConfig config = resolver.resolve(new FieldContext(randomBlockSize(), randomNonTimestampFieldName(), null, null));
+        final PipelineConfig config = resolver.resolve(
+            new FieldContext(randomBlockSize(), randomNonTimestampFieldName(), null, null, null, false)
+        );
 
         assertEquals("delta>offset>gcd>bitPack", config.describeStages());
         assertEquals(PipelineDescriptor.DataType.LONG, config.dataType());
@@ -27,7 +29,7 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
 
     public void testResolvesTimestampPipelineShape() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
-        final PipelineConfig config = resolver.resolve(new FieldContext(randomBlockSize(), TIMESTAMP_FIELD_NAME, null, null));
+        final PipelineConfig config = resolver.resolve(new FieldContext(randomBlockSize(), TIMESTAMP_FIELD_NAME, null, null, null, false));
 
         assertEquals("splitDelta>delta>offset>gcd>bitPack", config.describeStages());
         assertEquals(PipelineDescriptor.DataType.LONG, config.dataType());
@@ -39,7 +41,7 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomBlockSize();
 
-        final PipelineConfig config = resolver.resolve(new FieldContext(blockSize, randomNonTimestampFieldName(), null, null));
+        final PipelineConfig config = resolver.resolve(new FieldContext(blockSize, randomNonTimestampFieldName(), null, null, null, false));
 
         assertEquals(blockSize, config.blockSize());
     }
@@ -48,8 +50,8 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomBlockSize();
 
-        final PipelineConfig timestamp = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null));
-        final PipelineConfig other = resolver.resolve(new FieldContext(blockSize, "metric.value", null, null));
+        final PipelineConfig timestamp = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null, null, false));
+        final PipelineConfig other = resolver.resolve(new FieldContext(blockSize, "metric.value", null, null, null, false));
 
         assertNotEquals(timestamp, other);
         assertEquals("splitDelta>delta>offset>gcd>bitPack", timestamp.describeStages());
@@ -58,7 +60,7 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
 
     public void testRepeatedResolveReturnsEqualConfigs() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
-        final FieldContext context = new FieldContext(randomBlockSize(), randomNonTimestampFieldName(), null, null);
+        final FieldContext context = new FieldContext(randomBlockSize(), randomNonTimestampFieldName(), null, null, null, false);
 
         assertEquals(resolver.resolve(context), resolver.resolve(context));
     }
@@ -67,8 +69,8 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomFrom(128, 512);
 
-        final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, randomNonTimestampFieldName(), null, null));
-        final PipelineConfig second = resolver.resolve(new FieldContext(blockSize, randomNonTimestampFieldName(), null, null));
+        final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, randomNonTimestampFieldName(), null, null, null, false));
+        final PipelineConfig second = resolver.resolve(new FieldContext(blockSize, randomNonTimestampFieldName(), null, null, null, false));
         assertSame(first, second);
     }
 
@@ -76,8 +78,8 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomFrom(128, 512);
 
-        final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null));
-        final PipelineConfig second = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null));
+        final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null, null, false));
+        final PipelineConfig second = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null, null, false));
         assertSame(first, second);
     }
 
@@ -85,11 +87,13 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = 1 << randomIntBetween(4, 6);
 
-        final PipelineConfig nonTimestamp = resolver.resolve(new FieldContext(blockSize, randomNonTimestampFieldName(), null, null));
+        final PipelineConfig nonTimestamp = resolver.resolve(
+            new FieldContext(blockSize, randomNonTimestampFieldName(), null, null, null, false)
+        );
         assertEquals(blockSize, nonTimestamp.blockSize());
         assertEquals("delta>offset>gcd>bitPack", nonTimestamp.describeStages());
 
-        final PipelineConfig timestamp = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null));
+        final PipelineConfig timestamp = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null, null, false));
         assertEquals(blockSize, timestamp.blockSize());
         assertEquals("splitDelta>delta>offset>gcd>bitPack", timestamp.describeStages());
     }
@@ -100,7 +104,9 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
             randomBlockSize(),
             randomNonTimestampFieldName(),
             PipelineDescriptor.DataType.LONG,
-            MetricRole.COUNTER
+            MetricRole.COUNTER,
+            null,
+            false
         );
 
         final PipelineConfig config = resolver.resolve(context);
@@ -115,7 +121,9 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
             randomBlockSize(),
             randomNonTimestampFieldName(),
             PipelineDescriptor.DataType.LONG,
-            MetricRole.GAUGE
+            MetricRole.GAUGE,
+            null,
+            false
         );
 
         final PipelineConfig config = resolver.resolve(context);
@@ -129,7 +137,9 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
             randomBlockSize(),
             randomNonTimestampFieldName(),
             PipelineDescriptor.DataType.DOUBLE,
-            MetricRole.COUNTER
+            MetricRole.COUNTER,
+            null,
+            false
         );
 
         final PipelineConfig config = resolver.resolve(context);
@@ -145,7 +155,9 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
             randomBlockSize(),
             randomNonTimestampFieldName(),
             PipelineDescriptor.DataType.DOUBLE,
-            MetricRole.GAUGE
+            MetricRole.GAUGE,
+            null,
+            false
         );
 
         final PipelineConfig config = resolver.resolve(context);
@@ -162,7 +174,9 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
             randomBlockSize(),
             randomNonTimestampFieldName(),
             PipelineDescriptor.DataType.DOUBLE,
-            null
+            null,
+            null,
+            false
         );
 
         final PipelineConfig config = resolver.resolve(context);
@@ -175,10 +189,10 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         final int blockSize = randomFrom(128, 512);
 
         final PipelineConfig first = resolver.resolve(
-            new FieldContext(blockSize, randomNonTimestampFieldName(), PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE)
+            new FieldContext(blockSize, randomNonTimestampFieldName(), PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE, null, false)
         );
         final PipelineConfig second = resolver.resolve(
-            new FieldContext(blockSize, randomNonTimestampFieldName(), PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE)
+            new FieldContext(blockSize, randomNonTimestampFieldName(), PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE, null, false)
         );
         assertSame(first, second);
     }
@@ -189,12 +203,12 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         final String fieldName = randomNonTimestampFieldName();
 
         final PipelineConfig alpDouble = resolver.resolve(
-            new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE)
+            new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE, null, false)
         );
         final PipelineConfig baseline = resolver.resolve(
-            new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, MetricRole.GAUGE)
+            new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, MetricRole.GAUGE, null, false)
         );
-        final PipelineConfig splitDelta = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null));
+        final PipelineConfig splitDelta = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null, null, false));
 
         assertNotEquals(alpDouble, baseline);
         assertNotEquals(alpDouble, splitDelta);
@@ -208,7 +222,7 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         final int blockSize = 1 << randomIntBetween(4, 6);
 
         final PipelineConfig config = resolver.resolve(
-            new FieldContext(blockSize, randomNonTimestampFieldName(), PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE)
+            new FieldContext(blockSize, randomNonTimestampFieldName(), PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE, null, false)
         );
 
         assertEquals(blockSize, config.blockSize());
@@ -221,7 +235,9 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
             randomBlockSize(),
             randomNonTimestampFieldName(),
             PipelineDescriptor.DataType.LONG,
-            null
+            null,
+            null,
+            false
         );
 
         final PipelineConfig config = resolver.resolve(context);
@@ -234,11 +250,50 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         final int blockSize = randomFrom(128, 512);
 
         final PipelineConfig counter = resolver.resolve(
-            new FieldContext(blockSize, randomNonTimestampFieldName(), PipelineDescriptor.DataType.LONG, MetricRole.COUNTER)
+            new FieldContext(blockSize, randomNonTimestampFieldName(), PipelineDescriptor.DataType.LONG, MetricRole.COUNTER, null, false)
         );
-        final PipelineConfig timestamp = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null));
+        final PipelineConfig timestamp = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null, null, false));
 
         assertSame(counter, timestamp);
+    }
+
+    public void testIpDimensionFieldUsesBlockSize1024() {
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
+        final FieldContext context = new FieldContext(
+            randomFrom(128, 512),
+            randomNonTimestampFieldName(),
+            null,
+            null,
+            MappedFieldType.IP,
+            true
+        );
+
+        final PipelineConfig config = resolver.resolve(context);
+
+        assertEquals(1024, config.blockSize());
+    }
+
+    public void testIpNonDimensionFieldUsesFormatDefaultBlockSize() {
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
+        final int blockSize = randomFrom(128, 512);
+        final FieldContext context = new FieldContext(blockSize, randomNonTimestampFieldName(), null, null, MappedFieldType.IP, false);
+
+        final PipelineConfig config = resolver.resolve(context);
+
+        assertEquals(blockSize, config.blockSize());
+    }
+
+    public void testIpDimensionBlockSize1024IsCached() {
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
+        final int formatBlockSize = randomFrom(128, 512);
+
+        final PipelineConfig first = resolver.resolve(new FieldContext(formatBlockSize, "client.ip", null, null, MappedFieldType.IP, true));
+        final PipelineConfig second = resolver.resolve(
+            new FieldContext(formatBlockSize, "server.ip", null, null, MappedFieldType.IP, true)
+        );
+
+        assertSame(first, second);
+        assertEquals(1024, first.blockSize());
     }
 
     private static int randomBlockSize() {

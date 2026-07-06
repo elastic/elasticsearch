@@ -28,13 +28,15 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     private final FieldMapper.DocValuesParameter.Values docValues;
     private final String nullValue;
     private final boolean allowIgnoredSource;
+    private final boolean isColumnar;
 
     KeywordFieldSyntheticSourceSupport(
         Integer ignoreAbove,
         boolean store,
         String nullValue,
         boolean allowIgnoredSource,
-        FieldMapper.DocValuesParameter.Values docValues
+        FieldMapper.DocValuesParameter.Values docValues,
+        boolean isColumnar
     ) {
         this.ignoreAbove = ignoreAbove;
         this.allIgnored = ignoreAbove != null && LuceneTestCase.rarely();
@@ -42,6 +44,12 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         this.nullValue = nullValue;
         this.allowIgnoredSource = allowIgnoredSource;
         this.docValues = docValues;
+        this.isColumnar = isColumnar;
+    }
+
+    @Override
+    public boolean isColumnar() {
+        return isColumnar;
     }
 
     public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource) {
@@ -49,20 +57,23 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             if (allowIgnoredSource && ESTestCase.randomBoolean()) {
                 return FieldMapper.DocValuesParameter.Values.DISABLED;
             } else {
-                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
+                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true, true);
             }
         }
 
+        // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
             case 0 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                ESTestCase.randomBoolean()
+                ESTestCase.randomBoolean(),
+                true
             );
             case 1 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                ESTestCase.randomBoolean()
+                ESTestCase.randomBoolean(),
+                true
             );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
@@ -88,7 +99,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
     @Override
     public MapperTestCase.SyntheticSourceExample example(int maxValues) {
-        return example(maxValues, false, false, false);
+        // in columnar mode, ignored values (exceeding ignore_above) are stored in sorted binary doc values
+        return example(maxValues, false, false, isColumnar);
     }
 
     public MapperTestCase.SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource, boolean flipOrder) {
@@ -119,7 +131,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
                 validValues.add(v);
             }
         });
-        List<String> outputFromDocValues = new HashSet<>(validValues).stream().sorted().toList();
+        // columnar mode preserves insertion order and duplicates; non-columnar deduplicates and sorts
+        List<String> outputFromDocValues = isColumnar ? validValues : new HashSet<>(validValues).stream().sorted().toList();
 
         Object out;
         if (preservesExactSource()) {

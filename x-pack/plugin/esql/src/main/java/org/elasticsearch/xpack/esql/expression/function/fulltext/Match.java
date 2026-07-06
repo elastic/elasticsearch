@@ -104,7 +104,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 public class Match extends SingleFieldFullTextFunction implements OptionalArgument, ConfigurationFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class).ternaryConfig(Match::new).name("match");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class)
+        .ternaryConfig(Match::new)
+        .capabilities("runtime_filter")
+        .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
         KEYWORD,
@@ -483,7 +486,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
      * (cheaply, since the query value is a constant) by {@link #queryAsRuntimeSearchValue} when building the evaluator.
      */
     private void verifyRuntimeQueryValue() {
-        if (field.dataType() == TEXT) {
+        if (field.dataType() == TEXT || field.dataType() == NULL) {
             return;
         }
         queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));

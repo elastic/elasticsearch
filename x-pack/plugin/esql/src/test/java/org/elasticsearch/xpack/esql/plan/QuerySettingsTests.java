@@ -552,10 +552,7 @@ public class QuerySettingsTests extends ESTestCase {
         // resolve() calls readFromExpression() directly and does not repeat validate()'s upfront type check.
         // This confirms the bool() factory's own defensive check rejects a non-boolean SET value on its own,
         // so a malformed value can't silently slip through resolve() even if validate() were ever bypassed.
-        QuerySetting setting = new QuerySetting(
-            Source.EMPTY,
-            new Alias(Source.EMPTY, "column_metadata", Literal.integer(Source.EMPTY, 1))
-        );
+        QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "column_metadata", Literal.integer(Source.EMPTY, 1)));
         EsqlStatement statement = new EsqlStatement(null, List.of(setting));
         var ex = expectThrows(
             IllegalArgumentException.class,

@@ -458,7 +458,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSingleValuedStringValueScriptReturningNull() throws IOException {
-        // Regression test: value script returning null must not cause NPE (github #136639).
+        // Regression test: value script returning null must not cause NPE (GitHub #136639).
         // Null results are skipped regardless of what the field value is.
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, NULL_RETURNING_VALUE_SCRIPT, emptyMap()));

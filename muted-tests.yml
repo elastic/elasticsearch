@@ -823,3 +823,18 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
+- class: org.elasticsearch.reindex.management.ReindexCancelRelocationIT
+  method: testCancelReindexCancelsRelocatedTaskByOriginalTaskId
+  issue: https://github.com/elastic/elasticsearch/issues/152925
+- class: org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperatorTests
+  method: testMultivaluedGroupColumnProducesWarning
+  issue: https://github.com/elastic/elasticsearch/issues/152928
+- class: org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperatorTests
+  method: testMultivaluedGroupColumnProducesWarning
+  issue: https://github.com/elastic/elasticsearch/issues/152929
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testSingleTypeAggregateMetricDoubleUnmappedNoCastLoadOnly
+  issue: https://github.com/elastic/elasticsearch/issues/152930
+- class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with multiple _slice values and duplicatessearches across the requested slices}
+  issue: https://github.com/elastic/elasticsearch/issues/152722

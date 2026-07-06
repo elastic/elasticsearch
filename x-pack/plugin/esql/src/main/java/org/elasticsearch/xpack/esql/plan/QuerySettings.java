@@ -194,7 +194,7 @@ public final class QuerySettings {
      * request parser, the resolver, and telemetry all iterate this list. Add a new setting's constant here when
      * you declare it. Referencing this field initializes the class, so there is no load-order hazard.
      */
-    public static final List<QuerySettingDef<?>> ALL = List.of(TIME_ZONE, PROJECT_ROUTING, UNMAPPED_FIELDS, APPROXIMATION, COLUMN_METADATA);
+    public static final List<QuerySettingDef<?>> ALL = List.of(APPROXIMATION, COLUMN_METADATA, PROJECT_ROUTING, TIME_ZONE, UNMAPPED_FIELDS);
 
     private static final Map<String, QuerySettingDef<?>> BY_NAME = byName(ALL);
 

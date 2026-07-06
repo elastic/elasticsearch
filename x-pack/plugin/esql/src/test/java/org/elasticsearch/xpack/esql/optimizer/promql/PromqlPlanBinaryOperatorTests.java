@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -42,6 +43,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -388,6 +390,16 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
     }
 
+    public void testBinaryScalarAndNestedAggregationFailsCleanly() {
+        VerificationException e = assertThrows(
+            VerificationException.class,
+            () -> planPromql(
+                "PROMQL index=k8s step=1m result=(scalar(network.bytes_in) * 100 / count(count by (pod) (network.total_bytes_in)))"
+            )
+        );
+        assertThat(e.getMessage(), containsString("binary expressions with nested aggregations are not supported at this time"));
+    }
+
     public void testNestedBinaryAggregationsWithScalar() {
         // Pattern: (agg op agg) op scalar
         var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) / max(network.total_bytes_in) * 100)");
@@ -440,6 +452,15 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(plan.collect(MvExpand.class), hasSize(1));
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
         assertNoIndexBackedPromqlPlan(plan);
+    }
+
+    public void testBinaryOperatorWithDifferentGroupingKeysReturns400() {
+        // sum by (cluster) (...) + sum by (pod) (...) has incompatible groupings — should be a 400, not a 500.
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) + sum by (pod) (network.eth0.rx))")
+        );
+        assertThat(e.getMessage(), containsString("Binary expressions between vectors with different grouping keys are not supported yet"));
     }
 
     private static void assertNoIndexBackedPromqlPlan(LogicalPlan plan) {

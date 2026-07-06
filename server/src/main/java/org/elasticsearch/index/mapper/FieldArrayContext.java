@@ -51,31 +51,49 @@ public class FieldArrayContext {
         return context.isImmediateParentAnArray() && context.canAddIgnoredField();
     }
 
-    protected final Map<String, Offsets> offsetsPerField = new HashMap<>();
+    // Offsets are tracked per target document so array order is recorded on the document the values were parsed into. In
+    // particular, a multi-valued leaf inside a nested object records its offsets on that nested child document, not on the
+    // root, so the order is reconstructed when the child document is read back. The current document is set on every
+    // getOffSetContext() call (see DocumentParserContext), so it always reflects the document being parsed.
+    protected final Map<LuceneDocument, Map<String, Offsets>> offsetsPerDoc = new HashMap<>();
+    private LuceneDocument currentDoc;
+
+    public void setCurrentDoc(LuceneDocument doc) {
+        this.currentDoc = doc;
+    }
+
+    private Offsets offsetsFor(String field) {
+        return offsetsPerDoc.computeIfAbsent(currentDoc, d -> new HashMap<>()).computeIfAbsent(field, k -> new Offsets());
+    }
 
     public void recordOffset(String field, Comparable<?> value) {
-        offsetsPerField.computeIfAbsent(field, k -> new Offsets()).recordOffset(value);
+        offsetsFor(field).recordOffset(value);
     }
 
     public void recordNull(String field) {
-        offsetsPerField.computeIfAbsent(field, k -> new Offsets()).recordNull();
+        offsetsFor(field).recordNull();
     }
 
     void maybeRecordEmptyArray(String field) {
-        offsetsPerField.computeIfAbsent(field, k -> new Offsets()).markEmptyArray();
+        offsetsFor(field).markEmptyArray();
     }
 
     public void addToLuceneDocument(DocumentParserContext context) throws IOException {
         boolean strictlyColumnar = context.indexSettings().getMode().isStrictColumnar();
-        for (var entry : offsetsPerField.entrySet()) {
-            var offsets = entry.getValue();
-            // In strict columnar a single non-null value carries no ordering or shape information beyond what the sorted-set doc
-            // values already encode, so the offsets entry is redundant. This means that single-valued arrays are rebuilt as
-            // single valued; ex. ["a"] -> "a".
-            if (strictlyColumnar && offsets.currentOffset() <= 1 && offsets.hasNulls() == false) {
-                continue;
+        for (var docEntry : offsetsPerDoc.entrySet()) {
+            // A null key means no document was set while recording (e.g. direct unit-test usage); fall back to the document
+            // being flushed. During real parsing the current document is always set, so each entry targets its own document.
+            LuceneDocument doc = docEntry.getKey() != null ? docEntry.getKey() : context.doc();
+            for (var entry : docEntry.getValue().entrySet()) {
+                var offsets = entry.getValue();
+                // In strict columnar a single non-null value carries no ordering or shape information beyond what the sorted-set doc
+                // values already encode, so the offsets entry is redundant. This means that single-valued arrays are rebuilt as
+                // single valued; ex. ["a"] -> "a".
+                if (strictlyColumnar && offsets.currentOffset() <= 1 && offsets.hasNulls() == false) {
+                    continue;
+                }
+                doc.add(new SortedDocValuesField(entry.getKey(), encodeOffsetArray(offsets)));
             }
-            context.doc().add(new SortedDocValuesField(entry.getKey(), encodeOffsetArray(offsets)));
         }
     }
 
@@ -190,9 +208,11 @@ public class FieldArrayContext {
         boolean multiValue,
         FieldMapper.Builder fieldMapperBuilder
     ) {
-        // Note, stored fields and nested docs will not be allowed in columnar mode - no need to check them explicitly
+        // Note, stored fields will not be allowed in columnar mode - no need to check them explicitly.
         // The offsets sidecar reconstructs array order from the field's own doc values, so it is only meaningful when those are present;
         // a columnar text field that dedups against a plain keyword delegate disables its own doc values and records no offsets here.
+        // Offsets are recorded per document (see FieldArrayContext), so a leaf inside a nested object records them on its child
+        // document and array order is preserved there too.
         // TODO: copy_to is disabled since copy_to forces _ignored_source to be used for synthetic source, recording offsets in addition
         // to that is a big storage overhead. This will be addressed in a follow up
         if (multiValue

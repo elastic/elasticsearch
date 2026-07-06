@@ -11,6 +11,8 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.ActionListener;
 
+import java.util.concurrent.Executor;
+
 /**
  * An optional single-slot hook that gates mutable shard operations. Implementations may delay the
  * listener until the shard is ready to accept writes (e.g. hollow shards in stateless mode).
@@ -23,9 +25,11 @@ public interface MutableOperationGate {
      * Called before a mutable operation is executed on the shard. The implementation must eventually
      * complete {@code listener} (on success or failure).
      *
-     * @param shard          the shard where the mutable operation will be performed
-     * @param permitAcquired whether the operation has already acquired a primary operation permit
-     * @param listener       completed when the shard is ready to proceed
+     * @param shard           the shard where the mutable operation will be performed
+     * @param permitAcquired  whether the operation has already acquired a primary operation permit
+     * @param executorOnDelay executor used to notify the listener if the shard is not yet mutable;
+     *                        if the shard is already mutable the listener is notified on the calling thread
+     * @param listener        completed when the shard is ready to proceed
      */
-    void beforeMutableOperation(IndexShard shard, boolean permitAcquired, ActionListener<Void> listener);
+    void beforeMutableOperation(IndexShard shard, boolean permitAcquired, Executor executorOnDelay, ActionListener<Void> listener);
 }

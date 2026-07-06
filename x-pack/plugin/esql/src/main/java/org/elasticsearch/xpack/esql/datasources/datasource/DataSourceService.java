@@ -24,13 +24,14 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -43,6 +44,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /** Orchestrates create / replace / delete of data sources in cluster state. */
@@ -62,12 +64,18 @@ public class DataSourceService {
     protected final ClusterService clusterService;
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
+    private final EncryptionService encryptionService;
 
     private volatile int maxDataSourcesCount;
 
-    public DataSourceService(ClusterService clusterService, Map<String, DataSourceValidator> validatorsByType) {
+    public DataSourceService(
+        ClusterService clusterService,
+        Map<String, DataSourceValidator> validatorsByType,
+        EncryptionService encryptionService
+    ) {
         this.clusterService = clusterService;
         this.validatorsByType = Map.copyOf(validatorsByType);
+        this.encryptionService = Objects.requireNonNull(encryptionService, "encryptionService");
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-data-source-metadata",
             Priority.NORMAL,
@@ -91,15 +99,10 @@ public class DataSourceService {
     }
 
     /** Create or replace a data source. Secrets are encrypted master-side ({@link #applyEncryption}). */
-    public void putDataSource(
-        ProjectId projectId,
-        PutDataSourceAction.Request request,
-        @Nullable EncryptionService encryptionService,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
+    public void putDataSource(ProjectId projectId, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         // Encrypt off the CAS task thread: it's expensive and would block the master on every concurrent PUT.
         final DataSource validated = validatePutDataSource(request);
-        final DataSourceSettings stored = applyEncryption(validated.name(), validated.settings(), encryptionService);
+        final DataSourceSettings stored = applyEncryption(validated.name(), validated.settings());
         final DataSource encrypted = new DataSource(validated.name(), validated.type(), validated.description(), stored);
         logger.debug("submitting put data source [{}] of type [{}]", encrypted.name(), encrypted.type());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
@@ -127,34 +130,53 @@ public class DataSourceService {
     }
 
     /**
-     * Replace every non-null secret with an {@link EncryptedData} carrier. Rejects with {@code 503} when a
-     * secret is present but no {@code encryptionService} is bound — secrets are never stored as plaintext.
-     * Settings with no secrets pass through unchanged.
+     * Replace every non-null secret with an {@link EncryptedData} carrier.
+     *
+     * <p>When encryption is permanently unavailable ({@link EncryptionServiceUnavailableException}) and
+     * {@code isEncryptionRequired()} is {@code true} (the default), the call throws a {@code 503} with an actionable message.
+     * When {@code isEncryptionRequired()} is {@code false}, secrets are stored unencrypted with a {@code WARN} log — this is an
+     * explicit operator opt-out via {@code cluster.state.encryption.required: false}.
+     *
+     * <p>Transient unavailability ({@link EncryptionKeyNotYetAvailableException}, e.g. cluster still recovering) always throws
+     * regardless of {@code isEncryptionRequired()}, since the key will become available and the caller should retry.
+     *
+     * <p>Settings with no secrets, and already-encrypted carriers, pass through unchanged.
      */
-    static DataSourceSettings applyEncryption(
-        String dataSourceName,
-        DataSourceSettings settings,
-        @Nullable EncryptionService encryptionService
-    ) {
-        if (encryptionService == null) {
-            if (settings.hasSecrets()) {
+    DataSourceSettings applyEncryption(String dataSourceName, DataSourceSettings settings) {
+        try {
+            return encryptSettings(settings);
+        } catch (EncryptionKeyNotYetAvailableException e) {
+            throw new ElasticsearchStatusException(
+                "cannot store secrets for data source [" + dataSourceName + "]: " + e.getMessage() + " Retry once the cluster is ready.",
+                RestStatus.SERVICE_UNAVAILABLE,
+                e
+            );
+        } catch (EncryptionServiceUnavailableException e) {
+            if (encryptionService.isEncryptionRequired()) {
                 throw new ElasticsearchStatusException(
-                    "cannot store secrets for data source ["
-                        + dataSourceName
-                        + "]: no encryption service is available. A primary encryption key must be configured before "
-                        + "data sources with credentials can be created.",
-                    RestStatus.SERVICE_UNAVAILABLE
+                    "cannot store secrets for data source [" + dataSourceName + "]: " + e.getMessage(),
+                    RestStatus.SERVICE_UNAVAILABLE,
+                    e
                 );
             }
+            logger.warn(
+                "storing secrets for data source [{}] without encryption: {}. "
+                    + "Set cluster.state.encryption.required: true (the default) to enforce encryption.",
+                dataSourceName,
+                e.getMessage()
+            );
             return settings;
         }
+    }
+
+    private DataSourceSettings encryptSettings(DataSourceSettings settings) {
         Map<String, DataSourceSetting> result = new HashMap<>(settings.size());
         for (var entry : settings) {
             String key = entry.getKey();
             DataSourceSetting setting = entry.getValue();
             // Skip null-valued secrets (nothing to protect) and already-encrypted carriers (no double-encryption).
             if (setting.secret() && setting.rawValue() != null && setting.isEncrypted() == false) {
-                result.put(key, encryptSecret(setting.rawValue(), encryptionService));
+                result.put(key, encryptSecret(setting.rawValue()));
             } else {
                 result.put(key, setting);
             }
@@ -167,7 +189,7 @@ public class DataSourceService {
      * the plaintext buffer is zeroed after. The source value object outlives this call until the CAS task
      * completes — narrowing that is Phase 2.
      */
-    private static DataSourceSetting encryptSecret(Object value, EncryptionService encryptionService) {
+    private DataSourceSetting encryptSecret(Object value) {
         byte[] plaintext = serializeValue(value);
         try {
             return new DataSourceSetting(encryptionService.encrypt(plaintext), true);

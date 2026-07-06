@@ -43,10 +43,13 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.defaultFlatThreshold;
+import static org.elasticsearch.test.ESTestCase.assertThat;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Builds lucene indexes with DiskBBQ segments carrying specific persisted
@@ -85,7 +88,6 @@ public final class ESNextRescoreOversampleTestFixture {
      */
     public static DirectoryReader buildTwoCommitsTwoSegments(
         Directory dir,
-        Random rnd,
         int vectorDimensions,
         int vectorsPerSegment,
         float oversampleSegmentA,
@@ -100,12 +102,19 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             float ov = seq == 0 ? oversampleSegmentA : oversampleSegmentB;
-            return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, ov));
+            return Optional.of(
+                new IvfSegmentConfig(
+                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    false,
+                    ov
+                )
+            );
         };
         Codec codec = createDiskBbqCodec(flushConfig, mergeConfigResolver);
         IndexWriterConfig iwc = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
 
-        writeTwoCommits(rnd, vectorsPerSegment, vectorDimensions, dir, iwc);
+        writeTwoCommits(vectorsPerSegment, vectorDimensions, dir, iwc);
         return DirectoryReader.open(dir);
     }
 
@@ -116,7 +125,6 @@ public final class ESNextRescoreOversampleTestFixture {
      */
     public static DirectoryReader buildTwoLeavesThenMergedOneSegment(
         Directory dir,
-        Random rnd,
         int vectorDimensions,
         int vectorsPerSegment,
         float oversampleSegmentA,
@@ -131,31 +139,38 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             float ov = seq == 0 ? oversampleSegmentA : oversampleSegmentB;
-            return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, ov));
+            return Optional.of(
+                new IvfSegmentConfig(
+                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    false,
+                    ov
+                )
+            );
         };
         Codec codec = createDiskBbqCodec(flushConfig, mergeConfigResolverForBothPhases);
 
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
-        writeTwoCommits(rnd, vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
+        writeTwoCommits(vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
 
         IndexWriterConfig iwcMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec);
         try (IndexWriter mergeWriter = new IndexWriter(dir, iwcMerge)) {
             mergeWriter.forceMerge(1);
         }
         DirectoryReader reader = DirectoryReader.open(dir);
-        assertEquals(1, reader.leaves().size());
+        assertThat(reader.leaves(), hasSize(1));
         assertEquals(expectedOversampleAfterMerge, persistedOversampleOnLeaf(reader.leaves().getFirst().reader()), 0f);
         return reader;
     }
 
-    private static void writeTwoCommits(Random rnd, int vectorsPerSegment, int vectorDimensions, Directory dir, IndexWriterConfig iwc)
+    private static void writeTwoCommits(int vectorsPerSegment, int vectorDimensions, Directory dir, IndexWriterConfig iwc)
         throws IOException {
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
             for (int c = 0; c < 2; c++) {
                 for (int i = 0; i < vectorsPerSegment; i++) {
                     Document d = new Document();
                     // IVF rejects COSINE similarity (see IVFVectorsWriter#addField)
-                    d.add(new KnnFloatVectorField(FIELD_NAME, randomUnitVector(rnd, vectorDimensions), VectorSimilarityFunction.EUCLIDEAN));
+                    d.add(new KnnFloatVectorField(FIELD_NAME, randomUnitVector(vectorDimensions), VectorSimilarityFunction.EUCLIDEAN));
                     writer.addDocument(d);
                 }
                 writer.commit();
@@ -169,7 +184,6 @@ public final class ESNextRescoreOversampleTestFixture {
      */
     public static DirectoryReader buildForceMergedWithDisagreeingFlushCalibration(
         Directory dir,
-        Random rnd,
         int vectorDimensions,
         int vectorsPerSegment,
         int vectorsPerCluster
@@ -181,20 +195,34 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+                return Optional.of(
+                    new IvfSegmentConfig(
+                        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                        false,
+                        2f
+                    )
+                );
             }
-            return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+            return Optional.of(
+                new IvfSegmentConfig(
+                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
+                    false,
+                    3f
+                )
+            );
         };
         Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
-        writeTwoCommits(rnd, vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
+        writeTwoCommits(vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
 
         IndexWriterConfig iwcMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec);
         try (IndexWriter mergeWriter = new IndexWriter(dir, iwcMerge)) {
             mergeWriter.forceMerge(1);
         }
         DirectoryReader reader = DirectoryReader.open(dir);
-        assertEquals(1, reader.leaves().size());
+        assertThat(reader.leaves(), hasSize(1));
         return reader;
     }
 
@@ -216,13 +244,27 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+                return Optional.of(
+                    new IvfSegmentConfig(
+                        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                        false,
+                        2f
+                    )
+                );
             }
-            return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+            return Optional.of(
+                new IvfSegmentConfig(
+                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
+                    false,
+                    3f
+                )
+            );
         };
         Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
-        writeTwoCommits(rnd, vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
+        writeTwoCommits(vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
 
         TieredMergePolicy mergePolicy = new TieredMergePolicy();
         mergePolicy.setSegmentsPerTier(2);
@@ -231,13 +273,13 @@ public final class ESNextRescoreOversampleTestFixture {
         try (IndexWriter mergeWriter = new IndexWriter(dir, iwcMerge)) {
             for (int i = 0; i < vectorsPerSegment; i++) {
                 Document d = new Document();
-                d.add(new KnnFloatVectorField(FIELD_NAME, randomUnitVector(rnd, vectorDimensions), VectorSimilarityFunction.EUCLIDEAN));
+                d.add(new KnnFloatVectorField(FIELD_NAME, randomUnitVector(vectorDimensions), VectorSimilarityFunction.EUCLIDEAN));
                 mergeWriter.addDocument(d);
             }
             mergeWriter.commit();
         }
         DirectoryReader reader = DirectoryReader.open(dir);
-        assertEquals("background merge should collapse disagreeing segments", 1, reader.leaves().size());
+        assertThat("background merge should collapse disagreeing segments", reader.leaves(), hasSize(1));
         return reader;
     }
 
@@ -246,7 +288,12 @@ public final class ESNextRescoreOversampleTestFixture {
         if (encoding == null) {
             return null;
         }
-        return new IvfSegmentConfig(encoding, persistedPreconditionOnLeaf(leaf), persistedOversampleOnLeaf(leaf));
+        return new IvfSegmentConfig(
+            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+            encoding,
+            persistedPreconditionOnLeaf(leaf),
+            persistedOversampleOnLeaf(leaf)
+        );
     }
 
     public static ESNextDiskBBQVectorsFormat.QuantEncoding persistedQuantEncodingOnLeaf(LeafReader leaf) throws IOException {
@@ -302,21 +349,18 @@ public final class ESNextRescoreOversampleTestFixture {
     public static void assertLeafOversamples(DirectoryReader reader, float oversampleSegmentA, float oversampleSegmentB)
         throws IOException {
         Set<Float> expected = Set.of(oversampleSegmentA, oversampleSegmentB);
-        assertEquals(2, reader.leaves().size());
+        assertThat(reader.leaves(), hasSize(2));
         Set<Float> found = new HashSet<>();
         for (LeafReaderContext leafCtx : reader.leaves()) {
             float v = persistedOversampleOnLeaf(leafCtx.reader());
             found.add(v);
-            assertTrue("unexpected persisted oversample on leaf " + leafCtx.docBase, expected.contains(v));
+            assertThat("unexpected persisted oversample on leaf " + leafCtx.docBase, expected, hasItem(v));
         }
         assertEquals(expected, found);
     }
 
-    private static float[] randomUnitVector(Random rnd, int dims) {
-        float[] v = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            v[i] = rnd.nextFloat();
-        }
+    private static float[] randomUnitVector(int dims) {
+        float[] v = randomVector(dims);
         org.apache.lucene.util.VectorUtil.l2normalize(v);
         return v;
     }

@@ -269,7 +269,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(tmpIndexMetadata.getSettings())
                 || indexMode == IndexMode.LOGSDB
                 || indexMode == IndexMode.LOGSDB_COLUMNAR
-                || indexMode == IndexMode.TIME_SERIES) {
+                || IndexMode.isTsdb(indexMode)) {
                 // In case when index mode is tsdb or logsdb and only _source.mode mapping attribute is specified, then the default
                 // could be wrong. However, it doesn't really matter, because if the _source.mode mapping attribute is set to stored,
                 // then configuring the index.mapping.source.mode setting to stored has no effect. Additionally _source.mode can't be set
@@ -385,8 +385,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), false);  // Avoid warnings for non-system indexes.
 
-        if (templateIndexMode == IndexMode.TIME_SERIES) {
-            finalResolvedSettings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+        if (IndexMode.isTsdb(templateIndexMode)) {
+            finalResolvedSettings.put(IndexSettings.MODE.getKey(), templateIndexMode);
             // Avoid failing because index.routing_path is missing (in case fields are marked as dimension)
             finalResolvedSettings.putList(INDEX_ROUTING_PATH.getKey(), List.of("path"));
         }
@@ -413,7 +413,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
      * The GA-ed use cases in which synthetic source usage is allowed with gold or platinum license.
      */
     private boolean isLegacyLicensedUsageOfSyntheticSourceAllowed(IndexMode templateIndexMode, String indexName, String dataStreamName) {
-        if (templateIndexMode == IndexMode.TIME_SERIES) {
+        if (IndexMode.isTsdb(templateIndexMode)) {
             return true;
         }
 

@@ -41,7 +41,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -486,7 +485,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 scoring,
                 directoryBytesRead
             );
-        } else if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
+        } else if (esQueryExec.indexMode().isTsdb()) {
             luceneFactory = new TimeSeriesSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
@@ -508,7 +507,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 scoring,
-                directoryBytesRead
+                directoryBytesRead,
+                context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -519,6 +519,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private static DataPartitioning.AutoStrategy topNAutoStrategy() {
+        // TopN keeps SEGMENT under AUTO. Routing it to DOC via the source-operator's high-speed
+        // heuristic helps scan-dominant TopN (e.g. WHERE URL LIKE … | SORT … | LIMIT 10) but
+        // regresses sort-dominant TopN (cheap or no WHERE) — sub-segment slicing breaks Lucene's
+        // sorted-segment short-circuit. Users who want DOC for a scan-dominant TopN can opt in
+        // via the data_partitioning pragma.
         return unusedLimit -> query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
     }
 
@@ -591,7 +596,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             context.queryPragmas().taskConcurrency(),
             tagTypes,
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
-            directoryBytesRead
+            directoryBytesRead,
+            context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
         );
     }
 
@@ -610,6 +616,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             && outputRounding != null
             && internalRounding != null
             && outputRounding.getUnprepared().equals(internalRounding.getUnprepared()) == false;
+        var pragmas = context.queryPragmas();
+        int targetChunkRows = pragmas.timeSeriesTargetChunkRows(plannerSettings.timeSeriesTargetChunkRows());
         return new TimeSeriesAggregationOperator.Factory(
             internalRounding,
             ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
@@ -617,7 +625,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             aggregatorMode,
             aggregatorFactories,
             context.pageSize(ts, ts.estimatedRowSize()),
-            needsOutputFiltering ? outputRounding : null
+            needsOutputFiltering ? outputRounding : null,
+            targetChunkRows
         );
     }
 

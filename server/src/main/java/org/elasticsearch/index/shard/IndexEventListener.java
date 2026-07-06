@@ -87,7 +87,6 @@ public interface IndexEventListener {
     ) {}
 
     /**
-    /**
      * Called before the index gets created. Note that this is also called
      * when the index is created on data nodes
      */

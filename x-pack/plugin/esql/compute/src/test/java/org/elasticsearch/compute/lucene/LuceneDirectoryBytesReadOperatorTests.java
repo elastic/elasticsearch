@@ -179,7 +179,8 @@ public class LuceneDirectoryBytesReadOperatorTests extends ComputeTestCase {
             MAX_PAGE_SIZE,
             LuceneOperator.NO_LIMIT,
             false,
-            directoryBytesRead
+            directoryBytesRead,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
     }
 

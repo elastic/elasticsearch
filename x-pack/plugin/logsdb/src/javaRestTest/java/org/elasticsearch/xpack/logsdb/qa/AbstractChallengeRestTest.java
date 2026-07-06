@@ -55,7 +55,6 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .module("data-streams")
         .module("x-pack-stack")
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .user(USER, PASS)
         .setting("xpack.security.autoconfiguration.enabled", "false")

@@ -59,7 +59,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TEST_END_OF_LIFE_DATE_PARSED
         ),
         new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-        EndpointMetadata.Display.EMPTY_INSTANCE
+        EndpointMetadata.Display.EMPTY_INSTANCE,
+        List.of(),
+        false
     );
 
     public void testIsAuthorized_ReturnsFalse_WithEmptyMap() {
@@ -94,7 +96,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     "id2",
@@ -106,7 +110,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -132,7 +138,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
@@ -144,7 +152,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -172,7 +182,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id1,
@@ -184,7 +196,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -232,7 +246,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
@@ -249,7 +265,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -305,7 +323,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
@@ -322,7 +342,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -380,7 +402,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 // Missing similarity measure
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -398,7 +422,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 // Invalid chunking settings
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -416,7 +442,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         Map.of("unexpected_field", "unexpected_value")
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 // Invalid similarity measure
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -434,7 +462,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 // Missing dimensions
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -452,7 +482,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 // Missing element type
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -470,7 +502,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -530,7 +564,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 // Valid with element type all caps
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -549,7 +585,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 // Valid with element type all lower case
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -567,7 +605,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 // Unsupported element type byte
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -585,7 +625,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 // Unsupported element type
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -603,7 +645,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -690,7 +734,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     idChat,
@@ -702,7 +748,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     idSparse,
@@ -714,7 +762,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     idDenseMultimodal,
@@ -726,7 +776,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     denseEmbeddingConfiguration,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     idDenseText,
@@ -738,7 +790,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     denseEmbeddingConfiguration,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     idRerank,
@@ -750,7 +804,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -832,7 +888,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -849,7 +907,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(properties, statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                EndpointMetadata.Display.EMPTY_INSTANCE
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                false
             )
         );
 
@@ -875,7 +935,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    fingerprint
+                    fingerprint,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -897,7 +959,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(fingerprint, ENDPOINT_SCHEMA_VERSION),
-                EndpointMetadata.Display.EMPTY_INSTANCE
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                false
             )
         );
 
@@ -923,7 +987,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     display,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -945,7 +1011,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display("my-connector", "my-creator")
+                new EndpointMetadata.Display("my-connector", "my-creator"),
+                List.of(),
+                false
             )
         );
 
@@ -971,7 +1039,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -988,7 +1058,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                EndpointMetadata.Display.EMPTY_INSTANCE
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                false
             )
         );
 
@@ -1014,7 +1086,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -1031,7 +1105,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                EndpointMetadata.Display.EMPTY_INSTANCE
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                false
             )
         );
 
@@ -1056,7 +1132,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     invalidDateId,
@@ -1068,7 +1146,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     blankDateId,
@@ -1080,7 +1160,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -1109,7 +1191,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     invalidDateId,
@@ -1121,7 +1205,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     "invalid-date-format",
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     blankDateId,
@@ -1133,7 +1219,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     " ",
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -1163,7 +1251,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, chunkingSettings),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -1186,7 +1276,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                EndpointMetadata.Display.EMPTY_INSTANCE
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                false
             )
         );
 
@@ -1226,7 +1318,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         chunkingSettings
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -1249,7 +1343,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                EndpointMetadata.Display.EMPTY_INSTANCE
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                false
             )
         );
 
@@ -1274,7 +1370,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, Map.of()),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -1297,7 +1395,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                EndpointMetadata.Display.EMPTY_INSTANCE
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                false
             )
         );
 
@@ -1322,7 +1422,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -1342,7 +1444,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                EndpointMetadata.Display.EMPTY_INSTANCE
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                false
             )
         );
         assertThat(auth.getEndpoints(Set.of(id1, id2, "nonexistent")).get(0), is(expectedEndpoint));
@@ -1365,7 +1469,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE,
                     null,
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -1398,7 +1504,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    fingerprint
+                    fingerprint,
+                    List.of(),
+                    false
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
@@ -1415,7 +1523,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                         null
                     ),
                     null,
-                    null
+                    null,
+                    List.of(),
+                    false
                 )
             ),
             Set.of()
@@ -1432,7 +1542,9 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(properties, StatusHeuristic.fromString(status), TEST_RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(fingerprint, ENDPOINT_SCHEMA_VERSION),
-                EndpointMetadata.Display.EMPTY_INSTANCE
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                false
             )
         );
 
@@ -1447,5 +1559,109 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         ElasticInferenceServiceAuthorizationModel model = ElasticInferenceServiceAuthorizationModel.of(authResponse, "url");
 
         assertThat(model.getRemovedEndpoints(), is(removed));
+    }
+
+    public void testCreatesEndpointMetadataWithRegions() {
+        var id = "id1";
+        var name = "model1";
+        var url = "base_url";
+        var regions = List.of(
+            new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"),
+            new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu")
+        );
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    STATUS_GA,
+                    null,
+                    TEST_RELEASE_DATE,
+                    TEST_END_OF_LIFE_DATE,
+                    null,
+                    null,
+                    null,
+                    regions,
+                    false
+                )
+            ),
+            Set.of()
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
+            id,
+            TaskType.CHAT_COMPLETION,
+            new ElasticInferenceServiceCompletionServiceSettings(name),
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(
+                    List.of(),
+                    StatusHeuristic.fromString(STATUS_GA),
+                    TEST_RELEASE_DATE_PARSED,
+                    TEST_END_OF_LIFE_DATE_PARSED
+                ),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                regions,
+                false
+            )
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
+    }
+
+    public void testCreatesEndpointMetadataWithDeniedByRegionPolicy() {
+        var id = "id1";
+        var name = "model1";
+        var url = "base_url";
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    STATUS_GA,
+                    null,
+                    TEST_RELEASE_DATE,
+                    TEST_END_OF_LIFE_DATE,
+                    null,
+                    null,
+                    null,
+                    List.of(),
+                    true
+                )
+            ),
+            Set.of()
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
+            id,
+            TaskType.CHAT_COMPLETION,
+            new ElasticInferenceServiceCompletionServiceSettings(name),
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(
+                    List.of(),
+                    StatusHeuristic.fromString(STATUS_GA),
+                    TEST_RELEASE_DATE_PARSED,
+                    TEST_END_OF_LIFE_DATE_PARSED
+                ),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                true
+            )
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
     }
 }

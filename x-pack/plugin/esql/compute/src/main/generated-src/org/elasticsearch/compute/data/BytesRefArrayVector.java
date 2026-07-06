@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
+public final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.

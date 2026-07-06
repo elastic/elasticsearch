@@ -233,6 +233,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceBinding;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDIterableName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDIterableType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxAllocationBytes;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxLoopCounter;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDModifiers;
@@ -276,6 +277,16 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.attachCondition(IRCInstanceCancellationCheck.class);
         }
         irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+    }
+
+    /**
+     * Attaches the per-context allocation byte limit to {@code irFunctionNode} so the ASM phase can emit allocation
+     * pre-checks inside the function. A value of {@code -1} means tracking is disabled and no allocation bytecode is
+     * emitted. Kept separate from {@link #attachLoopProtection} on purpose: loop protection and allocation tracking are
+     * independent concerns with different gating, mirroring how each rides its own decoration through to the writer.
+     */
+    protected static void attachAllocationLimit(FunctionNode irFunctionNode, ScriptScope scriptScope) {
+        irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(scriptScope.getCompilerSettings().getMaxAllocationBytes()));
     }
 
     /**
@@ -658,6 +669,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         }
 
         attachLoopProtection(irFunctionNode, scriptScope);
+        attachAllocationLimit(irFunctionNode, scriptScope);
 
         scriptScope.putDecoration(userFunctionNode, new IRNodeDecoration(irFunctionNode));
     }
@@ -1419,6 +1431,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         }
         irFunctionNode.attachCondition(IRCSynthetic.class);
         attachLoopProtection(irFunctionNode, scriptScope);
+        attachAllocationLimit(irFunctionNode, scriptScope);
         irClassNode.addFunctionNode(irFunctionNode);
 
         boolean injectCancelCapture = irFunctionNode.hasCondition(IRCStatic.class)

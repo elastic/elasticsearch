@@ -196,6 +196,28 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     /**
+     * The {@code index.mapping.doc_values.multi_value} and {@code index.mapping.doc_values.nullability} index-level settings are
+     * only honoured in strict-columnar index modes, just like the per-field {@code doc_values} object form. Outside strict-columnar
+     * mode, fields default to multi-valued and nullable regardless of these settings.
+     */
+    public void testIndexSettingsIgnoredOutsideColumnarMode() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
+            .build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword")));
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(
+            mapper.docValuesParameters(),
+            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true, true))
+        );
+        // a multi-valued document is accepted, and a missing/null value is accepted, despite both index settings being false
+        mapperService.documentMapper().parse(source(b -> b.array("field", "a", "b")));
+        mapperService.documentMapper().parse(source(b -> {}));
+    }
+
+    /**
      * A field-level {@code doc_values.multi_value: true} overrides the index setting of {@code false}, keeping the field multi-valued.
      */
     public void testFieldLevelTrueOverridesIndexSettingFalse() throws Exception {
@@ -315,7 +337,10 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     public void testIndexSettingNullabilityFalseRequiresValue() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
+            .build();
         DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
         assertThat(e.getMessage(), containsString("configured with [nullability=false] but no value was provided"));
@@ -325,7 +350,10 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // With the index-level setting, a dynamically-mapped field inherits nullability=false and marks itself satisfied. It must not
         // count toward the statically-required "field": a document supplying only the dynamic field is still rejected for missing "field".
-        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
+            .build();
         DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -356,7 +384,10 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     public void testDynamicIntroductionUsesContainmentThenFastPathOnLaterDocuments() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
+            .build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword")));
         // doc1 introduces dynamic numeric "dyn": hasDynamicMappers() is true, so enforcement uses containment. "field" is present so the
         // doc

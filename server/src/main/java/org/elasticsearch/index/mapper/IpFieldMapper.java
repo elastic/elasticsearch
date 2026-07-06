@@ -88,17 +88,13 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || indexSettings.getMode().isStrictColumnar() == false) {
             return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
         }
 
         boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
         boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        if (indexSettings.getMode().isStrictColumnar()) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability);
-        }
-
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability);
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability);
     }
 
     public static final class Builder extends FieldMapper.DimensionBuilder {

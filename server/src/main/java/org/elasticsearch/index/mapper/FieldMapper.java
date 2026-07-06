@@ -83,7 +83,8 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Index-level default for the {@code doc_values.multi_value} field mapping parameter. When {@code false}, all fields in the index
      * default to single-valued doc values (rejecting documents that supply more than one value), unless a field explicitly sets its own
-     * {@code doc_values.multi_value}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled.
+     * {@code doc_values.multi_value}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled and the index is in a
+     * strict-columnar index mode ({@link IndexMode#isStrictColumnar()}).
      */
     public static final Setting<Boolean> DOC_VALUES_MULTI_VALUE_SETTING = Setting.boolSetting(
         "index.mapping.doc_values.multi_value",
@@ -96,7 +97,8 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Index-level default for the {@code doc_values.nullability} field mapping parameter. When {@code false}, all fields in the index
      * default to requiring a non-null value in every document (rejecting documents that omit the field or supply null), unless a field
-     * explicitly sets its own {@code doc_values.nullability}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled.
+     * explicitly sets its own {@code doc_values.nullability}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled and
+     * the index is in a strict-columnar index mode ({@link IndexMode#isStrictColumnar()}).
      */
     public static final Setting<Boolean> DOC_VALUES_NULLABILITY_SETTING = Setting.boolSetting(
         "index.mapping.doc_values.nullability",

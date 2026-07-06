@@ -156,6 +156,27 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
     }
 
     /**
+     * Same as {@link #testEqualityPushedFromEval} but with the {@code field_extract} alias built
+     * across two chained {@code EVAL} commands, so the filter references an alias whose child is
+     * itself an alias reference rather than the {@code field_extract} call directly. Pushdown must
+     * still resolve through both levels of {@code AliasResolution}.
+     */
+    public void testEqualityPushedFromChainedEval() throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        String value = randomAlphaOfLengthBetween(1, 16);
+        String otherValue = randomValueOtherThan(value, () -> randomAlphaOfLengthBetween(1, 16));
+        indexDocs(List.of(value, otherValue));
+
+        runAndAssert(String.format(Locale.ROOT, """
+            FROM test
+            | EVAL f = %s
+            | EVAL ext = field_extract(f, "%s")
+            | WHERE ext == "%s"
+            | KEEP id
+            """, FLATTENED_ROOT, SUBKEY, value), equalTo(expectedEqualityQuery(value)), ComputeSignature.FILTER_IN_QUERY, 1);
+    }
+
+    /**
      * {@code field_extract(...) != "v"} must push to a negated {@code TermQuery} against the keyed
      * sub-field. Lucene renders the negation as {@code -<inner> #<filter>} (must-not + filter); see
      * {@link #expectedInequalityQuery} for why the filter clause depends on the index mode.

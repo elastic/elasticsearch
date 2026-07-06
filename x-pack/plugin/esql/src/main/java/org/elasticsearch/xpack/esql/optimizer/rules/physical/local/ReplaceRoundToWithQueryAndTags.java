@@ -344,8 +344,8 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                 // prefixes. When prefix partitioning is not available (old codec), we fall back to replacing round_to
                 // with QueryAndTags.
                 if (((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
-                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES)) {
-                    if (queryExec.indexMode() != IndexMode.TIME_SERIES) {
+                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> IndexMode.isTsdb(imd.getIndexMode()))) {
+                    if (queryExec.indexMode().isTsdb() == false) {
                         return evalExec;
                     }
                     // prefer partitioning by tsid prefixes
@@ -569,7 +569,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
      */
     static int adjustedRoundingPointsThreshold(SearchStats stats, int threshold, QueryBuilder query, IndexMode indexMode) {
         int clauses = estimateQueryClauses(stats, query) + 1;
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             // No doc partitioning for time_series sources; increase the threshold to trade overhead for parallelism.
             threshold *= 2;
         }

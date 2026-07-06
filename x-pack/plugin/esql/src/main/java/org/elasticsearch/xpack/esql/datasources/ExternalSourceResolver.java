@@ -2171,6 +2171,39 @@ public class ExternalSourceResolver {
             rejectUncoercibleFileTypedRetypes(inferred.schema(), inferred.sourceType(), declaredMapping);
         }
         DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
+        // S1 boundary: the warm-aggregate _stats.* map on sourceMetadata is keyed PHYSICAL and holds INFERRED-type values;
+        // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so
+        // the rekeyed stats stay exactly correct — warm serving survives the rename) and poison extrema + drop counts for
+        // retyped / declared-date-format columns (the read-time coercion nulls failing cells and re-represents values, so
+        // no pre-coercion stat matches a scan). row_count/file_count/size_bytes stay: COUNT(*) stays warm.
+        Map<String, DataType> inferredTypes = attributesToTypeMap(inferred.schema());   // physical names, inferred types
+        Map<String, DataType> overlaidTypes = attributesToTypeMap(unified.output());    // logical names, declared types
+        Map<String, String> physicalToLogical = new HashMap<>();
+        Set<String> poisonColumns = new HashSet<>();
+        if (declaredMapping.mappings() != null) {
+            // Renames are re-derived here (rather than via DeclaredSchemaResolver.renameMap) because the same loop also
+            // needs each property's declared type/format for the poison decision; keep the physical-name rule in sync
+            // with renameMap (path() != null ? path() : logical).
+            for (Map.Entry<String, DatasetFieldMapping> me : declaredMapping.mappings().properties().entrySet()) {
+                String logical = me.getKey();
+                String physical = me.getValue().path() != null ? me.getValue().path() : logical;
+                if (physical.equals(logical) == false) {
+                    physicalToLogical.put(physical, logical);
+                }
+                DataType declaredType = overlaidTypes.get(logical);
+                DataType inferredType = inferredTypes.get(physical);
+                // inferredType == null is unreachable (overlayNonStrict(lenient=false) above rejects a declared column
+                // absent from the unified schema), but poison defensively rather than trust an unkeyed stat.
+                if (me.getValue().format() != null || inferredType == null || inferredType != declaredType) {
+                    poisonColumns.add(logical);
+                }
+            }
+        }
+        // Copy-of to match every sibling producer on this seam (buildUnifiedMetadata / applyFirstFileWinsAggregatedStats
+        // / SchemaCacheEntry.safeMetadata are all immutable): this map becomes the long-lived sourceMetadata() below.
+        Map<String, Object> overlaidSourceMetadata = Map.copyOf(
+            SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(inferred.sourceMetadata(), physicalToLogical, poisonColumns)
+        );
         ExternalSourceMetadata overlaidMetadata = new ExternalSourceMetadata() {
             @Override
             public List<Attribute> schema() {
@@ -2189,7 +2222,11 @@ public class ExternalSourceResolver {
 
             @Override
             public Optional<SourceStatistics> statistics() {
-                return inferred.statistics();
+                // Load-bearing: ExternalRelation.toPhysicalExec() re-embeds statistics() over sourceMetadata(). Keeping a
+                // typed-stats delegate here would resurrect PHYSICAL-keyed extrema/counts next to the rekeyed logical ones
+                // (and un-poison a non-renamed retyped column's counts). The declared read has no typed SourceStatistics
+                // to offer — the warm channel is the rekeyed/poisoned _stats.* map on sourceMetadata() below.
+                return Optional.empty();
             }
 
             @Override
@@ -2199,7 +2236,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return inferred.sourceMetadata();
+                return overlaidSourceMetadata;
             }
 
             @Override
@@ -2242,7 +2279,14 @@ public class ExternalSourceResolver {
                 : info.mapping();
             overlaidSchemaMap.put(
                 e.getKey(),
-                new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(perFile.fileSchema()), mapping, info.statistics())
+                new SchemaReconciliation.FileSchemaInfo(
+                    new ExternalSchema(perFile.fileSchema()),
+                    mapping,
+                    info.statistics(),
+                    // PRE-overlay file types (physical names, inferred types) so the split-level stats boundary can
+                    // normalize footer stats with the file's real types, not the overlaid declared ones.
+                    attributesToTypeMap(info.fileSchema().attributes())
+                )
             );
         }
         return new ExternalSourceResolution.ResolvedSource(overlaidMetadata, resolved.fileList(), overlaidSchemaMap);

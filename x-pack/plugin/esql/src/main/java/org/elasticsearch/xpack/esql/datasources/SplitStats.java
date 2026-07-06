@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -429,10 +430,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         // Returning null poisons the fold so the column safe-misses and a full scan returns the correct NaN.
         if (isNaN(existing) || isNaN(incoming)) return null;
         if (existing.getClass() == incoming.getClass()) {
-            if (existing instanceof Comparable c) {
-                return c.compareTo(incoming) <= 0 ? existing : incoming;
-            }
-            return null;
+            return sameClassExtremum(existing, incoming, true);
         }
         return crossTypeExtremum(existing, incoming, true);
     }
@@ -440,6 +438,28 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     /** True for a {@code Double}/{@code Float} NaN; such a value cannot be folded as an extremum. */
     private static boolean isNaN(Object o) {
         return (o instanceof Double d && d.isNaN()) || (o instanceof Float f && f.isNaN());
+    }
+
+    /**
+     * Picks the min ({@code wantMin}) or max of two same-class stat values. {@code String} keyword extrema are
+     * ordered by UTF-8 bytes ({@link BytesRef} order) — the SAME order the runtime keyword {@code MIN}/{@code MAX}
+     * aggregators use — NOT {@link String#compareTo}'s UTF-16 code-unit order, which disagrees whenever the
+     * divergence point pairs a supplementary (astral) char against a BMP char in {@code [U+E000..U+FFFF]}
+     * (e.g. an emoji vs the replacement char). Serving the UTF-16 winner would be a wrong warm answer vs a scan.
+     * Any non-{@code Comparable} same-class pair returns {@code null} (safe-miss).
+     */
+    @Nullable
+    private static Object sameClassExtremum(Object existing, Object incoming, boolean wantMin) {
+        if (existing instanceof String sa) {
+            int cmp = new BytesRef(sa).compareTo(new BytesRef((String) incoming));
+            return (wantMin ? cmp <= 0 : cmp >= 0) ? existing : incoming;
+        }
+        if (existing instanceof Comparable) {
+            @SuppressWarnings({ "rawtypes", "unchecked" })
+            int cmp = ((Comparable) existing).compareTo(incoming);
+            return (wantMin ? cmp <= 0 : cmp >= 0) ? existing : incoming;
+        }
+        return null;
     }
 
     /**
@@ -453,10 +473,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         if (incoming == null) return existing;
         if (isNaN(existing) || isNaN(incoming)) return null; // NaN is unmergeable — see mergedMin
         if (existing.getClass() == incoming.getClass()) {
-            if (existing instanceof Comparable c) {
-                return c.compareTo(incoming) >= 0 ? existing : incoming;
-            }
-            return null;
+            return sameClassExtremum(existing, incoming, false);
         }
         return crossTypeExtremum(existing, incoming, false);
     }

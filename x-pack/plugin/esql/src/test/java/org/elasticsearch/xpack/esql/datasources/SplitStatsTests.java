@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -806,6 +807,22 @@ public class SplitStatsTests extends ESTestCase {
     public void testMergedMinStringNumericIncompatible() {
         assertNull(SplitStats.mergedMin("hello", 10));
         assertNull(SplitStats.mergedMin(10, "hello"));
+    }
+
+    public void testMergedMinMaxKeywordUsesUtf8ByteOrderNotUtf16() {
+        // U+FFFD (replacement char, BMP) vs U+1F600 (emoji, astral plane). String.compareTo (UTF-16 code units)
+        // orders the emoji BELOW the replacement char (its leading surrogate 0xD83D < 0xFFFD); UTF-8 bytes order
+        // the replacement char below the emoji (0xEF < 0xF0). The runtime keyword MIN/MAX aggregators use UTF-8
+        // (BytesRef) byte order, so the stat fold must too — otherwise a warm MIN/MAX disagrees with a scan.
+        String bmp = "�";
+        String astral = "😀";
+        assertEquals("MIN is the UTF-8-smaller value, not the UTF-16 winner", bmp, SplitStats.mergedMin(bmp, astral));
+        assertEquals(bmp, SplitStats.mergedMin(astral, bmp));
+        assertEquals("MAX is the UTF-8-larger value", astral, SplitStats.mergedMax(bmp, astral));
+        assertEquals(astral, SplitStats.mergedMax(astral, bmp));
+        // The text-harvest representation (BytesRef) is already UTF-8-ordered — the String path must agree with it.
+        assertEquals(new BytesRef(bmp), SplitStats.mergedMin(new BytesRef(bmp), new BytesRef(astral)));
+        assertEquals(new BytesRef(astral), SplitStats.mergedMax(new BytesRef(bmp), new BytesRef(astral)));
     }
 
     private static FileSplit fileSplitWithStats(SplitStats stats) {

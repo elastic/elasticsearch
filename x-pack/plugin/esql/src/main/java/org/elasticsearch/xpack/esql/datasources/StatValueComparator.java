@@ -43,22 +43,38 @@ public final class StatValueComparator {
         if (a == null || b == null) {
             return INCOMPARABLE;
         }
-        if (a instanceof BytesRef br) {
-            a = br.utf8ToString();
-        }
-        if (b instanceof BytesRef br) {
-            b = br.utf8ToString();
-        }
         if (a instanceof Number na && b instanceof Number nb) {
             if (isIntegral(na) && isIntegral(nb)) {
                 return Long.compare(na.longValue(), nb.longValue());
             }
             return Double.compare(na.doubleValue(), nb.doubleValue());
         }
+        // Keyword/string extrema must be ordered by UTF-8 bytes -- the SAME order the runtime keyword
+        // comparisons and MIN/MAX aggregators use (BytesRef unsigned-byte order) -- NOT String.compareTo's
+        // UTF-16 code-unit order, which disagrees whenever the divergence point pairs a supplementary (astral)
+        // char against a BMP char in [U+E000..U+FFFF]. Both stat representations reach here (text harvest emits
+        // BytesRef, parquet footer emits String); normalize both to BytesRef and compare bytes so a filtered
+        // MATCH/MISS classification never diverges from a scan.
+        BytesRef ba = asBytesRef(a);
+        BytesRef bb = asBytesRef(b);
+        if (ba != null && bb != null) {
+            return ba.compareTo(bb);
+        }
         if (a instanceof Comparable ca && a.getClass() == b.getClass()) {
             return ca.compareTo(b);
         }
         return INCOMPARABLE;
+    }
+
+    /** A {@code BytesRef} view of a string-valued stat ({@code BytesRef} as-is, {@code String} wrapped), else null. */
+    private static BytesRef asBytesRef(Object o) {
+        if (o instanceof BytesRef br) {
+            return br;
+        }
+        if (o instanceof String s) {
+            return new BytesRef(s);
+        }
+        return null;
     }
 
     private static boolean isIntegral(Number n) {

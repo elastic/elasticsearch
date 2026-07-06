@@ -9,6 +9,8 @@
 package org.elasticsearch.action.resync;
 
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.action.support.replication.ReshardSplitAwareRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -24,17 +26,20 @@ import java.util.Objects;
  */
 public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest>
     implements
-        RawIndexingDataTransportRequest {
+        RawIndexingDataTransportRequest,
+        ReshardSplitAwareRequest {
 
     private final long trimAboveSeqNo;
     private final Translog.Operation[] operations;
     private final long maxSeenAutoIdTimestampOnPrimary;
+    private final SplitShardCountSummary splitShardCountSummary;
 
     ResyncReplicationRequest(StreamInput in) throws IOException {
         super(in);
         trimAboveSeqNo = in.readZLong();
         maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
+        this.splitShardCountSummary = readReshardSplitAwareSummary(in, legacySplitShardCountSummary);
     }
 
     public ResyncReplicationRequest(
@@ -44,9 +49,16 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         final Translog.Operation[] operations
     ) {
         super(shardId);
+        // TODO: set split summary and implement split coordination
+        this.splitShardCountSummary = SplitShardCountSummary.UNSET;
         this.trimAboveSeqNo = trimAboveSeqNo;
         this.maxSeenAutoIdTimestampOnPrimary = maxSeenAutoIdTimestampOnPrimary;
         this.operations = operations;
+    }
+
+    @Override
+    public SplitShardCountSummary splitShardCountSummary() {
+        return splitShardCountSummary;
     }
 
     public long getTrimAboveSeqNo() {
@@ -67,6 +79,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         out.writeZLong(trimAboveSeqNo);
         out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         out.writeArray(operations);
+        writeReshardSplitAwareSummary(out, splitShardCountSummary);
     }
 
     @Override

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
@@ -236,7 +237,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         throws IOException {
         if (request.refresh()) {
             logger.trace("send refresh action for shard {}", shardId);
-            var refreshRequest = new BasicReplicationRequest(shardId);
+            final var indexMetadata = projectResolver.getProjectMetadata(clusterService.state()).getIndexSafe(shardId.getIndex());
+            var refreshRequest = new BasicReplicationRequest(shardId, SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId()));
             refreshRequest.setParentTask(request.getParentTask());
             client.executeLocally(
                 TransportShardRefreshAction.TYPE,

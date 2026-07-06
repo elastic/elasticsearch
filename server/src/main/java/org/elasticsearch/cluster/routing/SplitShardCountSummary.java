@@ -140,7 +140,7 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
      * undergoing a resharding operation. This method is used to populate a field in the shard level requests sent to
      * source and target shards, as a proxy for the cluster state version. The same calculation is then done at the source shard
      * to verify if the coordinator and source node's view of the resharding state have a mismatch.
-     * See {@link org.elasticsearch.action.support.replication.ReplicationRequest#splitShardCountSummary}
+     * See {@link org.elasticsearch.action.support.replication.ReshardSplitAwareRequest#splitShardCountSummary}
      * for a detailed description of how this value is used.
      *
      * @param shardId  Input shardId for which we want to calculate the effective shard count

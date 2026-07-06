@@ -138,6 +138,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGN
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -647,8 +648,12 @@ public class EsqlDataTypeConverter {
         return GEO.wktToWkb(field);
     }
 
+    /**
+     * Anything spatial that isn't geo (i.e. anything not caught by {@link DataType#isSpatialGeo}) is assumed
+     * to be cartesian.
+     */
     public static BytesRef stringToSpatial(String field) {
-        return UNSPECIFIED.wktToWkb(field);
+        return CARTESIAN.wktToWkb(field);
     }
 
     public static long dateTimeToLong(String dateTime) {

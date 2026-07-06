@@ -1025,7 +1025,7 @@ public final class IndexSettings {
     /**
      * Controls whether the ES95 TSDB doc values codec is used for a given time series index, allowing opt-out.
      * Defaults to {@code true} for time series indices created on or after
-     * {@link IndexVersions#TIME_SERIES_ES95_CODEC_DEFAULT_STATEFUL}, and {@code false} otherwise. The codec is
+     * {@link IndexVersions#TIME_SERIES_ES95_CODEC_DEFAULT}, and {@code false} otherwise. The codec is
      * additionally disabled on stateless nodes regardless of this setting; see {@link #isTimeSeriesEs95CodecEnabled()}.
      */
     public static final Setting<Boolean> TIME_SERIES_ES95_CODEC_ENABLED_SETTING = Setting.boolSetting(
@@ -1039,7 +1039,7 @@ public final class IndexSettings {
         if (settings == null || IndexMode.TIME_SERIES.equals(MODE.get(settings)) == false) {
             return false;
         }
-        return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_STATEFUL);
+        return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
     }
 
     /**

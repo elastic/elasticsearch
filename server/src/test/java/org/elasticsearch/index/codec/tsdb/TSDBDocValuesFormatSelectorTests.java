@@ -105,22 +105,22 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         return new IndexSettings(metadata, Settings.EMPTY);
     }
 
-    public void testDefaultEnabledForStatefulTimeSeriesOnOrAfterDefaultVersion() {
+    public void testDefaultEnabledForTimeSeriesOnOrAfterDefaultVersion() {
         final IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_STATEFUL,
+            IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT,
             IndexVersion.current()
         );
         assertTrue(defaultEs95Enabled(IndexMode.TIME_SERIES, version, false));
     }
 
-    public void testDefaultDisabledForStatefulTimeSeriesBeforeDefaultVersion() {
-        final IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_STATEFUL);
+    public void testDefaultDisabledForTimeSeriesBeforeDefaultVersion() {
+        final IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
         assertFalse(defaultEs95Enabled(IndexMode.TIME_SERIES, version, false));
     }
 
     public void testDefaultDisabledForStatelessTimeSeries() {
         final IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_STATEFUL,
+            IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT,
             IndexVersion.current()
         );
         assertFalse(defaultEs95Enabled(IndexMode.TIME_SERIES, version, true));

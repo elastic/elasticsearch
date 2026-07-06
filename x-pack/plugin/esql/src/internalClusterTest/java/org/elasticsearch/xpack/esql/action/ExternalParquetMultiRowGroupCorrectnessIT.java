@@ -14,32 +14,25 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
-import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.plugin.ComputeService.DATA_DESCRIPTION;
 import static org.hamcrest.Matchers.emptyString;
@@ -48,7 +41,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 /**
- * End-to-end correctness check for the {@code EXTERNAL ... | STATS} pipeline against a
+ * End-to-end correctness check for the {@code FROM <dataset> ... | STATS} pipeline against a
  * Parquet file with many row groups. Generates a controlled fixture, runs
  * {@code STATS COUNT(*) BY ...} (group-by prevents the {@code COUNT(*)} pushdown that
  * {@link ExternalParquetCountPushdownIT} exercises), and asserts that the sum of the group
@@ -72,40 +65,11 @@ import static org.hamcrest.Matchers.not;
  * does not change the buffer/operator path under test. Codec-coverage tests already live
  * in the parquet datasource module.
  */
-public class ExternalParquetMultiRowGroupCorrectnessIT extends AbstractEsqlIntegTestCase {
-
-    /**
-     * Re-enables extension loading that {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses,
-     * so the Parquet and HTTP data source plugins are discovered.
-     */
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
+public class ExternalParquetMultiRowGroupCorrectnessIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(ParquetDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesEnabled() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(ParquetDataSourcePlugin.class);
     }
 
     @Override
@@ -121,8 +85,6 @@ public class ExternalParquetMultiRowGroupCorrectnessIT extends AbstractEsqlInteg
      * real Driver, real buffer) end-to-end.
      */
     public void testGroupedCountMatchesRowCountWithMultipleRowGroups() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int rowCount = 50_000;
         int bucketCount = 8;
         // Per-bucket assertion relies on exact integer division; otherwise truncation would
@@ -135,7 +97,8 @@ public class ExternalParquetMultiRowGroupCorrectnessIT extends AbstractEsqlInteg
         // acceptable graceful degradation rather than a hard prerequisite for the test.
         Path parquetFile = writeMultiRowGroupParquetFile(rowCount, bucketCount);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*) BY bucket | KEEP c, bucket";
+            String dataset = registerDataset("multi_rowgroup", StoragePath.fileUri(parquetFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(*) BY bucket | KEEP c, bucket";
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
 
@@ -260,48 +223,5 @@ public class ExternalParquetMultiRowGroupCorrectnessIT extends AbstractEsqlInteg
         Path tempFile = createTempDir().resolve("multi_rg_correctness.parquet");
         Files.write(tempFile, baos.toByteArray());
         return tempFile;
-    }
-
-    private static OutputFile createOutputFile(ByteArrayOutputStream baos) {
-        return new OutputFile() {
-            @Override
-            public PositionOutputStream create(long blockSizeHint) {
-                return new PositionOutputStream() {
-                    private long position = 0;
-
-                    @Override
-                    public long getPos() {
-                        return position;
-                    }
-
-                    @Override
-                    public void write(int b) throws IOException {
-                        baos.write(b);
-                        position++;
-                    }
-
-                    @Override
-                    public void write(byte[] b, int off, int len) throws IOException {
-                        baos.write(b, off, len);
-                        position += len;
-                    }
-                };
-            }
-
-            @Override
-            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
-                return create(blockSizeHint);
-            }
-
-            @Override
-            public boolean supportsBlockSize() {
-                return false;
-            }
-
-            @Override
-            public long defaultBlockSize() {
-                return 0;
-            }
-        };
     }
 }

@@ -78,12 +78,11 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.RESUMABLE_WRITE_BUFFER_SIZE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BASE_PATH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -143,6 +142,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         // multiple nodes (6 for nightly) with multiple failures per request (2) and with only 2 threads for the HTTP mock GCS server,
         // might lead to timeouts when reading the response after writing (or draining) large buffers (16 MB)
         settings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace("test").getKey(), "60s");
+        // fixed 1mb buffer to allow testResumableWriteBufferInAction to verify chunk sizes
+        settings.put(RESUMABLE_WRITE_BUFFER_SIZE_SETTING.getConcreteSettingForNamespace("test").getKey(), "1mb");
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final byte[] serviceAccount = TestUtils.createServiceAccount(random());
@@ -227,65 +228,15 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         assertEquals("failed to parse value [6tb] for setting [chunk_size], must be <= [5tb]", e.getMessage());
     }
 
-    public void testResumableWriteBufferSize() {
-        // default: not configured
-        RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repo", GoogleCloudStorageRepository.TYPE, Settings.EMPTY);
-        assertFalse(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE.exists(repositoryMetadata.settings()));
-
-        // when set: value is read correctly
-        final int sizeMb = randomIntBetween(1, 100);
-        repositoryMetadata = new RepositoryMetadata(
-            "repo",
-            GoogleCloudStorageRepository.TYPE,
-            Settings.builder().put("resumable_write_buffer_size", sizeMb + "mb").build()
-        );
-        assertEquals(
-            ByteSizeValue.ofMb(sizeMb),
-            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE, repositoryMetadata)
-        );
-
-        // below min
-        final ByteSizeValue belowMinSize = ByteSizeValue.ofBytes(between(1, 1024 * 256 - 1));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            final RepositoryMetadata repoMetadata = new RepositoryMetadata(
-                "repo",
-                GoogleCloudStorageRepository.TYPE,
-                Settings.builder().put("resumable_write_buffer_size", belowMinSize).build()
-            );
-            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE, repoMetadata);
-        });
-        assertThat(e.getMessage(), containsString("setting [resumable_write_buffer_size], must be >= [256kb]"));
-
-        // above max
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            final ByteSizeValue aboveMaxSize = ByteSizeValue.ofBytes(between(100 * 1024 * 1024 + 1, Integer.MAX_VALUE));
-            final RepositoryMetadata repoMetadata = new RepositoryMetadata(
-                "repo",
-                GoogleCloudStorageRepository.TYPE,
-                Settings.builder().put("resumable_write_buffer_size", aboveMaxSize).build()
-            );
-            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE, repoMetadata);
-        });
-        assertThat(e.getMessage(), containsString("setting [resumable_write_buffer_size], must be <= [100mb]"));
-    }
-
     public void testResumableWriteBufferInAction() throws Exception {
-        final int bufferSizeMb = randomIntBetween(1, 4);
-        final int bufferSizeBytes = Math.toIntExact(ByteSizeValue.ofMb(bufferSizeMb).getBytes());
+        // buffer size is fixed at 1mb by nodeSettings() for the "test" client
+        final int bufferSizeBytes = Math.toIntExact(ByteSizeValue.ofMb(1).getBytes());
         final int numFullChunks = randomIntBetween(2, 4);
         // lastChunkSize < bufferSizeBytes to guarantee numFullChunks non-final chunks
         final int lastChunkSize = randomIntBetween(1, bufferSizeBytes - 1);
         final int blobSize = bufferSizeBytes * numFullChunks + lastChunkSize;
 
-        final String repoName = randomRepositoryName();
-        createRepository(
-            repoName,
-            Settings.builder()
-                .put(repositorySettings(repoName))
-                .put(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE.getKey(), bufferSizeMb + "mb")
-                .build(),
-            false
-        );
+        final String repoName = createRepository(randomRepositoryName(), false);
 
         chunkRecordingHandler.recording = true;
         try (BlobStore store = newBlobStore(repoName)) {
@@ -437,14 +388,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 ) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
-                        if (GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE.exists(metadata.settings())) {
-                            assertThat(
-                                getResumableWriteBufferSize().getAsInt(),
-                                equalTo((int) GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE.get(metadata.settings()).getBytes())
-                            );
-                        } else {
-                            assertTrue(getResumableWriteBufferSize().isEmpty());
-                        }
                         return new GoogleCloudStorageBlobStore(
                             getProjectId(),
                             metadata.settings().get("bucket"),
@@ -453,7 +396,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             storageService.get(),
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
-                            getResumableWriteBufferSize(),
                             BackoffPolicy.noBackoff(),
                             this.statsCollector(),
                             null,

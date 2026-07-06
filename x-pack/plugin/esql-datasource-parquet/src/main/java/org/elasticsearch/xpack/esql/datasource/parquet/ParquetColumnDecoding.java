@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.io.api.Converter;
 import org.apache.parquet.io.api.GroupConverter;
@@ -16,8 +17,11 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
@@ -57,6 +61,65 @@ final class ParquetColumnDecoding {
         return raw;
     }
 
+    // ---- date_nanos (epoch-nanoseconds) helpers ----
+
+    static final long NANOS_PER_MICRO = 1_000L;
+
+    /**
+     * Largest / smallest epoch-microsecond value that can be scaled to epoch-nanoseconds without
+     * overflowing a {@code long}. These bounds coincide with the representable {@code date_nanos}
+     * instant range (~1677-09-21 .. 2262-04-11): {@code Long.MAX_VALUE} nanoseconds is ~year 2262,
+     * so a microsecond value beyond {@code Long.MAX_VALUE / 1_000} has no nanosecond representation.
+     */
+    static final long MAX_MICROS_AS_NANOS = Long.MAX_VALUE / NANOS_PER_MICRO;
+    static final long MIN_MICROS_AS_NANOS = Long.MIN_VALUE / NANOS_PER_MICRO;
+
+    /** Whether {@code logicalType} is a {@code TIMESTAMP(MICROS)} annotation (the only unit whose nanos scaling can overflow). */
+    static boolean isMicrosTimestamp(LogicalTypeAnnotation logicalType) {
+        return logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts
+            && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+    }
+
+    /** Whether scaling a {@code TIMESTAMP(MICROS)} value to epoch-nanoseconds would overflow a {@code long}. */
+    static boolean microsOverflowsNanos(long micros) {
+        return micros > MAX_MICROS_AS_NANOS || micros < MIN_MICROS_AS_NANOS;
+    }
+
+    /**
+     * Converts a Parquet INT64 timestamp value to epoch-nanoseconds for a {@code DATE_NANOS} column:
+     * {@code MICROS} is scaled by 1_000, {@code NANOS} passes through. {@code MILLIS} is included for
+     * completeness (×1_000_000) although the type mapper only routes {@code MICROS}/{@code NANOS}
+     * timestamps to {@code DATE_NANOS}. Callers must guard {@code MICROS} inputs against overflow via
+     * {@link #microsOverflowsNanos(long)}; this method does not check.
+     */
+    static long convertTimestampToNanos(long raw, LogicalTypeAnnotation logicalType) {
+        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            return switch (ts.getUnit()) {
+                case MILLIS -> raw * 1_000_000L;
+                case MICROS -> raw * NANOS_PER_MICRO;
+                case NANOS -> raw;
+            };
+        }
+        return raw;
+    }
+
+    /**
+     * Emits a response {@code Warning} header noting that a Parquet timestamp column carried instants
+     * outside the representable {@code date_nanos} range and those values were returned as null. The
+     * message is column-scoped and constant, so the response-header machinery deduplicates it to a
+     * single entry per affected column regardless of how many values or batches triggered it.
+     */
+    static void warnTimestampOutOfRange(ColumnInfo info) {
+        ColumnDescriptor descriptor = info.descriptor();
+        String column = descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath());
+        HeaderWarning.addWarning(
+            "Parquet timestamp column ["
+                + column
+                + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
+                + "such values are returned as null"
+        );
+    }
+
     /** Converts a date32 value (days since epoch) to epoch milliseconds. */
     static long dateDaysToMillis(long days) {
         return days * MILLIS_PER_DAY;
@@ -82,22 +145,32 @@ final class ParquetColumnDecoding {
      * Decodes a Parquet footer stat value into the same representation the scan path produces, so
      * pushed-down MIN/MAX match a scan:
      * <ul>
-     *   <li>date32 -&gt; epoch-millis</li>
-     *   <li>timestamp -&gt; epoch-millis (unit-scaled)</li>
+     *   <li>date32 -&gt; epoch-millis (DATETIME)</li>
+     *   <li>timestamp[millis] -&gt; epoch-millis (DATETIME)</li>
+     *   <li>timestamp[micros|nanos] -&gt; epoch-nanos (DATE_NANOS), matching the scan path</li>
      *   <li>time -&gt; raw milliseconds for TIME_MILLIS (physical INT32), nanoseconds otherwise</li>
      * </ul>
      * Returns {@code null} when the type is not one of the above (caller falls through to other
      * normalization). INT96 is deliberately excluded: its footer min/max are compared by parquet-mr
      * as unsigned little-endian bytes (nanos-of-day in the low bytes), so they are not chronological
-     * and cannot be trusted for MIN/MAX pushdown — returning {@code null} forces a scan instead.
+     * and cannot be trusted for MIN/MAX pushdown — returning {@code null} forces a scan instead. A
+     * {@code timestamp[micros]} stat whose scaled value would overflow the {@code date_nanos} range
+     * also returns {@code null} (forcing a scan) rather than publishing a wrapped-around bound.
      */
     static Long decodeTemporalStat(Object value, PrimitiveType type) {
         LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
         if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
             return dateDaysToMillis(((Number) value).longValue());
         }
-        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
-            return convertTimestampToMillis(((Number) value).longValue(), logical);
+        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            long raw = ((Number) value).longValue();
+            return switch (ts.getUnit()) {
+                // MILLIS stays DATETIME (epoch-millis); MICROS/NANOS become DATE_NANOS (epoch-nanos) so the
+                // published bound matches what the DATE_NANOS scan produces.
+                case MILLIS -> raw;
+                case NANOS -> raw;
+                case MICROS -> microsOverflowsNanos(raw) ? null : raw * NANOS_PER_MICRO;
+            };
         }
         if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
             long raw = ((Number) value).longValue();
@@ -110,12 +183,56 @@ final class ParquetColumnDecoding {
     }
 
     /**
+     * Whether the column carries a temporal logical-type annotation (date32, timestamp, or time) that
+     * {@link #decodeTemporalStat} scales into the scan's output unit. When this is {@code true} but
+     * {@code decodeTemporalStat} returns {@code null}, the footer statistic is temporal yet unusable
+     * (a {@code timestamp[us]} value outside the representable {@code date_nanos} range, which the scan
+     * nulls out) and the caller must drop the column's min/max <em>and</em> null count rather than
+     * publishing a raw physical value. INT96 timestamps are deliberately excluded here: they have no
+     * logical annotation and their footer min/max are not chronological, so they fall through to the
+     * caller's generic fallback (unchanged behavior).
+     */
+    static boolean hasTemporalStatEncoding(PrimitiveType type) {
+        LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
+        return logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation
+            || logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
+            || logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
+    }
+
+    /**
      * Returns the multiplier needed to convert a Parquet TIME_* value to nanoseconds.
      * TIME_MICROS values are stored as microseconds and must be multiplied by 1_000;
      * TIME_MILLIS and TIME_NANOS are stored in their final unit (ms handled as INTEGER, ns as-is).
      */
     static long timeNanoMultiplier(LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
         return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
+    }
+
+    // ---- Unsigned integer logical-type checks ----
+
+    /**
+     * Returns {@code true} when {@code primitiveType} carries the Parquet {@code UINT_32} logical
+     * annotation (physical {@code INT32}, {@code intType(32, false)}) — the shape that widens to
+     * ESQL {@code LONG} because unsigned 32-bit values can exceed signed {@code int} range. Shared
+     * by the predicate pushdown and stats-normalization code paths so the two cannot drift.
+     */
+    static boolean isUnsignedInt32(PrimitiveType primitiveType) {
+        return isUnsignedInt(primitiveType, 32);
+    }
+
+    /**
+     * Returns {@code true} when {@code primitiveType} carries the Parquet {@code UINT_64} logical
+     * annotation (physical {@code INT64}, {@code intType(64, false)}) — the shape that maps to ESQL
+     * {@code UNSIGNED_LONG}, which ESQL stores sign-flip-encoded via {@link #encodeUnsignedLong}.
+     */
+    static boolean isUnsignedInt64(PrimitiveType primitiveType) {
+        return isUnsignedInt(primitiveType, 64);
+    }
+
+    private static boolean isUnsignedInt(PrimitiveType primitiveType, int bitWidth) {
+        return primitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
+            && intLogical.isSigned() == false
+            && intLogical.getBitWidth() == bitWidth;
     }
 
     // ---- Unsigned long encoding ----
@@ -222,8 +339,9 @@ final class ParquetColumnDecoding {
             case UNSIGNED_LONG -> readListUnsignedLongColumn(cr, maxDef, rows, blockFactory);
             case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);
             case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
-            case KEYWORD, TEXT -> readListBytesRefColumn(cr, maxDef, rows, blockFactory);
+            case KEYWORD, TEXT -> readListBytesRefColumn(cr, info, rows, blockFactory);
             case DATETIME -> readListDatetimeColumn(cr, info, rows, blockFactory);
+            case DATE_NANOS -> readListDateNanosColumn(cr, info, rows, blockFactory);
             default -> {
                 skipListValues(cr, rows);
                 yield blockFactory.newConstantNullBlock(rows);
@@ -342,9 +460,15 @@ final class ParquetColumnDecoding {
         }
     }
 
-    private static Block readListBytesRefColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListBytesRefColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
+        int maxDef = info.maxDefLevel();
+        // UUID-annotated bytes are raw 16-byte payloads: format them as hex (matching the scalar path)
+        // rather than sanitizing, which would mangle valid UUID bytes into replacement characters.
+        boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
         try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
+            Runnable appender = isUuid
+                ? () -> builder.appendBytesRef(new BytesRef(formatUuid(cr.getBinary().getBytes())))
+                : () -> builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(cr.getBinary().getBytes())));
             for (int row = 0; row < rows; row++) {
                 readListRow(cr, maxDef, builder, appender);
             }
@@ -361,6 +485,84 @@ final class ParquetColumnDecoding {
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Reads a LIST of {@code DATE_NANOS} timestamps (Parquet INT64 {@code TIMESTAMP(MICROS|NANOS)}) into a
+     * {@code LongBlock} of epoch-nanoseconds. {@code MICROS} elements whose scaled value would overflow the
+     * representable {@code date_nanos} range are dropped from their list (mirroring how the generic list reader
+     * already skips null elements); a list whose elements <em>all</em> overflow becomes a null position. A single
+     * deduplicated warning header is emitted when any element was dropped. This uses a lazy {@code beginPositionEntry}
+     * so an all-overflow defined list never triggers the empty-position assertion in {@link Block.Builder}.
+     */
+    private static Block readListDateNanosColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
+        int maxDef = info.maxDefLevel();
+        LogicalTypeAnnotation logical = info.logicalType();
+        boolean micros = isMicrosTimestamp(logical);
+        boolean[] anyOverflow = { false };
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(rows)) {
+            for (int row = 0; row < rows; row++) {
+                readDateNanosListRow(cr, maxDef, micros, logical, builder, anyOverflow);
+            }
+            if (anyOverflow[0]) {
+                warnTimestampOutOfRange(info);
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Reads a single {@code DATE_NANOS} list row, mirroring {@link #readListRow} but scaling each element to
+     * epoch-nanoseconds and dropping {@code MICROS} elements that overflow the representable range. The position
+     * entry is opened lazily on the first retained element, so a list with no retained elements is emitted as null.
+     */
+    private static void readDateNanosListRow(
+        ColumnReader cr,
+        int maxDef,
+        boolean micros,
+        LogicalTypeAnnotation logical,
+        LongBlock.Builder builder,
+        boolean[] anyOverflow
+    ) {
+        boolean open = cr.getCurrentDefinitionLevel() >= maxDef && appendDateNanosElement(cr, logical, micros, builder, false, anyOverflow);
+        cr.consume();
+        while (cr.getCurrentRepetitionLevel() > 0) {
+            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                open = appendDateNanosElement(cr, logical, micros, builder, open, anyOverflow);
+            }
+            cr.consume();
+        }
+        if (open) {
+            builder.endPositionEntry();
+        } else {
+            builder.appendNull();
+        }
+    }
+
+    /**
+     * Appends the current column value as an epoch-nanosecond element, opening the position entry lazily.
+     * Returns whether the entry is open afterwards. An out-of-range {@code MICROS} value is skipped (not appended)
+     * and flips {@code anyOverflow}.
+     */
+    private static boolean appendDateNanosElement(
+        ColumnReader cr,
+        LogicalTypeAnnotation logical,
+        boolean micros,
+        LongBlock.Builder builder,
+        boolean open,
+        boolean[] anyOverflow
+    ) {
+        long raw = cr.getLong();
+        if (micros && microsOverflowsNanos(raw)) {
+            anyOverflow[0] = true;
+            return open;
+        }
+        if (open == false) {
+            builder.beginPositionEntry();
+            open = true;
+        }
+        builder.appendLong(convertTimestampToNanos(raw, logical));
+        return open;
     }
 
     // ---- NoOp converters for ColumnReadStoreImpl ----

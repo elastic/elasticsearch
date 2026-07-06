@@ -2398,6 +2398,7 @@ null           | null           | null          | null               | null     
 loadPartiallyUnmappedTextFieldAcrossForkBranches
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -2408,6 +2409,7 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 | STATS c=COUNT(*) BY _fork, gender, _index
 | SORT c DESC, _fork, gender, _index
 ;
+warning:Field [gender] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 c:long | _fork:keyword | gender:text | _index:keyword
 100    | fork1         | null        | employees_no_gender
@@ -2470,6 +2472,7 @@ fork2         | 42                     | 43
 loadUnmappedFieldsMultiIndexForkWithMvExpand
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM employees, languages METADATA _index
@@ -2478,6 +2481,8 @@ FROM employees, languages METADATA _index
 | KEEP emp_no, *language*, does*, _index
 | STATS c = COUNT(does_not_exist2)
 ;
+warning:Field [languages.byte] of type [byte] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [languages.short] of type [short] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 c:long
 0

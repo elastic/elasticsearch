@@ -725,6 +725,26 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("a\tb"))), rows);
     }
 
+    /**
+     * The QUOTED + escaping dialect follows Jackson's CSV escape, whose control set is exactly
+     * {@code \t \n \r \0}; every other {@code \c} — including {@code \b} and {@code \f} — is the literal
+     * {@code c} (the escape only protects the next character). The C-style {@link CsvFormatReader#decodeEscapeChar}
+     * would map {@code \b}/{@code \f} to backspace/form-feed, which is the {@code mode: escaped} semantics and
+     * would diverge from Jackson under trim (its fallback arm). Pinned in both trim polarities so the direct
+     * walker, the house tokenizer, and Jackson all agree.
+     */
+    public void testQuotedEscapedBackslashBAndFAreLiteral() throws IOException {
+        assertEquals(List.of(row(br("abb"))), read(false, Map.of(), "k:keyword\n\"a\\bb\"\n"));
+        assertEquals(List.of(row(br("abb"))), read(false, Map.of("trim_spaces", true), "k:keyword\n\"a\\bb\"\n"));
+        assertEquals(List.of(row(br("afb"))), read(false, Map.of(), "k:keyword\n\"a\\fb\"\n"));
+        assertEquals(List.of(row(br("afb"))), read(false, Map.of("trim_spaces", true), "k:keyword\n\"a\\fb\"\n"));
+        // \t \n \r \0 stay control escapes (unchanged, and agreeing with Jackson).
+        assertEquals(List.of(row(br("a\tb"))), read(false, Map.of("trim_spaces", true), "k:keyword\n\"a\\tb\"\n"));
+        assertEquals(List.of(row(br("a\nb"))), read(false, Map.of("trim_spaces", true), "k:keyword\n\"a\\nb\"\n"));
+        // An unquoted escaped field in the same dialect follows the identical rule.
+        assertEquals(List.of(row(br("abb"))), read(false, Map.of(), "k:keyword\na\\bb\n"));
+    }
+
     public void testUnquotedEscapedCommaIsLiteral() throws IOException {
         List<List<Object>> rows = read(false, Map.of(), "k:keyword\na\\,b\n");
         assertEquals(List.of(row(br("a,b"))), rows);

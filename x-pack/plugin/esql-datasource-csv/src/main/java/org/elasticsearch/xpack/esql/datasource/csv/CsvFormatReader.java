@@ -2202,7 +2202,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                     if (escapeAware && c == esc) {
                         if (q + 1 < len) {
-                            value.append(decodeEscapeChar(record.charAt(q + 1)));
+                            value.append(decodeQuotedEscapeChar(record.charAt(q + 1)));
                             decodedLen++;
                             q += 2;
                         } else {
@@ -2285,7 +2285,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             char c = record.charAt(k);
             if (c == esc) {
                 if (k + 1 < end) {
-                    value.append(decodeEscapeChar(record.charAt(++k)));
+                    value.append(decodeQuotedEscapeChar(record.charAt(++k)));
                 }
                 // else: trailing lone escape, dropped
             } else {
@@ -2438,7 +2438,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * C-style escape decode: maps {@code \t}, {@code \n}, {@code \r}, {@code \0}, {@code \b},
      * {@code \f} to their control-character equivalents; any other {@code \c} decodes to {@code c}.
-     * Shared by {@link #decodeFieldValue} (Jackson path) and the direct-to-block walkers.
+     * This is the {@code mode: escaped} (quoting off) semantics, used by {@link #decodeFieldValue}.
+     * The QUOTED + escaping dialect uses {@link #decodeQuotedEscapeChar} instead — that dialect follows
+     * Jackson's CSV escape, which is a strictly smaller control set.
      */
     static char decodeEscapeChar(char next) {
         return switch (next) {
@@ -2449,6 +2451,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case 'b' -> '\b';
             case 'f' -> '\f';
             // Any other \c is c — including \\ and \' — matching the C-style parse rule.
+            default -> next;
+        };
+    }
+
+    /**
+     * Escape decode for the QUOTED dialect with escaping on ({@code quote}/{@code escape} both live),
+     * matching Jackson's {@code CsvDecoder}: only {@code \t}, {@code \n}, {@code \r}, {@code \0} are
+     * control escapes; every other {@code \c} — including {@code \b} and {@code \f} — is the literal
+     * {@code c} (the escape merely protects the next character). This is a strict subset of the C-style
+     * {@link #decodeEscapeChar} set, which additionally maps {@code \b}/{@code \f} to control chars; that
+     * fuller set stays confined to {@code mode: escaped}, whose fallback is Jackson-with-C-style anyway.
+     */
+    static char decodeQuotedEscapeChar(char next) {
+        return switch (next) {
+            case 't' -> '\t';
+            case 'n' -> '\n';
+            case 'r' -> '\r';
+            case '0' -> '\0';
+            // Everything else — including \b, \f, \\ and \' — is the literal next character (Jackson's CSV rule).
             default -> next;
         };
     }
@@ -3869,7 +3890,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                     if (escapeAware && c == esc) {
                         if (q + 1 < to) {
-                            cell.append(decodeEscapeChar(buf[q + 1]));
+                            cell.append(decodeQuotedEscapeChar(buf[q + 1]));
                             q += 2;
                         } else {
                             q++;
@@ -3885,7 +3906,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     char c = buf[j];
                     if (escapeAware && c == esc) {
                         if (j + 1 < to) {
-                            cell.append(decodeEscapeChar(buf[j + 1]));
+                            cell.append(decodeQuotedEscapeChar(buf[j + 1]));
                             j += 2;
                         } else {
                             j++;
@@ -4634,7 +4655,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         if (escapeAware && c == esc) {
                             if (q + 1 < len) {
                                 if (value != null) {
-                                    value.append(decodeEscapeChar(buf[q + 1]));
+                                    value.append(decodeQuotedEscapeChar(buf[q + 1]));
                                 }
                                 decodedLen++;
                                 q += 2;
@@ -4777,7 +4798,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 char c = buf[k];
                 if (c == esc) {
                     if (k + 1 < end) {
-                        value.append(decodeEscapeChar(buf[++k]));
+                        value.append(decodeQuotedEscapeChar(buf[++k]));
                     }
                     // else: trailing lone escape, dropped
                 } else {
@@ -4839,7 +4860,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 char decoded;
                 if (buf[k] == esc) {
                     if (k + 1 < end) {
-                        decoded = decodeEscapeChar(buf[++k]);
+                        decoded = decodeQuotedEscapeChar(buf[++k]);
                     } else {
                         continue; // trailing lone escape, dropped
                     }

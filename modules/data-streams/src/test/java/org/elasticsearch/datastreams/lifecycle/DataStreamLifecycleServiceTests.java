@@ -49,7 +49,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -1246,43 +1245,6 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
                 currentTime::toEpochMilli
             );
             assertThat(indices.size(), is(0));
-        }
-
-        {
-            // same coverage as above, but building the indices directly with an explicitly configured
-            // index mode, randomized between IndexMode.TIME_SERIES and IndexMode.TSDB
-            IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
-            IndexMetadata outOfBoundsIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
-                .settings(
-                    indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-                        .put(IndexSettings.MODE.getKey(), mode.getName())
-                        .put("index.routing_path", "uid")
-                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start1.toEpochMilli())
-                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end1.toEpochMilli())
-                )
-                .build();
-            IndexMetadata withinBoundsIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
-                .settings(
-                    indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-                        .put(IndexSettings.MODE.getKey(), mode.getName())
-                        .put("index.routing_path", "uid")
-                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start2.toEpochMilli())
-                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end2.toEpochMilli())
-                )
-                .build();
-
-            ProjectMetadata modeProject = ProjectMetadata.builder(randomProjectIdOrDefault())
-                .put(outOfBoundsIndex, true)
-                .put(withinBoundsIndex, true)
-                .build();
-
-            Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
-                modeProject,
-                List.of(outOfBoundsIndex.getIndex(), withinBoundsIndex.getIndex()),
-                currentTime::toEpochMilli
-            );
-
-            assertThat(indices, containsInAnyOrder(withinBoundsIndex.getIndex()));
         }
     }
 

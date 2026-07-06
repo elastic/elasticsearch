@@ -4990,8 +4990,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private Object tryParseBoolean(String value) {
             try {
-                return Booleans.parseBoolean(value.toLowerCase(Locale.ROOT));
-            } catch (IllegalArgumentException e) {
+                // Delegate to the single strict-boolean authority (DeclaredTypeCoercions.strictParseBoolean)
+                // so the CSV declared-boolean rule cannot drift from the columnar and NDJSON readers - they
+                // all accept exactly true/false case-insensitively and reject everything else.
+                return DeclaredTypeCoercions.strictParseBoolean(value);
+            } catch (IllegalArgumentException | InvalidArgumentException e) {
                 lastFieldError = "Failed to parse CSV value [" + value + "] as [BOOLEAN]";
                 return null;
             }

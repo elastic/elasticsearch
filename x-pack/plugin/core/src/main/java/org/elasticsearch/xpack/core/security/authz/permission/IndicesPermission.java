@@ -370,7 +370,7 @@ public final class IndicesPermission {
                 try {
                     Automaton automaton = Automatons.patterns(pattern);
                     if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(pattern)) {
-                        automaton = Automatons.minusAndMinimize(automaton, restrictedIndices.getAutomaton());
+                        automaton = Automatons.minusAndMinimizeUnlessDisjoint(automaton, restrictedIndices.getAutomaton());
                     }
                     return automaton;
                 } catch (TooComplexToDeterminizeException e) {
@@ -1043,8 +1043,13 @@ public final class IndicesPermission {
                 this.indexNameAutomaton = CachedSupplier.wrap(() -> Automatons.patterns(indices));
             } else {
                 this.indexNameMatcher = StringMatcher.of(indices).and(name -> restrictedIndices.isRestricted(name) == false);
+                // The automaton excludes restricted indices to mirror indexNameMatcher above. It is only consumed by the
+                // has-privileges introspection path (checkResourcePrivileges); actual access is authorized via
+                // indexNameMatcher, which already excludes restricted names. Skip the subtraction when the patterns are
+                // disjoint from the restricted set (the common case: ordinary and hidden-but-not-system indices), since it
+                // is then a no-op - this never widens access (see Automatons#minusAndMinimizeUnlessDisjoint).
                 this.indexNameAutomaton = CachedSupplier.wrap(
-                    () -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
+                    () -> Automatons.minusAndMinimizeUnlessDisjoint(Automatons.patterns(indices), restrictedIndices.getAutomaton())
                 );
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);

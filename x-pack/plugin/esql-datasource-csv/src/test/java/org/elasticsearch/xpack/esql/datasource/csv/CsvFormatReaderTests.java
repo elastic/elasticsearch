@@ -115,7 +115,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    // --- #1051: the header line is parsed with CSV rules (quoting, embedded delimiter, BOM) ---
+    // --- The header line is parsed with CSV rules (quoting, embedded delimiter, BOM) ---
 
     /** Quoted header names (pandas/pyarrow/Excel default) resolve without the quote characters. */
     public void testQuotedHeaderNamesUnquoted() throws IOException {

@@ -782,3 +782,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testEachInstallOrRotationAddsExactlyOneNewKey
   issue: https://github.com/elastic/elasticsearch/issues/153024
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testDeleteMountedFrozenIndexBeforeSwap
+  issue: https://github.com/elastic/elasticsearch/issues/153040

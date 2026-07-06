@@ -625,7 +625,7 @@ public class StatelessPlugin extends Plugin
         pageCacheReyclerLimitExplicitlySet = PageCacheRecycler.LIMIT_HEAP_SETTING.exists(settings);
         hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         hasMasterRole = DiscoveryNode.isMasterNode(settings);
-        this.statelessIndexSettingProvider = new StatelessIndexSettingProvider();
+        this.statelessIndexSettingProvider = new StatelessIndexSettingProvider(settings);
         hollowShardsEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
     }
 

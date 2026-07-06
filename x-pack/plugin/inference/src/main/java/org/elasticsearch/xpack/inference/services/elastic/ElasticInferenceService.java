@@ -31,6 +31,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -109,6 +110,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
     private final CompletionCompatibilityService completionCompatibilityService;
+    private final InferencePreferencesCache inferencePreferencesCache;
     private ElasticInferenceServiceActionCreator actionCreator;
 
     public static ElasticInferenceService create(
@@ -116,7 +118,8 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         InferenceServiceExtension.InferenceServiceFactoryContext context,
-        CCMAuthenticationApplierFactory ccmAuthApplierFactory
+        CCMAuthenticationApplierFactory ccmAuthApplierFactory,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         return new ElasticInferenceService(
             factory,
@@ -124,6 +127,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             elasticInferenceServiceSettings,
             context,
             ccmAuthApplierFactory,
+            inferencePreferencesCache,
             new CompletionCompatibilityService(context.clusterService(), context.featureService())
         );
     }
@@ -134,6 +138,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         InferenceServiceExtension.InferenceServiceFactoryContext context,
         CCMAuthenticationApplierFactory ccmAuthApplierFactory,
+        InferencePreferencesCache inferencePreferencesCache,
         CompletionCompatibilityService completionCompatibilityService
     ) {
         super(
@@ -144,6 +149,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         );
         this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
         this.completionCompatibilityService = completionCompatibilityService;
+        this.inferencePreferencesCache = inferencePreferencesCache;
     }
 
     private static Map<TaskType, ModelCreator<? extends ElasticInferenceServiceModel>> initModelCreators(
@@ -176,7 +182,12 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     public void init() {
         // Wait to initialize the action creator until the sender is constructed
-        this.actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), ccmAuthenticationApplierFactory);
+        this.actionCreator = new ElasticInferenceServiceActionCreator(
+            getSender(),
+            getServiceComponents(),
+            ccmAuthenticationApplierFactory,
+            inferencePreferencesCache
+        );
     }
 
     @Override
@@ -349,6 +360,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     @Override
     protected boolean supportsMultipleItemsPerContent() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsMultimodalRerank() {
         return true;
     }
 

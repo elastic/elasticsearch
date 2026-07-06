@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -66,11 +64,6 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
     );
 
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
-
-    @Before
-    public void assumeRuntimeSearchSupported() {
-        assumeTrue("requires the runtime match capability to be enabled", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
-    }
 
     @After
     public void allMemoryReleased() {

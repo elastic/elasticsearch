@@ -228,6 +228,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     ) throws IOException {
         int seriesCount = 0;
         BytesRef scratch = new BytesRef();
+        StringBuilder valueBuffer = new StringBuilder(24);
 
         for (Page page : pages) {
             DoubleBlock valueBlock = (DoubleBlock) page.getBlock(VALUE_COL_IDX);
@@ -264,7 +265,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
 
                 builder.startObject();
                 buildMetricLabels(builder, useSeriesCol, page, position, stepColIdx, columns, zoneId, scratch);
-                buildMetricValues(mode, builder, valueBlock, stepBlock, valueStart, stepStart, count);
+                buildMetricValues(mode, builder, valueBuffer, valueBlock, stepBlock, valueStart, stepStart, count);
                 builder.endObject(); // result entry
             }
         }
@@ -330,6 +331,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     private static void buildMetricValues(
         QueryMode mode,
         XContentBuilder builder,
+        StringBuilder valueBuffer,
         DoubleBlock valueBlock,
         LongBlock stepBlock,
         int valueStart,
@@ -342,7 +344,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             for (int i = 0; i < count; i++) {
                 builder.startArray();
                 builder.value(parseTimestamp(stepBlock.getLong(stepStart + i)));
-                builder.value(formatSampleValue(valueBlock.getDouble(valueStart + i)));
+                writeSampleValue(builder, valueBuffer, valueBlock.getDouble(valueStart + i));
                 builder.endArray();
             }
             builder.endArray(); // values
@@ -353,9 +355,28 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             int last = count - 1;
             builder.startArray("value");
             builder.value(parseTimestamp(stepBlock.getLong(stepStart + last)));
-            builder.value(formatSampleValue(valueBlock.getDouble(valueStart + last)));
+            writeSampleValue(builder, valueBuffer, valueBlock.getDouble(valueStart + last));
             builder.endArray(); // value
         }
+    }
+
+    /**
+     * Writes a finite/NaN/Infinite sample value without a per-value {@code String} allocation for the common
+     * (finite) case. {@code valueBuffer} must be one instance reused across an entire query's result set (created
+     * once in {@link #writeResultArray}, not per value) — {@link StringBuilder#append(double)} writes digits
+     * directly into the {@code StringBuilder}'s own backing array on JDK 25+, so reusing one instance means that
+     * backing array only ever grows once (to fit the largest possible formatted double), not once per value.
+     * {@link XContentBuilder#value(CharSequence)} then writes straight from it with no further copy.
+     */
+    private static void writeSampleValue(XContentBuilder builder, StringBuilder valueBuffer, double value) throws IOException {
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            // Rare path; formatSampleValue returns interned constant strings ("NaN"/"+Inf"/"-Inf").
+            builder.value(formatSampleValue(value));
+            return;
+        }
+        valueBuffer.setLength(0);
+        valueBuffer.append(value);
+        builder.value(valueBuffer);
     }
 
     private record Sample(double value, long stepMillis) {}

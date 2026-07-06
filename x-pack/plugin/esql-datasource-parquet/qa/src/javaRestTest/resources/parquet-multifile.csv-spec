@@ -5,6 +5,10 @@
 //                           rows: alice(30, 85.5), bob(40, 92.0)
 //   parquet_ubn_b.parquet — schema [age:long, name:keyword, city:keyword]
 //                           rows: charlie(50, paris), dave(60, london)
+// The mixed-temporal (ts:date/date_nanos) and lossy-representation (code:integer/keyword) columns live in the
+// SEPARATE {{employees_multifile_temporal}} and {{employees_multifile_type_drift}} fixtures, used only by the
+// parquetUbnMixedTemporal* / parquetUbnMixedRepresentation tests below, so they do not perturb this fixture's
+// first-file-wins and widened-column tests.
 //
 // Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. ParquetFormatSpecIT
 // registers the dataset on every storage backend and runs the FROM query verbatim. The dataset name encodes
@@ -85,9 +89,9 @@ lo:long | hi:long
 parquetUbnMixedTemporalMinMax
 required_capability: external_command
 required_capability: external_source_read_schema
-dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+dataset: employees_multifile_temporal_union: "{{employees_multifile_temporal}}" WITH {"schema_resolution": "union_by_name"}
 
-FROM employees_multifile_ubn_union
+FROM employees_multifile_temporal_union
 | STATS lo = MIN(ts), hi = MAX(ts);
 
 lo:date_nanos | hi:date_nanos
@@ -95,15 +99,15 @@ lo:date_nanos | hi:date_nanos
 ;
 
 // Filtered variant: the WHERE routes the aggregate through the split-filter classifier + filtered stat merge
-// (resolveFilteredStats -> MergedSplitStats) -- the exact path where the double-rescale surfaced. age>0 matches
+// (resolveFilteredStats -> MergedSplitStats) -- the exact path where the double-rescale surfaced. id>0 matches
 // every row, so the extrema equal the full min/max.
 parquetUbnMixedTemporalFilteredMinMax
 required_capability: external_command
 required_capability: external_source_read_schema
-dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+dataset: employees_multifile_temporal_union: "{{employees_multifile_temporal}}" WITH {"schema_resolution": "union_by_name"}
 
-FROM employees_multifile_ubn_union
-| WHERE age > 0
+FROM employees_multifile_temporal_union
+| WHERE id > 0
 | STATS lo = MIN(ts), hi = MAX(ts);
 
 lo:date_nanos | hi:date_nanos
@@ -117,9 +121,9 @@ lo:date_nanos | hi:date_nanos
 parquetUbnMixedRepresentationMinMax
 required_capability: external_command
 required_capability: external_source_read_schema
-dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
 
-FROM employees_multifile_ubn_union
+FROM employees_type_drift_union
 | STATS lo = MIN(code), hi = MAX(code);
 warningRegex:Column \[code\] widened to keyword:.*distinct types: \[integer, keyword\]
 warningRegex:Schema reconciliation widened columns to keyword due to cross-file type disagreement.*

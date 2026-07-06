@@ -232,7 +232,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
-            var regionPolicy = new RegionPolicy(List.of("eu"), null, null);
+            var regionPolicy = new RegionPolicy(List.of("eu"), null);
             var cache = new InferencePreferencesCache(
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 mock(Client.class),

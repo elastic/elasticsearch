@@ -740,12 +740,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testConsecutiveRotations
   issue: https://github.com/elastic/elasticsearch/issues/152472
-- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
-  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double>, <dense_vector>}
-  issue: https://github.com/elastic/elasticsearch/issues/152794
-- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
-  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<long>, <dense_vector>}
-  issue: https://github.com/elastic/elasticsearch/issues/152795
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/152800

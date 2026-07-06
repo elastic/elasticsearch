@@ -19,14 +19,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request for the cursor-aware autocomplete endpoint {@code POST /_esql/suggestions}.
  *
- * <p>The request carries a syntactically-valid ESQL {@code query} plus an absolute character
- * {@code cursor} offset into that query. The offset — rather than an in-place marker token — keeps
- * the query parseable by the normal ESQL parser while still letting the completion logic reason
- * about where the caret sits.
+ * <p>{@code cursor} is a character offset into {@code query}.
  *
- * <p>{@code includeSampleValues} opts into the expensive pipe-position variant that would visit data
- * nodes to sample values/ranges; when {@code false} (the default) only coordinator-side, field-name
- * style completion is produced.
+ * <p>{@code includeSampleValues} selects between two modes:
+ * <ul>
+ *     <li>{@code false} (default): coordinator-only, field-name/type completion, no data-node visit.</li>
+ *     <li>{@code true}: additionally samples {@code values}/{@code range} from data nodes (deferred
+ *     — see the suggestions API spec).</li>
+ * </ul>
  */
 public class EsqlSuggestionsRequest extends ActionRequest {
 

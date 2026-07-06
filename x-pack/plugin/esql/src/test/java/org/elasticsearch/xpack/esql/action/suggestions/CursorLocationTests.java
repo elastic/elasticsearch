@@ -78,4 +78,75 @@ public class CursorLocationTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> locations.toLocation(-1));
         expectThrows(IllegalArgumentException.class, () -> locations.toLocation(100));
     }
+
+    public void testSupplementaryPlaneCharacterBeforeCursorRoundTrips() {
+        // U+1F600 GRINNING FACE is a supplementary-plane character: 1 code point, 2 UTF-16 units.
+        String emoji = "\uD83D\uDE00";
+        String query = "FROM foo | WHERE a == \"" + emoji + "x\"";
+        CursorLocation locations = new CursorLocation(query);
+
+        // Cursor (UTF-16 offset) placed right after the emoji, before 'x'.
+        int cursor = query.indexOf(emoji) + emoji.length();
+        Location location = locations.toLocation(cursor);
+        int back = locations.toOffset(location.getLineNumber(), location.getColumnNumber() - 1);
+        assertEquals(cursor, back);
+
+        // Every UTF-16 offset that sits on a code-point boundary (i.e. not splitting a surrogate
+        // pair — the position a real caret could occupy) round-trips through (line, code-point
+        // column) and back.
+        int offset = 0;
+        while (true) {
+            Location loc = locations.toLocation(offset);
+            int roundTripped = locations.toOffset(loc.getLineNumber(), loc.getColumnNumber() - 1);
+            assertEquals("round trip at offset " + offset, offset, roundTripped);
+            if (offset == query.length()) {
+                break;
+            }
+            offset += Character.charCount(query.codePointAt(offset));
+        }
+    }
+
+    public void testSupplementaryPlaneCharacterAfterCursorRoundTrips() {
+        String emoji = "\uD83D\uDE00";
+        String query = "FROM foo | WHERE a == \"x" + emoji + "\"";
+        CursorLocation locations = new CursorLocation(query);
+
+        // Cursor placed right before 'x', which is before the emoji.
+        int cursor = query.indexOf("x" + emoji);
+        Location location = locations.toLocation(cursor);
+        int back = locations.toOffset(location.getLineNumber(), location.getColumnNumber() - 1);
+        assertEquals(cursor, back);
+    }
+
+    public void testSupplementaryPlaneCharacterInStringLiteralRange() {
+        // The literal itself contains the surrogate pair; the Source's captured text length is in
+        // UTF-16 units (same space as the query string), so range() must line up with it exactly.
+        String emoji = "\uD83D\uDE00";
+        String query = "FROM foo\n| WHERE agent == \"a" + emoji + "b\"";
+        CursorLocation locations = new CursorLocation(query);
+
+        int litStart = query.indexOf("\"a" + emoji + "b\"");
+        String litText = "\"a" + emoji + "b\"";
+        Source source = new Source(new Location(2, litStart - query.indexOf('\n') - 1), litText);
+
+        OffsetRange range = locations.range(source);
+        assertEquals(litStart, range.start());
+        assertEquals(litStart + litText.length(), range.end());
+        // Cursor right after the emoji (still inside the literal) must be contained.
+        int cursorAfterEmoji = query.indexOf(emoji) + emoji.length();
+        assertTrue(range.contains(cursorAfterEmoji));
+    }
+
+    public void testBmpNonAsciiCharacterRoundTrips() {
+        // Accented Latin and CJK characters within the BMP: UTF-16 units and code points coincide,
+        // so this already works today. Contrast with the supplementary-plane cases above.
+        String query = "FROM foo | WHERE café == \"日本語\"";
+        CursorLocation locations = new CursorLocation(query);
+
+        for (int offset = 0; offset <= query.length(); offset++) {
+            Location loc = locations.toLocation(offset);
+            int roundTripped = locations.toOffset(loc.getLineNumber(), loc.getColumnNumber() - 1);
+            assertEquals("round trip at offset " + offset, offset, roundTripped);
+        }
+    }
 }

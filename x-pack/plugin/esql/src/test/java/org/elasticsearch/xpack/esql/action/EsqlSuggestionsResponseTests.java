@@ -10,10 +10,9 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.esql.action.EsqlSuggestionsResponse.FieldSuggestion;
-import org.elasticsearch.xpack.esql.action.EsqlSuggestionsResponse.Range;
-import org.elasticsearch.xpack.esql.action.EsqlSuggestionsResponse.ValueSuggestion;
 import org.elasticsearch.xpack.esql.action.EsqlSuggestionsResponse.Warning;
+import org.elasticsearch.xpack.esql.action.FieldSuggestion.RangeSuggestion;
+import org.elasticsearch.xpack.esql.action.FieldSuggestion.ValueSuggestion;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,8 +23,8 @@ public class EsqlSuggestionsResponseTests extends ESTestCase {
     public void testToXContentShape() {
         Map<String, FieldSuggestion> fields = new LinkedHashMap<>();
         fields.put("agent.keyword", new FieldSuggestion("keyword", List.of(new ValueSuggestion("ask", 0.65)), null));
-        fields.put("@timestamp", new FieldSuggestion("date", null, new Range("2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z")));
-        fields.put("response_time", new FieldSuggestion("long", null, new Range(0, 50000)));
+        fields.put("@timestamp", new FieldSuggestion("date", null, new RangeSuggestion("2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z")));
+        fields.put("response_time", new FieldSuggestion("long", null, new RangeSuggestion(0, 50000)));
         fields.put("body", FieldSuggestion.ofType("text"));
 
         EsqlSuggestionsResponse response = new EsqlSuggestionsResponse(fields, List.of());

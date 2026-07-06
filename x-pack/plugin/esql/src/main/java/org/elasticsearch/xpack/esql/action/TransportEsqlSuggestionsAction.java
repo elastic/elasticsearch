@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.action.EsqlSuggestionsResponse.FieldSuggestion;
 import org.elasticsearch.xpack.esql.action.suggestions.CursorLocation;
 import org.elasticsearch.xpack.esql.action.suggestions.SuggestionBuilder;
 import org.elasticsearch.xpack.esql.action.suggestions.SuggestionContext;
@@ -37,9 +36,15 @@ import java.util.Map;
  * <p><b>Deferred:</b> the data-node visit that populates {@code values}/{@code range} statistics and
  * detects DLS/FLS at the shard level, plus hot/cold shard pruning for wildcard patterns. Those paths
  * require threading a new completion request through {@code ComputeService}; the response shape and
- * warning vocabulary already accommodate them. When {@code includeSampleValues} is requested, or when
- * a single-field literal context is detected, this action still returns the coordinator-only field
- * skeleton so callers get a stable shape rather than an error.
+ * warning vocabulary already accommodate them.
+ *
+ * <p>{@code includeSampleValues} therefore has two modes today:
+ * <ul>
+ *     <li>{@code false} (default): coordinator-only, field-name/type completion, no data-node visit.</li>
+ *     <li>{@code true}: additionally samples {@code values}/{@code range} from data nodes (deferred);
+ *     this action still returns the coordinator-only field skeleton so callers get a stable shape
+ *     rather than an error.</li>
+ * </ul>
  */
 public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlSuggestionsRequest, EsqlSuggestionsResponse> {
 

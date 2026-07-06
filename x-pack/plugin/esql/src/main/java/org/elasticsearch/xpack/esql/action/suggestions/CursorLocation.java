@@ -22,6 +22,19 @@ import java.util.List;
  * absolute offset. This helper builds a line-offset table from the query once, then converts in
  * either direction so that "does the cursor sit inside this node?" reduces to an integer range
  * check against {@link #range(Source)}.
+ *
+ * <p><b>UTF-16 vs. code points:</b> the ESQL parser feeds ANTLR a {@code CodePointCharStream}
+ * (see {@code EsqlParser}), so every {@link Location}'s {@code charPositionInLine} is a Unicode
+ * <i>code point</i> count from the start of the line. The cursor supplied by callers (and every
+ * Java {@code String} API such as {@code length()}/{@code charAt}) works in UTF-16 <i>code
+ * units</i> instead. These two only coincide for text confined to the Basic Multilingual Plane;
+ * any supplementary-plane character (most emoji, some CJK extensions, mathematical alphanumeric
+ * symbols) occupies one code point but two UTF-16 units. This class is therefore code-point-aware
+ * internally: {@link #toOffset} converts an ANTLR {@code (line, code-point column)} into a UTF-16
+ * offset via {@link Character#offsetByCodePoints}, and {@link #toLocation} converts a UTF-16
+ * offset into an ANTLR-style code-point column via {@link Character#codePointCount}. Callers only
+ * ever pass/receive UTF-16 offsets (matching {@code EsqlSuggestionsRequest.cursor}); the code-point
+ * conversion is entirely internal.
  */
 public final class CursorLocation {
 
@@ -55,8 +68,8 @@ public final class CursorLocation {
     }
 
     /**
-     * Convert an absolute character offset into a 1-based line and 0-based column, matching how
-     * ANTLR (and therefore {@link Location}) number positions.
+     * Convert an absolute UTF-16 character offset into a 1-based line and a 0-based, <i>code
+     * point</i> column, matching how ANTLR (and therefore {@link Location}) number positions.
      */
     public Location toLocation(int offset) {
         if (offset < 0 || offset > query.length()) {
@@ -71,16 +84,18 @@ public final class CursorLocation {
                 break;
             }
         }
-        int column = offset - lineStart[line];
+        int column = Character.codePointCount(query, lineStart[line], offset);
         return new Location(line, column);
     }
 
-    /** Absolute offset of the start of a 1-based {@code (line, column-0-based)} position. */
+    /**
+     * Absolute UTF-16 offset of the start of a 1-based {@code (line, code-point column)} position.
+     */
     public int toOffset(int line, int columnZeroBased) {
         if (line < 1 || line >= lineStart.length) {
             throw new IllegalArgumentException("line [" + line + "] out of bounds");
         }
-        return lineStart[line] + columnZeroBased;
+        return Character.offsetByCodePoints(query, lineStart[line], columnZeroBased);
     }
 
     /**

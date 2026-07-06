@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.action.suggestions;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlSuggestionsResponse.FieldSuggestion;
+import org.elasticsearch.xpack.esql.action.FieldSuggestion;
 import org.elasticsearch.xpack.esql.action.suggestions.SuggestionBuilder.StatisticKind;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;

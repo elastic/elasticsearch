@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action.suggestions;
 
-import org.elasticsearch.xpack.esql.action.EsqlSuggestionsResponse.FieldSuggestion;
+import org.elasticsearch.xpack.esql.action.FieldSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;

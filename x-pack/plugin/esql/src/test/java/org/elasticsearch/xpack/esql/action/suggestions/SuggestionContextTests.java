@@ -66,4 +66,35 @@ public class SuggestionContextTests extends ESTestCase {
         assertEquals(Kind.PIPE_POSITION, context.kind());
         assertNull(context.command());
     }
+
+    public void testCursorInStringLiteralWithSupplementaryPlaneCharacter() {
+        // U+1F600 GRINNING FACE sits inside the literal itself, before the cursor: 1 code point,
+        // 2 UTF-16 units. This exercises the containment-range bug described in the suggestions
+        // API spec directly, since the literal's own Source range must still contain the cursor.
+        String emoji = "\uD83D\uDE00";
+        String query = "FROM test | WHERE first_name == \"" + emoji + "Ale\"";
+        int cursor = query.indexOf("Ale") + 1; // inside the string literal, after the emoji
+        SuggestionContext context = detect(query, cursor);
+        assertEquals(Kind.STRING_LITERAL_EQUALITY, context.kind());
+        assertEquals("first_name", context.targetField());
+    }
+
+    public void testCursorAtFieldNameWithSupplementaryPlaneCharacterBeforeIt() {
+        // The emoji sits earlier in the query, before the cursor's target token, so every
+        // downstream Source range must already be shifted correctly for this to resolve.
+        String emoji = "\uD83D\uDE00";
+        String query = "FROM test | WHERE first_name == \"" + emoji + "\" OR last_name == \"x\"";
+        int cursor = query.indexOf("last_name") + 3; // on the field name, not the literal
+        SuggestionContext context = detect(query, cursor);
+        assertEquals(Kind.FIELD_NAME, context.kind());
+    }
+
+    public void testCursorWithBmpNonAsciiCharacterBeforeIt() {
+        // Accented Latin/CJK stay within the BMP: UTF-16 units and code points coincide, so this
+        // already works without the code-point fix. Contrast with the supplementary-plane cases.
+        String query = "FROM test | WHERE first_name == \"caf\u00e9\" OR last_name == \"x\"";
+        int cursor = query.indexOf("last_name") + 3;
+        SuggestionContext context = detect(query, cursor);
+        assertEquals(Kind.FIELD_NAME, context.kind());
+    }
 }

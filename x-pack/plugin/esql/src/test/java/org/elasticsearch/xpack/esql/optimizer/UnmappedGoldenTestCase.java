@@ -23,7 +23,6 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     @Override
     protected List<String> filteredWarnings() {
         var filtered = new ArrayList<>(super.filteredWarnings());
-        // Golden tests don't compare warnings; the non-loadable PUNK warning is asserted in AnalyzerUnmappedTests and the csv-spec tests.
         filtered.add(
             "has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
         );

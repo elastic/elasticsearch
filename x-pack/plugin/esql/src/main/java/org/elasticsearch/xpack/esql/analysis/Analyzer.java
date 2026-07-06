@@ -3177,21 +3177,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    static final String NON_LOADABLE_PUNK_WARNING = "Field [{}] of type [{}] is unmapped in some indices and has no implicit "
-        + "conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices";
-
     // visible for testing
     static String nonLoadablePunkWarning(String fieldName, String mappedTypeName) {
-        return LoggerMessageFormat.format(NON_LOADABLE_PUNK_WARNING, new Object[] { fieldName, mappedTypeName });
+        return Strings.format(
+            "Field [{}] of type [{}] is unmapped in some indices and has no implicit "
+                + "conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices",
+            fieldName,
+            mappedTypeName
+        );
     }
 
     /**
-     * dense_vector has a KEYWORD converter, but it reads hexadecimal strings whereas an unmapped dense_vector loads from _source as an
-     * array of numbers (#152184). For a partially unmapped dense_vector we therefore neither implicitly cast it (that would produce
-     * garbage) nor warn about a missing KEYWORD conversion (that wording would be misleading). Both are gated on this predicate.
+     * {@code dense_vector} has a {@link DataType#KEYWORD} converter, but it reads hexadecimal strings whereas an unmapped
+     * {@code dense_vector} loads from {@code _source} as an array of numbers (#152184).
+     * For a partially unmapped {@code dense_vector} we therefore neither implicitly cast it (that would produce
+     * garbage) nor warn about a missing {@link DataType#KEYWORD} conversion (that wording would be misleading).
      */
-    private static boolean hasMisleadingKeywordConverter(DataType mappedType) {
-        return mappedType == DENSE_VECTOR;
+    // Visible for testing.
+    static boolean isValidConversionFromKeyword(DataType mappedType) {
+        return mappedType != DENSE_VECTOR;
     }
 
     /**
@@ -3210,18 +3214,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // We start by dropping synthetic attributes if the plan is resolved
             LogicalPlan cleanPlan = plan.resolved() ? planWithoutSyntheticAttributes(plan) : plan;
 
-            // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it into a
-            // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once for each such field whose value the user can
-            // actually observe (it reaches the final output or is consumed by some expression). Loadable casts produced a separate
-            // attribute with its own id (see ResolveUnionTypes#createIfDoesNotAlreadyExist), so matching by id excludes them for free.
-            //
-            // The LOAD gate looks redundant (a PUNK is only ever created when unmapped-field-index tracking is on), but it isn't: that
-            // tracking keys off the *raw* unmapped_fields setting while the analyzer may run with a different resolution. Concretely, a
-            // query carrying a PROMQL command is forced to NULLIFY (EsqlSession#analyzeWithRetry), yet if the raw setting was "load" the
-            // indices were still tracked, so PUNKs reach cleanup under NULLIFY. Warning there would be wrong (we're nullifying, not failing
-            // to load). Tracking-despite-nullify is arguably an EsqlSession bug (see the #145920 TODO there); until it's fixed this gate
-            // keeps the warning honest. Analyzer/golden tests also build PUNK indices directly and run them under NULLIFY.
             if (context.unmappedResolution() == UnmappedResolution.LOAD && cleanPlan.resolved()) {
+                // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it into a
+                // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once for each such field whose value the user
+                // can actually observe (it reaches the final output or is consumed by some, non-conversion expression).
                 warnObservedNonLoadablePunks(cleanPlan);
             }
 
@@ -3240,24 +3236,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static void warnObservedNonLoadablePunks(LogicalPlan plan) {
-            Set<NameId> observedFieldIds = observedFieldIds(plan);
+            Set<NameId> observedFieldIds = new HashSet<>();
+            plan.output().forEach(a -> observedFieldIds.add(a.id()));
+            plan.forEachDown(p -> p.references().forEach(a -> observedFieldIds.add(a.id())));
+
             Set<NameId> warned = new HashSet<>();
             plan.forEachExpressionDown(FieldAttribute.class, fa -> {
                 if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk && observedFieldIds.contains(fa.id())) {
                     DataType mappedType = punk.mappedField().getDataType();
-                    if (hasMisleadingKeywordConverter(mappedType) == false && warned.add(fa.id())) {
-                        HeaderWarning.addWarning(NON_LOADABLE_PUNK_WARNING, fa.name(), mappedType.typeName());
+                    if (isValidConversionFromKeyword(mappedType) && warned.add(fa.id())) {
+                        HeaderWarning.addWarning(nonLoadablePunkWarning(fa.name(), mappedType.typeName()));
                     }
                 }
             });
-        }
-
-        /** Ids that appear in the plan's output or in any node's references. */
-        private static Set<NameId> observedFieldIds(LogicalPlan plan) {
-            Set<NameId> ids = new HashSet<>();
-            plan.output().forEach(a -> ids.add(a.id()));
-            plan.forEachDown(p -> p.references().forEach(a -> ids.add(a.id())));
-            return ids;
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
@@ -3414,7 +3405,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk) {
                         DataType mappedType = punk.mappedField().getDataType();
 
-                        if (hasMisleadingKeywordConverter(mappedType)) {
+                        if (isValidConversionFromKeyword(mappedType) == false) {
                             return fa;
                         }
 

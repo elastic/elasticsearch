@@ -1187,10 +1187,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             }
         }
         assertThat(noConverterTypes, equalTo(NO_IMPLICIT_KEYWORD_CONVERTER_PUNK_TYPES));
-        // Each non-loadable PUNK reaches the default output (bare FROM) and warns; dense_vector is deliberately excluded.
         assertWarnings(
             noConverterTypes.stream()
-                .filter(dt -> dt.widenSmallNumeric() != DataType.DENSE_VECTOR)
+                .filter(Analyzer::isValidConversionFromKeyword)
                 .map(dt -> nonLoadablePunkWarning("test_field", dt.widenSmallNumeric().typeName()))
                 .toArray(String[]::new)
         );
@@ -1656,7 +1655,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(x.dataType(), equalTo(DataType.KEYWORD));
         var raw = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals(field)).toList());
         assertThat(raw.dataType(), equalTo(DataType.TEXT));
-        // The single KEYWORD conversion union surfaces via more than one attribute occurrence, so match rather than assume exactly one.
         assertTrue(
             "Expected x to load unmapped rows from _source via a KEYWORD union",
             unionFields(plan).stream().anyMatch(u -> u.getDataType() == DataType.KEYWORD && u.getUnmappedConversionExpression() != null)
@@ -1887,8 +1885,10 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         Set<String> mappedIndices = Set.of("idx_mapped");
         Map<String, EsField> wrappedMapping = new HashMap<>(mapping);
         for (String fieldName : partialFieldNames) {
-            EsField field = wrappedMapping.get(fieldName);
-            wrappedMapping.put(fieldName, IndexResolver.wrapPartiallyUnmappedField(field, fieldName, fieldName, mappedIndices));
+            wrappedMapping.compute(
+                fieldName,
+                (k, field) -> IndexResolver.wrapPartiallyUnmappedField(field, fieldName, fieldName, mappedIndices)
+            );
         }
         return new EsIndex("idx*", wrappedMapping, Map.of("idx_mapped", IndexMode.STANDARD), Map.of(), Map.of());
     }

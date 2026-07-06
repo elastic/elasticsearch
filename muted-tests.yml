@@ -313,9 +313,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/150045
-- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
-  method: testEstimatedHeapAllocationDecider
-  issue: https://github.com/elastic/elasticsearch/issues/150046
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:stats.weightedAvgWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/150051
@@ -656,27 +653,12 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/152355
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.create/21_synthetic_source_stored/index param - field ordering}
-  issue: https://github.com/elastic/elasticsearch/issues/152364
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=update/100_synthetic_source/stored text}
-  issue: https://github.com/elastic/elasticsearch/issues/152365
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=update/100_synthetic_source/keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/152366
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152379
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultipleIndicesAccumulateBytesRead
   issue: https://github.com/elastic/elasticsearch/issues/152425
-- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
-  method: testStoredIgnoredSource
-  issue: https://github.com/elastic/elasticsearch/issues/152448
-- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
-  method: testDocValuesIgnoredSource
-  issue: https://github.com/elastic/elasticsearch/issues/152469
 - class: org.elasticsearch.upgrades.RecoveryIT
   method: testRelocationWithConcurrentIndexing {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/152471
@@ -731,17 +713,9 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.DISIAccumulatorTests
   method: testRandom
   issue: https://github.com/elastic/elasticsearch/issues/152677
-- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
-  issue: https://github.com/elastic/elasticsearch/pull/152637
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/pull/152637
-- class: org.elasticsearch.xpack.esql.qa.mixed.SparklineWithEveryAggIT
-  issue: https://github.com/elastic/elasticsearch/pull/152637
 - class: org.elasticsearch.xpack.stateless.HollowIndexShardsMergesIT
   method: testQueuedOrOnGoingMergesPreventHollowing
   issue: https://github.com/elastic/elasticsearch/issues/152723
-- class: org.elasticsearch.xpack.esql.qa.mixed.AllSupportedFieldsIT
-  issue: https://github.com/elastic/elasticsearch/pull/152637
 - class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
   method: testSymmetric1BitDotProductMatchesNativeWhenSupported
   issue: https://github.com/elastic/elasticsearch/issues/150155
@@ -757,9 +731,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search only}
   issue: https://github.com/elastic/elasticsearch/issues/152784
-- class: org.elasticsearch.search.suggest.CompletionSuggestSearchIT
-  method: testBigSizeCircuitBreak
-  issue: https://github.com/elastic/elasticsearch/issues/152785
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search plus query}
   issue: https://github.com/elastic/elasticsearch/issues/152786

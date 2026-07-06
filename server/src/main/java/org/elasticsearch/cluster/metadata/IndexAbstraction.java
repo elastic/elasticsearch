@@ -14,7 +14,6 @@ import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * An index abstraction is a reference to one or more concrete indices.
@@ -158,19 +157,13 @@ public interface IndexAbstraction {
     /**
      * Represents an concrete index and encapsulates its {@link IndexMetadata}
      */
-    class ConcreteIndex implements IndexAbstraction {
-
-        private final Index concreteIndex;
-        private final boolean isHidden;
-        private final boolean isSystem;
-        private final DataStream dataStream;
+    record ConcreteIndex(Index concreteIndex, boolean isHidden, boolean isSystem, @Nullable DataStream dataStream)
+        implements
+            IndexAbstraction {
 
         public ConcreteIndex(IndexMetadata indexMetadata, DataStream dataStream) {
             // note: don't capture a reference to the indexMetadata here
-            this.concreteIndex = indexMetadata.getIndex();
-            this.isHidden = indexMetadata.isHidden();
-            this.isSystem = indexMetadata.isSystem();
-            this.dataStream = dataStream;
+            this(indexMetadata.getIndex(), indexMetadata.isHidden(), indexMetadata.isSystem(), dataStream);
         }
 
         public ConcreteIndex(IndexMetadata indexMetadata) {
@@ -203,11 +196,6 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public boolean isFailureIndexOfDataStream() {
-            return getParentDataStream() != null && getParentDataStream().isFailureStoreIndex(getName());
-        }
-
-        @Override
         public boolean isHidden() {
             return isHidden;
         }
@@ -218,62 +206,35 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ConcreteIndex that = (ConcreteIndex) o;
-            return isHidden == that.isHidden
-                && isSystem == that.isSystem
-                && concreteIndex.equals(that.concreteIndex)
-                && Objects.equals(dataStream, that.dataStream);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(concreteIndex, isHidden, isSystem, dataStream);
+        public boolean isFailureIndexOfDataStream() {
+            return getParentDataStream() != null && getParentDataStream().isFailureStoreIndex(getName());
         }
     }
 
     /**
      * Represents an alias and groups all {@link IndexMetadata} instances sharing the same alias name together.
      */
-    class Alias implements IndexAbstraction {
-
-        private final String aliasName;
-        private final List<Index> referenceIndices;
-        private final Index writeIndex;
-        private final boolean isHidden;
-        private final boolean isSystem;
-        private final boolean dataStreamAlias;
-        private final List<String> dataStreams;
+    record Alias(
+        String name,
+        List<Index> referenceIndices,
+        @Nullable Index writeIndex,
+        boolean isHidden,
+        boolean isSystem,
+        boolean isDataStreamRelated,
+        List<String> dataStreams
+    ) implements IndexAbstraction {
 
         public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indexMetadatas) {
             // note: don't capture a reference to any of these indexMetadata here
-            this.aliasName = aliasMetadata.getAlias();
-            this.referenceIndices = new ArrayList<>(indexMetadatas.size());
-            boolean isSystem = true;
-            Index widx = null;
-            for (IndexMetadata imd : indexMetadatas) {
-                this.referenceIndices.add(imd.getIndex());
-                if (Boolean.TRUE.equals(imd.getAliases().get(aliasName).writeIndex())) {
-                    if (widx != null) {
-                        throw new IllegalStateException("write indices size can only be 0 or 1, but is at least 2");
-                    }
-                    widx = imd.getIndex();
-                }
-                isSystem = isSystem && imd.isSystem();
-            }
-            this.referenceIndices.sort(Index.COMPARE_BY_NAME);
-
-            if (widx == null && indexMetadatas.size() == 1 && indexMetadatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
-                widx = indexMetadatas.get(0).getIndex();
-            }
-            this.writeIndex = widx;
-
-            this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
-            this.isSystem = isSystem;
-            dataStreamAlias = false;
-            dataStreams = List.of();
+            this(
+                aliasMetadata.getAlias(),
+                sortedIndices(indexMetadatas),
+                writeIndex(aliasMetadata.getAlias(), indexMetadatas),
+                Boolean.TRUE.equals(aliasMetadata.isHidden()),
+                isSystem(indexMetadatas),
+                false,
+                List.of()
+            );
         }
 
         public Alias(
@@ -282,13 +243,39 @@ public interface IndexAbstraction {
             Index writeIndexOfWriteDataStream,
             List<String> dataStreams
         ) {
-            this.aliasName = dataStreamAlias.getName();
-            this.referenceIndices = indicesOfAllDataStreams;
-            this.writeIndex = writeIndexOfWriteDataStream;
-            this.isHidden = false;
-            this.isSystem = false;
-            this.dataStreamAlias = true;
-            this.dataStreams = dataStreams;
+            this(dataStreamAlias.getName(), indicesOfAllDataStreams, writeIndexOfWriteDataStream, false, false, true, dataStreams);
+        }
+
+        private static List<Index> sortedIndices(List<IndexMetadata> indexMetadatas) {
+            List<Index> indices = new ArrayList<>(indexMetadatas.size());
+            for (IndexMetadata imd : indexMetadatas) {
+                indices.add(imd.getIndex());
+            }
+            indices.sort(Index.COMPARE_BY_NAME);
+            return indices;
+        }
+
+        private static Index writeIndex(String aliasName, List<IndexMetadata> indexMetadatas) {
+            Index widx = null;
+            for (IndexMetadata imd : indexMetadatas) {
+                if (Boolean.TRUE.equals(imd.getAliases().get(aliasName).writeIndex())) {
+                    if (widx != null) {
+                        throw new IllegalStateException("write indices size can only be 0 or 1, but is at least 2");
+                    }
+                    widx = imd.getIndex();
+                }
+            }
+            if (widx == null && indexMetadatas.size() == 1 && indexMetadatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                widx = indexMetadatas.get(0).getIndex();
+            }
+            return widx;
+        }
+
+        private static boolean isSystem(List<IndexMetadata> indexMetadatas) {
+            for (IndexMetadata imd : indexMetadatas) {
+                if (imd.isSystem() == false) return false;
+            }
+            return true;
         }
 
         @Override
@@ -296,8 +283,9 @@ public interface IndexAbstraction {
             return Type.ALIAS;
         }
 
+        @Override
         public String getName() {
-            return aliasName;
+            return name;
         }
 
         @Override
@@ -322,6 +310,7 @@ public interface IndexAbstraction {
         }
 
         @Nullable
+        @Override
         public Index getWriteIndex() {
             return writeIndex;
         }
@@ -339,17 +328,11 @@ public interface IndexAbstraction {
 
         @Override
         public Index getWriteIndex(IndexRequest request, ProjectMetadata project) {
-            if (dataStreamAlias == false) {
+            if (isDataStreamRelated() == false) {
                 return getWriteIndex();
             }
 
             return project.getIndicesLookup().get(getWriteIndex().getName()).getParentDataStream().getWriteIndex(request, project);
-        }
-
-        @Override
-        public DataStream getParentDataStream() {
-            // aliases may not be part of a data stream
-            return null;
         }
 
         @Override
@@ -364,25 +347,13 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isDataStreamRelated() {
-            return dataStreamAlias;
+            return isDataStreamRelated;
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Alias alias = (Alias) o;
-            return isHidden == alias.isHidden
-                && isSystem == alias.isSystem
-                && dataStreamAlias == alias.dataStreamAlias
-                && aliasName.equals(alias.aliasName)
-                && referenceIndices.equals(alias.referenceIndices)
-                && Objects.equals(writeIndex, alias.writeIndex);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(aliasName, referenceIndices, writeIndex, isHidden, isSystem, dataStreamAlias);
+        public DataStream getParentDataStream() {
+            // aliases may not be part of a data stream
+            return null;
         }
     }
 }

@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,7 +25,7 @@ import java.util.Objects;
 /**
  * Represents a single view definition, which is simply a name and a query string.
  */
-public final class View implements Writeable, ToXContentObject, IndexAbstraction {
+public record View(String name, String query) implements Writeable, ToXContentObject, IndexAbstraction {
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField QUERY = new ParseField("query");
 
@@ -53,21 +52,13 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         return parser;
     }
 
-    private final String name;
-    private final String query;
-
-    public View(String name, String query) {
-        this.name = Objects.requireNonNull(name, "view name must not be null");
-        this.query = Objects.requireNonNull(query, "view query must not be null");
+    public View {
+        Objects.requireNonNull(name, "view name must not be null");
+        Objects.requireNonNull(query, "view query must not be null");
     }
 
     public View(StreamInput in) throws IOException {
-        this.name = in.readString();
-        this.query = in.readString();
-    }
-
-    public static View fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        this(in.readString(), in.readString());
     }
 
     @Override
@@ -76,12 +67,8 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         out.writeString(query);
     }
 
-    public String name() {
-        return name;
-    }
-
-    public String query() {
-        return query;
+    public static View fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     @Override
@@ -91,23 +78,6 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         builder.field(QUERY.getPreferredName(), query);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        View other = (View) o;
-        return Objects.equals(name, other.name) && Objects.equals(query, other.query);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name, query);
-    }
-
-    public String toString() {
-        return Strings.toString(this);
     }
 
     @Override

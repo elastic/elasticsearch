@@ -34,9 +34,7 @@ The `unmapped_fields` setting accepts three values, which range from strict to p
 | --- | --- | --- |
 | `DEFAULT` | The query fails when it references a field that is not mapped in any queried index. For a partially mapped field, documents from indices where the field is not mapped return `null`. This is the default behavior. | You want strict schema enforcement and prefer an error when a field is completely unmapped. |
 | `NULLIFY` | Fields that are not mapped in any queried index return `null`. Partially mapped fields behave as they do in `DEFAULT`: documents from indices where the field is not mapped return `null`. | You want a reusable query to continue when a field is not available in a dataset. |
-| `LOAD` {applies_to}`stack: preview 9.4` | {{esql}} loads a fully unmapped field from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) as `keyword`. For a partially mapped field, it loads values from `_source` where the field is unmapped. Fields absent from `_source` return `null`. | You need the real values of a fully or partially unmapped field, so that you can filter or aggregate on it. |
-
-{applies_to}`stack: preview 9.5` For a partially mapped field with a non-`keyword` type, `LOAD` converts the loaded values to the field's mapped type where possible.
+| `LOAD` {applies_to}`stack: preview 9.4` | {{esql}} loads a fully unmapped field from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) as `keyword`. For a partially mapped field, it loads values from `_source` where the field is unmapped. Fields absent from `_source` return `null`.<br><br>{applies_to}`stack: preview 9.5` For a partially mapped field with a non-`keyword` type, `LOAD` converts the loaded values to the field's mapped type where possible. | You need the real values of a fully or partially unmapped field, so that you can filter or aggregate on it. |
 
 For the full syntax, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 

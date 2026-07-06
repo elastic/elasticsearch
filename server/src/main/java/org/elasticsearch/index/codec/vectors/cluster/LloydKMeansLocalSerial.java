@@ -10,10 +10,10 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 
 import java.io.IOException;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Single threaded implementation of Lloyd's k-means.
@@ -37,7 +37,7 @@ class LloydKMeansLocalSerial<V> extends LloydKMeansLocal<V> {
     @Override
     protected boolean stepLloyd(
         ClusteringVectorValues<V> vectors,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
@@ -60,10 +60,10 @@ class LloydKMeansLocalSerial<V> extends LloydKMeansLocal<V> {
     @Override
     protected OverspillAssignments assignSpilled(
         ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kMeansIntermediate,
+        KMeansResult<V> kMeansResult,
         NeighborHood[] neighborhoods
     ) throws IOException {
-        return soar.assignSpilled(vectors, kMeansIntermediate, neighborhoods);
+        return soar.assignSpilled(vectors, kMeansResult, neighborhoods);
     }
 
     @Override

@@ -315,6 +315,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_SMALL_NUMERIC,
 
         /**
+         * Null-fallback under {@code unmapped_fields="load"}: full-text search functions are supported, and single-type partially
+         * unmapped non-keyword fields (PUNKs) fall back to their mapped type, nullifying the unmapped rows -- matching the default
+         * (no-load) behavior -- instead of being rejected. This also lets such fields be renamed and used in expressions.
+         */
+        OPTIONAL_FIELDS_UNMAPPED_LOAD_NULL_FALLBACK,
+
+        /**
          * Bugfix: {@code IndexResolver.mergedMappings} crashed with {@code UnsupportedOperationException} when a keyword
          * field with multi-fields (e.g. {@code my_field.analyzed}) was partially unmapped across the queried indices and
          * {@code SET unmapped_fields="load"} was active. {@code PotentiallyUnmappedKeywordEsField} was constructed with
@@ -1393,24 +1400,21 @@ public class EsqlCapabilities {
 
         /**
          * Support IN non-correlated subqueries in WHERE command.
-         * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
-         * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
-         * once the InSubquery feature graduates from snapshot-only to production.
          */
-        WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
+        WHERE_IN_SUBQUERY,
 
         /**
          * Support IN non-correlated subqueries in WHERE command without View. When a view is referenced by an IN subquery, or there is an
          * IN subquery inside the view definition(especially nested views), it is out of the scope of this capability.
          * Add a new capability, so that integration tests don't run on nodes that only have WHERE_IN_SUBQUERY capability.
          */
-        WHERE_IN_SUBQUERY_WITHOUT_VIEW(Build.current().isSnapshot()),
+        WHERE_IN_SUBQUERY_WITHOUT_VIEW,
 
         /**
          * Support IN non-correlated subqueries in WHERE command with View. The views can be referenced by IN subqueries, and the view
          * definition can contain IN subqueries.
          */
-        WHERE_IN_SUBQUERY_WITH_VIEW(Build.current().isSnapshot()),
+        WHERE_IN_SUBQUERY_WITH_VIEW,
 
         /**
          * Support ROW as a source command inside subquery in the from command.
@@ -1426,7 +1430,7 @@ public class EsqlCapabilities {
          * Fixed {@code TranslateTimeSeriesWithout} and {@code TranslateTimeSeriesAggregate} to associate time-series attributes with the
          * correct time-series index when a join presents.
          */
-        WHERE_IN_SUBQUERY_WITH_TS(Build.current().isSnapshot()),
+        WHERE_IN_SUBQUERY_WITH_TS,
         /**
          * Support for views in cluster state (and REST API).
          */
@@ -2684,6 +2688,18 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Correct decoding of a {@code LIST} leaf reached through a {@code STRUCT}
+         * (e.g. {@code answers.text} where {@code answers} is {@code struct<text: list<string>>}).
+         * Such leaves previously bound to no column descriptor and read as all-null on the Parquet
+         * (Java) reader; this capability gates the csv-spec tests that assert the multivalues now
+         * round-trip. Separate from {@link #EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION} so nodes that
+         * predate the fix (and other format readers) skip the tests instead of failing them.
+         *
+         * <p>Tracks: elastic/esql-planning#1055 (correctness gap for Parquet-Java list-under-struct).
+         */
+        EXTERNAL_SOURCE_LIST_UNDER_STRUCT(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Multi-file external UNION_BY_NAME widens cross-file type disagreements to KEYWORD
          * instead of throwing at planning time. The reconciler emits a warning header per
          * affected column, the per-file ColumnMapping carries a stringification cast, and the
@@ -3062,7 +3078,7 @@ public class EsqlCapabilities {
         /**
          * Match function and match operator support for runtime expressions, not just ES mapped fields.
          */
-        MATCH_RUNTIME_SEARCH(Build.current().isSnapshot()),
+        MATCH_RUNTIME_SEARCH,
 
         /**
          * Fix for column pruning when FORK branches return no columns.

@@ -9,4 +9,4 @@ highlight:
 issues: []
 pr: 152861
 summary: Make ES95 the default TSDB doc values codec
-type: non-issue
+type: feature

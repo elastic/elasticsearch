@@ -11,12 +11,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -136,14 +138,16 @@ public class CoalescedSplit implements ExternalSplit {
             return children.getFirst().splitStats();
         }
         List<SplitStats> childStats = new ArrayList<>(children.size());
+        List<Map<String, DataType>> childTypes = new ArrayList<>(children.size());
         for (ExternalSplit child : children) {
             SplitStats cs = child.splitStats();
             if (cs == null) {
                 return null;
             }
             childStats.add(cs);
+            childTypes.add(MergedSplitStats.readSchemaTypes(child));
         }
-        return new MergedSplitStats(childStats);
+        return new MergedSplitStats(childStats, childTypes);
     }
 
     @Override

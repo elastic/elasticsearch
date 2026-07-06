@@ -109,27 +109,38 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
             value = applyFlattenedNullValue(value, nullValue);
         }
         ValuesMode mode = ValuesMode.from(fieldMapping, params);
-        return flattenAndStringify(value, mode);
+        var ignoreAboveRaw = fieldMapping.get("ignore_above");
+        int ignoreAbove = ignoreAboveRaw instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+        return flattenAndStringify(value, mode, ignoreAbove);
     }
 
     private enum ValuesMode {
-        /** Keep values in source order, preserve duplicates and nulls (preserve_leaf_arrays: exact). */
-        AS_IS,
+        /**
+         * Columnar inline ordering (strict-columnar + exact): non-ignored values in source order,
+         * ignored values (exceeding ignore_above) tail-appended per key in sorted byte order.
+         */
+        AS_IS_INLINE,
+        /**
+         * Offsets-sidecar ordering (non-columnar + exact): all values including those exceeding
+         * ignore_above are restored to their original source order via the offsets sidecar.
+         */
+        AS_IS_OFFSETS,
         /** Sort values and remove duplicates. Both SortedSetDocValues and SortedBinaryDocValues
          *  use SORTED_UNIQUE ordering for flattened fields. */
         SORTED_UNIQUE;
 
+        boolean isExact() {
+            return this == AS_IS_INLINE || this == AS_IS_OFFSETS;
+        }
+
         static ValuesMode from(Map<String, Object> fieldMapping, Params params) {
             var configuredValue = fieldMapping.get("preserve_leaf_arrays");
-            if ("exact".equals(configuredValue)) {
-                // preserve_leaf_arrays: exact preserves duplicates, null slots, and original order
-                // in both the doc values path (via offset stream) and the source path.
-                return AS_IS;
+            boolean isExact = "exact".equals(configuredValue) || (configuredValue == null && params.indexMode().isStrictColumnar());
+            if (isExact == false) {
+                return SORTED_UNIQUE;
             }
-            if (configuredValue == null && params.indexMode().isStrictColumnar()) {
-                return AS_IS;
-            }
-            return SORTED_UNIQUE;
+            // Inline ordering requires columnar index mode AND binary doc values.
+            return params.indexMode().isStrictColumnar() && params.binaryDocValues() ? AS_IS_INLINE : AS_IS_OFFSETS;
         }
     }
 
@@ -163,10 +174,10 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
      * because the block loader produces one JSON blob per document.
      */
     @SuppressWarnings("unchecked")
-    private static Object flattenAndStringify(Object value, ValuesMode mode) {
+    private static Object flattenAndStringify(Object value, ValuesMode mode, int ignoreAbove) {
         return switch (value) {
             case null -> null;
-            case Map<?, ?> map -> flattenMaps(List.of((Map<String, Object>) map), mode);
+            case Map<?, ?> map -> flattenMaps(List.of((Map<String, Object>) map), mode, ignoreAbove);
             case List<?> list -> {
                 List<Map<String, Object>> maps = new ArrayList<>();
                 for (Object item : list) {
@@ -174,13 +185,13 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
                         maps.add((Map<String, Object>) item);
                     }
                 }
-                yield maps.isEmpty() ? null : flattenMaps(maps, mode);
+                yield maps.isEmpty() ? null : flattenMaps(maps, mode, ignoreAbove);
             }
             default -> value;
         };
     }
 
-    private static LinkedHashMap<String, Object> flattenMaps(List<Map<String, Object>> maps, ValuesMode mode) {
+    private static LinkedHashMap<String, Object> flattenMaps(List<Map<String, Object>> maps, ValuesMode mode, int ignoreAbove) {
         TreeMap<BytesRef, List<BytesRef>> flat = new TreeMap<>();
         for (Map<String, Object> map : maps) {
             flattenSource("", map, flat, mode);
@@ -188,7 +199,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         if (flat.isEmpty()) {
             return null;
         }
-        collapseValues(flat, mode);
+        collapseValues(flat, mode, ignoreAbove);
         // Convert to a LinkedHashMap preserving the BytesRef key order
         LinkedHashMap<String, Object> result = new LinkedHashMap<>();
         for (Map.Entry<BytesRef, List<BytesRef>> e : flat.entrySet()) {
@@ -219,28 +230,55 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
                 for (Object item : list) {
                     if (item != null) {
                         result.computeIfAbsent(new BytesRef(key), k -> new ArrayList<>()).add(new BytesRef(item.toString()));
-                    } else if (mode == ValuesMode.AS_IS) {
+                    } else if (mode.isExact()) {
                         result.computeIfAbsent(new BytesRef(key), k -> new ArrayList<>()).add(null);
                     }
                 }
             } else if (value != null) {
                 result.computeIfAbsent(new BytesRef(key), k -> new ArrayList<>()).add(new BytesRef(value.toString()));
-            } else if (mode == ValuesMode.AS_IS) {
+            } else if (mode.isExact()) {
                 result.computeIfAbsent(new BytesRef(key), k -> new ArrayList<>()).add(null);
             }
         }
     }
 
-    private static void collapseValues(TreeMap<BytesRef, List<BytesRef>> result, ValuesMode mode) {
-        if (mode == ValuesMode.AS_IS) {
-            // preserve_leaf_arrays: exact — offset stream restores original order, dups, and nulls
-            return;
-        }
-        for (Map.Entry<BytesRef, List<BytesRef>> entry : result.entrySet()) {
-            List<BytesRef> list = entry.getValue();
-            TreeSet<BytesRef> unique = new TreeSet<>(list);
-            list.clear();
-            list.addAll(unique);
+    private static void collapseValues(TreeMap<BytesRef, List<BytesRef>> result, ValuesMode mode, int ignoreAbove) {
+        switch (mode) {
+            case AS_IS_INLINE -> {
+                // Ignored values (exceeding ignore_above) are stored separately and tail-appended
+                // per key in sorted byte order; non-ignored values stay in document order.
+                if (ignoreAbove < Integer.MAX_VALUE) {
+                    for (List<BytesRef> list : result.values()) {
+                        List<BytesRef> notIgnored = new ArrayList<>();
+                        List<BytesRef> ignored = new ArrayList<>();
+                        for (BytesRef v : list) {
+                            if (v == null || v.utf8ToString().length() <= ignoreAbove) {
+                                notIgnored.add(v);
+                            } else {
+                                ignored.add(v);
+                            }
+                        }
+                        if (ignored.isEmpty() == false) {
+                            Collections.sort(ignored);
+                            list.clear();
+                            list.addAll(notIgnored);
+                            list.addAll(ignored);
+                        }
+                    }
+                }
+            }
+            case AS_IS_OFFSETS -> {
+                // The offsets sidecar restores original document order for all values including
+                // those that exceeded ignore_above, so no reordering is needed.
+            }
+            case SORTED_UNIQUE -> {
+                for (Map.Entry<BytesRef, List<BytesRef>> entry : result.entrySet()) {
+                    List<BytesRef> list = entry.getValue();
+                    TreeSet<BytesRef> unique = new TreeSet<>(list);
+                    list.clear();
+                    list.addAll(unique);
+                }
+            }
         }
     }
 

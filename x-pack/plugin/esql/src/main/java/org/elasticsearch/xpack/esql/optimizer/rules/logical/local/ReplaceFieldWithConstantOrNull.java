@@ -84,7 +84,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         // Also retain fields from lookup indices and external sources because we do not have stats for these.
         Predicate<FieldAttribute> shouldBeRetained = f -> f instanceof TimeSeriesMetadataAttribute
             // We should still attempt to load potentially unmapped fields if they're unmapped; that's the whole point!
-            || isPotentiallyUnmapped(f)
+            || f.isPotentiallyUnmapped()
             // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
             || EsQueryExec.isDocAttribute(f)
             // MissingEsField means the coordinator explicitly nullified this field (unmapped_fields="nullify").

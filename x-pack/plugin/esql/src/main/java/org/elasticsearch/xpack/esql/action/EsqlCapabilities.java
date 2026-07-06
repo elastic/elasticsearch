@@ -2031,7 +2031,7 @@ public class EsqlCapabilities {
          * {@code RECHECK} so the row-level evaluator rechecks each candidate and returns {@code null}
          * for multi-valued positions, which {@code FilterOperator} treats as {@code false}.
          */
-        DATE_RANGE_FIELD_TYPE_V6(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V6,
 
         /**
          * Network direction function.
@@ -3206,6 +3206,11 @@ public class EsqlCapabilities {
          * Support for MV_FIRST and MV_LAST with date_range type.
          */
         MV_FIRST_LAST_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
+         * Support for COUNT, COUNT_APPROXIMATE, PRESENT, ABSENT, MV_COUNT with date_range type.
+         */
+        AGG_BASIC_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
          * Support for ESQL parameters in PromQL label matchers:

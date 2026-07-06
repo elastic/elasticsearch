@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -633,7 +634,7 @@ public final class PromqlFunctionDefinition {
                         new ToDatetime(
                             source,
                             new Mul(source, new ToDouble(source, date), Literal.fromDouble(source, 1000.0)),
-                            ctx.configuration().withZoneId(ZoneOffset.UTC)
+                            ctx.configuration().withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC)
                         ),
                         ctx.configuration()
                     );

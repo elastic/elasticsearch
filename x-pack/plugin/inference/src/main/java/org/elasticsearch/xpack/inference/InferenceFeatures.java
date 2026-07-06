@@ -84,6 +84,7 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
     public static final NodeFeature SEMANTIC_TEXT_EMBEDDING_TASK = new NodeFeature("semantic_text.inference_using_embedding_task");
     public static final NodeFeature INFERENCE_INFERENCE_INDEX_DOC_TYPE = new NodeFeature("inference.inference_index_doc_type");
+    public static final NodeFeature INFERENCE_CLEAR_PREFERENCES_CACHE = new NodeFeature("inference.clear_preferences_cache");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -95,7 +96,8 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_CCM_ENABLEMENT_SERVICE,
             EMBEDDING_TASK_TYPE,
             ENDPOINT_METADATA_FIELD,
-            INFERENCE_INFERENCE_INDEX_DOC_TYPE
+            INFERENCE_INFERENCE_INDEX_DOC_TYPE,
+            INFERENCE_CLEAR_PREFERENCES_CACHE
         );
     }
 

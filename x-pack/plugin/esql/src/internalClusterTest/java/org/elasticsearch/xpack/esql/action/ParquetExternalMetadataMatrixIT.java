@@ -7,22 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
-import org.apache.parquet.example.data.simple.SimpleGroupFactory;
-import org.apache.parquet.hadoop.ParquetWriter;
-import org.apache.parquet.hadoop.example.ExampleParquetWriter;
-import org.apache.parquet.hadoop.metadata.CompressionCodecName;
-import org.apache.parquet.io.OutputFile;
-import org.apache.parquet.io.PositionOutputStream;
-import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.io.ByteArrayOutputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
@@ -53,82 +42,22 @@ public class ParquetExternalMetadataMatrixIT extends AbstractExternalMetadataMat
 
     @Override
     protected String writeFixture(Path dir) throws Exception {
-        // int32 -> INTEGER, binary (UTF8) -> KEYWORD. Single row group keeps the three rows in one
-        // file at offsets 0,1,2.
-        MessageType schema = MessageTypeParser.parseMessageType(
-            "message employees { required int32 emp_no; required binary first_name (UTF8); required binary host_ip (UTF8); }"
-        );
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        // int32 -> INTEGER, binary (UTF8) -> KEYWORD. A large row-group size keeps the three rows in one
+        // row group, so they sit in the file at offsets 0,1,2.
         String[] firstNames = { "Alice", "Bob", "Carol" };
         String[] hostIps = { "10.0.0.1", "10.0.0.2", "10.0.0.3" };
-
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
-                .withConf(new PlainParquetConfiguration())
-                .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
-                .build()
-        ) {
-            for (int i = 0; i < 3; i++) {
-                Group g = factory.newGroup();
+        Path file = dir.resolve("employees.parquet");
+        writeParquet(
+            file,
+            "message employees { required int32 emp_no; required binary first_name (UTF8); required binary host_ip (UTF8); }",
+            3,
+            1024 * 1024,
+            (Group g, int i) -> {
                 g.add("emp_no", i + 1);
                 g.add("first_name", firstNames[i]);
                 g.add("host_ip", hostIps[i]);
-                writer.write(g);
             }
-        }
-
-        Path file = dir.resolve("employees.parquet");
-        Files.write(file, baos.toByteArray());
+        );
         return StoragePath.fileUri(file);
-    }
-
-    /** In-memory {@link OutputFile} so the writer streams into a byte buffer we then flush to disk. */
-    private static OutputFile createOutputFile(ByteArrayOutputStream baos) {
-        return new OutputFile() {
-            @Override
-            public PositionOutputStream create(long blockSizeHint) {
-                return positionStream(baos);
-            }
-
-            @Override
-            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
-                return positionStream(baos);
-            }
-
-            @Override
-            public boolean supportsBlockSize() {
-                return false;
-            }
-
-            @Override
-            public long defaultBlockSize() {
-                return 0;
-            }
-        };
-    }
-
-    private static PositionOutputStream positionStream(ByteArrayOutputStream baos) {
-        return new PositionOutputStream() {
-            private long position = 0;
-
-            @Override
-            public long getPos() {
-                return position;
-            }
-
-            @Override
-            public void write(int b) {
-                baos.write(b);
-                position++;
-            }
-
-            @Override
-            public void write(byte[] b, int off, int len) {
-                baos.write(b, off, len);
-                position += len;
-            }
-        };
     }
 }

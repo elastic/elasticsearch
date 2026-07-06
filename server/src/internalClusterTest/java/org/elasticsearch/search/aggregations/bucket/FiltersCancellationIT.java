@@ -39,6 +39,7 @@ import java.util.concurrent.Semaphore;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -109,6 +110,8 @@ public class FiltersCancellationIT extends ESIntegTestCase {
                 bulk.add(prepareIndex(INDEX).setId(Integer.toString(docId)).setSource(NUMERIC_FIELD, docId));
             }
             bulk.get();
+            // Flush to clear all the assertion translog *stuff*. Else we can oom the cluster.
+            assertAllSuccessful(client().admin().indices().prepareFlush(INDEX).get());
         }
 
         client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get();

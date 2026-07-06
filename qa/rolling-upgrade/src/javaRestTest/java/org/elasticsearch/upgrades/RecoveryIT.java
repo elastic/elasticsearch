@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -197,43 +198,46 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
         assertThat("preference [" + preference + "]", actualDocs, equalTo(expectedCount));
     }
 
-    private String getNodeId(Predicate<Version> versionPredicate) throws IOException {
-        return findNodeId((id, version, buildHash) -> versionPredicate.test(Version.fromString(version)));
+    private NodeVersionSpec getNodeId(Predicate<Version> versionPredicate) throws IOException {
+        return findRandomNodeId(nodeVersionSpec -> versionPredicate.test(Version.fromString(nodeVersionSpec.version())));
     }
 
-    private String tryGetUpgradedNodeId() throws IOException {
-        var nodeId = findNodeId((id, version, buildHash) -> isOldClusterVersion(version, buildHash) == false);
-        if (nodeId == null) {
+    private NodeVersionSpec tryGetUpgradedNodeId() throws IOException {
+        var matchingNodeSpec = findRandomNodeId(
+            nodeVersionSpec -> isOldClusterVersion(nodeVersionSpec.version(), nodeVersionSpec.buildHash()) == false
+        );
+        if (matchingNodeSpec == null) {
             // This means we "upgraded" to the same version, or have not yet upgraded any nodes, take any node ID
-            nodeId = findNodeId((id, version, buildHash) -> true);
-            logger.info("All nodes on same version, taking {} as \"upgraded\" node", nodeId);
+            matchingNodeSpec = findRandomNodeId(nodeVersionSpec -> true);
+            logger.info("All nodes on same version, taking {} as \"upgraded\" node", matchingNodeSpec);
         }
-        return nodeId;
+        return matchingNodeSpec;
     }
 
-    private String getOldNodeId(NodePredicate nodePredicate) throws IOException {
-        return findNodeId(
-            (id, version, buildHash) -> isOldClusterVersion(version, buildHash) && nodePredicate.test(id, version, buildHash)
+    private NodeVersionSpec getOldNodeId(Predicate<NodeVersionSpec> nodePredicate) throws IOException {
+        return findRandomNodeId(
+            nodeVersionSpec -> isOldClusterVersion(nodeVersionSpec.version(), nodeVersionSpec.buildHash())
+                && nodePredicate.test(nodeVersionSpec)
         );
     }
 
-    private String findNodeId(NodePredicate predicate) throws IOException {
+    private NodeVersionSpec findRandomNodeId(Predicate<NodeVersionSpec> predicate) throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+        final var matchingNodes = new HashSet<NodeVersionSpec>();
         for (String id : nodesAsMap.keySet()) {
             String version = objectPath.evaluate("nodes." + id + ".version");
             String buildHash = objectPath.evaluate("nodes." + id + ".build_hash");
-            if (predicate.test(id, version, buildHash)) {
-                return id;
+            NodeVersionSpec nodeVersionSpec = new NodeVersionSpec(id, version, buildHash);
+            if (predicate.test(nodeVersionSpec)) {
+                matchingNodes.add(nodeVersionSpec);
             }
         }
-        return null;
+        return matchingNodes.isEmpty() ? null : randomFrom(matchingNodes);
     }
 
-    private interface NodePredicate {
-        boolean test(String id, String version, String buildHash);
-    }
+    private record NodeVersionSpec(String id, String version, String buildHash) {}
 
     public void testRelocationWithConcurrentIndexing() throws Exception {
         final String index = "relocation_with_concurrent_indexing";
@@ -253,10 +257,10 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
             // node stops, we lose the master too, so a replica will not be promoted)
             updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
         } else if (isMixedCluster()) {
-            final String newNode = tryGetUpgradedNodeId();
+            final NodeVersionSpec newNode = tryGetUpgradedNodeId();
             assertNotNull(newNode);
             // We need to ensure we don't select the same node for old & new, which could occur in an "upgrade" to the same version
-            final String oldNode = getOldNodeId((id, version, buildHash) -> newNode.equals(id) == false);
+            final NodeVersionSpec oldNode = getOldNodeId(nodeVersionSpec -> !newNode.equals(nodeVersionSpec));
             assertNotNull(oldNode);
 
             // remove the replica and guarantee the primary is placed on the old node
@@ -265,14 +269,14 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
                 Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null)
-                    .put("index.routing.allocation.include._id", oldNode)
+                    .put("index.routing.allocation.include._id", oldNode.id())
                     .putNull("index.routing.allocation.include._tier_preference")
             );
             ensureGreen(index); // wait for the primary to be assigned
             ensureNoInitializingShards(); // wait for all other shard activity to finish
             updateIndexSettingsPermittingSlowlogDeprecationWarning(
                 index,
-                Settings.builder().put("index.routing.allocation.include._id", newNode)
+                Settings.builder().put("index.routing.allocation.include._id", newNode.id())
             );
             asyncIndexDocs(index, 10, 50).get();
             // ensure the relocation from old node to new node has occurred; otherwise ensureGreen can
@@ -283,11 +287,11 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
                 @SuppressWarnings("unchecked")
                 List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
                 assertNotNull(state.toString(), assignedNodes);
-                assertThat(state.toString(), newNode, in(assignedNodes));
+                assertThat(state.toString(), newNode.id(), in(assignedNodes));
             }, 60, TimeUnit.SECONDS);
             ensureGreen(index);
             client().performRequest(new Request("POST", index + "/_refresh"));
-            assertCount(index, "_only_nodes:" + newNode, 60);
+            assertCount(index, "_only_nodes:" + newNode.id(), 60);
         } else if (isUpgradedCluster()) {
             updateIndexSettings(
                 index,

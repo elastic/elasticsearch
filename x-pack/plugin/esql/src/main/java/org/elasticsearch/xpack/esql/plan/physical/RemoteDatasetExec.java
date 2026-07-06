@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Dataset;
 
 import java.io.IOException;
@@ -24,11 +27,18 @@ import java.util.Objects;
  * cluster, from the federation {@code resolve_schema} seam) and the resolved output schema — the merge currency the rest
  * of the plan already resolves against.
  * <p>
- * <b>POC stub:</b> the architecture is the deliverable — a {@code REMOTE} {@link Dataset} survives analysis and the
- * {@code Mapper} lowers it here. The actual cross-cluster dispatch + source operator are <b>not built</b>; this node has
- * no real execution and is not wire-serialized ({@link #writeTo} throws). Mirrors {@code RemoteViewExec}.
+ * Execution mirrors {@link RemoteViewExec} exactly — the same {@code execute_abstraction} action serves both, because the
+ * remote resolves the name through the same kind-blind {@code SchemaService} umbrella. The coordinator lowers this leaf to
+ * an exchange-source operator, opens an exchange to {@link #handle}, dispatches {@code ExecuteAbstractionRequest} carrying
+ * only the dataset's {@link #datasetName}, and polls result pages back.
  */
 public class RemoteDatasetExec extends LeafExec {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "RemoteDatasetExec",
+        RemoteDatasetExec::new
+    );
 
     private final String datasetName;
     private final String handle;
@@ -39,6 +49,15 @@ public class RemoteDatasetExec extends LeafExec {
         this.datasetName = datasetName;
         this.handle = handle;
         this.output = output;
+    }
+
+    private RemoteDatasetExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readString(),
+            in.readString(),
+            in.readNamedWriteableCollectionAsList(Attribute.class)
+        );
     }
 
     public String datasetName() {
@@ -61,12 +80,15 @@ public class RemoteDatasetExec extends LeafExec {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("RemoteDatasetExec is a POC stub with no execution and must not be serialized");
+        source().writeTo(out);
+        out.writeString(datasetName);
+        out.writeString(handle);
+        out.writeNamedWriteableCollection(output);
     }
 
     @Override
     public String getWriteableName() {
-        return "RemoteDatasetExec";
+        return ENTRY.name;
     }
 
     @Override

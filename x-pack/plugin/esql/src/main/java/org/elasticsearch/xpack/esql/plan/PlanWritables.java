@@ -69,6 +69,8 @@ import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteDatasetExec;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteViewExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
@@ -173,6 +175,8 @@ public class PlanWritables {
             IpLocationExec.ENTRY,
             MetricsInfoExec.ENTRY,
             RegisteredDomainExec.ENTRY,
+            RemoteDatasetExec.ENTRY,
+            RemoteViewExec.ENTRY,
             TsInfoExec.ENTRY,
             UserAgentExec.ENTRY
         );

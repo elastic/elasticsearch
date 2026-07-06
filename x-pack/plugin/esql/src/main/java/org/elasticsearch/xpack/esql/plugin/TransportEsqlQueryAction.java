@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
@@ -87,6 +88,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -111,6 +113,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final UsageService usageService;
     private final TransportActionServices services;
     private final ActivityLogger<EsqlLogContext> activityLogger;
+    @SuppressWarnings("unused") // retained for lifecycle; registers the execute_abstraction transport handler in its ctor
+    private final AbstractionComputeHandler abstractionComputeHandler;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -229,6 +233,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
             dataSourceModule.formatReaderRegistry()
+        );
+
+        // The home-cluster receiver of the federation execution half (the sibling of ClusterComputeHandler). Registers
+        // the execute_abstraction transport handler in its ctor. Constructed here because resolving an abstraction by
+        // name needs the full planExecutor.esql(...) stack (resolvers, services, external-source executor) that
+        // ComputeService cannot reach — the same reason the exchange transport handler is registered here (above).
+        this.abstractionComputeHandler = new AbstractionComputeHandler(
+            computeService,
+            exchangeService,
+            transportService,
+            requestExecutor,
+            this::resolveAndExecuteAbstraction
         );
 
         this.activityLogger = new QueryLogger<>(
@@ -410,6 +426,49 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             })
         );
 
+    }
+
+    /**
+     * The home-cluster resolve+plan+run seam that {@link AbstractionComputeHandler} drives. Synthesizes a
+     * {@code FROM `<name>`} query, assembles the {@code planExecutor.esql(...)} call exactly as {@link #innerExecute}
+     * does (same resolvers, services, external-source executor, live analyzer settings), and drives it with a sink-bound
+     * {@code PlanRunner} produced by {@code runnerFactory}. The name is resolved through the home cluster's own kind-blind
+     * {@code SchemaService} umbrella — this is the execution half's recursion: "run abstraction on cluster X = invoke X's
+     * umbrella on X's project". The runner factory is handed the per-request {@link EsqlExecutionInfo} so its
+     * {@code executePlan} threads the same info the session builds.
+     */
+    void resolveAndExecuteAbstraction(
+        String abstractionName,
+        CancellableTask parentTask,
+        Function<EsqlExecutionInfo, PlanRunner> runnerFactory,
+        ActionListener<Result> listener
+    ) {
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest("FROM " + ParserUtils.quoteIdString(abstractionName));
+        request.allowPartialResults(defaultAllowPartialResults);
+        TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
+        String sessionId = UUIDs.randomBase64UUID();
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(request);
+        planExecutor.esql(
+            request,
+            sessionId,
+            localMinimumVersion,
+            new AnalyzerSettings(
+                resultTruncationMaxSize,
+                resultTruncationDefaultSize,
+                timeseriesResultTruncationMaxSize,
+                timeseriesResultTruncationDefaultSize
+            ),
+            enrichPolicyResolver,
+            viewResolver,
+            executionInfo,
+            remoteClusterService,
+            runnerFactory.apply(executionInfo),
+            services,
+            externalBlobStoreExecutor(),
+            externalSourceConcurrency(),
+            parentTask::isCancelled,
+            listener.map(Versioned::inner)
+        );
     }
 
     private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {

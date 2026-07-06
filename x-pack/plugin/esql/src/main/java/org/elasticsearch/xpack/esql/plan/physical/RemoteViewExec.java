@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.RemoteViewSource;
 
 import java.io.IOException;
@@ -22,13 +25,20 @@ import java.util.Objects;
  * its home cluster and stream back its rows". It carries the remote {@code handle} (home cluster) and the resolved
  * output schema.
  * <p>
- * <b>POC stub:</b> the architecture is the deliverable — a {@code REMOTE} {@link org.elasticsearch.xpack.esql.plan.logical.View}
- * survives analysis, the boundary-aware rule decides to keep it opaque and lowers it to {@link RemoteViewSource}, and the
- * {@code Mapper} lowers that here. The actual cross-cluster body dispatch + source operator are <b>not built</b>; this node
- * has no real execution and is not wire-serialized ({@link #writeTo} throws). A real source operator would dispatch the
- * remote body via the federation execution leg and adapt the foreign result into pages.
+ * On the coordinator this leaf is lowered to an exchange-source operator (see {@code LocalExecutionPlanner}): the
+ * coordinator opens an exchange to the {@link #handle} home cluster, dispatches {@code ExecuteAbstractionRequest} carrying
+ * only the view's {@link #viewName} (its identity — never query text or a coordinator-built plan), and polls result pages
+ * back through that exchange. The home cluster resolves the name through its own {@code SchemaService} umbrella, plans and
+ * runs the resolved body locally, and sinks the pages into the exchange. This is the execution half of federation, the
+ * sibling of {@code resolve_schema}'s schema half — both name-based, both resolved on the remote.
  */
 public class RemoteViewExec extends LeafExec {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "RemoteViewExec",
+        RemoteViewExec::new
+    );
 
     private final String viewName;
     private final String handle;
@@ -39,6 +49,15 @@ public class RemoteViewExec extends LeafExec {
         this.viewName = viewName;
         this.handle = handle;
         this.output = output;
+    }
+
+    private RemoteViewExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readString(),
+            in.readString(),
+            in.readNamedWriteableCollectionAsList(Attribute.class)
+        );
     }
 
     public String viewName() {
@@ -61,12 +80,15 @@ public class RemoteViewExec extends LeafExec {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("RemoteViewExec is a POC stub with no execution and must not be serialized");
+        source().writeTo(out);
+        out.writeString(viewName);
+        out.writeString(handle);
+        out.writeNamedWriteableCollection(output);
     }
 
     @Override
     public String getWriteableName() {
-        return "RemoteViewExec";
+        return ENTRY.name;
     }
 
     @Override

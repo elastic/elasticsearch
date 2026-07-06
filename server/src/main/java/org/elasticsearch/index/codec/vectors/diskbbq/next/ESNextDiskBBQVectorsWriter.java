@@ -41,6 +41,7 @@ import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValuesSlice;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansNeighbors;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansWithOverspill;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidAssignments;
@@ -673,8 +674,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 numMergeWorkers,
                 HierarchicalKMeans.MAX_ITERATIONS_DEFAULT,
                 HierarchicalKMeans.SAMPLES_PER_CLUSTER_DEFAULT,
-                HierarchicalKMeans.MAXK,
-                -1 // disable SOAR assignments
+                HierarchicalKMeans.MAXK
             );
         } else {
             hierarchicalKMeans = HierarchicalKMeans.ofSerial(
@@ -682,13 +682,10 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 fieldInfo.getVectorDimension(),
                 HierarchicalKMeans.MAX_ITERATIONS_DEFAULT,
                 HierarchicalKMeans.SAMPLES_PER_CLUSTER_DEFAULT,
-                HierarchicalKMeans.MAXK,
-                -1 // disable SOAR assignments
+                HierarchicalKMeans.MAXK
             );
         }
-        var res = hierarchicalKMeans.cluster(floatVectorValues, centroidsPerParentCluster);
-        assert res.overspill() == null;
-        return res.result();
+        return hierarchicalKMeans.cluster(floatVectorValues, centroidsPerParentCluster).result();
     }
 
     @Override
@@ -911,8 +908,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 j -> vectorOrdStart + j,
                 sliceNumVectors
             );
-            final KMeansWithOverspill<float[]> kMeansResult = calculateCentroids(hierarchicalKMeans, slice);
-            kmeansResults.add(kMeansResult);
+            final KMeansNeighbors<float[]> kMeansResult = hierarchicalKMeans.cluster(slice, vectorPerCluster);
+            final SoarAssignments overspill = hierarchicalKMeans.computeSoar(slice, kMeansResult.result(), kMeansResult.neighborHoods());
+            kmeansResults.add(new KMeansWithOverspill<>(kMeansResult.result(), overspill));
             sliceLengths[i] = sliceNumVectors;
             sliceOffsets[i] = i == 0 ? kMeansResult.centroids().length : sliceOffsets[i - 1] + kMeansResult.centroids().length;
         }
@@ -988,25 +986,18 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             return buildFlatCentroidAssignments(fieldInfo, floatVectorValues);
         }
         HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
-        KMeansWithOverspill<float[]> kMeansResult = calculateCentroids(hierarchicalKMeans, floatVectorValues);
+        KMeansNeighbors<float[]> kMeansResult = hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);
+        SoarAssignments soarOverspill = hierarchicalKMeans.computeSoar(
+            floatVectorValues,
+            kMeansResult.result(),
+            kMeansResult.neighborHoods()
+        );
         if (logger.isDebugEnabled()) {
             logger.debug("final centroid count: {}", kMeansResult.centroids().length);
         }
 
         // TODO: swap out SOAR for SRAIR when HNSW graphs are used for the centroids
-        return new CentroidInformation(
-            fieldInfo.getVectorDimension(),
-            kMeansResult.centroids(),
-            kMeansResult.assignments(),
-            new SoarAssignments(kMeansResult.soarAssignments())
-        );
-    }
-
-    private KMeansWithOverspill<float[]> calculateCentroids(
-        HierarchicalKMeans<float[]> hierarchicalKMeans,
-        ClusteringFloatVectorValues floatVectorValues
-    ) throws IOException {
-        return hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);
+        return new CentroidInformation(fieldInfo.getVectorDimension(), kMeansResult.centroids(), kMeansResult.assignments(), soarOverspill);
     }
 
     static void writeQuantizedValue(IndexOutput indexOutput, byte[] binaryValue, OptimizedScalarQuantizer.QuantizationResult corrections)

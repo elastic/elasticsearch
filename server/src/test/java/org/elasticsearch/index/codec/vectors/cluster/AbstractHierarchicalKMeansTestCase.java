@@ -50,8 +50,8 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
             { -0.1f, 0.9f, 0f, 0f } };
         KMeansFloatVectorValues vectors = KMeansFloatVectorValues.build(List.of(rows), null, 4);
         HierarchicalKMeans<float[]> kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, 4);
-        KMeansWithOverspill<float[]> cold = kmeans.cluster(vectors, 4);
-        KMeansWithOverspill<float[]> warm = kmeans.cluster(vectors, 4, cold.centroids());
+        KMeansNeighbors<float[]> cold = kmeans.cluster(vectors, 4);
+        KMeansNeighbors<float[]> warm = kmeans.cluster(vectors, 4, cold.centroids());
         assertEquals(cold.centroids().length, warm.centroids().length);
         assertEquals(cold.assignments().length, warm.assignments().length);
     }
@@ -78,7 +78,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
             { -0.1f, 0.9f, 0f, 0f } };
         KMeansFloatVectorValues vectors = KMeansFloatVectorValues.build(List.of(rows), null, 4);
         HierarchicalKMeans<float[]> kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, 4);
-        KMeansWithOverspill<float[]> first = kmeans.cluster(vectors, 4);
+        KMeansNeighbors<float[]> first = kmeans.cluster(vectors, 4);
         float[][] warmStart = first.centroids();
 
         // snapshot contents before the warm-start call
@@ -111,9 +111,9 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         KMeansFloatVectorValues prefix5120 = KMeansFloatVectorValues.wrap(full, ordinals5120, ordinals5120.length);
 
         HierarchicalKMeans<float[]> kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, dim);
-        KMeansWithOverspill<float[]> small = kmeans.cluster(prefix4096, targetSize);
-        KMeansWithOverspill<float[]> coldLarge = kmeans.cluster(prefix5120, targetSize);
-        KMeansWithOverspill<float[]> warmLarge = kmeans.cluster(prefix5120, targetSize, small.centroids());
+        KMeansNeighbors<float[]> small = kmeans.cluster(prefix4096, targetSize);
+        KMeansNeighbors<float[]> coldLarge = kmeans.cluster(prefix5120, targetSize);
+        KMeansNeighbors<float[]> warmLarge = kmeans.cluster(prefix5120, targetSize, small.centroids());
         assertEquals(coldLarge.centroids().length, warmLarge.centroids().length);
         assertEquals(coldLarge.assignments().length, warmLarge.assignments().length);
     }
@@ -165,16 +165,10 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         CentroidOps<V> ops = centroidOps();
         ClusteringVectorValues<V> vectors = generateData(nVectors, dims, nClusters);
 
-        HierarchicalKMeans<V> hkmeansSerial = HierarchicalKMeans.ofSerial(
-            ops,
-            dims,
-            maxIterations,
-            sampleSize,
-            clustersPerNeighborhood,
-            soarLambda
-        );
+        HierarchicalKMeans<V> hkmeansSerial = HierarchicalKMeans.ofSerial(ops, dims, maxIterations, sampleSize, clustersPerNeighborhood);
         var serialResult = hkmeansSerial.cluster(vectors, targetSize);
-        assertKMeansResultValid(serialResult, nVectors, nClusters);
+        var serialOverspill = hkmeansSerial.computeSoar(vectors, serialResult.result(), serialResult.neighborHoods(), soarLambda);
+        assertKMeansResultValid(new KMeansWithOverspill<>(serialResult.result(), serialOverspill), nVectors, nClusters);
 
         int[] serialClusterSizes = new int[serialResult.centroids().length];
         for (int k : serialResult.assignments()) {
@@ -191,11 +185,16 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
                 numWorker,
                 maxIterations,
                 sampleSize,
-                clustersPerNeighborhood,
-                soarLambda
+                clustersPerNeighborhood
             );
             var concurrentResult = hkmeansConcurrent.cluster(vectors, targetSize);
-            assertKMeansResultValid(concurrentResult, nVectors, nClusters);
+            var concurrentOverspill = hkmeansSerial.computeSoar(
+                vectors,
+                concurrentResult.result(),
+                concurrentResult.neighborHoods(),
+                soarLambda
+            );
+            assertKMeansResultValid(new KMeansWithOverspill<>(concurrentResult.result(), concurrentOverspill), nVectors, nClusters);
 
             int[] concurrentClusterSizes = new int[concurrentResult.centroids().length];
             for (int k : concurrentResult.assignments()) {
@@ -224,12 +223,12 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
             dims,
             random().nextInt(1, 100),
             random().nextInt(Math.min(nVectors, 100), nVectors + 1),
-            random().nextInt(2, 512),
-            random().nextFloat(0.5f, 1.5f)
+            random().nextInt(2, 512)
         );
 
         var result = hkmeans.cluster(vectors, targetSize);
-        assertKMeansResultValid(result, nVectors, -1);
+        var overspill = hkmeans.computeSoar(vectors, result.result(), result.neighborHoods(), random().nextFloat(0.5f, 1.5f));
+        assertKMeansResultValid(new KMeansWithOverspill<>(result.result(), overspill), nVectors, -1);
     }
 
     /**
@@ -266,14 +265,14 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
                 dims,
                 maxIterations,
                 randomIntBetween(50, nVectors),
-                clustersPerNeighborhood,
-                soarLambda
+                clustersPerNeighborhood
             );
 
             var result = hkmeans.cluster(vectors, targetSize);
+            var overspill = hkmeans.computeSoar(vectors, result.result(), result.neighborHoods(), soarLambda);
 
             int[] assignments = result.assignments();
-            int[] soarAssignments = result.soarAssignments();
+            int[] soarAssignments = overspill.assignments();
 
             if (result.centroids().length > 1 && result.centroids().length < nVectors) {
                 assertEquals(nVectors, soarAssignments.length);
@@ -308,11 +307,12 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
 
         // First, do a full cluster to get "initial centroids" (simulating a dominant segment's priors)
         HierarchicalKMeans<V> hkmeans = HierarchicalKMeans.ofSerial(ops, dims);
-        KMeansWithOverspill<V> fullResult = hkmeans.cluster(vectors, targetSize);
-        assertKMeansResultValid(fullResult, nVectors, nClusters);
+        KMeansNeighbors<V> result = hkmeans.cluster(vectors, targetSize);
+        var overspill = hkmeans.computeSoar(vectors, result.result(), result.neighborHoods());
+        assertKMeansResultValid(new KMeansWithOverspill<>(result.result(), overspill), nVectors, nClusters);
 
         // Now use those centroids as initial seeds for clusterByInsertion
-        ClusteringVectorValues<V> priorView = wrapAsView(fullResult.centroids(), dims);
+        ClusteringVectorValues<V> priorView = wrapAsView(result.centroids(), dims);
         KMeansWithOverspill<V> insertionResult = hkmeans.clusterByInsertion(vectors, priorView, targetSize);
         assertKMeansResultValid(insertionResult, nVectors, nClusters);
     }
@@ -328,8 +328,9 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
 
         // Full cluster to get "prior centroids" simulating concatenated priors from multiple segments
         HierarchicalKMeans<V> hkmeans = HierarchicalKMeans.ofSerial(ops, dims);
-        KMeansWithOverspill<V> fullResult = hkmeans.cluster(vectors, targetSize);
-        assertKMeansResultValid(fullResult, nVectors, nClusters);
+        var fullResult = hkmeans.cluster(vectors, targetSize);
+        var overspill = hkmeans.computeSoar(vectors, fullResult.result(), fullResult.neighborHoods());
+        assertKMeansResultValid(new KMeansWithOverspill<>(fullResult.result(), overspill), nVectors, nClusters);
 
         int[] clusterSizes = fullResult.result().clusterCounts();
         ClusteringVectorValues<V> priorView = wrapAsView(fullResult.centroids(), dims);

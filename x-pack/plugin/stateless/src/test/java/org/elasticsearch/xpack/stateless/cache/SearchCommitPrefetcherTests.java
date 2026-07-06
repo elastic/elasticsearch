@@ -206,11 +206,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             resolver
         );
 
-        assertThat(
-            "internal blob takes the notification commit midpoint",
-            timestampPerBlob.get(internalBlob),
-            equalTo(2000L)
-        );
+        assertThat("internal blob takes the notification commit midpoint", timestampPerBlob.get(internalBlob), equalTo(2000L));
         assertThat("referenced blob A takes the resolved timestamp", timestampPerBlob.get(referencedBlobA), equalTo(500L));
         assertThat(
             "referenced blob B keeps the most recent of its two referenced files",

@@ -514,12 +514,12 @@ public class SearchDirectoryTests extends ESTestCase {
             assertThat(
                 "after commit A, internal file fileA resolves to midpoint of commit A's range",
                 searchDirectory.getTimestampMillis(fileA),
-                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
+                equalTo(BlobFileRanges.midpointMillisOrUnknownForCache(timeRangeA))
             );
             assertThat(
                 "after commit A, the generational file resolves to midpoint of commit A's range",
                 searchDirectory.getTimestampMillis(genFile),
-                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
+                equalTo(BlobFileRanges.midpointMillisOrUnknownForCache(timeRangeA))
             );
 
             // Commit B (later generation): fileA is still referenced at the same location; fileB is the new internal file with timeRangeB;
@@ -540,12 +540,12 @@ public class SearchDirectoryTests extends ESTestCase {
             assertThat(
                 "after commit B, fileA (referenced at the same blob location) retains commit A's midpoint",
                 searchDirectory.getTimestampMillis(fileA),
-                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
+                equalTo(BlobFileRanges.midpointMillisOrUnknownForCache(timeRangeA))
             );
             assertThat(
                 "fileB is internal to commit B, so it receives commit B's representative timestamp",
                 searchDirectory.getTimestampMillis(fileB),
-                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeB))
+                equalTo(BlobFileRanges.midpointMillisOrUnknownForCache(timeRangeB))
             );
             assertThat(
                 "the generational file stays pinned to the first (gen-1) blob location across commits",
@@ -555,7 +555,7 @@ public class SearchDirectoryTests extends ESTestCase {
             assertThat(
                 "the generational file retains commit A's midpoint even though commit B re-lists it at a new location with a new range",
                 searchDirectory.getTimestampMillis(genFile),
-                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
+                equalTo(BlobFileRanges.midpointMillisOrUnknownForCache(timeRangeA))
             );
             assertThat(
                 "unknown file returns UNKNOWN_TIMESTAMP",
@@ -626,7 +626,7 @@ public class SearchDirectoryTests extends ESTestCase {
 
             final var keyWithTs = new FileCacheKey(node.shardId, 1L, locationWithTs.blobName());
             final var keyWithoutTs = new FileCacheKey(node.shardId, 1L, locationWithoutTs.blobName());
-            final long expectedForKnownRange = BlobFileRanges.midpointMillisOrUnknown(range);
+            final long expectedForKnownRange = BlobFileRanges.midpointMillisOrUnknownForCache(range);
             final var capturedWithTs = capturingPolicy.capturedTimestamps(keyWithTs);
             assertThat("file-with-ts should have cached one region", capturedWithTs, hasSize(1));
             assertThat(

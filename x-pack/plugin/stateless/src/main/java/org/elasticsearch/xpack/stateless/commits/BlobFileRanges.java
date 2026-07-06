@@ -220,7 +220,7 @@ public class BlobFileRanges implements Writeable {
      * Returns a positive epoch millis timestamp representing the midpoint of the given range, or
      * {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} if the range is null.
      */
-    public static long midpointMillisOrUnknown(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
+    public static long midpointMillisOrUnknownForCache(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
         if (range == null) {
             return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
         }

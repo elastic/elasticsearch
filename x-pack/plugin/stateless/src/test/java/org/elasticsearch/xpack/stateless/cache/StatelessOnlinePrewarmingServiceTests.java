@@ -262,7 +262,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             safeAwait((ActionListener<Void> l) -> fakeNode.onlinePrewarmingService.prewarm(searchShard, l));
 
             final var cacheKey = new FileCacheKey(fakeNode.shardId, primaryTerm, siLocation.blobName());
-            final long expected = BlobFileRanges.midpointMillisOrUnknown(range);
+            final long expected = BlobFileRanges.midpointMillisOrUnknownForCache(range);
             final var captured = capturingPolicy.capturedTimestamps(cacheKey);
             assertThat("online prewarming should have stamped two regions", captured, hasSize(2));
             assertThat("every online-prewarmed region should carry the per-CC midpoint", captured, everyItem(equalTo(expected)));

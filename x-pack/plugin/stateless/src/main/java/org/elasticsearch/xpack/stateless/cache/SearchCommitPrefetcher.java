@@ -420,7 +420,9 @@ public class SearchCommitPrefetcher {
         Set<BlobFile> blobFilesToPrefetch,
         FileTimestampResolver fileTimestampResolver
     ) {
-        final long notificationCommitTimestamp = BlobFileRanges.midpointMillisOrUnknown(compoundCommit.getTimestampFieldValueRange());
+        final long notificationCommitTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
+            compoundCommit.getTimestampFieldValueRange()
+        );
         final Set<String> internalFiles = compoundCommit.internalFiles();
         final Map<BlobFile, Long> timestampPerBlob = new HashMap<>();
         for (Map.Entry<String, BlobLocation> commitFile : compoundCommit.commitFiles().entrySet()) {

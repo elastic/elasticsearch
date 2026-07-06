@@ -36,6 +36,8 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -1082,6 +1084,68 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 checkBlockSizes(page);
                 assertEquals(3, page.getPositionCount());
             }
+        }
+    }
+
+    public void testDeclaredNumericCoercesStringTokensLikeCastEngine() throws IOException {
+        // A JSON string in a declared numeric column is coerced through the :: cast engine and rounds
+        // (matching CSV and the columnar readers), where it was formerly a policy-blind silent null.
+        String ndjson = """
+            {"n": "42", "m": "1.9"}
+            {"n": "7", "m": "2.5"}
+            """;
+        var object = new BytesStorageObject("file:///nums.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "m", DataType.LONG)
+        );
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("n", "m"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            LongBlock n = page.getBlock(0);
+            LongBlock m = page.getBlock(1);
+            assertEquals(42L, n.getLong(0));
+            assertEquals(7L, n.getLong(1));
+            assertEquals(2L, m.getLong(0)); // "1.9" -> 2 (round, == ::long)
+            assertEquals(3L, m.getLong(1)); // "2.5" -> 3 (round)
+        }
+    }
+
+    public void testDeclaredNumericBadStringFailsUnderStrict() throws IOException {
+        // A string that is not a number in a declared numeric column is a coercion failure routed through
+        // the error policy (strict fails), like a malformed CSV value — not a silent null.
+        String ndjson = "{\"n\": \"notanumber\"}\n";
+        var object = new BytesStorageObject("file:///bad.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("n"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            });
+            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to the declared type [long]"));
         }
     }
 

@@ -420,7 +420,7 @@ public final class DeclaredTypeCoercions {
      * read-time coercion rejects the token loudly instead. The numeric arms still reuse {@code ::}
      * verbatim; only boolean is stricter, and by design.
      */
-    private static boolean strictParseBoolean(String value) {
+    public static boolean strictParseBoolean(String value) {
         if (value.equalsIgnoreCase("true")) {
             return true;
         }

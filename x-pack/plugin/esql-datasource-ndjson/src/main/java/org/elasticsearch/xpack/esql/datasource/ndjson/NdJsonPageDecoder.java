@@ -34,6 +34,7 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -42,11 +43,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.CharBuffer;
+import java.time.DateTimeException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
@@ -1479,81 +1482,145 @@ public class NdJsonPageDecoder implements Closeable {
             }
 
             switch (dataType) {
-                case BOOLEAN -> {
-                    if (token == JsonToken.VALUE_TRUE) {
-                        ((BooleanBlock.Builder) blockBuilder).appendBoolean(true);
-                    } else if (token == JsonToken.VALUE_FALSE) {
-                        ((BooleanBlock.Builder) blockBuilder).appendBoolean(false);
-                    } else {
-                        unexpectedValue(blockBuilder, parser, inArray);
-                    }
-                }
-                case NULL -> {
-                    // NULL handled above
-                    unexpectedValue(blockBuilder, parser, inArray);
-                }
-                case INTEGER -> {
-                    if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
-                        try {
-                            ((IntBlock.Builder) blockBuilder).appendInt(parser.getIntValue());
-                        } catch (InputCoercionException e) {
-                            unexpectedValue(blockBuilder, parser, inArray);
-                        }
-                    } else {
-                        unexpectedValue(blockBuilder, parser, inArray);
-                    }
-                }
-                case LONG -> {
-                    if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
-                        try {
-                            ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
-                        } catch (InputCoercionException e) {
-                            unexpectedValue(blockBuilder, parser, inArray);
-                        }
-                    } else {
-                        unexpectedValue(blockBuilder, parser, inArray);
-                    }
-                }
-                case DOUBLE -> {
-                    if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
-                        try {
-                            ((DoubleBlock.Builder) blockBuilder).appendDouble(parser.getDoubleValue());
-                        } catch (InputCoercionException e) {
-                            unexpectedValue(blockBuilder, parser, inArray);
-                        }
-                    } else {
-                        unexpectedValue(blockBuilder, parser, inArray);
-                    }
-                }
-                case DATETIME -> {
-                    String raw = parser.getValueAsString();
-                    try {
-                        // A column with a declared `format` parses through the shared DeclaredTypeCoercions
-                        // .parseDatetimeMillis — the SAME string->datetime conversion the columnar readers use for
-                        // string->date coercion, so identical bytes + declared format yield the same instant across
-                        // formats. No declared format keeps the file-level datetimeFormatter path unchanged.
-                        var millis = declaredFormatter != null
-                            ? DeclaredTypeCoercions.parseDatetimeMillis(raw, declaredFormatter)
-                            : datetimeFormatter.parseMillis(raw);
-                        ((LongBlock.Builder) blockBuilder).appendLong(millis);
-                    } catch (Exception e) {
-                        if (declaredFormatter != null) {
-                            // A declared-format parse failure is a declared-coercion failure: honor the ErrorPolicy the
-                            // columnar and CSV readers honor (fail_fast fails the query; other modes null the cell and
-                            // emit a response Warning), so the same bad token yields the same observable outcome across
-                            // every format. The file-level datetime path (no declared format) keeps its pre-existing
-                            // unexpectedValue (append-null + debug-log) channel.
-                            coercionFailure(blockBuilder, parser, inArray, raw);
-                        } else {
-                            unexpectedValue(blockBuilder, parser, inArray);
-                        }
-                    }
-                }
+                case BOOLEAN -> decodeBooleanValue(parser, token, inArray);
+                case INTEGER -> decodeIntValue(parser, token, inArray);
+                case LONG -> decodeLongValue(parser, token, inArray);
+                case DOUBLE -> decodeDoubleValue(parser, token, inArray);
+                case DATETIME -> decodeDatetimeValue(parser, token, inArray);
                 case KEYWORD -> {
                     var chars = CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
                     ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(chars));
                 }
+                // A NULL-typed column expects no value; a stray scalar keeps the policy-blind channel (edge case).
+                case NULL -> unexpectedValue(blockBuilder, parser, inArray);
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
+            }
+        }
+
+        /**
+         * The scalar-coercion arms below make an NDJSON declared read match the columnar and CSV readers,
+         * drawing the same line the reader already draws between {@link #shapeConflict} (policy-routed) and
+         * {@link #unexpectedValue} (schema-on-read tolerant):
+         * <ul>
+         *   <li>A <b>supported</b> coercion — a JSON string for any scalar column, a fractional number for a
+         *       whole-number column, an epoch number for a datetime column — is coerced through the same
+         *       {@code ::} cast engine (string→number rounds like {@code ::long}; string→boolean is strict
+         *       case-insensitive; string→double preserves NaN). A parse failure or numeric overflow on such a
+         *       token is a genuine value error and is routed through {@link #coercionFailure} — so it fails
+         *       {@code fail_fast}, warns, and counts against the error budget exactly like a malformed CSV
+         *       value, closing the "policy-blind silent null" gap for the coercible cases.</li>
+         *   <li>An <b>unsupported cross-kind</b> token — a boolean in a numeric/datetime column, a number in a
+         *       boolean column: {@code supports(from, to)} is false, the pair the columnar readers reject at
+         *       resolution. NDJSON has no physical schema to reject upfront, so it keeps the pre-existing
+         *       {@link #unexpectedValue} silent null — schema-on-read tolerance of a heterogeneous JSON field,
+         *       the same tolerance {@code unexpectedValue} already gave primitive type drift.</li>
+         * </ul>
+         * The common case (a JSON number in a numeric column, a JSON boolean in a boolean column) still decodes
+         * straight from the parser with no string allocation.
+         */
+        private void decodeBooleanValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_TRUE) {
+                ((BooleanBlock.Builder) blockBuilder).appendBoolean(true);
+            } else if (token == JsonToken.VALUE_FALSE) {
+                ((BooleanBlock.Builder) blockBuilder).appendBoolean(false);
+            } else if (token == JsonToken.VALUE_STRING) {
+                try {
+                    // strict + case-insensitive, matching the columnar/CSV declared-boolean coercion
+                    ((BooleanBlock.Builder) blockBuilder).appendBoolean(
+                        DeclaredTypeCoercions.strictParseBoolean(parser.getValueAsString())
+                    );
+                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.BOOLEAN);
+                }
+            } else {
+                // A number in a boolean column: an unsupported cross-kind drift, not a coercion attempt
+                // (supports(numeric, boolean) is false). See unexpectedValue's schema-on-read rationale.
+                unexpectedValue(blockBuilder, parser, inArray);
+            }
+        }
+
+        private void decodeIntValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_NUMBER_INT) {
+                try {
+                    ((IntBlock.Builder) blockBuilder).appendInt(parser.getIntValue());
+                } catch (InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.INTEGER); // out-of-int-range: a real value error
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
+                try {
+                    // fractional number or string: parse + ROUND through :: (matches ::integer / columnar / CSV)
+                    ((IntBlock.Builder) blockBuilder).appendInt(EsqlDataTypeConverter.stringToInt(parser.getValueAsString()));
+                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.INTEGER);
+                }
+            } else {
+                unexpectedValue(blockBuilder, parser, inArray); // boolean in a number column: unsupported cross-kind drift
+            }
+        }
+
+        private void decodeLongValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_NUMBER_INT) {
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
+                } catch (InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.LONG);
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(EsqlDataTypeConverter.stringToLong(parser.getValueAsString()));
+                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.LONG);
+                }
+            } else {
+                unexpectedValue(blockBuilder, parser, inArray);
+            }
+        }
+
+        private void decodeDoubleValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
+                try {
+                    ((DoubleBlock.Builder) blockBuilder).appendDouble(parser.getDoubleValue());
+                } catch (InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DOUBLE);
+                }
+            } else if (token == JsonToken.VALUE_STRING) {
+                try {
+                    // Double.parseDouble accepts NaN/Infinity — an external read preserves the IEEE value the
+                    // file holds, matching the native columnar double read and CSV (see DeclaredTypeCoercions).
+                    ((DoubleBlock.Builder) blockBuilder).appendDouble(Double.parseDouble(parser.getValueAsString()));
+                } catch (NumberFormatException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DOUBLE);
+                }
+            } else {
+                unexpectedValue(blockBuilder, parser, inArray); // boolean in a double column: unsupported cross-kind drift
+            }
+        }
+
+        private void decodeDatetimeValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_NUMBER_INT) {
+                // epoch-millis reinterpret, matching the columnar long->datetime fused decode and CSV's
+                // numeric-epoch shortcut — a JSON number in a datetime column is epoch milliseconds.
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
+                } catch (InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
+                }
+            } else if (token == JsonToken.VALUE_STRING) {
+                try {
+                    // A declared `format` parses through the shared DeclaredTypeCoercions.parseDatetimeMillis — the
+                    // SAME string->datetime conversion the columnar readers use — so identical bytes + declared
+                    // format yield the same instant across formats; no declared format uses the file-level formatter.
+                    String raw = parser.getValueAsString();
+                    long millis = declaredFormatter != null
+                        ? DeclaredTypeCoercions.parseDatetimeMillis(raw, declaredFormatter)
+                        : datetimeFormatter.parseMillis(raw);
+                    ((LongBlock.Builder) blockBuilder).appendLong(millis);
+                } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
+                }
+            } else {
+                // a boolean, or a fractional number, in a datetime column: unsupported cross-kind drift
+                unexpectedValue(blockBuilder, parser, inArray);
             }
         }
 
@@ -1570,22 +1637,27 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         /**
-         * Handles a value that cannot be coerced into a column's DECLARED type (today: a string that the declared
-         * date {@code format} cannot parse). Routed through {@link ErrorPolicy} exactly like {@link #shapeConflict}
+         * Handles a scalar value that cannot be coerced into a column's declared type — a string that is not a
+         * number for a numeric column, a non-{@code true}/{@code false} token for a boolean column, a number that
+         * overflows the target, a string the declared date {@code format} cannot parse, or a token whose JSON kind
+         * has no coercion to the target. Routed through {@link ErrorPolicy} exactly like {@link #shapeConflict}
          * and {@link DeclaredTypeCoercions#onCoercionFailure} so a declared-coercion failure produces the SAME
          * observable outcome across every format: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with an
          * actionable message; other modes null this cell only and surface the message as a client warning (subject to
          * the error budget). This is distinct from {@link #unexpectedValue}, the policy-blind channel the file-level
          * (undeclared) datetime path and other per-field type mismatches keep.
          */
-        private void coercionFailure(Block.Builder builder, JsonParser parser, boolean inArray, String value) throws IOException {
+        private void coercionFailure(Block.Builder builder, JsonParser parser, boolean inArray, DataType target) throws IOException {
+            String value = parser.getValueAsString();
             String message = "column ["
                 + name
                 + "] at line ["
                 + totalRowCount
                 + "]: value ["
                 + value
-                + "] could not be parsed to the declared type [datetime] with the declared format — this record's ["
+                + "] could not be coerced to the declared type ["
+                + target.typeName()
+                + "] — this record's ["
                 + name
                 + "] is null";
             parser.skipChildren();

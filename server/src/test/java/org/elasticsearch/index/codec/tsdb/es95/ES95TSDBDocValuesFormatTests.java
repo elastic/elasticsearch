@@ -983,9 +983,9 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     }
 
     public void testMixedDocValuesTypesPerFieldBlockSizeAndDensity() throws IOException {
-        // One segment carrying all four doc-values types at per-field block sizes and mixed density across
-        // multiple blocks, so the per-field dispatch between ES95NumericCodec (numeric, sorted numeric) and
-        // ES95OrdinalCodec (sorted, sorted set) is exercised together.
+        // One segment carrying all four doc-values types with mixed density across multiple blocks.
+        // Numeric and sorted-numeric fields take per-field block sizes via ES95NumericCodec; sorted and
+        // sorted-set fields use the shared TSDBOrdinalBlockCodec at the format-level block.
         // NOTE: random promoted block size (1024-4096), distinct from the 512 default and 128 demoted.
         final int promotedBlockSize = 1 << ESTestCase.randomIntBetween(10, 12);
         final int numDocs = promotedBlockSize * 2 + ESTestCase.randomIntBetween(0, promotedBlockSize);

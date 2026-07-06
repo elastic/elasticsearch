@@ -16,7 +16,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
@@ -395,7 +394,7 @@ public abstract class DocumentParserContext {
     }
 
     public final String routing() {
-        return mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? null : sourceToParse.routing();
+        return mappingParserContext.getIndexSettings().getMode().isTsdb() ? null : sourceToParse.routing();
     }
 
     /**
@@ -1009,7 +1008,7 @@ public abstract class DocumentParserContext {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
             doc.add(standardIdField(idField.binaryValue(), Field.Store.NO));
-        } else if (indexSettings().getMode() == IndexMode.TIME_SERIES) {
+        } else if (indexSettings().getMode().isTsdb()) {
             // For time series indices, the _id is generated from the _tsid, which in turn is generated from the values of the configured
             // routing fields. At this point in document parsing, we can't guarantee that we've parsed all the routing fields yet, so the
             // parent document's _id is not yet available.

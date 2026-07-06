@@ -1867,7 +1867,7 @@ public class EsqlSession {
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
-                indexMode == IndexMode.TIME_SERIES,
+                indexMode.isTsdb(),
                 // TODO: In case of subqueries, the different main index resolutions don't know about each other's minimum version.
                 // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
                 // while resolving each subquery's main index pattern. We'll determine the correct overall minimum transport version
@@ -1963,7 +1963,7 @@ public class EsqlSession {
             projectRouting,
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),
-            indexMode == IndexMode.TIME_SERIES,
+            indexMode.isTsdb(),
             // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
             result.minimumTransportVersion(),
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
@@ -2009,7 +2009,7 @@ public class EsqlSession {
 
     // visible for testing
     static boolean shouldRetryConcreteTimeSeriesResolution(IndexMode indexMode, IndexResolution resolution, IndexPattern indexPattern) {
-        return indexMode == IndexMode.TIME_SERIES
+        return indexMode.isTsdb()
             && resolution.isValid()
             && resolution.resolvedIndices().isEmpty()
             && EsqlCCSUtils.concreteIndexRequested(indexPattern.indexPattern());

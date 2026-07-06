@@ -12,7 +12,7 @@ package org.elasticsearch.simdvec.internal;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.elasticsearch.simdvec.QuantizedByteVectorValuesAccess;
 
 import java.io.IOException;
@@ -25,13 +25,15 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final int maxOrd;
     final float scoreCorrectionConstant;
     final IndexInput input;
-    final QuantizedByteVectorValues values; // to support ordToDoc/getAcceptOrds
+    final LegacyQuantizedByteVectorValues values; // to support ordToDoc/getAcceptOrds
     final int vectorDataBytes;
     final int vectorTotalBytes;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
-    protected Int7SQVectorScorerSupplier(IndexInput input, QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+    protected Int7SQVectorScorerSupplier(IndexInput input, LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
@@ -59,7 +61,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         return IndexInputUtils.withSlice(input, vectorTotalBytes, firstScratch::getScratch, query -> {
             float queryOffsetValue = query.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
 
-            long[] offsets = new long[numNodes];
+            long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorTotalBytes;
             }
@@ -70,6 +72,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
                 offsets,
                 vectorTotalBytes,
                 numNodes,
+                addrsScratch::get,
                 addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, queryOffsetValue, MemorySegment.ofArray(scores), numNodes)
             );
             if (resolved == false) {
@@ -138,13 +141,13 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     }
 
     @Override
-    public QuantizedByteVectorValues get() {
+    public LegacyQuantizedByteVectorValues get() {
         return values;
     }
 
     public static final class EuclideanSupplier extends Int7SQVectorScorerSupplier {
 
-        public EuclideanSupplier(IndexInput input, QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        public EuclideanSupplier(IndexInput input, LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
             super(input, values, scoreCorrectionConstant);
         }
 
@@ -184,7 +187,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     public static final class DotProductSupplier extends Int7SQVectorScorerSupplier {
 
-        public DotProductSupplier(IndexInput input, QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        public DotProductSupplier(IndexInput input, LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
             super(input, values, scoreCorrectionConstant);
         }
 
@@ -228,7 +231,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     public static final class MaxInnerProductSupplier extends Int7SQVectorScorerSupplier {
 
-        public MaxInnerProductSupplier(IndexInput input, QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        public MaxInnerProductSupplier(IndexInput input, LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
             super(input, values, scoreCorrectionConstant);
         }
 

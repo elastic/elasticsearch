@@ -402,7 +402,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
                     getOnlyLeafReader(reader).getContext(),
                     docID,
                     Map.of(),
-                    Source.fromBytes(source.source()),
+                    Source.fromBytes(source.source().originalBytes()),
                     new RankDoc(docID, Float.NaN, 0)
                 );
                 try {

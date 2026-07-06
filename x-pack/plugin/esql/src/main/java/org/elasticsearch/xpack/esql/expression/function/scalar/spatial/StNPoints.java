@@ -52,6 +52,7 @@ public class StNPoints extends SpatialUnaryDocValuesFunction {
         returnType = "integer",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        briefSummary = "Counts the number of points in the supplied geometry.",
         description = "Counts the number of points in the supplied geometry.",
         examples = @Example(file = "spatial_shapes", tag = "st_npoints"),
         depthOffset = 1  // So this appears as a subsection of geometry functions

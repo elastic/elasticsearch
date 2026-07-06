@@ -22,6 +22,7 @@ public abstract class AbstractAllByLongGroupingState extends AbstractAllByKeyGro
      */
     private LongArray keys;
 
+    @SuppressWarnings("this-escape")
     protected AbstractAllByLongGroupingState(BigArrays bigArrays) {
         super(bigArrays);
         boolean success = false;

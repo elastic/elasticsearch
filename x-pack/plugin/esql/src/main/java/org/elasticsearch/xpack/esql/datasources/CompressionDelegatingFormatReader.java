@@ -11,10 +11,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -70,9 +72,10 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public FormatReader withConfig(Map<String, Object> config) {
-        FormatReader configured = inner.withConfig(config);
-        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+        Configured<FormatReader> configured = inner.withConfigTrackingConsumedKeys(config);
+        FormatReader wrapped = configured.value() == inner ? this : new CompressionDelegatingFormatReader(configured.value(), codec);
+        return new Configured<>(wrapped, configured.consumedKeys());
     }
 
     @Override
@@ -85,6 +88,11 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     public FormatReader withSchema(List<Attribute> schema) {
         FormatReader configured = inner.withSchema(schema);
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    }
+
+    @Override
+    public RowPositionStrategy rowPositionStrategy() {
+        return inner.rowPositionStrategy();
     }
 
     FormatReader unwrap() {

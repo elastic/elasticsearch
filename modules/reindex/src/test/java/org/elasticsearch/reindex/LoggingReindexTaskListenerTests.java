@@ -10,7 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -27,7 +27,7 @@ public class LoggingReindexTaskListenerTests extends ESTestCase {
         var task = randomTask();
         var listener = new LoggingReindexTaskListener(task);
         MockLog.assertThatLogger(
-            () -> listener.onResponse(mock(BulkByScrollResponse.class)),
+            () -> listener.onResponse(mock(BulkByPaginatedSearchResponse.class)),
             LoggingReindexTaskListener.class,
             new MockLog.SeenEventExpectation("response logged", LoggingReindexTaskListener.class.getCanonicalName(), Level.INFO, "finished")
         );

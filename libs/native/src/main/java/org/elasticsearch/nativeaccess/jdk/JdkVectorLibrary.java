@@ -10,6 +10,8 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.foreign.LoaderHelper;
+import org.elasticsearch.foreign.adapter.LinkerAdapter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
@@ -18,7 +20,6 @@ import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.BFloat16QueryTyp
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.DataType;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Function;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Operation;
-import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.lang.foreign.FunctionDescriptor;
@@ -37,11 +38,12 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.functionAddressOrNull;
+import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
+import static org.elasticsearch.foreign.LinkerHelper.functionAddressOrNull;
 
 public final class JdkVectorLibrary implements VectorLibrary {
 
@@ -94,9 +96,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
     /**
      * Native functions in the native simdvec library can have multiple implementations, one for each "capability level".
      * A capability level of "0" means that there is no native function for that platform.
-     * Functions for the base ("1") level are exposed with a simple function name (e.g. "vec_dot7u")
+     * Functions for the base ("1") level are exposed with a simple function name (e.g. "vec_doti7u")
      * Functions for the more advanced levels (2, 3, ...) are exported with a name "decorated" by adding the capability level as
-     * a suffix: if the capability level is N, the suffix will be "_N" (e.g. "vec_dot7u_2").
+     * a suffix: if the capability level is N, the suffix will be "_N" (e.g. "vec_doti7u_2").
      * Capability levels maps to the availability of advanced vector instructions sets for a platform. For example, for x64 we currently
      * define 2 capability levels, 1 (base, processor supports AVX2) and 2 (processor supports AVX-512 with VNNI and VPOPCNT).
      * <p>
@@ -116,7 +118,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             var function = functionAddressOrNull(functionName + suffix);
             if (function != null) {
                 logger.debug("Binding {}", fullFunctionName);
-                return downcallHandle(function, functionDescriptor, LinkerHelperUtil.critical());
+                return downcallHandle(function, functionDescriptor, LinkerAdapter.critical());
             }
         }
         throw new LinkageError("Native function [" + functionName + "] could not be found");
@@ -139,7 +141,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             JAVA_INT,
             ADDRESS
         );
-
         final List<NativeFunction<?>> nativeFunctions = new ArrayList<>();
 
         public NativeFunctions add(DataType type, Iterable<Function> functions, Iterable<Operation> operations) {
@@ -184,9 +185,12 @@ public final class JdkVectorLibrary implements VectorLibrary {
         public NativeFunctions addBBQ(Iterable<BBQType> bbqTypes, Iterable<Operation> operations) {
             bbqTypes.forEach(type -> operations.forEach(op -> {
                 String typeName = switch (type) {
+                    case D1Q1 -> "d1q1";
                     case D1Q4 -> "d1q4";
+                    case D2Q2 -> "d2q2";
                     case D2Q4 -> "d2q4";
                     case D4Q4 -> "d4q4";
+                    case D2Q4_PACKED -> "d2q4_packed";
                 };
                 FunctionDescriptor descriptor = switch (op) {
                     case SINGLE -> longSingle;
@@ -202,8 +206,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return () -> Arrays.stream(Function.values()).iterator();
         }
 
-        static Iterable<Operation> allOperations() {
-            return () -> Arrays.stream(Operation.values()).iterator();
+        static Iterable<Operation> standardOperations() {
+            return List.of(Operation.SINGLE, Operation.BULK, Operation.BULK_OFFSETS, Operation.BULK_SPARSE);
         }
 
         static Iterable<BBQType> allBBQTypes() {
@@ -258,13 +262,13 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 HANDLES = new NativeFunctions()
                     // Only DOT_PRODUCT is needed for int4 — other functions are computed by applying correction terms on top of the raw
                     // dot.
-                    .add(DataType.INT4, List.of(Function.DOT_PRODUCT), NativeFunctions.allOperations())
-                    .add(DataType.INT7U, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
+                    .add(DataType.INT4, List.of(Function.DOT_PRODUCT), NativeFunctions.standardOperations())
+                    .add(DataType.INT7U, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.standardOperations())
                     // Only byte vectors have cosine as other types are normalized to unit length to use dot_product instead
-                    .add(DataType.INT8, NativeFunctions.allFunctions(), NativeFunctions.allOperations())
-                    .add(DataType.FLOAT32, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
-                    .addBFloat16(List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
-                    .addBBQ(NativeFunctions.allBBQTypes(), NativeFunctions.allOperations())
+                    .add(DataType.INT8, NativeFunctions.allFunctions(), NativeFunctions.standardOperations())
+                    .add(DataType.FLOAT32, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.standardOperations())
+                    .addBFloat16(List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.standardOperations())
+                    .addBBQ(NativeFunctions.allBBQTypes(), NativeFunctions.standardOperations())
                     .build((functionName, functionDescriptor) -> bindFunction(functionName, finalVecCaps, functionDescriptor));
 
                 FunctionDescriptor score = FunctionDescriptor.of(
@@ -305,6 +309,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     JAVA_FLOAT,  // queryBitScale
                     JAVA_FLOAT,  // indexBitScale
                     JAVA_FLOAT,  // centroidDp
+                    JAVA_BYTE,   // readComponentSumAsInt (0 = 2-byte format, 1 = 4-byte format)
                     ADDRESS      // scores
                 );
 
@@ -416,18 +421,25 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return true;
         }
 
+        /**
+         * Checks dimensions for BBQ bulk operations.
+         * @param queryBytesPerDocByte see {@link BBQType#queryBytesPerDocByte()}
+         * @param dataset the MemorySegment holding the vectors to score
+         * @param query the MemorySegment holding the query vector
+         * @param datasetVectorLengthInBytes
+         * @param count
+         * @param result the MemorySegment holding the result scores
+         */
         static boolean checkBBQBulk(
-            int dataBits,
+            int queryBytesPerDocByte,
             MemorySegment dataset,
             MemorySegment query,
             int datasetVectorLengthInBytes,
             int count,
             MemorySegment result
         ) {
-            final int queryBits = 4;
             Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * count, dataset.byteSize());
-            // 1 bit data -> x4 bits query, 2 bit data -> x2 bits query
-            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * (queryBits / dataBits), query.byteSize());
+            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * queryBytesPerDocByte, query.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             return true;
         }
@@ -503,22 +515,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         static boolean checkBBQBulkSparse(
-            int dataBits,
+            int queryBytesPerDocByte,
             MemorySegment addresses,
             MemorySegment query,
             int datasetVectorLengthInBytes,
             int count,
             MemorySegment result
         ) {
-            final int queryBits = 4;
             Objects.checkFromIndexSize(0L, (long) count * Long.BYTES, addresses.byteSize());
-            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * (queryBits / dataBits), query.byteSize());
+            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * queryBytesPerDocByte, query.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             return true;
         }
 
         static boolean checkBBQBulkOffsets(
-            int dataBits,
+            int queryBytesPerDocByte,
             MemorySegment a,
             MemorySegment b,
             int datasetVectorLengthInBytes,
@@ -527,13 +538,12 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int count,
             MemorySegment result
         ) {
-            final int queryBits = 4;
             if (pitch < datasetVectorLengthInBytes) throw new IllegalArgumentException(
                 "Pitch needs to be at least " + datasetVectorLengthInBytes
             );
             Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * count, a.byteSize());
-            // 1 bit data -> x4 bits query, 2 bit data -> x2 bits query
-            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * (queryBits / dataBits), b.byteSize());
+            // STRIPED / PACKED: see BBQType#queryBytesPerDocByte for the layout-dependent multiplier.
+            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * queryBytesPerDocByte, b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             assert validateBBQBulkOffsets(a, offsets, count, datasetVectorLengthInBytes, pitch, result);
@@ -732,6 +742,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return callSingleDistanceFloat(squareDBF16QBF16Handle, a, b, elementCount);
         }
 
+        private static final MethodHandle dotD1Q1Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q1, Operation.SINGLE)
+        );
+
+        static long dotProductD1Q1(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0L, length, query.byteSize());
+            Objects.checkFromIndexSize(0L, length, a.byteSize());
+            return callSingleDistanceLong(dotD1Q1Handle, a, query, length);
+        }
+
         private static final MethodHandle dotD1Q4Handle = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.SINGLE)
         );
@@ -740,6 +760,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) length * 4, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD1Q4Handle, a, query, length);
+        }
+
+        private static final MethodHandle dotD2Q2Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q2, Operation.SINGLE)
+        );
+
+        static long dotProductD2Q2(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0L, length, query.byteSize());
+            Objects.checkFromIndexSize(0L, length, a.byteSize());
+            return callSingleDistanceLong(dotD2Q2Handle, a, query, length);
         }
 
         private static final MethodHandle dotD2Q4Handle = HANDLES.get(
@@ -760,6 +790,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, length, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD4Q4Handle, a, query, length);
+        }
+
+        private static final MethodHandle dotD2Q4PackedHandle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4_PACKED, Operation.SINGLE)
+        );
+
+        static long dotProductD2Q4_PACKED(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0L, (long) length * 4, query.byteSize());
+            Objects.checkFromIndexSize(0L, length, a.byteSize());
+            return callSingleDistanceLong(dotD2Q4PackedHandle, a, query, length);
         }
 
         private static void checkByteSize(long aSize, long bSize) {
@@ -877,6 +917,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -893,6 +934,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -913,6 +955,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -929,6 +972,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -949,6 +993,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -965,6 +1010,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -1074,7 +1120,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         )
                                     );
                                     yield MethodHandles.guardWithTest(
-                                        MethodHandles.insertArguments(checkMethod, 0, bbq.dataBits()),
+                                        MethodHandles.insertArguments(checkMethod, 0, bbq.queryBytesPerDocByte()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );
@@ -1161,7 +1207,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         )
                                     );
                                     yield MethodHandles.guardWithTest(
-                                        MethodHandles.insertArguments(checkMethod, 0, bbq.dataBits()),
+                                        MethodHandles.insertArguments(checkMethod, 0, bbq.queryBytesPerDocByte()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );
@@ -1210,7 +1256,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         )
                                     );
                                     yield MethodHandles.guardWithTest(
-                                        MethodHandles.insertArguments(checkMethod, 0, bbq.dataBits()),
+                                        MethodHandles.insertArguments(checkMethod, 0, bbq.queryBytesPerDocByte()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );
@@ -1314,6 +1360,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     float.class,          // queryBitScale
                     float.class,          // indexBitScale
                     float.class,          // centroidDp
+                    byte.class,           // readComponentSumAsInt (0 = 2-byte format, 1 = 4-byte format)
                     MemorySegment.class   // scores
                 );
 

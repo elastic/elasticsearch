@@ -25,7 +25,6 @@ import java.util.Optional;
 import static org.elasticsearch.simdvec.internal.Similarities.cosineI8;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI8;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI8;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public abstract sealed class Int8VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
@@ -34,11 +33,10 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
     final IndexInput input;
     final MemorySegment query;
     final FixedSizeScratch scratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         checkDimensions(queryVector.length, values.dimension());
         IndexInput input = values instanceof HasIndexSlice slice ? slice.getSlice() : null;
         if (input == null) {
@@ -88,7 +86,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
         if (numNodes == 0) {
             return false;
         }
-        long[] offsets = new long[numNodes];
+        long[] offsets = offsetsScratch.get(numNodes);
         for (int i = 0; i < numNodes; i++) {
             offsets[i] = (long) nodes[i] * vectorByteSize;
         }
@@ -97,6 +95,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             offsets,
             vectorByteSize,
             numNodes,
+            addrsScratch::get,
             a -> sparseScorer.score(a, query, dimensions, numNodes, MemorySegment.ofArray(scores))
         );
     }

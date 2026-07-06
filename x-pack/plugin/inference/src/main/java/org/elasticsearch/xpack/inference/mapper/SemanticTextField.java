@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,6 +68,7 @@ public record SemanticTextField(
 ) implements ToXContentObject, DenseVectorSupplier {
 
     static final String TEXT_FIELD = "text";
+    static final String INPUT_FIELD = "input";
     static final String INFERENCE_FIELD = "inference";
     public static final String INFERENCE_ID_FIELD = "inference_id";
     static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
@@ -172,6 +174,14 @@ public record SemanticTextField(
 
     public static String getOriginalTextFieldName(String fieldName) {
         return fieldName + "." + TEXT_FIELD;
+    }
+
+    /**
+     * Internal binary doc values field that stores the field's original input value(s) in document order, so that
+     * {@code _source} can be rebuilt, and the field retrieved, from doc values alone.
+     */
+    public static String getOriginalValuesFieldName(String fieldName) {
+        return fieldName + "." + INPUT_FIELD;
     }
 
     public static String getInferenceFieldName(String fieldName) {
@@ -442,6 +452,14 @@ public record SemanticTextField(
             chunks.add(toSemanticTextFieldChunk(offsetAdjustment, it.next()));
         }
         return chunks;
+    }
+
+    /**
+     * Converts the provided {@link EmbeddingResults.Embedding} into a {@link Chunk}.
+     */
+    public static Chunk toSemanticFieldChunk(int inputIndex, EmbeddingResults.Embedding<?> inferenceResults, XContentType contentType)
+        throws IOException {
+        return new Chunk(inputIndex, inferenceResults.toBytesRef(contentType.xContent()));
     }
 
     /**

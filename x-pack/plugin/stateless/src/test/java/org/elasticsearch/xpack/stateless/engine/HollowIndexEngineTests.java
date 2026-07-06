@@ -107,7 +107,7 @@ public class HollowIndexEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         try (Store store = createStore()) {
             var globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, globalCheckpoint::get);
             int numDocs = randomIntBetween(8, 32);
 
             createEmptyStore(store, engineConfig);
@@ -136,7 +136,7 @@ public class HollowIndexEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         try (Store store = createStore()) {
             var globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, globalCheckpoint::get);
             int numDocs = randomIntBetween(8, 32);
 
             createEmptyStore(store, engineConfig);
@@ -165,7 +165,7 @@ public class HollowIndexEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         try (Store store = createStore()) {
             var globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, globalCheckpoint::get);
             int numDocs = randomIntBetween(8, 32);
 
             createEmptyStore(store, engineConfig);
@@ -194,7 +194,7 @@ public class HollowIndexEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         try (Store store = createStore()) {
             var globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, globalCheckpoint::get);
             int numDocs = randomIntBetween(8, 32);
 
             createEmptyStore(store, engineConfig);
@@ -241,7 +241,7 @@ public class HollowIndexEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         try (Store store = createStore()) {
             var globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            var engineConfig = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, globalCheckpoint::get);
             var documentMapper = engineConfig.getMapperService().documentMapper();
             var mappingLookup = engineConfig.getMapperService().mappingLookup();
             int numDocs = randomIntBetween(8, 32);

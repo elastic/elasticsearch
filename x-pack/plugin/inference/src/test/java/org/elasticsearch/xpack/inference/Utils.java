@@ -17,16 +17,22 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
@@ -34,6 +40,9 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,8 +83,30 @@ public final class Utils {
         return clusterService;
     }
 
+    /**
+     * Returns an {@link OAuth2ClusterSettings} built from {@link Settings#EMPTY} and a mock cluster service.
+     * Suitable for tests that construct OpenAI models but do not exercise OAuth2 token fetching.
+     */
+    public static OAuth2ClusterSettings mockOAuth2ClusterSettings() {
+        return new OAuth2ClusterSettings(Settings.EMPTY, mockClusterServiceEmpty());
+    }
+
     public static ScalingExecutorBuilder[] inferenceUtilityExecutors() {
         return inferenceUtilityExecutors(MAX_THREADS, MAX_THREADS);
+    }
+
+    /**
+     * Encode a {@code float[]} the same way OpenAI and Azure OpenAI emit
+     * embeddings on the wire when the request carries
+     * {@code encoding_format=base64}: packed little-endian {@code float32},
+     * then base64. Suitable for splicing into mock JSON response bodies.
+     */
+    public static String encodeFloatsAsOpenAiBase64(float... values) {
+        ByteBuffer buf = ByteBuffer.allocate(values.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        for (float v : values) {
+            buf.putFloat(v);
+        }
+        return Base64.getEncoder().encodeToString(buf.array());
     }
 
     public static ScalingExecutorBuilder[] inferenceUtilityExecutors(int maxUtilityThreads, int maxResponseThreads) {
@@ -115,7 +146,23 @@ public final class Utils {
     ) throws Exception {
         Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
             inferenceId,
+            TaskType.TEXT_EMBEDDING,
             new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType)
+        );
+        storeModel(modelRegistry, model);
+    }
+
+    public static void storeEmbeddingModel(
+        String inferenceId,
+        ModelRegistry modelRegistry,
+        int dimensions,
+        SimilarityMeasure similarityMeasure,
+        DenseVectorFieldMapper.ElementType elementType
+    ) throws Exception {
+        Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
+            inferenceId,
+            TaskType.EMBEDDING,
+            new TestDenseInferenceServiceExtension.TestServiceSettings("embedding_model", dimensions, similarityMeasure, elementType)
         );
         storeModel(modelRegistry, model);
     }
@@ -154,6 +201,23 @@ public final class Utils {
 
     public static SimilarityMeasure randomSimilarityMeasure() {
         return randomFrom(SimilarityMeasure.values());
+    }
+
+    public static InferenceStringGroup randomInferenceStringGroup() {
+        return switch (ESTestCase.between(0, 2)) {
+            case 0 -> new InferenceStringGroup(ESTestCase.randomAlphaOfLengthBetween(5, 10));
+            case 1 -> new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8="));
+            case 2 -> new InferenceStringGroup(
+                ESTestCase.randomList(
+                    2,
+                    4,
+                    () -> ESTestCase.randomBoolean()
+                        ? InferenceString.ofText(ESTestCase.randomAlphaOfLengthBetween(5, 10))
+                        : new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")
+                )
+            );
+            default -> throw new AssertionError("Invalid value");
+        };
     }
 
     public record PersistedConfig(Map<String, Object> config, Map<String, Object> secrets) {}

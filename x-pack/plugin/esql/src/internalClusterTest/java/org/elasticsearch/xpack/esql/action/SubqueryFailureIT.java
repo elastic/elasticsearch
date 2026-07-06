@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -322,6 +323,37 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
             // total = 3 + 1 + 1 = 5
             assertThat(rows.size(), equalTo(5));
         }
+    }
+
+    /**
+     * Two subqueries reference the same index pattern but with different source commands —
+     * {@code FROM} (which produces {@link org.elasticsearch.index.IndexMode#STANDARD}) and
+     * {@code TS} (which produces {@link org.elasticsearch.index.IndexMode#TIME_SERIES}).
+     * {@link org.elasticsearch.xpack.esql.analysis.PreAnalyzer} forbids the same index pattern
+     * from appearing twice with different index modes, so the query must be rejected before
+     * index resolution / execution.
+     */
+    public void testFromAndTsSubqueriesOnSameIndexPatternFails() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        var query = """
+            FROM
+               (FROM ok | KEEP id | LIMIT 10),
+               (TS ok | LIMIT 10)
+            | LIMIT 100
+            """;
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query)).close());
+        Throwable cause = ex;
+        while (cause != null && (cause.getMessage() == null || cause.getMessage().contains("different index mode") == false)) {
+            cause = cause.getCause();
+        }
+        assertThat(
+            "expected PreAnalyzer rejection for conflicting index modes on pattern [ok]",
+            cause,
+            org.hamcrest.Matchers.notNullValue()
+        );
+        assertThat(cause.getMessage(), containsString("index pattern 'ok'"));
+        assertThat(cause.getMessage(), containsString("time_series"));
+        assertThat(cause.getMessage(), containsString("standard"));
     }
 
     private static QueryPragmas batchPragmas(int batchSize) {

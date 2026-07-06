@@ -7,14 +7,19 @@
 
 package org.elasticsearch.xpack.esql.qa.multi_node;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.ClassRule;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class EsqlSpecIT extends EsqlSpecTestCase {
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 
@@ -50,5 +55,14 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected String maybeRandomizeQuery(String query) {
         return randomlyNullify(query);
+    }
+
+    @Override
+    protected void shouldSkipTest(String testName) throws IOException {
+        super.shouldSkipTest(testName);
+        CsvTestUtils.assumeTrueLogging(
+            "Multi-node tests don't support remote cluster capability requirements",
+            testCase.missingCapabilitiesRemoteCluster.isEmpty()
+        );
     }
 }

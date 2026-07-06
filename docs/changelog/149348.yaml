@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 149348
+summary: Repro and fix `recoveryStats` double decrement
+type: bug

@@ -405,4 +405,5 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
             throw rethrow(t);
         }
     }
+
 }

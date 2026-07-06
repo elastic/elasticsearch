@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149026
+summary: SIMD contains for *literal* LIKE patterns
+type: enhancement

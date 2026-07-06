@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.security.QueryRoleIT.assertQuery;
 import static org.elasticsearch.xpack.security.QueryRoleIT.waitForMigrationCompletion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
@@ -286,6 +287,10 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
     }
 
     private void closeSecurityIndex() throws Exception {
+        // Wait for green: closing while shards are still recovering races with TransportVerifyShardBeforeCloseAction
+        // and silently no-ops — the API returns HTTP 200 with acknowledged=false and state stays OPEN.
+        ensureGreen(adminClient(), INTERNAL_SECURITY_MAIN_INDEX_7);
+
         Request request = new Request("POST", "/" + TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7 + "/_close");
         request.setOptions(
             expectWarnings(
@@ -295,15 +300,10 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         );
         Response response = adminClient().performRequest(request);
         assertOK(response);
-        // The close API can return acknowledged with the close-block applied but before IndexMetadata.state has
-        // been flipped to CLOSE.
-        assertBusy(() -> {
-            final Request stateRequest = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
-            final Response stateResponse = adminClient().performRequest(stateRequest);
-            assertOK(stateResponse);
-            final String indexState = ObjectPath.createFromResponse(stateResponse).evaluate("metadata.indices.\\.security-7.state");
-            assertThat(indexState, equalTo("close"));
-        }, 30, TimeUnit.SECONDS);
+
+        final Map<String, Object> closeResponse = responseAsMap(response);
+        assertThat(closeResponse, hasEntry("acknowledged", true));
+        assertThat(closeResponse, hasEntry("shards_acknowledged", true));
     }
 
     private void openSecurityIndex() throws Exception {

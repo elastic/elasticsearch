@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.mocksocket.MockHttpServer;
@@ -189,7 +190,7 @@ public class MockWebServer implements Closeable {
         return new InetSocketAddress(hostname, port);
     }
 
-    public URI getUri(String path) throws URISyntaxException {
+    public URI getUri(@Nullable String path) throws URISyntaxException {
         if (hostname == null) {
             throw new IllegalStateException("Web server must be started in order to determine its URI");
         }

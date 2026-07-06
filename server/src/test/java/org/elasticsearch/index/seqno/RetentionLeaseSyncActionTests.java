@@ -115,7 +115,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
-        action.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+        action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             // the retention leases on the shard should be persisted
             verify(indexShard).persistRetentionLeases();
             // we should forward the request containing the current retention leases to the replica
@@ -155,7 +155,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
         PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = new PlainActionFuture<>();
-        action.dispatchedShardOperationOnReplica(request, indexShard, listener);
+        action.shardOperationOnReplica(request, indexShard, listener);
         final TransportReplicationAction.ReplicaResult result = listener.actionGet();
         // the retention leases on the shard should be updated
         verify(indexShard).updateRetentionLeasesOnReplica(retentionLeases);

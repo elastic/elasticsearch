@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 149069
+summary: "S3HttpFixture: track and expose storage class on blobs"
+type: enhancement

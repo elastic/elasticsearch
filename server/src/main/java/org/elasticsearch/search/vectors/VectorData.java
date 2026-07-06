@@ -357,7 +357,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         int numFloats = bytes.length / BFloat16.BYTES;
         float[] floats = new float[numFloats];
         ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
-        BFloat16.bFloat16ToFloat(buffer.asShortBuffer(), floats);
+        BFloat16.bFloat16ToFloat(buffer, floats);
         return VectorData.fromFloats(floats);
     }
 

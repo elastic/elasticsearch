@@ -6,6 +6,8 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.elasticsearch.gradle.VersionProperties
+
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.build'
@@ -16,6 +18,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'cli'
   }
+  testImplementation("com.fasterxml.jackson.core:jackson-databind:${versions["jackson"]}")
 }
 
 // Like :libs:cli, this library does not depend on :server, so it cannot run the jarHell task

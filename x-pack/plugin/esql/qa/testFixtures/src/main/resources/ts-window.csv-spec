@@ -275,6 +275,88 @@ s:long | time_bucket:datetime
 161    | 2024-01-01T00:25:00.000Z
 ;
 
+sum_over_time_non_multiple_11m_window_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+required_capability: fix_time_series_window_backward
+
+TS ts_window
+| STATS s = sum(sum_over_time(val, 11m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+s:long | dim:keyword | time_bucket:datetime
+1      | a           | 2024-01-01T00:00:00.000Z
+10     | b           | 2024-01-01T00:00:00.000Z
+21     | a           | 2024-01-01T00:05:00.000Z
+210    | b           | 2024-01-01T00:05:00.000Z
+66     | a           | 2024-01-01T00:10:00.000Z
+660    | b           | 2024-01-01T00:10:00.000Z
+121    | a           | 2024-01-01T00:15:00.000Z
+1210   | b           | 2024-01-01T00:15:00.000Z
+176    | a           | 2024-01-01T00:20:00.000Z
+1760   | b           | 2024-01-01T00:20:00.000Z
+231    | a           | 2024-01-01T00:25:00.000Z
+2310   | b           | 2024-01-01T00:25:00.000Z
+;
+
+sum_over_time_non_multiple_7m_window_5m_bucket_trange_start_7m
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+required_capability: fix_time_series_window_backward
+
+TS ts_window
+| WHERE dim == "a"
+| WHERE TRANGE("2024-01-01T00:07:00.000Z", "2024-01-01T00:29:00.000Z")
+| STATS s = sum(sum_over_time(val, 7m)) BY time_bucket = TBUCKET(5minute)
+| SORT time_bucket
+| LIMIT 20;
+
+s:long | time_bucket:datetime
+30     | 2024-01-01T00:10:00.000Z
+91     | 2024-01-01T00:15:00.000Z
+126    | 2024-01-01T00:20:00.000Z
+161    | 2024-01-01T00:25:00.000Z
+;
+
+min_over_time_non_multiple_7m_window_5m_bucket_trange_start_5m
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+required_capability: fix_time_series_window_backward
+
+TS ts_window
+| WHERE dim == "a"
+| WHERE TRANGE("2024-01-01T00:05:00.000Z", "2024-01-01T00:29:00.000Z")
+| STATS mn = sum(min_over_time(val, 7m)) BY time_bucket = TBUCKET(5minute)
+| SORT time_bucket
+| LIMIT 20;
+
+mn:long | time_bucket:datetime
+7       | 2024-01-01T00:10:00.000Z
+10      | 2024-01-01T00:15:00.000Z
+15      | 2024-01-01T00:20:00.000Z
+20      | 2024-01-01T00:25:00.000Z
+;
+
+count_over_time_non_multiple_7m_window_5m_bucket_trange_start_5m
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+required_capability: fix_time_series_window_backward
+
+TS ts_window
+| WHERE dim == "a"
+| WHERE TRANGE("2024-01-01T00:05:00.000Z", "2024-01-01T00:29:00.000Z")
+| STATS c = sum(count_over_time(val, 7m)) BY time_bucket = TBUCKET(5minute)
+| SORT time_bucket
+| LIMIT 20;
+
+c:long | time_bucket:datetime
+5      | 2024-01-01T00:10:00.000Z
+7      | 2024-01-01T00:15:00.000Z
+7      | 2024-01-01T00:20:00.000Z
+7      | 2024-01-01T00:25:00.000Z
+;
+
 sum_over_time_exact_multiple_baseline
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
@@ -331,5 +413,153 @@ b           | 2024-01-01T00:15:00.000Z | 2.066327
 a           | 2024-01-01T00:20:00.000Z | 0.283163
 b           | 2024-01-01T00:20:00.000Z | 2.831633
 a           | 2024-01-01T00:25:00.000Z | 0.359694
-b           | 2024-01-01T00:25:00.000Z | 3.596939     
+b           | 2024-01-01T00:25:00.000Z | 3.596939
+;
+
+sum_over_time_non_multiple_7m_window_5m_tstep
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+required_capability: fix_time_series_window_backward
+required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
+request_time_filter: 2024-01-01T00:00:00.000Z,2024-01-01T00:30:00.000Z
+
+TS ts_window
+| STATS s = sum(sum_over_time(val, 7m)) BY dim, time_bucket = TSTEP(5minute)
+| SORT time_bucket, dim
+| LIMIT 12;
+
+s:long | dim:keyword | time_bucket:datetime
+1      | a           | 2024-01-01T00:00:00.000Z
+10     | b           | 2024-01-01T00:00:00.000Z
+21     | a           | 2024-01-01T00:05:00.000Z
+210    | b           | 2024-01-01T00:05:00.000Z
+56     | a           | 2024-01-01T00:10:00.000Z
+560    | b           | 2024-01-01T00:10:00.000Z
+91     | a           | 2024-01-01T00:15:00.000Z
+910    | b           | 2024-01-01T00:15:00.000Z
+126    | a           | 2024-01-01T00:20:00.000Z
+1260   | b           | 2024-01-01T00:20:00.000Z
+161    | a           | 2024-01-01T00:25:00.000Z
+1610   | b           | 2024-01-01T00:25:00.000Z
+;
+
+sum_over_time_non_multiple_11m_window_5m_tstep
+required_capability: ts_command_v0
+required_capability: time_series_window_non_multiple
+required_capability: fix_time_series_window_backward
+required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
+request_time_filter: 2024-01-01T00:00:00.000Z,2024-01-01T00:30:00.000Z
+
+TS ts_window
+| STATS s = sum(sum_over_time(val, 11m)) BY dim, time_bucket = TSTEP(5minute)
+| SORT time_bucket, dim
+| LIMIT 12;
+
+s:long | dim:keyword | time_bucket:datetime
+1      | a           | 2024-01-01T00:00:00.000Z
+10     | b           | 2024-01-01T00:00:00.000Z
+21     | a           | 2024-01-01T00:05:00.000Z
+210    | b           | 2024-01-01T00:05:00.000Z
+66     | a           | 2024-01-01T00:10:00.000Z
+660    | b           | 2024-01-01T00:10:00.000Z
+121    | a           | 2024-01-01T00:15:00.000Z
+1210   | b           | 2024-01-01T00:15:00.000Z
+176    | a           | 2024-01-01T00:20:00.000Z
+1760   | b           | 2024-01-01T00:20:00.000Z
+231    | a           | 2024-01-01T00:25:00.000Z
+2310   | b           | 2024-01-01T00:25:00.000Z
+;
+
+rate_5m_tbucket
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+
+TS ts_window
+| WHERE dim == "a"
+| STATS r = rate(counter_val) BY time_bucket = TBUCKET(5minute)
+| EVAL r = ROUND(r, 6)
+| KEEP r, time_bucket
+| SORT time_bucket
+;
+
+r:double | time_bucket:datetime
+0.066667 | 2024-01-01T00:00:00.000Z
+0.15     | 2024-01-01T00:05:00.000Z
+0.233333 | 2024-01-01T00:10:00.000Z
+0.316667 | 2024-01-01T00:15:00.000Z
+0.4      | 2024-01-01T00:20:00.000Z
+0.418    | 2024-01-01T00:25:00.000Z
+;
+
+rate_5m_tbucket_b
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+
+TS ts_window
+| WHERE dim == "b"
+| STATS r = rate(counter_val) BY time_bucket = TBUCKET(5minute)
+| EVAL r = ROUND(r, 6)
+| KEEP r, time_bucket
+| SORT time_bucket
+;
+
+r:double | time_bucket:datetime
+0.666667 | 2024-01-01T00:00:00.000Z
+1.5      | 2024-01-01T00:05:00.000Z
+2.333333 | 2024-01-01T00:10:00.000Z
+3.166667 | 2024-01-01T00:15:00.000Z
+4.0      | 2024-01-01T00:20:00.000Z
+4.18     | 2024-01-01T00:25:00.000Z
+;
+
+rate_5m_tstep
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
+request_time_filter: 2024-01-01T00:00:00.000Z,2024-01-01T00:30:00.000Z
+
+TS ts_window
+| WHERE dim == "a"
+| STATS r = rate(counter_val) BY time_bucket = TSTEP(5minute)
+| EVAL r = ROUND(r, 6)
+| KEEP r, time_bucket
+| SORT time_bucket
+;
+
+r:double | time_bucket:datetime
+null     | 2024-01-01T00:00:00.000Z
+0.066667 | 2024-01-01T00:05:00.000Z
+0.15     | 2024-01-01T00:10:00.000Z
+0.233333 | 2024-01-01T00:15:00.000Z
+0.316667 | 2024-01-01T00:20:00.000Z
+0.4      | 2024-01-01T00:25:00.000Z
+0.41625  | 2024-01-01T00:30:00.000Z
+;
+
+rate_5m_tstep_b
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
+request_time_filter: 2024-01-01T00:00:00.000Z,2024-01-01T00:30:00.000Z
+
+TS ts_window
+| WHERE dim == "b"
+| STATS r = rate(counter_val) BY time_bucket = TSTEP(5minute)
+| EVAL r = ROUND(r, 6)
+| KEEP r, time_bucket
+| SORT time_bucket
+;
+
+r:double | time_bucket:datetime
+null     | 2024-01-01T00:00:00.000Z
+0.666667 | 2024-01-01T00:05:00.000Z
+1.5      | 2024-01-01T00:10:00.000Z
+2.333333 | 2024-01-01T00:15:00.000Z
+3.166667 | 2024-01-01T00:20:00.000Z
+4.0      | 2024-01-01T00:25:00.000Z
+4.1625   | 2024-01-01T00:30:00.000Z
 ;

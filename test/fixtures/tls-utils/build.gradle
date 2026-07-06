@@ -1,0 +1,35 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+apply plugin: 'elasticsearch.java'
+
+description = 'TLS utilities for test fixtures'
+
+dependencies {
+  api project(':libs:ssl-config')
+  api project(':test:framework')
+  api project(':test:test-clusters')
+
+  // Non-FIPS and FIPS Bouncy Castle artifacts share package names; never put both on the test classpath.
+  if (buildParams.inFipsJvm) {
+    if (buildParams.fipsMode == '140-3') {
+      compileOnly 'org.bouncycastle:bc-fips:2.0.1'
+      compileOnly 'org.bouncycastle:bctls-fips:2.0.22'
+      compileOnly 'org.bouncycastle:bcutil-fips:2.0.5'
+      compileOnly 'org.bouncycastle:bcpkix-fips:2.0.7'
+    } else {
+      compileOnly 'org.bouncycastle:bc-fips:1.0.2.6'
+      compileOnly 'org.bouncycastle:bctls-fips:1.0.19'
+      compileOnly 'org.bouncycastle:bcpkix-fips:1.0.7'
+    }
+  } else {
+    api "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
+    api "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
+    api "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
+  }
+}

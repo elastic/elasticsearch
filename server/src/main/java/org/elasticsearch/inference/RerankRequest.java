@@ -190,7 +190,7 @@ public record RerankRequest(
     private static InferenceString parseStringOrObject(XContentParser parser, String fieldName) throws IOException {
         var currentToken = parser.currentToken();
         if (currentToken == XContentParser.Token.VALUE_STRING) {
-            return new InferenceString(DataType.TEXT, parser.text());
+            return InferenceString.ofText(parser.text());
         } else if (currentToken == XContentParser.Token.START_OBJECT) {
             var inferenceString = InferenceString.PARSER.parse(parser, null);
             if (SUPPORTED_RERANK_DATA_TYPES.contains(inferenceString.dataType()) == false) {

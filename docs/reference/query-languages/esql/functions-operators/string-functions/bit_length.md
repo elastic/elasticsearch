@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `BIT_LENGTH` function [esql-bit_length]
 
-:::{include} ../../_snippets/functions/layout/bit_length.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/bit_length.md
 :::

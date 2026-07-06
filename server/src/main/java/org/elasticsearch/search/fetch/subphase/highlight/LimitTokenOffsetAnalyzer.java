@@ -9,15 +9,15 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenOffsetFilter;
+import org.elasticsearch.index.analysis.ElasticsearchAnalyzerWrapper;
 
 /**
  * This analyzer limits the highlighting once it sees a token with a start offset &lt;= the configured limit,
  * which won't pass and will end the stream.
  * @see LimitTokenOffsetFilter
  */
-public final class LimitTokenOffsetAnalyzer extends AnalyzerWrapper {
+public final class LimitTokenOffsetAnalyzer extends ElasticsearchAnalyzerWrapper {
 
     private final Analyzer delegate;
     private final int maxOffset;
@@ -30,7 +30,7 @@ public final class LimitTokenOffsetAnalyzer extends AnalyzerWrapper {
      * @param maxOffset max number of tokens to produce
      */
     public LimitTokenOffsetAnalyzer(Analyzer delegate, int maxOffset) {
-        super(delegate.getReuseStrategy());
+        super(delegate);
         this.delegate = delegate;
         this.maxOffset = maxOffset;
     }

@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.inference.common.amazon;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -28,6 +28,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
@@ -44,18 +46,8 @@ public class AwsSecretSettings implements SecretSettings {
         }
 
         ValidationException validationException = new ValidationException();
-        SecureString secureAccessKey = extractRequiredSecureString(
-            map,
-            ACCESS_KEY_FIELD,
-            ModelSecrets.SECRET_SETTINGS,
-            validationException
-        );
-        SecureString secureSecretKey = extractRequiredSecureString(
-            map,
-            SECRET_KEY_FIELD,
-            ModelSecrets.SECRET_SETTINGS,
-            validationException
-        );
+        SecureString secureAccessKey = extractRequiredSecureString(map, ACCESS_KEY_FIELD, SERVICE_SETTINGS, validationException);
+        SecureString secureSecretKey = extractRequiredSecureString(map, SECRET_KEY_FIELD, SERVICE_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -113,8 +105,33 @@ public class AwsSecretSettings implements SecretSettings {
     }
 
     @Override
-    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(newSecrets);
+    public AwsSecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        var validationException = new ValidationException();
+        var extractedAccessKey = extractOptionalSecureString(newSecrets, ACCESS_KEY_FIELD, SERVICE_SETTINGS, validationException);
+        var extractedSecretKey = extractOptionalSecureString(newSecrets, SECRET_KEY_FIELD, SERVICE_SETTINGS, validationException);
+        validationException.throwIfValidationErrorsExist();
+
+        // AWS credentials must be rotated as a pair; no-op when both halves are absent or both already match the existing values.
+        if ((extractedAccessKey == null && extractedSecretKey == null)
+            || (Objects.equals(extractedAccessKey, accessKey) && Objects.equals(extractedSecretKey, secretKey))) {
+            return this;
+        }
+
+        if (extractedAccessKey == null || extractedSecretKey == null) {
+            var missingField = extractedAccessKey == null ? ACCESS_KEY_FIELD : SECRET_KEY_FIELD;
+            validationException.addValidationError(
+                Strings.format(
+                    "[%s] [%s] and [%s] must be updated together; missing: [%s]",
+                    SERVICE_SETTINGS,
+                    ACCESS_KEY_FIELD,
+                    SECRET_KEY_FIELD,
+                    missingField
+                )
+            );
+        }
+        validationException.throwIfValidationErrorsExist();
+
+        return new AwsSecretSettings(extractedAccessKey, extractedSecretKey);
     }
 
     public SecureString accessKey() {

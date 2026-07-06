@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
 
@@ -178,17 +179,93 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         assertThat(source.evaluate("data_stream.namespace"), equalTo("production"));
     }
 
-    public void testRemoteWriteWithInvalidCustomDatasetReturns400() throws Exception {
-        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_dataset_metric"), "/_prometheus/metrics/my-app/api/v1/write");
-        assertThat(body, containsString("data stream dataset 'my-app' contains disallowed characters, must conform to regex ["));
+    public void testRemoteWriteSanitizesInvalidCustomDatasetInPath() throws Exception {
+        String metricName = "invalid_dataset_metric";
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/metrics/my-app/api/v1/write");
+
+        ObjectPath source = searchSingleDoc("metrics-my_app.prometheus-default", metricName);
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("my_app.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("default"));
     }
 
-    public void testRemoteWriteWithInvalidCustomNamespaceReturns400() throws Exception {
-        String body = sendAndAssertBadRequest(
-            simpleWriteRequest("invalid_namespace_metric"),
-            "/_prometheus/metrics/myapp/foo:bar/api/v1/write"
-        );
-        assertThat(body, containsString("data stream namespace 'foo:bar' contains disallowed characters, must conform to regex ["));
+    public void testRemoteWriteSanitizesInvalidCustomNamespaceInPath() throws Exception {
+        String metricName = "invalid_namespace_metric";
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/metrics/myapp/foo:bar/api/v1/write");
+
+        ObjectPath source = searchSingleDoc("metrics-myapp.prometheus-foo_bar", metricName);
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("myapp.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("foo_bar"));
+    }
+
+    public void testRemoteWriteLabelRoutingOverridesPathDatasetAndNamespace() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "label_route_metric";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                timeSeries(
+                    metricName,
+                    Map.of("data_stream_dataset", "fromlabels", "data_stream_namespace", "labelns", "job", "prometheus"),
+                    sample(1.0, timestamp)
+                )
+            )
+            .build();
+
+        // Path would target myapp/production; labels must win
+        sendAndAssertSuccess(writeRequest, "/_prometheus/metrics/myapp/production/api/v1/write");
+
+        ObjectPath source = searchSingleDoc("metrics-fromlabels.prometheus-labelns", metricName);
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("fromlabels.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("labelns"));
+        assertThat(source.evaluate("labels.job"), equalTo("prometheus"));
+    }
+
+    public void testRemoteWriteLabelRoutingPartialOverrideUsesPathForUnsetFields() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "partial_label_route_metric";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                timeSeries(metricName, Map.of("data_stream_namespace", "only_ns_from_label", "job", "j"), sample(1.0, timestamp))
+            )
+            .build();
+
+        sendAndAssertSuccess(writeRequest, "/_prometheus/metrics/pathdataset/default/api/v1/write");
+
+        ObjectPath source = searchSingleDoc("metrics-pathdataset.prometheus-only_ns_from_label", metricName);
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("pathdataset.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("only_ns_from_label"));
+    }
+
+    public void testRemoteWriteSanitizesInvalidDatasetInLabel() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "bad_label_dataset";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(timeSeries(metricName, Map.of("data_stream_dataset", "bad:dataset", "job", "x"), sample(1.0, timestamp)))
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+
+        ObjectPath source = searchSingleDoc("metrics-bad_dataset.prometheus-default", metricName);
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("bad_dataset.prometheus"));
+        assertThat(source.evaluate("labels.job"), equalTo("x"));
+    }
+
+    public void testRemoteWriteRoutingLabelsNotDuplicatedInLabelsObject() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "no_dup_routing_labels";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                timeSeries(
+                    metricName,
+                    Map.of("data_stream_dataset", "nodup", "data_stream_namespace", "ns", "job", "x"),
+                    sample(1.0, timestamp)
+                )
+            )
+            .build();
+        sendAndAssertSuccess(writeRequest);
+
+        ObjectPath source = searchSingleDoc("metrics-nodup.prometheus-ns", metricName);
+        assertThat(source.evaluate("labels.data_stream_dataset"), nullValue());
+        assertThat(source.evaluate("labels.data_stream_namespace"), nullValue());
     }
 
     // --- helpers ---

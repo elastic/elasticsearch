@@ -71,10 +71,12 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvContains.class)
         .binary(MvContains::new)
+        .capabilities("flattened")
         .name("mv_contains");
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Checks if one multi-value field contains all values from another.",
         description = "Checks if all values yielded by the second multivalue expression are present in the values yielded by "
             + "the first multivalue expression. Returns a boolean. Null values are treated as an empty set.",
         examples = {
@@ -94,6 +96,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -117,6 +120,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

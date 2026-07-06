@@ -22,7 +22,7 @@ The following examples show how to remove columns by name and by pattern.
 
 ### Drop a column by name
 
-:::{include} ../examples/drop.csv-spec/height.md
+:::{include} ../../generated/x-pack-esql/commands/examples/drop.csv-spec/height.md
 :::
 
 ### Drop columns matching a wildcard pattern
@@ -30,5 +30,5 @@ The following examples show how to remove columns by name and by pattern.
 Rather than specify each column by name, you can use wildcards to drop all
 columns with a name that matches a pattern:
 
-:::{include} ../examples/drop.csv-spec/heightWithWildcard.md
+:::{include} ../../generated/x-pack-esql/commands/examples/drop.csv-spec/heightWithWildcard.md
 :::

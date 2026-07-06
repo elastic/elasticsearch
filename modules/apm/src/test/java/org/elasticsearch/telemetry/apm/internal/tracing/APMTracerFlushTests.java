@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
@@ -35,8 +36,9 @@ public class APMTracerFlushTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushTraces() {
+            public CompletableResultCode attemptFlushTraces() {
                 calls.add("attemptFlushTraces");
+                return CompletableResultCode.ofSuccess();
             }
 
             @Override
@@ -46,7 +48,7 @@ public class APMTracerFlushTests extends ESTestCase {
         };
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier);
+        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, false);
         tracer.start();
         tracer.stop();
 
@@ -65,13 +67,14 @@ public class APMTracerFlushTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushTraces() {
+            public CompletableResultCode attemptFlushTraces() {
                 calls.add("attemptFlushTraces");
+                return CompletableResultCode.ofSuccess();
             }
         };
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier);
+        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, false);
         tracer.start();
         tracer.attemptFlushTraces();
 
@@ -91,7 +94,7 @@ public class APMTracerFlushTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushTraces() {
+            public CompletableResultCode attemptFlushTraces() {
                 throw new RuntimeException("simulated flush failure");
             }
 
@@ -102,7 +105,38 @@ public class APMTracerFlushTests extends ESTestCase {
         };
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier);
+        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, false);
+        tracer.start();
+        tracer.stop(); // must not throw
+
+        assertThat(calls, contains("close"));
+        assertThat(tracer.getSpans(), anEmptyMap());
+    }
+
+    /**
+     * A flush that returns ofFailure() must not prevent close() or service teardown.
+     */
+    public void testDoStopClosesAndDestroysServicesEvenIfFlushFails() {
+        List<String> calls = new ArrayList<>();
+        TraceSupplier trackingSupplier = new TraceSupplier() {
+            @Override
+            public OpenTelemetry get() {
+                return OpenTelemetry.noop();
+            }
+
+            @Override
+            public CompletableResultCode attemptFlushTraces() {
+                return CompletableResultCode.ofFailure();
+            }
+
+            @Override
+            public void close() {
+                calls.add("close");
+            }
+        };
+
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, false);
         tracer.start();
         tracer.stop(); // must not throw
 
@@ -124,8 +158,9 @@ public class APMTracerFlushTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushTraces() {
+            public CompletableResultCode attemptFlushTraces() {
                 calls.add("attemptFlushTraces");
+                return CompletableResultCode.ofSuccess();
             }
 
             @Override
@@ -135,7 +170,7 @@ public class APMTracerFlushTests extends ESTestCase {
         };
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier);
+        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, false);
         tracer.start();
         tracer.stop();
 

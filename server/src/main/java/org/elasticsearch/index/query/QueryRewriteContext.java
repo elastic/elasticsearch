@@ -91,6 +91,8 @@ public class QueryRewriteContext {
     private final boolean isProfile;
     private Long timeRangeFilterFromMillis;
     private boolean trackTimeRangeFilterFrom = true;
+    @Nullable
+    private Boolean hasAnyLocalInferenceFields;
     private final boolean allowPartialSearchResults;
 
     public QueryRewriteContext(
@@ -408,11 +410,18 @@ public class QueryRewriteContext {
         return mapperService.getIndexAnalyzers();
     }
 
+    /**
+     * @return a supplier that can be used to check whether loading field data from _id field's inverted index is allowed.
+     */
+    public BooleanSupplier idFieldDataEnabled() {
+        return mapperService.getIdFieldDataEnabled();
+    }
+
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, indexSettings, getIndexAnalyzers(), false);
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -629,6 +638,23 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Returns whether concrete local indices include any inference fields. Returns {@code null} if unknown.
+     */
+    @Nullable
+    public Boolean getHasAnyLocalInferenceFields() {
+        return hasAnyLocalInferenceFields;
+    }
+
+    /**
+     * Sets whether concrete local indices include any inference fields.
+     */
+    public void setHasAnyLocalInferenceFields(boolean hasAnyLocalInferenceFields) {
+        // we don't expect this to ever change during the lifetime of the context
+        assert this.hasAnyLocalInferenceFields == null || this.hasAnyLocalInferenceFields == hasAnyLocalInferenceFields;
+        this.hasAnyLocalInferenceFields = hasAnyLocalInferenceFields;
+    }
+
+    /**
      * Returns the {@link PointInTimeBuilder} used by the search request, or null if not specified.
      */
     @Nullable
@@ -707,6 +733,10 @@ public class QueryRewriteContext {
      */
     public void setTrackTimeRangeFilterFrom(boolean trackTimeRangeFilterFrom) {
         this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
+    }
+
+    public boolean isTrackTimeRangeFilterFrom() {
+        return trackTimeRangeFilterFrom;
     }
 
     /**

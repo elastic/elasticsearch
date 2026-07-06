@@ -171,6 +171,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
             addCookies(httpResponse);
 
             tracer.setAttribute(request, "http.status_code", restResponse.status().getStatus());
+            tracer.setAttribute(request, "http.response.status_code", restResponse.status().getStatus());
             restResponse.getHeaders()
                 .forEach((key, values) -> tracer.setAttribute(request, "http.response.headers." + key, String.join("; ", values)));
 

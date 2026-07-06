@@ -48,8 +48,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
 
     @Override
     protected void doExecute(Task task, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        // Coord-side pre-check: validator dispatch. Fails fast without a master round-trip
-        // on unknown type or validation failure. The task body re-validates under CAS.
+        // Coord-side pre-check: fail fast on unknown type / validation error before the master round-trip.
         try {
             dataSourceService.validatePutDataSource(request);
         } catch (Exception e) {

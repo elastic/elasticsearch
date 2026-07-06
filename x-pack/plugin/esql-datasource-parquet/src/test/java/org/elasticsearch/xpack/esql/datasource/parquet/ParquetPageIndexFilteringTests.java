@@ -140,12 +140,15 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
         List<Integer> baselineIds = readIdsWithBaselineFilter(parquetData, parquetFilter);
         List<Integer> optimizedIds = readIdsWithPushedExpressions(parquetData, esqlFilter);
 
-        assertTrue("Expected some rows from the page containing id=500", optimizedIds.size() > 0);
+        assertTrue("Expected some rows from evaluating id == 500", optimizedIds.size() > 0);
         assertTrue(
-            "Expected RowRanges to skip most pages (got " + optimizedIds.size() + " of " + TOTAL_ROWS + ")",
+            "Expected RowRanges + late-mat to skip most rows (got " + optimizedIds.size() + " of " + TOTAL_ROWS + ")",
             optimizedIds.size() < TOTAL_ROWS / 2
         );
-        assertTrue("Optimized result must be a superset of baseline (baseline=" + baselineIds + ")", optimizedIds.containsAll(baselineIds));
+        // Late-mat evaluates the pushed expression exactly, producing precise results that are
+        // a subset of the baseline's page-level approximate filtering.
+        assertTrue("Optimized result must be a subset of baseline", baselineIds.containsAll(optimizedIds));
+        assertTrue("Optimized result must contain the exact match id=500", optimizedIds.contains(500));
     }
 
     /**
@@ -207,26 +210,18 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
         List<Integer> baselineIds = readIdsWithBaselineFilter(parquetData, parquetFilter);
         List<Integer> optimizedIds = readIdsWithPushedExpressions(parquetData, esqlFilter);
 
-        assertTrue("Expected some rows from the page containing id=1500", optimizedIds.size() > 0);
+        assertTrue("Expected id=1500 from evaluating the filter", optimizedIds.contains(1500));
         assertTrue(
-            "Row group 1 should be skipped, page filtering should skip most pages in row group 2 (got " + optimizedIds.size() + " of 2000)",
+            "Row group + page filtering + late-mat must skip most rows (got " + optimizedIds.size() + " of 2000)",
             optimizedIds.size() < 2000 / 4
         );
-        assertTrue(
-            "Optimized result must be a superset of baseline (baseline size=" + baselineIds.size() + ")",
-            optimizedIds.containsAll(baselineIds)
-        );
+        assertTrue("Optimized result (exact) must be a subset of baseline (page-level approximate)", baselineIds.containsAll(optimizedIds));
     }
 
     /**
-     * Strict parity: both the baseline and optimized paths perform page-level filtering (the
-     * baseline iterator reads pages directly from {@code FilteredPageReadStore} via
-     * {@code ColumnReadStoreImpl}, which honours {@code RowRanges} but does NOT apply record-level
-     * filtering — that would require a {@code RecordReader}). So both paths return the same
-     * page-aligned superset. Assert that they produce identical id lists, not just supersets,
-     * to catch any divergence in page selection between {@code RowGroupFilter} +
-     * {@code ColumnIndexRowRangesComputer} (optimized) and parquet-mr's
-     * {@code readNextFilteredRowGroup} (baseline).
+     * The baseline path does page-level filtering (page-aligned superset). The optimized path
+     * now also evaluates the pushed expression via late-materialization, producing exact results
+     * that are a subset of the baseline's page-aligned output.
      */
     public void testOptimizedAndBaselinePagesetsAreIdentical() throws IOException {
         byte[] parquetData = createSortedParquetFile();
@@ -243,7 +238,8 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
             List<Integer> baselineIds = readIdsWithBaselineFilter(parquetData, parquetFilter);
             List<Integer> optimizedIds = readIdsWithPushedExpressions(parquetData, esqlFilter);
             assertTrue("baseline must contain matching id", baselineIds.contains(500));
-            assertEquals("optimized vs baseline page-aligned ids", baselineIds, optimizedIds);
+            assertTrue("optimized must contain matching id", optimizedIds.contains(500));
+            assertTrue("optimized (exact) must be subset of baseline (page-level)", baselineIds.containsAll(optimizedIds));
         }
 
         // [100, 200) — dense match (multiple pages)
@@ -269,11 +265,10 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
             );
             List<Integer> baselineIds = readIdsWithBaselineFilter(parquetData, parquetFilter);
             List<Integer> optimizedIds = readIdsWithPushedExpressions(parquetData, esqlFilter);
-            assertTrue(
-                "baseline must contain all matching ids",
-                baselineIds.containsAll(java.util.stream.IntStream.range(100, 200).boxed().toList())
-            );
-            assertEquals("optimized vs baseline page-aligned ids", baselineIds, optimizedIds);
+            List<Integer> expectedExact = java.util.stream.IntStream.range(100, 200).boxed().toList();
+            assertTrue("baseline must contain all matching ids", baselineIds.containsAll(expectedExact));
+            assertTrue("optimized must contain all matching ids", optimizedIds.containsAll(expectedExact));
+            assertTrue("optimized (exact) must be subset of baseline (page-level)", baselineIds.containsAll(optimizedIds));
         }
     }
 

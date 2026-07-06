@@ -148,6 +148,11 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
+    public String executorName() {
+        return StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
+    }
+
+    @Override
     public String toString() {
         return "IndexingShardCacheBlobReader{"
             + "shardId="

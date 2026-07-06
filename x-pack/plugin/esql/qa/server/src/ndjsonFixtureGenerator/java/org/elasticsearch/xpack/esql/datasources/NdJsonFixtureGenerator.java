@@ -13,6 +13,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.ColumnSpec;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.CsvFixtureResult;
+import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -25,6 +28,12 @@ import java.util.Locale;
 
 /**
  * Build-time generator: converts a {@link CsvFixtureParser}-compatible CSV fixture to newline-delimited JSON (NDJSON).
+ * <p>
+ * Single-file mode: {@code <source-csv> <output-ndjson>}
+ * <br>
+ * Split mode:       {@code <source-csv> <output-dir> <num-parts>} — writes {@code <basename>_00.ndjson},
+ * {@code <basename>_01.ndjson}, … into the directory. Used by the shared {@code external-multifile*.csv-spec}
+ * tests which glob {@code multifile_split/*.ndjson}.
  * <p>
  * The output is fully determined by the CSV header ({@code name:type} columns) and cell values:
  * <ul>
@@ -43,27 +52,57 @@ public final class NdJsonFixtureGenerator {
 
     private NdJsonFixtureGenerator() {}
 
+    private static final Logger logger = LoggerFactory.getLogger(NdJsonFixtureGenerator.class);
+
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
-        if (args.length != 2) {
+        if (args.length == 2) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputPath = Path.of(args[1]);
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            byte[] ndjson = generateFromCsv(sourcePath);
+            Files.createDirectories(outputPath.getParent());
+            Files.write(outputPath, ndjson);
+            logger.info("Generated NDJSON fixture: {}", outputPath);
+        } else if (args.length == 3) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputDir = Path.of(args[1]);
+            int numParts = Integer.parseInt(args[2]);
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            Files.createDirectories(outputDir);
+            CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(sourcePath);
+            int total = parsed.rows().size();
+            String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
+            for (int part = 0; part < numParts; part++) {
+                SplitPartitioner.Range range = SplitPartitioner.partitionRange(total, numParts, part);
+                if (range == null) {
+                    break;
+                }
+                String fileName = String.format(Locale.ROOT, "%s_%02d.ndjson", baseName, part);
+                Path outputPath = outputDir.resolve(fileName);
+                byte[] ndjson = generateFromRows(parsed, range.from(), range.to());
+                Files.write(outputPath, ndjson);
+                logger.info("Generated NDJSON split fixture: {} (rows {}-{})", outputPath, range.from(), range.to());
+            }
+        } else {
             System.err.println("Usage: NdJsonFixtureGenerator <source-csv-path> <output-ndjson-path>");
+            System.err.println("       NdJsonFixtureGenerator <source-csv-path> <output-dir> <num-parts>");
             System.exit(1);
         }
-        Path sourcePath = Path.of(args[0]);
-        Path outputPath = Path.of(args[1]);
-        if (Files.exists(sourcePath) == false) {
-            throw new IOException("Source CSV not found: " + sourcePath);
-        }
-        byte[] ndjson = generateFromCsv(sourcePath);
-        Files.createDirectories(outputPath.getParent());
-        Files.write(outputPath, ndjson);
-        System.out.println("Generated NDJSON fixture: " + outputPath);
     }
 
     public static byte[] generateFromCsv(Path sourcePath) throws IOException {
         CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(sourcePath);
+        return generateFromRows(parsed, 0, parsed.rows().size());
+    }
+
+    private static byte[] generateFromRows(CsvFixtureResult parsed, int from, int to) throws IOException {
         List<ColumnSpec> schema = parsed.schema();
-        List<Object[]> rows = parsed.rows();
+        List<Object[]> rows = parsed.rows().subList(from, Math.min(to, parsed.rows().size()));
         StringBuilder out = new StringBuilder(rows.size() * 256);
         for (Object[] row : rows) {
             out.append(renderLine(schema, row));

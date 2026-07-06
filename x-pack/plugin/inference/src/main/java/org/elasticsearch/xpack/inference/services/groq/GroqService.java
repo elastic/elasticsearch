@@ -161,7 +161,13 @@ public class GroqService extends SenderService<GroqModel> {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
+        // Should never be called
         listener.onFailure(new ElasticsearchStatusException("Groq does not support chunked inference", RestStatus.BAD_REQUEST));
+    }
+
+    @Override
+    public boolean supportsChunkedInfer() {
+        return false;
     }
 
     @Override

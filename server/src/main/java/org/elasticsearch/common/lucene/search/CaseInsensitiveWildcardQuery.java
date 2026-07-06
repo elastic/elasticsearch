@@ -11,7 +11,7 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.apache.lucene.util.automaton.Automaton;
 
 import static org.elasticsearch.common.lucene.search.AutomatonQueries.toCaseInsensitiveWildcardAutomaton;
 
@@ -27,16 +27,24 @@ public class CaseInsensitiveWildcardQuery extends AutomatonQuery {
         super(term, toCaseInsensitiveWildcardAutomaton(term));
     }
 
-    public CaseInsensitiveWildcardQuery(Term term, CircuitBreaker circuitBreaker) {
-        super(term, toCaseInsensitiveWildcardAutomaton(term, circuitBreaker));
+    /**
+     * Constructs from a pre-built automaton, for callers that build the automaton separately
+     * (e.g. under circuit-breaker accounting).
+     */
+    public CaseInsensitiveWildcardQuery(Term term, Automaton automaton) {
+        super(term, automaton);
     }
 
     public CaseInsensitiveWildcardQuery(Term term, boolean isBinary, RewriteMethod rewriteMethod) {
         super(term, toCaseInsensitiveWildcardAutomaton(term), isBinary, rewriteMethod);
     }
 
-    public CaseInsensitiveWildcardQuery(Term term, boolean isBinary, RewriteMethod rewriteMethod, CircuitBreaker circuitBreaker) {
-        super(term, toCaseInsensitiveWildcardAutomaton(term, circuitBreaker), isBinary, rewriteMethod);
+    /**
+     * Constructs from a pre-built automaton with a custom rewrite method.
+     * See {@link #CaseInsensitiveWildcardQuery(Term, Automaton)}.
+     */
+    public CaseInsensitiveWildcardQuery(Term term, Automaton automaton, boolean isBinary, RewriteMethod rewriteMethod) {
+        super(term, automaton, isBinary, rewriteMethod);
     }
 
     @Override

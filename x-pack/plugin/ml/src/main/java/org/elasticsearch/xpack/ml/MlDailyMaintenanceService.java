@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
@@ -472,17 +473,19 @@ public class MlDailyMaintenanceService implements Releasable {
         request.indices(indexName);
         request.includeDefaults(true); // Request index settings, mappings and aliases
 
-        GetIndexResponse response = client.admin().indices().getIndex(request).actionGet();
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            GetIndexResponse response = client.admin().indices().getIndex(request).actionGet();
 
-        Settings settings = response.getSettings().get(indexName);
+            Settings settings = response.getSettings().get(indexName);
 
-        if (settings != null) {
-            String ilmPolicyName = settings.get("index.lifecycle.name");
-            // If the setting is present and not empty, ILM is in force
-            return ilmPolicyName != null && ilmPolicyName.isEmpty() == false;
+            if (settings != null) {
+                String ilmPolicyName = settings.get("index.lifecycle.name");
+                // If the setting is present and not empty, ILM is in force
+                return ilmPolicyName != null && ilmPolicyName.isEmpty() == false;
+            }
+
+            return false;
         }
-
-        return false;
     }
 
     private void triggerRollIndicesIfNecessaryTask(

@@ -145,11 +145,8 @@ public enum SpatialCoordinateTypes {
     }
 
     public BytesRef wktToWkb(String wkt) {
-        // TODO: we should be able to transform WKT to WKB without building the geometry
-        // we should as well use different validator for cartesian and geo?
         try {
-            Geometry geometry = WellKnownText.fromWKT(validator(), false, wkt);
-            return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+            return new BytesRef(WellKnownBinary.fromWKT(wkt, ByteOrder.LITTLE_ENDIAN, false, validator()));
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
         }
@@ -184,9 +181,32 @@ public enum SpatialCoordinateTypes {
     }
 
     public BytesRef jtsGeometryToWkb(org.locationtech.jts.geom.Geometry jtsGeometry) {
+        if (jtsGeometry instanceof org.locationtech.jts.geom.Point && jtsGeometry.isEmpty()) {
+            // Empty Point cannot be represented in WKB in the ES geometry library; use an empty
+            // GeometryCollection as the canonical representation of an empty result.
+            return wktToWkb("GEOMETRYCOLLECTION EMPTY");
+        }
         WKTWriter writer = new WKTWriter();
         String wkt = writer.write(jtsGeometry);
+        // JTS writes MULTIPOINT with inner parens per point: MULTIPOINT ((x1 y1), (x2 y2))
+        // The ES WKT parser expects the flat OGC form: MULTIPOINT (x1 y1, x2 y2)
+        if (wkt.startsWith("MULTIPOINT ((")) {
+            wkt = normalizeMultiPointWkt(wkt);
+        }
         return wktToWkb(wkt);
+    }
+
+    private static String normalizeMultiPointWkt(String jtsMultiPointWkt) {
+        // Convert MULTIPOINT ((x1 y1), (x2 y2), ...) to MULTIPOINT (x1 y1, x2 y2, ...)
+        int start = jtsMultiPointWkt.indexOf("((");
+        int end = jtsMultiPointWkt.lastIndexOf("))");
+        if (start < 0 || end < 0) {
+            return jtsMultiPointWkt;
+        }
+        String inner = jtsMultiPointWkt.substring(start + 1, end + 1);
+        // inner is now: (x1 y1), (x2 y2), ... — strip all inner parentheses
+        String flat = inner.replace("(", "").replace(")", "");
+        return jtsMultiPointWkt.substring(0, start) + "(" + flat + ")";
     }
 
 }

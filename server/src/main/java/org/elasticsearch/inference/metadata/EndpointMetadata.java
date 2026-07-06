@@ -36,36 +36,53 @@ import java.util.Optional;
  * <p>
  * The Elastic Inference Service populates these fields so that Kibana and semantic text fields determine the correct defaults.
  *
- * @param heuristics contains information so clients of the Inference API can determine which models should be used as defaults and
- *                   presented to users in different scenarios.
- * @param internal   contains information that is only used within Elasticsearch. The internal information helps the Inference API know
- *                   when it needs to update the preconfigured endpoints by tracking the upstream fingerprint and an internal version.
- * @param display    contains information for how to display the endpoint in user interfaces (descriptive name, etc).
+ * @param heuristics           contains information so clients of the Inference API can determine which models should be used as defaults
+ *                             and presented to users in different scenarios.
+ * @param internal             contains information that is only used within Elasticsearch. The internal information helps the Inference
+ *                             API know when it needs to update the preconfigured endpoints by tracking the upstream fingerprint and an
+ *                             internal version.
+ * @param display              contains information for how to display the endpoint in user interfaces (descriptive name, etc).
+ * @param regions              the availability regions for this endpoint.
+ * @param deniedByRegionPolicy {@code true} when the caller's region policy prohibits access to this endpoint.
  */
-public record EndpointMetadata(Heuristics heuristics, Internal internal, Display display) implements ToXContentObject, Writeable {
+public record EndpointMetadata(
+    Heuristics heuristics,
+    Internal internal,
+    Display display,
+    List<EndpointRegion> regions,
+    boolean deniedByRegionPolicy
+) implements ToXContentObject, Writeable {
 
     public static final TransportVersion INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED = TransportVersion.fromName(
         "inference_endpoint_metadata_fields_added"
     );
+    public static final TransportVersion REGIONS_ADDED = TransportVersion.fromName("inference_endpoint_metadata_regions_added");
     public static final EndpointMetadata EMPTY_INSTANCE = new EndpointMetadata(
         Heuristics.EMPTY_INSTANCE,
         Internal.EMPTY_INSTANCE,
-        Display.EMPTY_INSTANCE
+        Display.EMPTY_INSTANCE,
+        List.of(),
+        false
     );
     public static final String METADATA_FIELD_NAME = "metadata";
     public static final String HEURISTICS_FIELD_NAME = "heuristics";
     public static final String INTERNAL_FIELD_NAME = "internal";
     public static final String DISPLAY_FIELD_NAME = "display";
+    public static final String REGIONS_FIELD_NAME = "regions";
+    public static final String DENIED_BY_REGION_POLICY_FIELD_NAME = "denied_by_region_policy";
 
     private static final String INCLUDE_INTERNAL_FIELDS_PARAM_NAME = "include_internal_fields";
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EndpointMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "endpoint_metadata_fields",
         true,
         args -> new EndpointMetadata(
             args[0] == null ? Heuristics.EMPTY_INSTANCE : (Heuristics) args[0],
             args[1] == null ? Internal.EMPTY_INSTANCE : (Internal) args[1],
-            args[2] == null ? Display.EMPTY_INSTANCE : (Display) args[2]
+            args[2] == null ? Display.EMPTY_INSTANCE : (Display) args[2],
+            args[3] == null ? List.of() : (List<EndpointRegion>) args[3],
+            args[4] == null ? false : (Boolean) args[4]
         )
     );
 
@@ -85,6 +102,12 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
             (p, c) -> Display.parse(p),
             new ParseField(DISPLAY_FIELD_NAME)
         );
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> EndpointRegion.parse(p),
+            new ParseField(REGIONS_FIELD_NAME)
+        );
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DENIED_BY_REGION_POLICY_FIELD_NAME));
     }
 
     public static EndpointMetadata parse(XContentParser parser) throws IOException {
@@ -95,10 +118,17 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
         Objects.requireNonNull(heuristics);
         Objects.requireNonNull(internal);
         Objects.requireNonNull(display);
+        Objects.requireNonNull(regions);
     }
 
     public EndpointMetadata(StreamInput in) throws IOException {
-        this(new Heuristics(in), new Internal(in), new Display(in));
+        this(
+            new Heuristics(in),
+            new Internal(in),
+            new Display(in),
+            in.getTransportVersion().supports(REGIONS_ADDED) ? in.readCollectionAsList(EndpointRegion::new) : List.of(),
+            in.getTransportVersion().supports(REGIONS_ADDED) ? in.readBoolean() : false
+        );
     }
 
     public boolean isEmpty() {
@@ -131,6 +161,14 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
 
         builder.field(DISPLAY_FIELD_NAME, display);
 
+        if (regions.isEmpty() == false) {
+            builder.xContentList(REGIONS_FIELD_NAME, regions);
+        }
+
+        if (deniedByRegionPolicy) {
+            builder.field(DENIED_BY_REGION_POLICY_FIELD_NAME, true);
+        }
+
         builder.endObject();
         return builder;
     }
@@ -140,6 +178,70 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
         heuristics.writeTo(out);
         internal.writeTo(out);
         display.writeTo(out);
+        if (out.getTransportVersion().supports(REGIONS_ADDED)) {
+            out.writeCollection(regions);
+            out.writeBoolean(deniedByRegionPolicy);
+        }
+    }
+
+    /**
+     * Describes an availability region for an inference endpoint.
+     *
+     * @param csp    the cloud service provider (e.g., "aws", "gcp", "azure")
+     * @param region the provider-specific region identifier (e.g., "us-east-1")
+     * @param geo    the geographic area (e.g., "us", "eu")
+     */
+    public record EndpointRegion(@Nullable String csp, @Nullable String region, @Nullable String geo)
+        implements
+            ToXContentObject,
+            Writeable {
+
+        public static final ParseField CSP_FIELD = new ParseField("csp");
+        public static final ParseField REGION_FIELD = new ParseField("region");
+        public static final ParseField GEO_FIELD = new ParseField("geo");
+
+        private static final ConstructingObjectParser<EndpointRegion, Void> PARSER = new ConstructingObjectParser<>(
+            "endpoint_region",
+            true,
+            args -> new EndpointRegion((String) args[0], (String) args[1], (String) args[2])
+        );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CSP_FIELD);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REGION_FIELD);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), GEO_FIELD);
+        }
+
+        public static EndpointRegion parse(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public EndpointRegion(StreamInput in) throws IOException {
+            this(in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (csp != null) {
+                builder.field(CSP_FIELD.getPreferredName(), csp);
+            }
+            if (region != null) {
+                builder.field(REGION_FIELD.getPreferredName(), region);
+            }
+            if (geo != null) {
+                builder.field(GEO_FIELD.getPreferredName(), geo);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(csp);
+            out.writeOptionalString(region);
+            out.writeOptionalString(geo);
+        }
     }
 
     public record Display(@Nullable String name, @Nullable String modelCreator) implements ToXContentObject, Writeable {

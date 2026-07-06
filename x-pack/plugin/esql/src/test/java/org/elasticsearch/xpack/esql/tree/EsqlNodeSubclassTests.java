@@ -39,7 +39,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
@@ -59,10 +62,17 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -73,7 +83,6 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -115,6 +124,7 @@ import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexNam
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
 import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomEsField;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -376,6 +386,24 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     /**
+     * The {@link JoinType} a join plan node expects in its {@link JoinConfig}. SemiJoin/AntiJoin/MarkJoin
+     * assert that their config carries the matching type, so the generic LEFT default we use elsewhere would
+     * trip those assertions when the node is rebuilt (e.g. via {@code replaceChildren}).
+     */
+    private static JoinType joinTypeFor(Class<? extends Node<?>> toBuildClass) {
+        if (toBuildClass == SemiJoin.class) {
+            return JoinTypes.SEMI;
+        } else if (toBuildClass == AntiJoin.class) {
+            return JoinTypes.ANTI;
+        } else if (toBuildClass == MarkJoin.class) {
+            return JoinTypes.MARK;
+        } else if (toBuildClass == Join.class || toBuildClass == LookupJoin.class || toBuildClass == InlineJoin.class) {
+            return JoinTypes.LEFT;
+        }
+        throw new IllegalArgumentException("Unknown join plan node [" + toBuildClass.getName() + "]; no JoinType mapping defined");
+    }
+
+    /**
      * Make an argument to feed to the constructor for {@code toBuildClass}.
      */
     @SuppressWarnings("unchecked")
@@ -468,6 +496,14 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == FileList.class) {
             // FileList implementations are package-private; use coordinator sentinel.
             return FileList.UNRESOLVED;
+        } else if (argClass == StoragePath.class) {
+            // StoragePath has no public no-arg ctor and is final; provide a deterministic instance.
+            return StoragePath.of("s3://bucket/" + randomAlphaOfLength(8));
+        } else if (argClass == SchemaReconciliation.FileSchemaInfo.class) {
+            // Record with unmockable list-of-attribute parts; build a trivial instance for tree tests.
+            return new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of()), null, null);
+        } else if (argClass == ExternalSchema.class) {
+            return new ExternalSchema(List.of());
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked
             return new MatchConfig(randomAlphaOfLength(5), randomInt(10), randomFrom(DataType.types()));
@@ -487,7 +523,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Integer.class) {
             return randomInt();
         } else if (argClass == JoinType.class) {
-            return JoinTypes.LEFT;
+            // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
+            return joinTypeFor(toBuildClass);
         } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, ViewUnionAll.class).contains(toBuildClass)
             && argType == LogicalPlan.class) {
                 // limit recursion of plans, in order to prevent stackoverflow errors
@@ -548,14 +585,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomConfiguration();
         }
         if (argClass == EsField.class) {
-            return EsFieldTests.randomEsField(4);
+            return randomEsField(4);
         }
         if (argClass == EsIndex.class) {
             return randomEsIndex();
         }
         if (argClass == JoinConfig.class) {
             return new JoinConfig(
-                JoinTypes.LEFT,
+                // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
+                joinTypeFor(toBuildClass),
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
                 randomJoinOnExpression()
@@ -671,6 +709,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
              * It's like an unresolved expression. Building it from makeNode will make invalid trees.
              */
             subclasses.remove(UnresolvedPromqlFunction.class);
+            // HistogramQuantile requires a quantile parameter and delegates output() to its child; see HistogramQuantileTests.
+            subclasses.remove(HistogramQuantile.class);
             // It *is* safe to build an UnresoledRelation here because it is a leaf node.
             nodeClass = randomFrom(subclasses);
         }
@@ -826,7 +866,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return new EsRelation(
             SourceTests.randomSource(),
             randomIdentifier(),
-            randomFrom(IndexMode.values()),
+            randomFrom(IndexMode.availableModes()),
             randomRemotesWithIndices(),
             randomRemotesWithIndices(),
             randomIndexNameWithModes(),

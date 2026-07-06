@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -56,6 +58,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -67,6 +70,7 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -81,6 +85,7 @@ import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomN
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -117,6 +122,41 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     protected void minimalMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
         indexMapping(b, indexVersion);
+    }
+
+    @Override
+    public void testNotIndexed() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "dense_vector").field("dims", dims).field("index", false);
+            if (elementType != ElementType.FLOAT) {
+                b.field("element_type", elementType.toString());
+            }
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get(0).fieldType().vectorDimension(), equalTo(0));
+        assertThat(fields.get(0).fieldType().docValuesType(), equalTo(DocValuesType.BINARY));
+    }
+
+    @Override
+    public void testDisableDefaultIndex() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(b -> {
+            b.field("type", "dense_vector").field("dims", dims);
+            if (elementType != ElementType.FLOAT) {
+                b.field("element_type", elementType.toString());
+            }
+        }));
+        var documentMapper = mapperService.documentMapper();
+
+        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", this.getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get(0).fieldType().vectorDimension(), equalTo(0));
+        assertThat(fields.get(0).fieldType().docValuesType(), equalTo(DocValuesType.BINARY));
     }
 
     private void indexMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
@@ -175,9 +215,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 }
                 case BFLOAT16 -> {
                     float[] array = randomNormalizedVector(this.dims);
-                    final ByteBuffer buffer = ByteBuffer.allocate(BFloat16.BYTES * array.length);
-                    BFloat16.floatToBFloat16(array, buffer.asShortBuffer());
-                    yield buffer.array();
+                    byte[] buffer = new byte[BFloat16.BYTES * array.length];
+                    BFloat16.floatToBFloat16(array, 0, buffer, 0, dims, ByteOrder.BIG_ENDIAN);
+                    yield buffer;
                 }
                 case BYTE -> randomByteArrayOfLength(dims);
                 case BIT -> randomByteArrayOfLength(this.dims / Byte.SIZE);
@@ -766,6 +806,52 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
     }
 
+    public void testAutoCalibrateParsing() throws IOException {
+        Settings experimentalEnabled = Settings.builder()
+            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
+            .build();
+        Settings experimentalDisabled = Settings.builder()
+            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), false)
+            .build();
+        {
+            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_disk");
+                b.field("auto_calibrate", true);
+                b.endObject();
+            })).documentMapper();
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertTrue(indexOptions.autoCalibrate);
+            assertTrue(mapperService.mappingSource().toString().contains("auto_calibrate"));
+        }
+        {
+            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_disk");
+                b.endObject();
+            })).documentMapper();
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertFalse(indexOptions.autoCalibrate);
+            assertFalse(mapperService.mappingSource().toString().contains("auto_calibrate"));
+        }
+    }
+
     public void testRescoreVectorForNonQuantized() {
         for (String indexType : List.of("hnsw", "flat")) {
             Exception e = expectThrows(
@@ -1044,6 +1130,23 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
         testIndexedVector(VectorSimilarity.COSINE, mapper);
+    }
+
+    public void testDefaultElementTypeUnderVectordbDocumentIndexMode() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8)));
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertEquals(ElementType.BFLOAT16, mapper.fieldType().getElementType());
+    }
+
+    public void testExplicitElementTypeOverridesVectordbDocumentModeDefault() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8).field("element_type", "float"))
+        );
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertEquals(ElementType.FLOAT, mapper.fieldType().getElementType());
     }
 
     public void testIndexedVector() throws Exception {
@@ -1475,10 +1578,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
         int dimensions = randomIntBetween(64, 1024);
         // Build a dense vector field mapper with float element type, which will trigger int8 HNSW index options
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current(), false, false, List.of())
-            .elementType(ElementType.FLOAT)
-            .dimensions(dimensions)
-            .build(context);
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder(
+            "test",
+            IndexVersion.current(),
+            IndexMode.STANDARD,
+            false,
+            false,
+            List.of(),
+            false
+        ).elementType(ElementType.FLOAT).dimensions(dimensions).build(context);
 
         // Change the element type to byte, which is incompatible with int8 HNSW index options
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
@@ -2055,16 +2163,36 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
         assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        String expectedString = "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn="
-            + (setM ? m : DEFAULT_MAX_CONN)
-            + ", beamWidth="
-            + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
-            + ", hnswGraphThreshold="
-            + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD
-            + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
-        assertEquals(expectedString, knnVectorsFormat.toString());
+
+        assertThat(
+            knnVectorsFormat,
+            hasToString(
+                allOf(
+                    startsWith(
+                        "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn="
+                            + (setM ? m : DEFAULT_MAX_CONN)
+                            + ", beamWidth="
+                            + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
+                            + ", hnswGraphThreshold="
+                            + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD
+                            + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
+                    ),
+                    anyOf(
+                        containsString(
+                            "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                        ),
+                        containsString(
+                            "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                        )
+                    )
+                )
+            )
+        );
     }
 
     public void testConfidenceIntervalDeprecationOnLatestIndexVersion() throws IOException {
@@ -2124,7 +2252,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-            VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
+            VectorScorerFactory factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
             String encoding = quantizedFlatFormat.equals("int4_flat") ? "PACKED_NIBBLE" : "SEVEN_BIT";
             assertThat(
                 knnVectorsFormat,
@@ -2133,11 +2261,19 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString("ES94ScalarQuantizedVectorsFormat(name=ES94ScalarQuantizedVectorsFormat"),
                         containsString("encoding=" + encoding),
                         containsString("flatVectorScorer=ESQuantizedFlatVectorsScorer("),
-                        containsString("factory=" + (factory != null ? factory : "null")),
-                        containsString(
-                            "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                        containsString("factory=" + factory),
+                        anyOf(
+                            containsString(
+                                "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                    + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                    + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                            ),
+                            containsString(
+                                "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                    + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                    + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
+                                    + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                            )
                         )
                     )
                 )
@@ -2169,7 +2305,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
         assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
+        VectorScorerFactory factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
         assertThat(
             knnVectorsFormat,
             hasToString(
@@ -2184,11 +2320,19 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                             + ", flatVectorFormat=ES94ScalarQuantizedVectorsFormat(name=ES94ScalarQuantizedVectorsFormat"
                     ),
                     containsString("encoding=SEVEN_BIT"),
-                    containsString("factory=" + (factory != null ? factory : "null")),
-                    containsString(
-                        "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-                            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                    containsString("factory=" + factory),
+                    anyOf(
+                        containsString(
+                            "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                        ),
+                        containsString(
+                            "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                        )
                     )
                 )
             )
@@ -2270,7 +2414,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
         assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
+        VectorScorerFactory factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
         assertThat(
             knnVectorsFormat,
             hasToString(
@@ -2285,11 +2429,19 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                             + ", flatVectorFormat=ES94ScalarQuantizedVectorsFormat(name=ES94ScalarQuantizedVectorsFormat"
                     ),
                     containsString("encoding=PACKED_NIBBLE"),
-                    containsString("factory=" + (factory != null ? factory : "null")),
-                    containsString(
-                        "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-                            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                    containsString("factory=" + factory),
+                    anyOf(
+                        containsString(
+                            "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                        ),
+                        containsString(
+                            "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                        )
                     )
                 )
             )
@@ -2316,9 +2468,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         TestDenseVectorIndexOptions testIndexOptions = new TestDenseVectorIndexOptions(
             new DenseVectorFieldMapper.HnswIndexOptions(16, 200, -1)
         );
-        var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), true, false, List.of()).indexOptions(
-            testIndexOptions
-        ).dimensions(128).elementType(ElementType.FLOAT).build(MapperBuilderContext.root(false, false));
+        var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), IndexMode.STANDARD, true, false, List.of(), false)
+            .indexOptions(testIndexOptions)
+            .dimensions(128)
+            .elementType(ElementType.FLOAT)
+            .build(MapperBuilderContext.root(false, false));
         final IndexSettings enabled = IndexSettingsModule.newIndexSettings(
             "foo",
             Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), true).build()

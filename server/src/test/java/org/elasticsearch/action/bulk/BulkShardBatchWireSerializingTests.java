@@ -37,7 +37,7 @@ public class BulkShardBatchWireSerializingTests extends AbstractWireSerializingT
     @Override
     protected BulkShardBatch mutateInstance(BulkShardBatch instance) throws IOException {
         // Re-encode with a different document count to guarantee different bytes.
-        int originalDocCount = instance.getEirfBatch().docCount();
+        int originalDocCount = instance.getBatch().docCount();
         int newDocCount = randomValueOtherThan(originalDocCount, () -> randomIntBetween(1, 16));
         return randomBulkShardBatch(newDocCount);
     }
@@ -49,9 +49,9 @@ public class BulkShardBatchWireSerializingTests extends AbstractWireSerializingT
         }
         try (EirfEncoder encoder = new EirfEncoder()) {
             for (BytesReference source : sources) {
-                encoder.addDocument(source, XContentType.JSON);
+                encoder.addDocument(source, XContentType.JSON, 0);
             }
-            EirfBatch batch = encoder.build();
+            EirfBatch batch = encoder.buildPartition(0);
             return new BulkShardBatch(batch);
         } catch (IOException e) {
             throw new AssertionError(e);

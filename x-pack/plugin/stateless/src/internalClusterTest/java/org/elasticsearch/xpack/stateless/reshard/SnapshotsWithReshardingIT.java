@@ -517,39 +517,9 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
                     return snapshotCommitSupplier.acquireIndexCommitForSnapshot(engine);
                 };
 
-                EngineConfig customEngineConfig = new EngineConfig(
-                    engineConfig.getShardId(),
-                    engineConfig.getThreadPool(),
-                    engineConfig.getThreadPoolMergeExecutorService(),
-                    engineConfig.getIndexSettings(),
-                    engineConfig.getWarmer(),
-                    engineConfig.getStore(),
-                    engineConfig.getMergePolicy(),
-                    engineConfig.getAnalyzer(),
-                    engineConfig.getSimilarity(),
-                    engineConfig.getCodecProvider(),
-                    engineConfig.getEventListener(),
-                    engineConfig.getQueryCache(),
-                    engineConfig.getQueryCachingPolicy(),
-                    engineConfig.getTranslogConfig(),
-                    engineConfig.getFlushMergesAfter(),
-                    engineConfig.getExternalRefreshListener(),
-                    engineConfig.getInternalRefreshListener(),
-                    engineConfig.getIndexSort(),
-                    engineConfig.getCircuitBreakerService(),
-                    engineConfig.getGlobalCheckpointSupplier(),
-                    engineConfig.retentionLeasesSupplier(),
-                    engineConfig.getPrimaryTermSupplier(),
-                    customSnapshotCommitSupplier,
-                    engineConfig.getLeafSorter(),
-                    engineConfig.getRelativeTimeInNanosSupplier(),
-                    engineConfig.getIndexCommitListener(),
-                    engineConfig.isPromotableToPrimary(),
-                    engineConfig.getMapperService(),
-                    engineConfig.getEngineResetLock(),
-                    engineConfig.getMergeMetrics(),
-                    engineConfig.getIndexDeletionPolicyWrapper()
-                );
+                EngineConfig customEngineConfig = EngineConfig.builder(engineConfig)
+                    .snapshotCommitSupplier(customSnapshotCommitSupplier)
+                    .build();
 
                 return factory.newReadWriteEngine(customEngineConfig);
             });

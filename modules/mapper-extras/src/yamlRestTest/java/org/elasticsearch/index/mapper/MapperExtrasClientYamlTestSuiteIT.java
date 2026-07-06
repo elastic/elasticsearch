@@ -33,7 +33,9 @@ public class MapperExtrasClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("mapper-extras")
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .module("analysis-common")
+        .module("reindex")
+        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .build();
 
     @Override

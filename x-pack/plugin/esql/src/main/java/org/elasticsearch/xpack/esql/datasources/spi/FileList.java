@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
-
-import java.util.Map;
 
 /**
  * Indexed view over a resolved set of files from an external data source.
@@ -151,13 +148,4 @@ public interface FileList {
     boolean isEmpty();
 
     long estimatedBytes();
-
-    /**
-     * Per-file schema info from schema reconciliation, or {@code null} when reconciliation
-     * was not performed (e.g. first-file-wins mode or compact file lists).
-     */
-    @Nullable
-    default Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo() {
-        return null;
-    }
 }

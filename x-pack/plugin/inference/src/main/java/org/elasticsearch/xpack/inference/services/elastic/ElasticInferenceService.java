@@ -20,6 +20,8 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -27,6 +29,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -43,9 +46,11 @@ import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInfe
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModelCreator;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.EnumSet;
@@ -61,13 +66,14 @@ import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedTaskTypeStatusException;
 import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.USER_ROLE;
 
-public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> {
+public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> implements RerankingInferenceService {
 
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
@@ -95,14 +101,10 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
      */
-    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(
-        SPARSE_EMBEDDING,
-        COMPLETION,
-        RERANK,
-        TEXT_EMBEDDING
-    );
+    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(SPARSE_EMBEDDING, COMPLETION, TEXT_EMBEDDING);
 
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
+    private final InferencePreferencesCache inferencePreferencesCache;
     private ElasticInferenceServiceActionCreator actionCreator;
 
     public ElasticInferenceService(
@@ -110,9 +112,17 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         InferenceServiceExtension.InferenceServiceFactoryContext context,
-        CCMAuthenticationApplierFactory ccmAuthApplierFactory
+        CCMAuthenticationApplierFactory ccmAuthApplierFactory,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
-        this(factory, serviceComponents, elasticInferenceServiceSettings, context.clusterService(), ccmAuthApplierFactory);
+        this(
+            factory,
+            serviceComponents,
+            elasticInferenceServiceSettings,
+            context.clusterService(),
+            ccmAuthApplierFactory,
+            inferencePreferencesCache
+        );
     }
 
     public ElasticInferenceService(
@@ -120,10 +130,12 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         ClusterService clusterService,
-        CCMAuthenticationApplierFactory ccmAuthApplierFactory
+        CCMAuthenticationApplierFactory ccmAuthApplierFactory,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         super(factory, serviceComponents, clusterService, initModelCreators(elasticInferenceServiceSettings));
         this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
+        this.inferencePreferencesCache = inferencePreferencesCache;
     }
 
     private static Map<TaskType, ModelCreator<? extends ElasticInferenceServiceModel>> initModelCreators(
@@ -152,7 +164,12 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     public void init() {
         // Wait to initialize the action creator until the sender is constructed
-        this.actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), ccmAuthenticationApplierFactory);
+        this.actionCreator = new ElasticInferenceServiceActionCreator(
+            getSender(),
+            getServiceComponents(),
+            ccmAuthenticationApplierFactory,
+            inferencePreferencesCache
+        );
     }
 
     @Override
@@ -266,13 +283,27 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
-    protected boolean supportsNonTextEmbeddingContent() {
+    public boolean supportsNonTextEmbeddingContent() {
         return true;
     }
 
     @Override
     protected boolean supportsMultipleItemsPerContent() {
         return true;
+    }
+
+    @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof ElasticInferenceServiceRerankModel elasticInferenceServiceRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        actionCreator.create(
+            elasticInferenceServiceRerankModel,
+            getCurrentTraceInfo(),
+            listener.delegateFailureAndWrap((delegate, action) -> action.execute(fromRerankRequest(request), timeout, delegate))
+        );
     }
 
     @Override
@@ -440,5 +471,20 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             .setTaskTypes(enabledTaskTypes)
             .setConfigurations(configurationMap)
             .build();
+    }
+
+    /**
+     * EIS only supports Jina reranker models, so the same value from {@link JinaAIService#rerankerWindowSize(String)} is used.
+     * <p>
+     * The {@code jina-reranker-m0} model <a href="https://jina.ai/models/jina-reranker-m0">has a 10,000 token input length</a>, which is
+     * the smallest of the non-deprecated Jina reranker models, so that value is used here.
+     * <p>
+     * Using 1 token = 0.75 words as a rough estimate, we get 7500 words. Allowing for some headroom, we set the window size to 7000 words
+     * @param modelId The model ID
+     * @return the max input size for the model, in words
+     */
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        return 7000;
     }
 }

@@ -94,14 +94,65 @@ record OrcPushedExpressions(List<Expression> expressions) {
         return builder.build();
     }
 
-    private static Map<String, TypeDescription.Category> buildColumnTypeMap(TypeDescription schema) {
+    /**
+     * Maximum recursion depth for nested STRUCT flattening; mirrors
+     * {@code OrcFormatReader.MAX_STRUCT_FLATTENING_DEPTH}. The two must stay in lock-step:
+     * a path the reader-side flattener emits as UNSUPPORTED has no corresponding ESQL
+     * attribute, so publishing a column-type entry for it here would yield a stat that no
+     * predicate could ever bind to. We re-declare the value rather than depend on the reader
+     * class so the pushdown package stays free of reader-internal coupling; the
+     * {@code OrcFormatReader} class has a regression test that asserts the two values agree.
+     */
+    static final int MAX_STRUCT_FLATTENING_DEPTH = 64;
+
+    /**
+     * Builds a map from dotted attribute name to the leaf {@link TypeDescription.Category}.
+     * Recurses into STRUCT children so {@code event.action} resolves to the leaf's category,
+     * not the parent STRUCT. Per the prior PR's D2 precedence (same as Parquet T1), a literal
+     * top-level field literally named {@code "event.action"} wins over a nested STRUCT walk
+     * to {@code event -> action} — produce a single entry keyed by the literal name and skip
+     * the conflicting nested traversal at that path. Stops descending at non-STRUCT types
+     * (LIST, MAP, primitives), matching {@code OrcFormatReader.walkDottedLeaves}.
+     *
+     * <p>The map carries both top-level entries (e.g. {@code "id" -> LONG}) and dotted leaves
+     * (e.g. {@code "event.action" -> STRING}); top-level non-STRUCT names retain their old
+     * shape for backward compatibility with the existing tests.
+     */
+    static Map<String, TypeDescription.Category> buildColumnTypeMap(TypeDescription schema) {
         Map<String, TypeDescription.Category> map = new HashMap<>();
         List<String> fieldNames = schema.getFieldNames();
         List<TypeDescription> children = schema.getChildren();
         for (int i = 0; i < fieldNames.size(); i++) {
-            map.put(fieldNames.get(i), children.get(i).getCategory());
+            collectColumnTypes(children.get(i), fieldNames.get(i), 1, map);
         }
         return map;
+    }
+
+    private static void collectColumnTypes(TypeDescription type, String dottedPath, int depth, Map<String, TypeDescription.Category> out) {
+        // D2 precedence: a literal field name already registered at this path wins over a
+        // deeper recursion that would otherwise compose the same dotted string.
+        if (out.containsKey(dottedPath)) {
+            return;
+        }
+        if (depth > MAX_STRUCT_FLATTENING_DEPTH) {
+            // The flattener emits the over-cap group as a single UNSUPPORTED attribute. There
+            // is no corresponding ESQL attribute for any leaf below it, so no predicate can
+            // bind to one — leave the entry off the map entirely.
+            return;
+        }
+        if (type.getCategory() == TypeDescription.Category.STRUCT) {
+            // STRUCT itself is not addressable as a leaf — record its category at the dotted
+            // path so the resolver returns null for any predicate landing on it (mirrors the
+            // Parquet T1 "lands on group" rule), then recurse into children.
+            out.put(dottedPath, TypeDescription.Category.STRUCT);
+            List<String> childNames = type.getFieldNames();
+            List<TypeDescription> children = type.getChildren();
+            for (int i = 0; i < childNames.size(); i++) {
+                collectColumnTypes(children.get(i), dottedPath + "." + childNames.get(i), depth + 1, out);
+            }
+            return;
+        }
+        out.put(dottedPath, type.getCategory());
     }
 
     /**

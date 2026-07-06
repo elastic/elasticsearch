@@ -651,6 +651,16 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(knnQueryBuilder.filterQueries(), equalTo(newFilters));
     }
 
+    public void testManyKnnClausesTripBreakerBeforeMaxClauseCap() {
+        assertCircuitBreakerTripsOnQueryConstruction("1kb", () -> {
+            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+            for (int i = 0; i < 50; i++) {
+                boolQuery.should(createKnnVectorQueryBuilder(VECTOR_FIELD, 5, 50, null, null, null));
+            }
+            return boolQuery;
+        });
+    }
+
     protected String encodeToBase64(float[] vector) {
         ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * vector.length).order(ByteOrder.BIG_ENDIAN);
         buffer.asFloatBuffer().put(vector);

@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -250,10 +249,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(
             RerankParameters.of(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, "query string"),
-                    InferenceString.fromStringList(List.of("abc", "123"))
-                )
+                new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))
             ),
             model
         );
@@ -304,7 +300,7 @@ public class CustomRequestTests extends ESTestCase {
         var request = new CustomRequest(
             RerankParameters.of(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, "query string"),
+                    InferenceString.ofText("query string"),
                     InferenceString.fromStringList(List.of("abc", "123")),
                     false,
                     2,
@@ -358,10 +354,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(
             RerankParameters.of(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, "query string"),
-                    InferenceString.fromStringList(List.of("abc", "123"))
-                )
+                new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))
             ),
             model
         );
@@ -405,10 +398,7 @@ public class CustomRequestTests extends ESTestCase {
             IllegalStateException.class,
             () -> new CustomRequest(
                 RerankParameters.of(
-                    new QueryAndDocsInputs(
-                        new InferenceString(DataType.TEXT, "query string"),
-                        InferenceString.fromStringList(List.of("abc", "123"))
-                    )
+                    new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))
                 ),
                 model
             )

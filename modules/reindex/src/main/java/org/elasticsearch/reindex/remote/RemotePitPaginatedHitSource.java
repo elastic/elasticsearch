@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -27,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -48,6 +50,8 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
     private final TimeValue baseKeepAlive;
     private final Version remoteVersion;
     private final SearchContextKeepaliveDeadline keepaliveDeadline;
+    private final CircuitBreaker circuitBreaker;
+    private final long memoryAccountingThresholdBytes;
     /**
      * Keep-alive sent with the PIT search HTTP request currently in flight.
      * Cleared after each successful response.
@@ -65,7 +69,9 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         RemoteInfo remoteInfo,
         SearchRequest searchRequest,
         Version remoteVersion,
-        SearchContextKeepaliveDeadline keepaliveDeadline
+        SearchContextKeepaliveDeadline keepaliveDeadline,
+        CircuitBreaker circuitBreaker,
+        long memoryAccountingThresholdBytes
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.remote = remoteInfo;
@@ -73,6 +79,8 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         this.client = client;
         this.remoteVersion = remoteVersion;
         this.keepaliveDeadline = keepaliveDeadline;
+        this.circuitBreaker = circuitBreaker;
+        this.memoryAccountingThresholdBytes = memoryAccountingThresholdBytes;
         SearchSourceBuilder source = searchRequest.source();
         if (source == null || source.pointInTimeBuilder() == null) {
             throw new IllegalArgumentException("SearchRequest must have pointInTimeBuilder set for PIT-based remote pagination");
@@ -92,7 +100,9 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
             RESPONSE_PARSER,
             wrapPitSearchListener(searchListener),
             threadPool,
-            client
+            client,
+            circuitBreaker,
+            memoryAccountingThresholdBytes
         );
     }
 
@@ -111,19 +121,42 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         if (response.getPitId() != null) {
             pitId.set(response.getPitId());
         }
-        searchListener.onResponse(response);
+        // Substitute the cached total on follow-up batches whose response total is a placeholder.
+        OptionalLong cachedTotal = getCachedTotalHits();
+        Response delivered = response;
+        if (cachedTotal.isPresent()) {
+            delivered = new Response(
+                response.isTimedOut(),
+                response.getFailures(),
+                cachedTotal.getAsLong(),
+                response.getHits(),
+                response.getScrollId(),
+                response.getSearchAfterValues(),
+                response.getPitId()
+            );
+            response.moveBodyReleasableTo(delivered);
+        }
+        searchListener.onResponse(delivered);
     }
 
     @Override
     protected void doNextPitSearch(Object[] searchAfter, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         TimeValue keepAlive = timeValueNanos(baseKeepAlive.nanos() + extraKeepAlive.nanos());
         currentKeepAlive.set(keepAlive);
+        // Cache is seeded after the first batch, so drop track_total_hits on follow-ups to keep Max WAND active.
+        SearchRequest nextRequest = searchRequest;
+        if (getCachedTotalHits().isPresent()) {
+            SearchSourceBuilder source = searchRequest.source().shallowCopy().trackTotalHits(false);
+            nextRequest = new SearchRequest(searchRequest).source(source);
+        }
         execute(
-            RemoteRequestBuilders.pitSearch(searchRequest, remote.getQuery(), pitId.get(), keepAlive, searchAfter, remoteVersion),
+            RemoteRequestBuilders.pitSearch(nextRequest, remote.getQuery(), pitId.get(), keepAlive, searchAfter, remoteVersion),
             RESPONSE_PARSER,
             wrapPitSearchListener(searchListener),
             threadPool,
-            client
+            client,
+            circuitBreaker,
+            memoryAccountingThresholdBytes
         );
     }
 

@@ -36,6 +36,8 @@ import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunnerTests;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
@@ -56,6 +58,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -68,6 +71,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
     private Client client;
     private DatafeedTimingStatsReporter timingStatsReporter;
+    private CloudCredentialManager cloudCredentialManager;
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -80,6 +84,10 @@ public class DataExtractorFactoryTests extends ESTestCase {
     public void setUpTests() {
         client = mock(Client.class);
         timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
+        cloudCredentialManager = mock(CloudCredentialManager.class);
+        when(cloudCredentialManager.wrapClient(any(Client.class), nullable(PersistedCloudCredential.class))).thenAnswer(
+            invocation -> invocation.getArgument(0)
+        );
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -123,7 +131,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig,
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -144,7 +154,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig,
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -166,7 +178,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -188,7 +202,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -214,7 +230,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -241,7 +259,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -268,7 +288,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -311,7 +333,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         });
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -345,7 +369,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -382,7 +408,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -396,7 +424,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -414,7 +444,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -428,7 +460,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -462,7 +496,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -486,7 +522,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -527,7 +565,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         });
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -565,7 +605,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         });
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -603,7 +645,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         });
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -631,7 +675,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig,
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -657,7 +703,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig,
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -687,7 +735,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig,
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,

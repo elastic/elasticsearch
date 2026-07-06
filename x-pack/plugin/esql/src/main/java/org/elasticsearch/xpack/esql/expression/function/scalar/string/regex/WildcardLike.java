@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -18,9 +22,12 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -38,6 +45,7 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Filters data based on string patterns using wildcards.",
         description = """
             Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
             usually acts on a field placed on the left-hand side of the operator, but it can
@@ -145,6 +153,52 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     @Override
     protected WildcardLike replaceChild(Expression newLeft) {
         return new WildcardLike(source(), newLeft, pattern(), caseInsensitive());
+    }
+
+    /**
+     * Fast path for prefix, suffix, and contains wildcard shapes (e.g.
+     * {@code LIKE "foo*"}, {@code LIKE "*foo"}, {@code LIKE "*foo*"}):
+     * dispatch to byte-comparison / byte-substring-search evaluators instead
+     * of building an {@link org.apache.lucene.util.automaton.Automaton} and
+     * running {@code RunAutomaton.step} per row. The general path (other
+     * patterns, case-insensitive matching) still goes through
+     * {@code AutomataMatch}. Prefix and suffix reuse the
+     * {@code STARTS_WITH}/{@code ENDS_WITH} evaluators; contains delegates to
+     * the SIMD-backed {@link #processContains} below.
+     */
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (caseInsensitive()) {
+            return super.toEvaluator(toEvaluator);
+        }
+        return switch (pattern().shape()) {
+            case WildcardPattern.Shape.Prefix(String prefix) -> new StartsWith(source(), field(), Literal.keyword(source(), prefix))
+                .toEvaluator(toEvaluator);
+            case WildcardPattern.Shape.Suffix(String suffix) -> new EndsWith(source(), field(), Literal.keyword(source(), suffix))
+                .toEvaluator(toEvaluator);
+            case WildcardPattern.Shape.Contains(String literal) -> new WildcardLikeContainsEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                new BytesRef(literal)
+            );
+            case WildcardPattern.Shape.General ignored -> super.toEvaluator(toEvaluator);
+        };
+    }
+
+    /**
+     * Byte-level substring search emulating {@code LIKE "*literal*"}. Delegates
+     * to {@link ByteMatchers#containsLiteral(BytesRef, BytesRef)}, which routes
+     * through the SIMD substring primitive shared with the datasource
+     * pushdown evaluators (Panama Vector API first+last-byte filter for values
+     * &ge; 24 bytes; tight scalar loop below that). Both this path and
+     * {@code AutomataMatch} walk UTF-8 input bytes directly (UTF-8 is
+     * self-synchronizing, so a byte-level substring search is correct), so the
+     * fast path's saving comes from replacing the per-byte
+     * {@code RunAutomaton.step} state-machine walk with a vectorized search.
+     */
+    @Evaluator(extraName = "Contains")
+    static boolean processContains(BytesRef str, @Fixed BytesRef pattern) {
+        return ByteMatchers.containsLiteral(str, pattern);
     }
 
     @Override

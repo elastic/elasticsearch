@@ -126,7 +126,7 @@ public final class ResponseValueUtils {
         return values;
     }
 
-    interface BlockValueExtractor {
+    public interface BlockValueExtractor {
         Object extract(Block block, int offset, BytesRef scratch);
     }
 
@@ -138,7 +138,7 @@ public final class ResponseValueUtils {
         return valueExtractors;
     }
 
-    private static BlockValueExtractor valueExtractorFor(DataType dataType, ZoneId zoneId) {
+    public static BlockValueExtractor valueExtractorFor(DataType dataType, ZoneId zoneId) {
         return switch (dataType) {
             case UNSIGNED_LONG -> (block, offset, scratch) -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
             case LONG, COUNTER_LONG -> (block, offset, scratch) -> ((LongBlock) block).getLong(offset);

@@ -162,7 +162,7 @@ eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece
 ;
 
 
-inWithWarningsRegex#[skip:-8.13.99, reason:regex warnings in tests introduced in v 8.14.0]
+inWithWarningsRegex
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -189,6 +189,16 @@ warningRegex:java.lang.IllegalArgumentException: single-value function encounter
 
 card:keyword   |host:keyword   |ip0:ip         |ip1:ip
 eth1           |beta           |127.0.0.1      |127.0.0.2
+;
+
+cidrMatchFromKeyword
+
+FROM hosts_ip_is_kwd | WHERE CIDR_MATCH(ip1::IP, "127.0.0.2/32") | KEEP card, host, ip0, ip1;
+warningRegex:evaluation of \[CIDR_MATCH\(.*::IP, \\\"127.0.0.2/32\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword | host:keyword | ip0:keyword | ip1:keyword
+eth1         | beta         | 127.0.0.1   | 127.0.0.2
 ;
 
 cidrMatchNullField
@@ -334,7 +344,7 @@ FROM logs
 2023-10-23T13:55:01.546Z | java           | More java stuff                     | null
 ;
 
-toIpInAgg#[skip:-8.12.99,reason:StatsNestedExp introduced in v8.13.0]
+toIpInAgg
 ROW s = "1.1.1.1" | STATS COUNT(*) BY ip = TO_IP(s)
 ;
 
@@ -342,7 +352,7 @@ COUNT(*):long | ip:ip
             1 | 1.1.1.1
 ;
 
-toIpInSort#[skip:-8.13.99,reason:SortByExpression introduced in 8.14]
+toIpInSort
 ROW s = "1.1.1.1" | SORT TO_IP(s)
 ;
 
@@ -391,6 +401,7 @@ lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:f
 ;
 
 cdirMatchEqualsInsOrs
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: combine_disjunctive_cidrmatches
 
 FROM hosts
@@ -416,6 +427,7 @@ lo0            |gamma          |fe80::cae2:65ff:fece:feb9                       
 ;
 
 cidrMatchEqualsInsOrsIPs
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: combine_disjunctive_cidrmatches
 
 FROM hosts
@@ -712,6 +724,20 @@ eth0         | 127.0.0.1 | 127.0.0.0
 eth1         | ::1       | ::0
 ;
 
+ipPrefixFromKeyword
+required_capability: fn_ip_prefix
+
+FROM hosts_ip_is_kwd
+| WHERE host == "alpha"
+| SORT card
+| EVAL prefix = IP_PREFIX(ip0::IP, 24, 120)
+| KEEP card, ip0, prefix;
+
+card:keyword | ip0:keyword | prefix:ip
+eth0         | 127.0.0.1   | 127.0.0.0
+eth1         | ::1         | ::0
+;
+
 ipPrefixLengthFromExpression
 required_capability: fn_ip_prefix
 row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9"), bits_per_byte = 8
@@ -808,6 +834,26 @@ fe80::cae2:65ff:fece:feb9 | 127.0.0.3                 | inbound
 127.0.0.1                 | 127.0.0.1                 | internal
 127.0.0.1                 | 127.0.0.2                 | internal
 127.0.0.1                 | 128.0.0.1                 | outbound
+;
+
+networkDirectionFromKeyword
+required_capability: network_direction
+
+FROM hosts_ip_is_kwd
+| WHERE MV_COUNT(ip0) == 1 AND MV_COUNT(ip1) == 1
+| EVAL direction = NETWORK_DIRECTION(ip0::IP, ip1::IP, ["loopback"])
+| KEEP ip0, ip1, direction
+;
+ignoreOrder:true
+
+ip0:keyword                | ip1:keyword               | direction:keyword
+fe80::cae2:65ff:fece:feb9  | fe81::cae2:65ff:fece:feb9 | external
+fe80::cae2:65ff:fece:feb9  | 127.0.0.3                 | inbound
+::1                        | ::1                       | internal
+127.0.0.1                  | ::1                       | internal
+127.0.0.1                  | 127.0.0.1                 | internal
+127.0.0.1                  | 127.0.0.2                 | internal
+127.0.0.1                  | 128.0.0.1                 | outbound
 ;
 
 networkDirectionFromRow

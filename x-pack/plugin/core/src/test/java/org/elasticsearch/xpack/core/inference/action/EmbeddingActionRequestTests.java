@@ -112,7 +112,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
 
         var validationException = request.validate();
         assertThat(validationException.validationErrors(), hasSize(1));
-        assertThat(validationException.validationErrors().getFirst(), is("Field [inputs] cannot be null"));
+        assertThat(validationException.validationErrors().getFirst(), is("Field [input] cannot be null"));
     }
 
     public void testValidate_withEmptyEmbeddingRequestInputs_returnsValidationException() {
@@ -126,7 +126,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
 
         var validationException = request.validate();
         assertThat(validationException.validationErrors(), hasSize(1));
-        assertThat(validationException.validationErrors().getFirst(), is("Field [inputs] cannot be an empty array"));
+        assertThat(validationException.validationErrors().getFirst(), is("Field [input] cannot be an empty array"));
     }
 
     public void testValidate_withNonEmbeddingTaskType_returnsValidationException() {
@@ -140,7 +140,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
 
         var validationException = request.validate();
         assertThat(validationException.validationErrors(), hasSize(1));
-        assertThat(validationException.validationErrors().getFirst(), is("Field [taskType] must be [embedding]"));
+        assertThat(validationException.validationErrors().getFirst(), is("Field [task_type] must be [embedding]"));
     }
 
     public void testValidate_withMultipleValidationErrors_returnsAll() {
@@ -155,8 +155,8 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
 
         var validationException = request.validate();
         assertThat(validationException.validationErrors(), hasSize(2));
-        assertThat(validationException.validationErrors().getFirst(), is("Field [inputs] cannot be null"));
-        assertThat(validationException.validationErrors().getLast(), is("Field [taskType] must be [embedding]"));
+        assertThat(validationException.validationErrors().getFirst(), is("Field [input] cannot be null"));
+        assertThat(validationException.validationErrors().getLast(), is("Field [task_type] must be [embedding]"));
     }
 
     @Override

@@ -48,9 +48,9 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static final String KIBANA_WORKFLOWS_VERSION_VARIABLE = "kibana.workflows.version";
 
-    private static final int WORKFLOWS_EVENTS_MAPPINGS_VERSION = 2;
+    private static final int WORKFLOWS_EVENTS_MAPPINGS_VERSION = 3;
 
-    private static final int WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION = 1;
+    private static final int WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION = 2;
 
     /** Log data stream registered in {@link #workflowsEventsSystemDataStreamDescriptor()}. */
     public static final String WORKFLOWS_EVENTS_DATA_STREAM_NAME = ".workflows-events";

@@ -115,9 +115,15 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
     }
 
     private void copyFromVector(IntVector vector, int beginInclusive, int endExclusive) {
-        for (int p = beginInclusive; p < endExclusive; p++) {
-            appendInt(vector.getInt(p));
+        int count = endExclusive - beginInclusive;
+        if (count == 0) {
+            return;
         }
+        ensureCapacity(count);
+        vector.copyTo(beginInclusive, values, valueCount, count);
+        hasNonNullValue = true;
+        valueCount += count;
+        updatePositions(count);
     }
 
     /**

@@ -135,7 +135,7 @@ public class TestBlock implements BlockLoader.Block {
                     @Override
                     public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int bytesRefLengths) {
                         for (int i = 0; i < count; i++) {
-                            BytesRef ref = new BytesRef(bytes, (int) (i * bytesRefLengths), bytesRefLengths);
+                            BytesRef ref = new BytesRef(bytes, i * bytesRefLengths, bytesRefLengths);
                             add(BytesRef.deepCopyOf(ref));
                         }
                         return this;
@@ -458,6 +458,15 @@ public class TestBlock implements BlockLoader.Block {
 
             @Override
             public BlockLoader.SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int expectedSize) {
+                return newSortedSetOrdinalsBuilder(ordinals, expectedSize);
+            }
+
+            @Override
+            public BlockLoader.SortedSetOrdinalsBuilder arrayOrderOrdinalsBuilder(SortedSetDocValues ordinals, int expectedSize) {
+                return newSortedSetOrdinalsBuilder(ordinals, expectedSize);
+            }
+
+            private BlockLoader.SortedSetOrdinalsBuilder newSortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int expectedSize) {
                 class SortedSetOrdinalBuilder extends TestBlock.Builder implements BlockLoader.SortedSetOrdinalsBuilder {
                     private SortedSetOrdinalBuilder() {
                         super(expectedSize);

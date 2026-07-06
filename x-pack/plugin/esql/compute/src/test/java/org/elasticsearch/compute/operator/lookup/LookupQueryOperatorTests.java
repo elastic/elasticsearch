@@ -46,9 +46,12 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -125,7 +128,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                     0,
                     directoryData.searchExecutionContext,
                     warnings(),
-                    false
+                    false,
+                    () -> 0L
                 );
             }
 
@@ -182,7 +186,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                     0,
                     noMatchDirectory.searchExecutionContext,
                     warnings(),
-                    false
+                    false,
+                    () -> 0L
                 )
             ) {
                 // Create input with non-matching terms
@@ -240,7 +245,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 0,
                 directoryData.searchExecutionContext,
                 warnings(),
-                false
+                false,
+                () -> 0L
             )
         ) {
             // Create input with many matching terms
@@ -287,7 +293,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 0,
                 directoryData.searchExecutionContext,
                 warnings(),
-                false
+                false,
+                () -> 0L
             )
         ) {
             // Mix of matching and non-matching terms
@@ -345,7 +352,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 0,
                 directoryData.searchExecutionContext,
                 warnings(),
-                true
+                true,
+                () -> 0L
             )
         ) {
             assertTrue("Should need input initially", operator.needsInput());
@@ -368,6 +376,58 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
             operator.finish();
             assertTrue("Should be finished after finish()", operator.isFinished());
             assertNull("Should return null after finish()", operator.getOutput());
+        }
+    }
+
+    public void testBytesRead() throws Exception {
+        long countStep = 17L;
+        AtomicLong counter = new AtomicLong();
+        LongSupplier fakeDirectoryBytesRead = () -> counter.addAndGet(countStep);
+
+        int numTerms = 30;
+        QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+        DriverContext driverContext = driverContext();
+        int maxPageSize = 5;
+
+        try (
+            LookupQueryOperator operator = new LookupQueryOperator(
+                driverContext.blockFactory(),
+                maxPageSize,
+                queryList,
+                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                0,
+                directoryData.searchExecutionContext,
+                warnings(),
+                false,
+                fakeDirectoryBytesRead
+            )
+        ) {
+            assertThat(operator.status().bytesRead(), equalTo(0L));
+
+            try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(numTerms)) {
+                for (int i = 0; i < numTerms; i++) {
+                    builder.appendBytesRef(new BytesRef("term-" + i));
+                }
+                operator.addInput(new Page(builder.build()));
+            }
+
+            int pages = 0;
+            long lastBytesRead = 0L;
+            while (operator.canProduceMoreDataWithoutExtraInput()) {
+                Page page = operator.getOutput();
+                assertNotNull("Expected non-null page while canProduceMoreDataWithoutExtraInput()", page);
+                pages++;
+                long currentBytesRead = operator.status().bytesRead();
+                assertThat(currentBytesRead, greaterThan(lastBytesRead));
+                lastBytesRead = currentBytesRead;
+                page.releaseBlocks();
+            }
+
+            assertThat(pages, greaterThan(1));
+
+            long bytesRead = operator.status().bytesRead();
+            assertThat(bytesRead, greaterThan(0L));
+            assertThat(bytesRead, equalTo((long) pages * countStep));
         }
     }
 

@@ -1,0 +1,6 @@
+pr: 148585
+summary: Honor `?` wildcard for `constant_keyword` wildcard query
+area: Mapping
+type: bug
+issues:
+ - 141785

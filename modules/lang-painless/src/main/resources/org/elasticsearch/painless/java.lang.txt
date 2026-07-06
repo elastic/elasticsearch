@@ -26,8 +26,8 @@ class java.lang.CharSequence {
   IntStream chars()
   IntStream codePoints()
   int length()
-  String org.elasticsearch.painless.api.Augmentation replaceAll(Pattern,Function)
-  String org.elasticsearch.painless.api.Augmentation replaceFirst(Pattern,Function)
+  String org.elasticsearch.painless.api.Augmentation replaceAll(int,Pattern,Function) @inject_constant[1="regex_limit_factor"] @script_aware
+  String org.elasticsearch.painless.api.Augmentation replaceFirst(int,Pattern,Function) @inject_constant[1="regex_limit_factor"]
   CharSequence subSequence(int,int)
   String toString()
 }
@@ -39,21 +39,22 @@ class java.lang.Comparable {
 }
 
 class java.lang.Iterable {
-  void forEach(Consumer)
+  void org.elasticsearch.painless.api.Augmentation forEach(Consumer) @script_aware
   Iterator iterator()
   Spliterator spliterator()
   # some adaptations of groovy wmethods
-  boolean org.elasticsearch.painless.api.Augmentation any(Predicate)
+  boolean org.elasticsearch.painless.api.Augmentation any(Predicate) @script_aware
   Collection org.elasticsearch.painless.api.Augmentation asCollection()
   List org.elasticsearch.painless.api.Augmentation asList()
-  def org.elasticsearch.painless.api.Augmentation each(Consumer)
-  def org.elasticsearch.painless.api.Augmentation eachWithIndex(ObjIntConsumer)
-  boolean org.elasticsearch.painless.api.Augmentation every(Predicate)
-  List org.elasticsearch.painless.api.Augmentation findResults(Function)
-  Map org.elasticsearch.painless.api.Augmentation groupBy(Function)
+  int org.elasticsearch.painless.api.Augmentation count(Predicate) @script_aware
+  def org.elasticsearch.painless.api.Augmentation each(Consumer) @script_aware
+  def org.elasticsearch.painless.api.Augmentation eachWithIndex(ObjIntConsumer) @script_aware
+  boolean org.elasticsearch.painless.api.Augmentation every(Predicate) @script_aware
+  List org.elasticsearch.painless.api.Augmentation findResults(Function) @script_aware
+  Map org.elasticsearch.painless.api.Augmentation groupBy(Function) @script_aware
   String org.elasticsearch.painless.api.Augmentation join(String)
   double org.elasticsearch.painless.api.Augmentation sum()
-  double org.elasticsearch.painless.api.Augmentation sum(ToDoubleFunction)
+  double org.elasticsearch.painless.api.Augmentation sum(ToDoubleFunction) @script_aware
 }
 
 # Readable: i/o
@@ -742,7 +743,7 @@ class java.lang.String {
   int compareTo(String)
   int compareToIgnoreCase(String)
   String concat(String)
-  boolean contains(CharSequence)
+  boolean org.elasticsearch.painless.api.Augmentation contains(CharSequence) @script_aware
   boolean contentEquals(CharSequence)
   String copyValueOf(char[])
   String copyValueOf(char[],int,int)
@@ -755,16 +756,16 @@ class java.lang.String {
   String format(Locale,String,def[])
   String format(String,def[])
   void getChars(int,int,char[],int)
-  int indexOf(String)
-  int indexOf(String,int)
+  int org.elasticsearch.painless.api.Augmentation indexOf(String) @script_aware
+  int org.elasticsearch.painless.api.Augmentation indexOf(String,int) @script_aware
   boolean isEmpty()
   String join(CharSequence,Iterable)
-  int lastIndexOf(String)
-  int lastIndexOf(String,int)
+  int org.elasticsearch.painless.api.Augmentation lastIndexOf(String) @script_aware
+  int org.elasticsearch.painless.api.Augmentation lastIndexOf(String,int) @script_aware
   int offsetByCodePoints(int,int)
   boolean regionMatches(boolean,int,String,int,int)
   boolean regionMatches(int,String,int,int)
-  String replace(CharSequence,CharSequence)
+  String org.elasticsearch.painless.api.Augmentation replace(CharSequence,CharSequence) @script_aware
   boolean startsWith(String)
   boolean startsWith(String,int)
   String substring(int)

@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class UserAgentExecSerializationTests extends CompoundOutputEvalExecSerializationTests {
 
@@ -48,7 +49,7 @@ public class UserAgentExecSerializationTests extends CompoundOutputEvalExecSeria
 
         switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> input = randomValueOtherThan(input, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            case 1 -> input = randomValueOtherThan(input, () -> createFieldAttribute(0, false));
             case 2 -> {
                 final int nameSize = outputFieldNames.size();
                 outputFieldNames = randomValueOtherThan(

@@ -39,6 +39,7 @@ public class RepositoryS3ExplicitProtocolRestIT extends AbstractRepositoryS3Rest
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
+        null,
         BUCKET,
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,

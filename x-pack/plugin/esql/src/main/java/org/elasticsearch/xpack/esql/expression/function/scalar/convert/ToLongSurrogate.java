@@ -58,6 +58,7 @@ public class ToLongSurrogate extends EsqlScalarFunction implements OnlySurrogate
 
     @FunctionInfo(
         returnType = "long",
+        briefSummary = "Converts a value to a long.",
         description = """
             Converts the input value to a long.
             If the input parameter is of a date type, its value will be interpreted as milliseconds

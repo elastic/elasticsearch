@@ -199,19 +199,30 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         return false;
     }
 
-    protected FlattenedFieldSyntheticWriterHelper getWriter() throws IOException {
-        FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = docValues.getValues();
-        TreeSet<BytesRef> ignoredValuesSet = collectIgnoredValues();
-        if (ignoredValuesSet != null) {
-            sortedKeyedValues = new DocValuesWithIgnoredSortedKeyedValues(sortedKeyedValues, ignoredValuesSet);
+    protected FlattenedFieldSyntheticWriterHelper getWriter(List<SourceLoader.SyntheticFieldLoader> subFieldLoaders) throws IOException {
+        String parentPrefix = fieldFullPath + ".";
+        List<Map.Entry<String, SourceLoader.SyntheticFieldLoader>> sortedSubFieldEntries = new ArrayList<>();
+        for (SourceLoader.SyntheticFieldLoader loader : subFieldLoaders) {
+            if (loader.hasValue()) {
+                sortedSubFieldEntries.add(Map.entry(loader.fieldName().substring(parentPrefix.length()), loader));
+            }
         }
-        final var offsetsValues = offsetsDocValues.getValues();
+        return new FlattenedFieldSyntheticWriterHelper(getKeyedValueProducer(), sortedSubFieldEntries);
+    }
+
+    private FlattenedFieldSyntheticWriterHelper.KeyedValueProducer getKeyedValueProducer() throws IOException {
+        TreeSet<BytesRef> ignoredKeyedValues = collectIgnoredValues();
+
+        FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = ((SortedKeyedFlattenedDocValues) docValues).getValues();
+        if (ignoredKeyedValues != null) {
+            sortedKeyedValues = new DocValuesWithIgnoredSortedKeyedValues(sortedKeyedValues, ignoredKeyedValues);
+        }
+        final var offsetsValues = ((SortedKeyedFlattenedDocValues) offsetsDocValues).getValues();
         FlattenedFieldSyntheticWriterHelper.SortedOffsetValues keyedOffsetFieldSupplier = () -> {
             var value = offsetsValues.next();
             return value != null ? FlattenedFieldArrayContext.parseOffsetField(value) : null;
         };
-
-        return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues, keyedOffsetFieldSupplier);
+        return new FlattenedFieldSyntheticWriterHelper.OffsetKeyedValueProducer(sortedKeyedValues, keyedOffsetFieldSupplier);
     }
 
     private TreeSet<BytesRef> collectIgnoredValues() throws IOException {
@@ -219,7 +230,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             // Ignored values were stored in binary doc values
             if (ignoredDocValues.count() > 0) {
                 var result = new TreeSet<BytesRef>();
-                var values = ignoredDocValues.getValues();
+                var values = ((SortedKeyedFlattenedDocValues) ignoredDocValues).getValues();
                 for (int i = 0; i < ignoredDocValues.count(); i++) {
                     result.add(BytesRef.deepCopyOf(values.next()));
                 }
@@ -247,15 +258,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         }
 
         b.startObject(leafName);
-        if (hasFlattenedValues) {
-            var writer = getWriter();
-            writer.write(b, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED);
-        }
-        for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
-            if (loader.hasValue()) {
-                loader.write(b);
-            }
-        }
+        getWriter(mappedSubFieldLoaders).writeNested(b);
         b.endObject();
     }
 
@@ -273,18 +276,25 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
 
     /**
      * An abstraction over different Lucene doc values formats ({@link SortedSetDocValues} and {@link SortedBinaryDocValues}) that provides
-     * a uniform way to position on a document and read its keyed values. This allows the rest of the loaded to work with keyed doc values
+     * a uniform way to position on a document and read its keyed values. This allows the rest of the loader to work with keyed doc values
      * without caring about the underlying storage format.
      */
     interface FlattenedDocValues extends DocValuesLoader {
         boolean advanceToDoc(int docId) throws IOException;
 
         int count();
+    }
 
+    /**
+     * A {@link FlattenedDocValues} that additionally exposes its values as a sorted keyed stream. Implemented by the
+     * legacy SORTED_UNIQUE decoders; not implemented by future document-order decoders that expose values through
+     * other mechanisms.
+     */
+    interface SortedKeyedFlattenedDocValues extends FlattenedDocValues {
         FlattenedFieldSyntheticWriterHelper.SortedKeyedValues getValues();
     }
 
-    private static final FlattenedDocValues NO_VALUES = new FlattenedDocValues() {
+    private static final SortedKeyedFlattenedDocValues NO_VALUES = new SortedKeyedFlattenedDocValues() {
         @Override
         public boolean advanceToDoc(int docId) {
             return false;
@@ -301,7 +311,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         }
     };
 
-    private static final class SortedSetFlattenedDocValues implements FlattenedDocValues {
+    private static final class SortedSetFlattenedDocValues implements SortedKeyedFlattenedDocValues {
         private final SortedSetDocValues docValues;
         private boolean hasValue;
 
@@ -336,7 +346,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         }
     }
 
-    private static final class MultiValuedBinaryFlattenedDocValues implements FlattenedDocValues {
+    private static final class MultiValuedBinaryFlattenedDocValues implements SortedKeyedFlattenedDocValues {
         private final SortedBinaryDocValues docValues;
         private boolean hasValue = false;
 

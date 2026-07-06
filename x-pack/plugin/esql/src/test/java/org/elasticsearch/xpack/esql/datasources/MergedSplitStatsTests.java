@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class MergedSplitStatsTests extends ESTestCase {
 
@@ -68,10 +71,59 @@ public class MergedSplitStatsTests extends ESTestCase {
         assertEquals(-1, merged.columnNullCount("age"));
     }
 
-    public void testColumnNullCountReturnsMinusOneForMissingColumn() {
+    public void testColumnNullCountReturnsRowCountForMissingColumn() {
+        // Under the SPI's "implicit nulls" contract, a column absent from a child
+        // contributes that child's full row count as implicit nulls (not -1).
         SplitStats a = splitStatsWithColumn("age", 5L, 10, 90, 400);
         MergedSplitStats merged = new MergedSplitStats(List.of(a));
-        assertEquals(-1, merged.columnNullCount("name"));
+        assertEquals("absent column contributes rowCount, not -1", a.rowCount(), merged.columnNullCount("name"));
+    }
+
+    public void testColumnNullCountWithAbsentChildrenSumsCorrectly() {
+        // Child A: 100 rows, has bonus with 5 explicit nulls.
+        // Child B: 200 rows, no bonus column at all -> contributes 200 implicit nulls.
+        // Sum: 5 + 200 = 205.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 5L, 10, 90, 400);
+        SplitStats b = splitStatsRowCountWithColumn(200, "age", 0L, 1, 2, 100);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b));
+        assertEquals(205L, merged.columnNullCount("bonus"));
+    }
+
+    public void testColumnMinSkipsChildrenWithoutColumnValue() {
+        // Child A: has bonus, min=10. Child B: no bonus. Child C: has bonus, min=20.
+        // Skip B rather than poison; result is 10.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 0L, 10, 90, 400);
+        SplitStats b = splitStatsRowCountWithColumn(50, "age", 0L, 1, 2, 100);
+        SplitStats c = splitStatsRowCountWithColumn(100, "bonus", 0L, 20, 80, 400);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b, c));
+        assertEquals(10, merged.columnMin("bonus"));
+        assertEquals(90, merged.columnMax("bonus"));
+    }
+
+    public void testColumnMinSkipsAllNullChildren() {
+        // Child A: has bonus, min=10 (some rows non-null). Child B: has bonus but every row is null.
+        // Child C: has bonus, min=20. B contributes no candidate value and must be skipped.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 5L, 10, 90, 400);
+        // B has bonus column but nullCount == rowCount (all rows null) and no min/max stat.
+        SplitStats.Builder bb = new SplitStats.Builder().rowCount(50);
+        bb.addColumn("bonus", 50L, null, null, 200);
+        SplitStats b = bb.build();
+        SplitStats c = splitStatsRowCountWithColumn(100, "bonus", 0L, 20, 80, 400);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b, c));
+        assertEquals(10, merged.columnMin("bonus"));
+        assertEquals(90, merged.columnMax("bonus"));
+    }
+
+    public void testColumnMinPoisonedByPresentButStatsLessChild() {
+        // Child A: has bonus with full stats. Child B: column physically present (column added)
+        // but null count is unknown (-1). Defensive: poison rather than fabricate.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 0L, 10, 90, 400);
+        SplitStats.Builder bb = new SplitStats.Builder().rowCount(50);
+        bb.addColumn("bonus", -1L, null, null, 200);
+        SplitStats b = bb.build();
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b));
+        assertNull("present-but-stats-less child must poison the min", merged.columnMin("bonus"));
+        assertNull("present-but-stats-less child must poison the max", merged.columnMax("bonus"));
     }
 
     // -- columnMin --
@@ -140,6 +192,63 @@ public class MergedSplitStatsTests extends ESTestCase {
         assertEquals(-1, merged.columnSizeBytes("age"));
     }
 
+    // -- temporal-unit reconciliation (millis DATETIME vs nanos DATE_NANOS) --
+
+    public void testColumnMinMaxMixedTemporalUnitsRescaleToNanos() {
+        // File A: ts is DATETIME (epoch-millis), min=2 max=5 -> 2_000_000 / 5_000_000 ns.
+        // File B: ts is DATE_NANOS (epoch-nanos), min=1 max=9_999_999 ns.
+        SplitStats a = temporalColumn("ts", 2L, 5L);
+        SplitStats b = temporalColumn("ts", 1L, 9_999_999L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATETIME, DataType.DATE_NANOS));
+        assertEquals("min widened to epoch-nanos", 1L, ((Number) merged.columnMin("ts")).longValue());
+        assertEquals("max widened to epoch-nanos", 9_999_999L, ((Number) merged.columnMax("ts")).longValue());
+    }
+
+    public void testColumnMinMaxUniformDatetimeStaysMillis() {
+        // Both files DATETIME: no rescale, result stays epoch-millis (reconciled type is DATETIME).
+        SplitStats a = temporalColumn("ts", 2L, 5L);
+        SplitStats b = temporalColumn("ts", 1L, 9L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATETIME, DataType.DATETIME));
+        assertEquals(1L, ((Number) merged.columnMin("ts")).longValue());
+        assertEquals(9L, ((Number) merged.columnMax("ts")).longValue());
+    }
+
+    public void testColumnMinMaxUniformDateNanosUnchanged() {
+        SplitStats a = temporalColumn("ts", 2000L, 5000L);
+        SplitStats b = temporalColumn("ts", 1000L, 9000L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATE_NANOS, DataType.DATE_NANOS));
+        assertEquals(1000L, ((Number) merged.columnMin("ts")).longValue());
+        assertEquals(9000L, ((Number) merged.columnMax("ts")).longValue());
+    }
+
+    public void testColumnMinMaxTemporalWithUnknownTypeIsPoisoned() {
+        // Column is temporal in file A but file B carries no per-file type; we cannot safely rescale -> poison.
+        SplitStats a = temporalColumn("ts", 2L, 5L);
+        SplitStats b = temporalColumn("ts", 1L, 9L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATE_NANOS, null));
+        assertNull(merged.columnMin("ts"));
+        assertNull(merged.columnMax("ts"));
+    }
+
+    public void testColumnMinMaxMillisOverflowingNanosIsPoisoned() {
+        // File A DATETIME value has no nanosecond representation (millis * 1e6 overflows a long) -> poison.
+        SplitStats a = temporalColumn("ts", 10_000_000_000_000L, 20_000_000_000_000L);
+        SplitStats b = temporalColumn("ts", 1L, 9L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATETIME, DataType.DATE_NANOS));
+        assertNull(merged.columnMin("ts"));
+        assertNull(merged.columnMax("ts"));
+    }
+
+    public void testColumnMinMaxMixedUnitsWithoutTypesMergesUnitBlind() {
+        // No per-file types (old-node / self-infer path): behavior is unchanged value-only merge. Documents that
+        // the reconciliation only kicks in when per-file types are available.
+        SplitStats a = temporalColumn("ts", 2L, 5L);
+        SplitStats b = temporalColumn("ts", 1L, 9L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b));
+        assertEquals(1L, ((Number) merged.columnMin("ts")).longValue());
+        assertEquals(9L, ((Number) merged.columnMax("ts")).longValue());
+    }
+
     // -- children() --
 
     public void testChildrenReturnsAllChildren() {
@@ -185,6 +294,12 @@ public class MergedSplitStatsTests extends ESTestCase {
         return b.build();
     }
 
+    private static SplitStats splitStatsRowCountWithColumn(long rowCount, String name, long nullCount, int min, int max, long sizeBytes) {
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(rowCount);
+        b.addColumn(name, nullCount, min, max, sizeBytes);
+        return b.build();
+    }
+
     private static SplitStats splitStatsWithLongColumn(String name, long nullCount, long min, long max) {
         SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
         b.addColumn(name, nullCount, min, max, -1);
@@ -195,5 +310,19 @@ public class MergedSplitStatsTests extends ESTestCase {
         SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
         b.addColumn(name, -1L, null, null, -1L);
         return b.build();
+    }
+
+    private static SplitStats temporalColumn(String name, long minEpoch, long maxEpoch) {
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        b.addColumn(name, 0L, minEpoch, maxEpoch, 400);
+        return b.build();
+    }
+
+    private static List<Map<String, DataType>> types(DataType... perChild) {
+        List<Map<String, DataType>> result = new ArrayList<>(perChild.length);
+        for (DataType type : perChild) {
+            result.add(type == null ? null : Map.of("ts", type));
+        }
+        return result;
     }
 }

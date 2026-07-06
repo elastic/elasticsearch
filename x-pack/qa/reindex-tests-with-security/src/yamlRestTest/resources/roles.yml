@@ -49,82 +49,25 @@ minimal_with_task:
         - create_index
         - indices:admin/refresh
 
-# Same index privileges as minimal, plus the dedicated reindex task API (GET /_reindex/{task_id}) which calls the
-# GET /_tasks API beneath the hood
-minimal_with_reindex_get:
+# Just the dedicated reindex task API (GET /_reindex/{task_id}) which calls the GET /_tasks API beneath the hood.
+reindex_get_only:
   cluster:
-    - cluster:monitor/main
     - cluster:monitor/reindex/get
-  indices:
-    - names: source
-      privileges:
-        - read
-        - write
-        - create_index
-        - indices:admin/refresh
-    - names: dest
-      privileges:
-        - read
-        - write
-        - create_index
-        - indices:admin/refresh
 
-# Same index privileges as minimal, plus the dedicated reindex list API (GET /_reindex)
-minimal_with_reindex_list:
+# Just the dedicated reindex list API (GET /_reindex)
+reindex_list_only:
   cluster:
-    - cluster:monitor/main
     - cluster:monitor/reindex/list
-  indices:
-    - names: source
-      privileges:
-        - read
-        - write
-        - create_index
-        - indices:admin/refresh
-    - names: dest
-      privileges:
-        - read
-        - write
-        - create_index
-        - indices:admin/refresh
 
-# Same index privileges as minimal, plus the dedicated reindex rethrottle API (POST /_reindex/{task_id}/_rethrottle)
-minimal_with_reindex_rethrottle:
+# Just the dedicated reindex rethrottle API (POST /_reindex/{task_id}/_rethrottle)
+reindex_rethrottle_only:
   cluster:
-    - cluster:monitor/main
     - cluster:admin/reindex/rethrottle
-  indices:
-    - names: source
-      privileges:
-        - read
-        - write
-        - create_index
-        - indices:admin/refresh
-    - names: dest
-      privileges:
-        - read
-        - write
-        - create_index
-        - indices:admin/refresh
 
-# Same index privileges as minimal, plus the dedicated reindex cancel API (POST /_reindex/{task_id}/_cancel).
-minimal_with_reindex_cancel:
+# Just the dedicated reindex cancel API (POST /_reindex/{task_id}/_cancel).
+reindex_cancel_only:
   cluster:
-    - cluster:monitor/main
     - cluster:admin/reindex/cancel
-  indices:
-    - names: source
-      privileges:
-        - read
-        - write
-        - create_index
-        - indices:admin/refresh
-    - names: dest
-      privileges:
-        - read
-        - write
-        - create_index
-        - indices:admin/refresh
 
 # Read only operations on indices
 readonly:

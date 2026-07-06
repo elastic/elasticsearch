@@ -674,4 +674,16 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
         }
     }
+
+    public void testMatchFuzzyCircuitBreakerTripsOnManyTokens() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 2000; i++) {
+            sb.append("token").append(i).append(' ');
+        }
+        String longText = sb.toString();
+        assertCircuitBreakerTripsOnQueryConstruction(
+            "1kb",
+            () -> new MatchQueryBuilder(TEXT_FIELD_NAME, longText).fuzziness(Fuzziness.AUTO)
+        );
+    }
 }

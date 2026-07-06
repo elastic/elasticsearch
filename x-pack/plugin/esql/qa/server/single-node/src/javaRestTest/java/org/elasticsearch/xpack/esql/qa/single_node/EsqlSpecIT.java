@@ -78,4 +78,13 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         request.setJsonEntity(Strings.toString(builder.endObject().endObject()));
         assertOK(client().performRequest(request));
     }
+
+    @Override
+    protected void shouldSkipTest(String testName) throws IOException {
+        super.shouldSkipTest(testName);
+        CsvTestUtils.assumeTrueLogging(
+            "Single-node tests don't support remote cluster capability requirements",
+            testCase.missingCapabilitiesRemoteCluster.isEmpty()
+        );
+    }
 }

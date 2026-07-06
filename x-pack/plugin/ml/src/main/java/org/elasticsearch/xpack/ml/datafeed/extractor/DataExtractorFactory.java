@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregatedSearchRequestBuilder;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
@@ -34,23 +34,13 @@ public interface DataExtractorFactory {
 
     /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
+     * <p>
+     * Note: Callers should apply cross-project search (CPS) mode to the datafeed's IndicesOptions
+     * before calling this method using {@link DatafeedConfig#withCrossProjectModeIfEnabled}.
      */
     static void create(
         Client client,
-        DatafeedConfig datafeed,
-        Job job,
-        NamedXContentRegistry xContentRegistry,
-        DatafeedTimingStatsReporter timingStatsReporter,
-        ActionListener<DataExtractorFactory> listener
-    ) {
-        create(client, datafeed, null, job, xContentRegistry, timingStatsReporter, listener);
-    }
-
-    /**
-     * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
-     */
-    static void create(
-        Client client,
+        CloudCredentialManager cloudCredentialManager,
         DatafeedConfig datafeed,
         QueryBuilder extraFilters,
         Job job,
@@ -58,6 +48,8 @@ public interface DataExtractorFactory {
         DatafeedTimingStatsReporter timingStatsReporter,
         ActionListener<DataExtractorFactory> listener
     ) {
+        final Client searchClient = cloudCredentialManager.wrapClient(client, datafeed.getCloudInternalCredential());
+
         final boolean hasAggs = datafeed.hasAggregations();
         final boolean hasEsqlQuery = datafeed.getEsqlQuery() != null;
         final boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
@@ -77,7 +69,7 @@ public interface DataExtractorFactory {
             }
             if (hasAggs == false) {
                 ScrollDataExtractorFactory.create(
-                    client,
+                    searchClient,
                     datafeed,
                     extraFilters,
                     job,
@@ -98,12 +90,11 @@ public interface DataExtractorFactory {
             }
             if (isComposite) {
                 String[] indices = datafeed.getIndices().toArray(new String[0]);
-                IndicesOptions indicesOptions = datafeed.getIndicesOptions();
                 AggregatedSearchRequestBuilder aggregatedSearchRequestBuilder = hasRollup
-                    ? RollupDataExtractorFactory.requestBuilder(client, indices, indicesOptions)
-                    : AggregationDataExtractorFactory.requestBuilder(client, indices, indicesOptions);
+                    ? RollupDataExtractorFactory.requestBuilder(searchClient, indices)
+                    : AggregationDataExtractorFactory.requestBuilder(searchClient, indices);
                 final DataExtractorFactory dataExtractorFactory = new CompositeAggregationDataExtractorFactory(
-                    client,
+                    searchClient,
                     datafeed,
                     extraFilters,
                     job,
@@ -121,7 +112,7 @@ public interface DataExtractorFactory {
 
             if (hasRollup) {
                 RollupDataExtractorFactory.create(
-                    client,
+                    searchClient,
                     datafeed,
                     extraFilters,
                     job,
@@ -132,7 +123,7 @@ public interface DataExtractorFactory {
                 );
             } else {
                 factoryHandler.onResponse(
-                    new AggregationDataExtractorFactory(client, datafeed, extraFilters, job, xContentRegistry, timingStatsReporter)
+                    new AggregationDataExtractorFactory(searchClient, datafeed, extraFilters, job, xContentRegistry, timingStatsReporter)
                 );
             }
         }, e -> {

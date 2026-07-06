@@ -824,7 +824,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Returns a underscore case name for the given exception. This method strips {@code Elasticsearch} prefixes from exception names.
      */
     public static String getExceptionName(Throwable ex) {
-        String simpleName = ex.getClass().getSimpleName();
+        return getExceptionName(ex.getClass());
+    }
+
+    public static String getExceptionName(Class<? extends Throwable> clazz) {
+        String simpleName = clazz.getSimpleName();
         // TODO: do we really need to make the exception name in underscore casing?
         return toUnderscoreCase(simpleName, simpleName.startsWith("Elasticsearch") ? "Elasticsearch".length() : 0);
     }
@@ -2099,6 +2103,18 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.action.SliceMissingException::new,
             194,
             SLICE_MISSING_EXCEPTION_VERSION
+        ),
+        REMOTE_DATASET_NOT_SUPPORTED_EXCEPTION(
+            org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException.class,
+            org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException::new,
+            195,
+            org.elasticsearch.action.support.IndicesOptions.INDICES_OPTIONS_RESOLVE_DATASETS
+        ),
+        REMOTE_RESOURCE_NOT_SUPPORTED_EXCEPTION(
+            org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException.class,
+            org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException::new,
+            196,
+            org.elasticsearch.action.support.IndicesOptions.INDICES_OPTIONS_RESOLVE_DATASETS
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

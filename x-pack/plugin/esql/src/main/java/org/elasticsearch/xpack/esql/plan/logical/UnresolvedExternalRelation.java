@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -23,27 +25,85 @@ import java.util.Objects;
 import static java.util.Collections.singletonList;
 
 /**
- * Represents an unresolved external data source reference (Iceberg table or Parquet file).
- * This plan node is created by the parser and later resolved by the analyzer
- * using metadata from ExternalSourceResolver.
+ * Unresolved external data source reference (Iceberg table or Parquet file). Produced by the parser
+ * for inline {@code EXTERNAL} commands and by the dataset rewriter for {@code FROM <dataset>}; both
+ * paths converge here so the downstream resolver/analyzer treat them uniformly.
+ *
+ * <p>The {@code config} map holds plain configuration values (no {@link
+ * org.elasticsearch.xpack.esql.core.expression.Literal} wrappers); secret values arrive as
+ * {@link org.elasticsearch.common.settings.SecureString} on the dataset path.
+ *
+ * @see UnresolvedRelation index-side counterpart for {@code FROM <index>}; if you traverse one and
+ * care about FROM-style leaves, consider whether you need the other too.
+ * @see UnresolvedSourceRelation marker implemented by both shapes; match on it to traverse any
+ * FROM-style leaf.
  */
-public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable {
+public final class UnresolvedExternalRelation extends LeafPlan implements Unresolvable, UnresolvedSourceRelation {
 
     private final Expression tablePath;
-    private final Map<String, Expression> params;
+    private final Map<String, Object> config;
+    private final List<NamedExpression> metadataFields;
+    @Nullable
+    private final String datasetName;
     private final String unresolvedMsg;
 
     /**
+     * Creates an unresolved external relation with no METADATA fields. Convenience overload for
+     * callers that don't carry standard metadata names (the inline {@code EXTERNAL} command path,
+     * tests).
+     */
+    public UnresolvedExternalRelation(Source source, Expression tablePath, Map<String, Object> config) {
+        this(source, tablePath, config, List.of(), null);
+    }
+
+    /**
+     * Creates an unresolved external relation without a backing dataset name (the inline
+     * {@code EXTERNAL} command path or tests that exercise the analyzer with a bare path).
+     */
+    public UnresolvedExternalRelation(
+        Source source,
+        Expression tablePath,
+        Map<String, Object> config,
+        List<NamedExpression> metadataFields
+    ) {
+        this(source, tablePath, config, metadataFields, null);
+    }
+
+    /**
      * Creates an unresolved external relation.
+     * <p>
+     * The {@code metadataFields} list carries the names from the user's {@code METADATA ...} clause
+     * verbatim. The analyzer (specifically {@code ResolveExternalRelations}) is the binding site:
+     * it resolves each name against {@link org.elasticsearch.xpack.esql.core.expression.MetadataAttribute#ATTRIBUTES_MAP}
+     * and appends an {@link org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute}
+     * per resolved name to the leaf's output. This constructor does not validate the names — invalid
+     * names surface as unresolved attributes downstream with the existing "Unknown column" diagnostic.
+     * <p>
+     * {@code datasetName} is the registered dataset identifier when the relation was created by
+     * {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} from a {@code FROM <dataset>}
+     * pattern; it is {@code null} for the inline {@code EXTERNAL} command path where no dataset
+     * mapping exists. It flows through to the operator factory so the per-file {@code _index}
+     * synthesizer can populate the column with the user-facing dataset identifier rather than the
+     * raw resource path.
      *
      * @param source the source location in the query
-     * @param tablePath the S3 path or external table identifier (can be a Literal or parameter reference)
-     * @param params additional parameters (e.g., S3 credentials, options)
+     * @param tablePath the resource path or external table identifier (a {@code Literal} or parameter reference)
+     * @param config plain-valued configuration (e.g., credentials, format options) — not wrapped in {@code Literal}
+     * @param metadataFields names requested in the {@code METADATA} clause, in declaration order; never {@code null}
+     * @param datasetName registered dataset name when this leaf came from {@code FROM <dataset>}; {@code null} otherwise
      */
-    public UnresolvedExternalRelation(Source source, Expression tablePath, Map<String, Expression> params) {
+    public UnresolvedExternalRelation(
+        Source source,
+        Expression tablePath,
+        Map<String, Object> config,
+        List<NamedExpression> metadataFields,
+        @Nullable String datasetName
+    ) {
         super(source);
         this.tablePath = tablePath;
-        this.params = params;
+        this.config = config;
+        this.metadataFields = Objects.requireNonNull(metadataFields, "metadataFields");
+        this.datasetName = datasetName;
         this.unresolvedMsg = "Unknown external table or Parquet file [" + extractTablePathValue(tablePath) + "]";
     }
 
@@ -70,15 +130,29 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     @Override
     protected NodeInfo<UnresolvedExternalRelation> info() {
-        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, params);
+        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config, metadataFields, datasetName);
     }
 
     public Expression tablePath() {
         return tablePath;
     }
 
-    public Map<String, Expression> params() {
-        return params;
+    public Map<String, Object> config() {
+        return config;
+    }
+
+    public List<NamedExpression> metadataFields() {
+        return metadataFields;
+    }
+
+    /**
+     * Registered dataset identifier, or {@code null} when this relation was produced by the inline
+     * {@code EXTERNAL} command path (no dataset mapping). Threaded to the operator factory so the
+     * {@code _index} per-file synthesizer can emit the user-facing dataset name.
+     */
+    @Nullable
+    public String datasetName() {
+        return datasetName;
     }
 
     @Override
@@ -103,7 +177,9 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), tablePath, params, unresolvedMsg);
+        // No source(): equals() below ignores it, and the equals/hashCode contract requires equal
+        // nodes to hash equal (same node parsed at two positions must collapse in plan-node sets).
+        return Objects.hash(tablePath, config, metadataFields, datasetName, unresolvedMsg);
     }
 
     @Override
@@ -118,17 +194,21 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
         UnresolvedExternalRelation other = (UnresolvedExternalRelation) obj;
         return Objects.equals(tablePath, other.tablePath)
-            && Objects.equals(params, other.params)
+            && Objects.equals(config, other.config)
+            && Objects.equals(metadataFields, other.metadataFields)
+            && Objects.equals(datasetName, other.datasetName)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 
     @Override
     public List<Object> nodeProperties() {
+        // config omitted intentionally — SecureString.toString() would leak plaintext into EXPLAIN.
         return singletonList(tablePath);
     }
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + "EXTERNAL[" + tablePath.sourceText() + "]";
+        String metadataSuffix = metadataFields.isEmpty() ? "" : " METADATA " + metadataFields;
+        return UNRESOLVED_PREFIX + "EXTERNAL[" + tablePath.sourceText() + "]" + metadataSuffix;
     }
 }

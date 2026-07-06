@@ -8,31 +8,35 @@
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.DataSource;
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -53,6 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -72,7 +77,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateDataSource.class);
+        return List.of(TestEncryptionServicePlugin.class, LocalStateDataSource.class);
     }
 
     public void testFullLifecycle() throws Exception {
@@ -133,7 +138,30 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertThat("plain setting value accessible", region.nonSecretValue(), equalTo("us-east-1"));
 
         assertThat("secret-prefixed setting marked secret", secret.secret(), equalTo(true));
-        assertThat("secret value must be accessible via secretValue()", secret.secretValue().toString(), equalTo("AKIAXYZ"));
+        assertThat("secret value must be stored as an encrypted carrier", secret.rawValue(), instanceOf(EncryptedData.class));
+        EncryptedData carrier = (EncryptedData) secret.rawValue();
+
+        // E2E round-trip through DataSourceCredentials.decryptInPlace — the connector-boundary decryption step.
+        // Proves: PUT encrypts → cluster state holds an EncryptedData carrier → projection forwards it by
+        // reference → consumer decrypts back to the canary. Forwarding the carrier as-is is exactly what
+        // DatasetRewriter.mergeSettings produces for an encrypted secret.
+        DataSourceCredentials credentials = new DataSourceCredentials(new EncryptionService() {
+            @Override
+            public EncryptedData encrypt(byte[] bytes) {
+                return new EncryptedData(TestEncryptionServicePlugin.TEST_KEY_ID, bytes);
+            }
+
+            @Override
+            public byte[] decrypt(EncryptedData encryptedData) {
+                return encryptedData.payload();
+            }
+        });
+        Map<String, Object> connectorInput = new HashMap<>();
+        connectorInput.put("region", "us-east-1");
+        connectorInput.put("secret_access_key", carrier);
+        Map<String, Object> decrypted = credentials.decryptInPlace(connectorInput);
+        assertThat("decryptInPlace passes non-secrets through", decrypted.get("region"), equalTo("us-east-1"));
+        assertThat("decryptInPlace materialises the plaintext canary", decrypted.get("secret_access_key"), equalTo("AKIAXYZ"));
 
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
@@ -142,9 +170,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         final String dsName = "persists_across_restart";
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-west-2"))));
 
-        // Full-cluster restart. GATEWAY-only context ({@code org.elasticsearch.cluster.metadata.DataSourceMetadata.context() =
-        // EnumSet.of(GATEWAY)})
-        // means the metadata is persisted to disk via the gateway and survives restart.
+        // Full-cluster restart. DataSourceMetadata.context() is GATEWAY-only, so the metadata is persisted to disk and survives restart.
         internalCluster().fullRestart();
         ensureYellow();
 
@@ -214,9 +240,9 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         final CountDownLatch startGate = new CountDownLatch(1);
         final CountDownLatch doneGate = new CountDownLatch(2);
         @SuppressWarnings("unchecked")
-        final ActionFuture<AcknowledgedResponse>[] putFuture = new ActionFuture[1];
+        final ActionFuture<AcknowledgedResponse>[] putFuture = (ActionFuture<AcknowledgedResponse>[]) new ActionFuture<?>[1];
         @SuppressWarnings("unchecked")
-        final ActionFuture<AcknowledgedResponse>[] deleteFuture = new ActionFuture[1];
+        final ActionFuture<AcknowledgedResponse>[] deleteFuture = (ActionFuture<AcknowledgedResponse>[]) new ActionFuture<?>[1];
 
         Thread puter = new Thread(() -> {
             try {
@@ -386,6 +412,45 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(parentDsName)));
     }
 
+    public void testDatasetSettingsCannotShadowParentSecretKey() throws Exception {
+        // The SPI contract on DataSourceValidator.validateDataset says dataset settings carry no
+        // secrets, but only convention enforces that. If a dataset key ever shadowed a parent
+        // secret-keyed setting, DatasetRewriter.mergeSettings would silently overwrite the
+        // EncryptedData carrier — losing secret-classification down the carrier path.
+        // validatePutDataset rejects the put at
+        // validate-time so the invariant is enforced where it's defined.
+        final String parentDsName = "shadowing_parent";
+        final String datasetName = "shadowing_ds";
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                putDataSourceRequest(parentDsName, Map.of("region", "us-east-1", "secret_access_key", "AKIAXYZ"))
+            )
+        );
+
+        ExecutionException err = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(datasetName, parentDsName, "test://logs/", Map.of("secret_access_key", "ANY"))
+            ).get()
+        );
+        assertThat(err.getCause(), instanceOf(ValidationException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset setting [secret_access_key] shadows a secret data-source setting"));
+        expectDatasetMissing(datasetName);
+
+        // A non-secret colliding key (region) is fine — only secret keys are rejected.
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(datasetName, parentDsName, "test://logs/", Map.of("region", "eu-west-1"))
+            )
+        );
+
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(parentDsName)));
+    }
+
     public void testUnknownTypeRejected() {
         PutDataSourceAction.Request req = new PutDataSourceAction.Request(
             TEST_TIMEOUT,
@@ -421,8 +486,9 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             ExecutionException.class,
             () -> client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(name, dsName, "test://x/", Map.of())).get()
         );
-        assertThat(err.getCause(), instanceOf(IllegalStateException.class));
-        assertThat(err.getCause().getMessage(), containsString("names need to be unique"));
+        assertThat(err.getCause(), instanceOf(ResourceAlreadyExistsException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset [" + name + "] cannot be created"));
+        assertThat(err.getCause().getMessage(), containsString("an existing concrete index with that name is present"));
 
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
@@ -440,9 +506,26 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             ExecutionException.class,
             () -> client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(name, dsName, "test://x/", Map.of())).get()
         );
-        assertThat(err.getCause(), instanceOf(IllegalStateException.class));
-        assertThat(err.getCause().getMessage(), containsString("names need to be unique"));
+        assertThat(err.getCause(), instanceOf(ResourceAlreadyExistsException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset [" + name + "] cannot be created"));
+        assertThat(err.getCause().getMessage(), containsString("an existing view with that name is present"));
 
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    public void testDatasetReplacesExistingDataset() throws Exception {
+        final String name = "replace_target";
+        final String dsName = "replace_parent";
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(name, dsName, "test://before/", Map.of())));
+
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(name, dsName, "test://after/", Map.of())));
+
+        GetDatasetAction.Response resp = client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(name)).get();
+        assertThat(resp.getDatasets(), hasSize(1));
+        assertThat(resp.getDatasets().iterator().next().resource(), equalTo("test://after/"));
+
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(name)));
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
@@ -466,7 +549,112 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
-    private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
+    /**
+     * Regression for elastic/elasticsearch#152216: with {@code action.destructive_requires_name=false},
+     * {@code DELETE /_query/dataset/*} must resolve the wildcard to datasets only, never to indices.
+     * Before the fix the transport passed the raw names to the registry, so {@code *} (expanded across
+     * the whole index namespace) brought back concrete index names and failed with a 404 naming an index.
+     * The transport now type-filters via {@code IndexNameExpressionResolver.datasets}, mirroring
+     * {@code TransportDeleteViewAction}.
+     */
+    public void testDeleteWildcardResolvesDatasetsNotIndices() throws Exception {
+        final String dsName = "wildcard_parent";
+        final String datasetA = "wildcard_logs_a";
+        final String datasetB = "wildcard_logs_b";
+        final String index = "wildcard_regular_index";
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false));
+        try {
+            assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+            assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetA, dsName, "test://a/", Map.of())));
+            assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetB, dsName, "test://b/", Map.of())));
+            assertAcked(client().execute(TransportCreateIndexAction.TYPE, new CreateIndexRequest(index)).get(30, TimeUnit.SECONDS));
+
+            // DELETE /_query/dataset/* resolves to the datasets only.
+            assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("*")));
+
+            // Both datasets are gone; the index is untouched.
+            assertThat(client().execute(GetDatasetAction.INSTANCE, getDatasetRequest("*")).get().getDatasets(), hasSize(0));
+            assertThat(indexExists(index), equalTo(true));
+
+            // A second wildcard delete now matches zero datasets: an empty resolution acks (no 404).
+            assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("*")));
+
+            assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(DestructiveOperations.REQUIRES_NAME_SETTING.getKey()));
+        }
+    }
+
+    /**
+     * With {@code action.destructive_requires_name=true} (the production default), a wildcard dataset
+     * delete is rejected outright by the destructive-operations guard — same as index deletion and view
+     * deletion — and never reaches the index namespace. Explicitly named deletes are still allowed.
+     */
+    public void testDeleteWildcardGuardedByDestructiveRequiresName() throws Exception {
+        final String dsName = "guard_parent";
+        final String datasetName = "guard_dataset";
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true));
+        try {
+            assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+            assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://x/", Map.of())));
+
+            ExecutionException guarded = expectThrows(
+                ExecutionException.class,
+                () -> client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("*")).get()
+            );
+            assertThat(guarded.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(guarded.getCause().getMessage(), containsString("Wildcard expressions or all indices are not allowed"));
+
+            // The dataset still exists — the guard rejected before any deletion — and a named delete works.
+            assertThat(client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetName)).get().getDatasets(), hasSize(1));
+            assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+            assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(DestructiveOperations.REQUIRES_NAME_SETTING.getKey()));
+        }
+    }
+
+    /**
+     * A concrete delete of a name that exists but is not a dataset (here, a real index) is a no-op ack, not a
+     * 404: the type filter drops the non-dataset and the index is never touched. Mirrors view delete.
+     */
+    public void testDeleteConcreteNonDatasetNameIsNoOp() throws Exception {
+        final String indexName = "not_a_dataset_index";
+        assertAcked(client().execute(TransportCreateIndexAction.TYPE, new CreateIndexRequest(indexName)).get(30, TimeUnit.SECONDS));
+
+        // DELETE /_query/dataset/<index>: the name resolves to an index, gets type-filtered out, and acks empty.
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(indexName)));
+
+        // The index is untouched.
+        assertThat(indexExists(indexName), equalTo(true));
+    }
+
+    /**
+     * PUT of an identical dataset is a no-op: it acks without publishing a new cluster state, mirroring
+     * {@code ViewService.putView}. A changed PUT still publishes.
+     */
+    public void testPutIdenticalDatasetIsNoOp() throws Exception {
+        final String dsName = "noop_parent";
+        final String datasetName = "noop_dataset";
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://x/", Map.of())));
+
+        final ClusterService masterCs = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        final long versionBefore = masterCs.state().version();
+
+        // Identical re-PUT: acked, no cluster-state update published.
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://x/", Map.of())));
+        assertThat(masterCs.state().version(), equalTo(versionBefore));
+
+        // A changed PUT does publish a new state.
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://changed/", Map.of())));
+        assertThat(masterCs.state().version(), greaterThan(versionBefore));
+
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
 
@@ -510,7 +698,10 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             ExecutionException.class,
             () -> client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(name)).get()
         );
-        assertThat(err.getCause(), instanceOf(IndexNotFoundException.class));
+        // GET resolves the name and translates a non-dataset/missing name to a clean dataset-shaped not-found,
+        // matching expectDataSourceMissing — never a raw IndexNotFoundException.
+        assertThat(err.getCause(), instanceOf(ResourceNotFoundException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset [" + name + "] not found"));
     }
 
     private static boolean isActionSuccess(ActionFuture<AcknowledgedResponse> fut) {

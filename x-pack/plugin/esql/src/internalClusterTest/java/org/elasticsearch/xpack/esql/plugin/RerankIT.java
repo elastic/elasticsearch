@@ -47,6 +47,22 @@ public class RerankIT extends InferenceCommandIntegTestCase {
         cleanupClusterSettings(InferenceSettings.RERANK_ENABLED_SETTING, InferenceSettings.RERANK_ROW_LIMIT_SETTING);
     }
 
+    @Override
+    protected QueryPragmas getPragmas() {
+        if (canUseQueryPragmas() == false) {
+            return QueryPragmas.EMPTY;
+        }
+        Settings.Builder settings = Settings.builder();
+        settings.put("task_concurrency", randomLongBetween(1, 4));
+        settings.put("task_queue_size", randomIntBetween(1, 10));
+        settings.put("exchange_buffer_size", randomIntBetween(1, 10));
+        settings.put("exchange_concurrent_clients", randomIntBetween(1, 4));
+        settings.put("data_partitioning", "segment");
+        settings.put("page_size", between(1, 1024));
+        settings.put("max_concurrent_shards_per_node", randomIntBetween(1, 2));
+        return new QueryPragmas(settings.build());
+    }
+
     // ============================================
     // Basic Functionality Tests
     // ============================================

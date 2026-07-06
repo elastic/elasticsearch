@@ -11,11 +11,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.external;
@@ -476,6 +478,61 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             it: either move the SORT after it, or add a LIMIT after the SORT"""));
     }
 
+    /**
+     * Renaming the sort key between an unbounded SORT and an MV_EXPAND used to make ReorderLimitProjectAndOrderBy lift the OrderBy
+     * above the renaming Project, leaving the OrderBy with a dangling reference to the dropped column and tripping the
+     * "optimized incorrectly" optimizer verifier.
+     * <p>
+     * The proper "unbounded SORT" message should be reported instead.
+     * <p>
+     * Same root cause as the DROP variant in <a href="https://github.com/elastic/elasticsearch/issues/148612">#148612</a>.
+     */
+    public void testDanglingOrderByInInlineStatsWithRenamedSortKey() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+        var testAnalyzer = analyzer().addDefaultIndex().addLanguagesLookup().addTestLookup().addAnalysisTestsEnrichResolution();
+
+        var err = error(testAnalyzer.query("""
+            ROW a = 1
+            | SORT a DESC
+            | RENAME a AS b
+            | MV_EXPAND b
+            | INLINE STATS c = count(*)
+            """));
+
+        assertThat(err, is("""
+            2:3: Unbounded SORT not supported yet [SORT a DESC] please add a LIMIT
+            line 4:3: MV_EXPAND [MV_EXPAND b] cannot yet have an unbounded SORT [SORT a DESC] before it: either move the SORT after \
+            it, or add a LIMIT after the SORT
+            line 5:3: INLINE STATS [INLINE STATS c = count(*)] cannot yet have an unbounded SORT [SORT a DESC] before it: either move \
+            the SORT after it, or add a LIMIT after the SORT"""));
+    }
+
+    /**
+     * Dropping the sort key with a DROP between an unbounded SORT and an MV_EXPAND used to make ReorderLimitProjectAndOrderBy lift
+     * the OrderBy above the dropping Project, tripping the "optimized incorrectly" optimizer verifier.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/148612">#148612</a>.
+     */
+    public void testDanglingOrderByInInlineStatsWithDroppedSortKey() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+        var testAnalyzer = analyzer().addDefaultIndex().addLanguagesLookup().addTestLookup().addAnalysisTestsEnrichResolution();
+
+        var err = error(testAnalyzer.query("""
+            ROW x = "a b"
+            | DISSECT x "%{y}"
+            | SORT y
+            | DROP y
+            | MV_EXPAND x
+            | INLINE STATS c = count(*)
+            """));
+
+        assertThat(err, is("""
+            3:3: Unbounded SORT not supported yet [SORT y] please add a LIMIT
+            line 5:3: MV_EXPAND [MV_EXPAND x] cannot yet have an unbounded SORT [SORT y] before it: either move the SORT after it, \
+            or add a LIMIT after the SORT
+            line 6:3: INLINE STATS [INLINE STATS c = count(*)] cannot yet have an unbounded SORT [SORT y] before it: either move \
+            the SORT after it, or add a LIMIT after the SORT"""));
+    }
+
     public void testEnrichRemoteRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
@@ -530,4 +587,47 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertThat(err, is("1:30: second argument for [EMBEDDING(\"query\", last_name)] must be a constant string"));
     }
 
+    // Regression for #142026.
+    public void testLoadModeUnmappedJoinKeyDoesNotCrashOptimizer() {
+        assumeTrue(
+            "requires optional_fields_load_with_lookup_join",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN.isEnabled()
+        );
+        var testAnalyzer = analyzer().addDefaultIndex().addSampleDataLookup();
+        var analyzed = testAnalyzer.statement("""
+            SET unmapped_fields="load";
+            FROM test
+            | KEEP message
+            | LOOKUP JOIN sample_data_lookup ON message
+            """);
+        var optimized = optimize(analyzed);
+        var message = singleValue(optimized.output().stream().filter(a -> "message".equals(a.name())).toList());
+        assertThat("unmapped join key loaded from _source is keyword", message.dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testPruneEvalColumnsInForkWithStats() {
+        var testAnalyzer = analyzer().addDefaultIndex();
+
+        var err = error(testAnalyzer.query("FROM test | EVAL x = 1 | FORK (SORT x) | STATS y = COUNT(*)"));
+
+        assertThat(err, is("1:32: Unbounded SORT not supported yet [SORT x] please add a LIMIT"));
+    }
+
+    public void testPruneEvalColumnsInForkWithStatsAndExpressionSorts() {
+        var testAnalyzer = analyzer().addDefaultIndex();
+
+        var err = error(testAnalyzer.query("FROM test | FORK (SORT emp_no + 1) (SORT emp_no - 1) | STATS y = COUNT(*)"));
+
+        assertThat(err, is("""
+            1:19: Unbounded SORT not supported yet [SORT emp_no + 1] please add a LIMIT
+            line 1:37: Unbounded SORT not supported yet [SORT emp_no - 1] please add a LIMIT"""));
+    }
+
+    public void testPruneEvalColumnsInForkWithStatsAndSingleExpressionSort() {
+        var testAnalyzer = analyzer().addDefaultIndex();
+
+        var err = error(testAnalyzer.query("FROM test | FORK (SORT emp_no + 1) | STATS y = COUNT(*)"));
+
+        assertThat(err, is("1:19: Unbounded SORT not supported yet [SORT emp_no + 1] please add a LIMIT"));
+    }
 }

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148474
+summary: "Drop late-mat byte-ratio gate, fix trivially-passes shortcut"
+type: bug

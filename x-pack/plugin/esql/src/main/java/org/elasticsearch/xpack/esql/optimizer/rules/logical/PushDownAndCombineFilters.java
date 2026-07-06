@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -200,8 +201,14 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // push the right scoped filter down to the right child
             // We check if each AND component of the filter is already part of the right side filter before we add it
             // In the future, this optimization can apply to other types of joins as well such as InlineJoin
-            // but for now we limit it to LEFT joins only, till filters are supported for other join types
-            if (scoped.rightFilters.isEmpty() == false && join instanceof InlineJoin == false) {
+            // but for now we limit it to LEFT joins only, till filters are supported for other join types.
+            // We also skip pushdown when the right side is a LocalRelation: the rewrite produces
+            // Join(left, Filter(LocalRelation)) which the mapper does not know how to lower to a
+            // HashJoinExec, and a LocalRelation has fixed in-memory data so the pushdown's I/O
+            // motivation does not apply. The duplicate filter above the join already enforces the
+            // predicate. The only producer today is AbstractSubqueryJoin.inlineAsHashJoin's sentinel filter
+            // (which is a no-op against the constant-TRUE sentinel column anyway).
+            if (scoped.rightFilters.isEmpty() == false && join instanceof InlineJoin == false && right instanceof LocalRelation == false) {
                 List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters, foldCtx);
                 if (rightPushableFilters.isEmpty() == false) {
                     if (join.right() instanceof Filter existingRightFilter) {

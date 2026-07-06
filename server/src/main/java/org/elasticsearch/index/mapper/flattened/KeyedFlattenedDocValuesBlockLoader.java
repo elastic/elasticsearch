@@ -118,6 +118,7 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
 
     private static final class SortedSetKeyedBlockDocValuesReader extends KeyedBlockDocValuesReader {
         private final SortedSetDocValues filteredDocValues;
+        private int curDocId = -1;
 
         SortedSetKeyedBlockDocValuesReader(CircuitBreaker circuitBreaker, SortedSetDocValues filteredDocValues) {
             super(circuitBreaker);
@@ -126,7 +127,7 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
 
         @Override
         protected int docId() {
-            return filteredDocValues.docID();
+            return curDocId;
         }
 
         @Override
@@ -136,6 +137,7 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
 
         @Override
         protected void read(int docId, BytesRefBuilder builder) throws IOException {
+            curDocId = docId;
             if (filteredDocValues.advanceExact(docId) == false) {
                 builder.appendNull();
                 return;

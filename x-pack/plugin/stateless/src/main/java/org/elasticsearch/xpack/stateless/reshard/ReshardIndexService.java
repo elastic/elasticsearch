@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -136,7 +137,7 @@ public class ReshardIndexService {
             return ValidationError.INVALID_INDEX_VERSION;
         }
         IndexMode indexMode = indexMetadata.getIndexMode();
-        if (indexMode != null && indexMode != IndexMode.STANDARD) {
+        if (indexMode != null && indexMode != IndexMode.STANDARD && indexMode != IndexMode.VECTORDB_DOCUMENT) {
             return ValidationError.INVALID_INDEX_MODE;
         }
 
@@ -373,7 +374,7 @@ public class ReshardIndexService {
                 }
             });
             return null;
-        })), false);
+        })), false, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     private void onlyReshardIndex(

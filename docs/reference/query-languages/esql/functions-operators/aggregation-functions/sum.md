@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SUM` function [esql-sum]
 
-:::{include} ../../_snippets/functions/layout/sum.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/sum.md
 :::

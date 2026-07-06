@@ -21,11 +21,65 @@
       ],
       "variadic" : false,
       "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "left",
+          "type" : "date",
+          "optional" : false,
+          "description" : "First value (point or range)."
+        },
+        {
+          "name" : "right",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "Second value (point or range)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "left",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "First value (point or range)."
+        },
+        {
+          "name" : "right",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Second value (point or range)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "left",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "First value (point or range)."
+        },
+        {
+          "name" : "right",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "Second value (point or range)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
     }
   ],
   "examples" : [
     "FROM employees\n| WHERE RANGE_INTERSECTS(hire_date, TO_DATE_RANGE(\"1985-02-01..1985-03-01\"))\n| KEEP emp_no, hire_date\n| SORT emp_no"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

@@ -108,6 +108,8 @@ import org.elasticsearch.xpack.inference.action.TransportStoreEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
+import org.elasticsearch.xpack.inference.common.ClearInferencePreferencesCacheAction;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.oauth2.ClearOAuth2TokenCacheAction;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
@@ -327,6 +329,7 @@ public class InferencePlugin extends Plugin
                 new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
                 new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
                 new ActionHandler(ClearOAuth2TokenCacheAction.INSTANCE, ClearOAuth2TokenCacheAction.class),
+                new ActionHandler(ClearInferencePreferencesCacheAction.INSTANCE, ClearInferencePreferencesCacheAction.class),
                 new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
                 new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
                 new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
@@ -407,6 +410,13 @@ public class InferencePlugin extends Plugin
         var elasticInferenceServiceHttpClientManager = eisRequestSenderFactoryComponents.httpClientManager();
         elasticInferenceServiceFactory.set(eisRequestSenderFactoryComponents.factory());
 
+        var inferencePreferencesCache = new InferencePreferencesCache(
+            services.projectResolver(),
+            services.client(),
+            services.clusterService(),
+            services.featureService()
+        );
+
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
 
@@ -416,7 +426,8 @@ public class InferencePlugin extends Plugin
             serviceComponents.get(),
             elasticInferenceServiceFactory.get().createSender(),
             modelRegistry.get(),
-            ccmFeature.get()
+            ccmFeature.get(),
+            inferencePreferencesCache
         );
         components.addAll(ccmRelatedComponents.components());
 
@@ -426,7 +437,8 @@ public class InferencePlugin extends Plugin
                 serviceComponents.get(),
                 inferenceServiceSettings,
                 context,
-                ccmRelatedComponents.ccmAuthApplierFactory()
+                ccmRelatedComponents.ccmAuthApplierFactory(),
+                inferencePreferencesCache
             );
             eisService.init();
             return eisService;
@@ -509,6 +521,7 @@ public class InferencePlugin extends Plugin
         );
 
         components.add(oAuth2TokenCache);
+        components.add(inferencePreferencesCache);
 
         components.add(new PluginComponentBinding<>(ElasticInferenceServiceSettings.class, inferenceServiceSettings));
 
@@ -523,7 +536,8 @@ public class InferencePlugin extends Plugin
         ServiceComponents serviceComponents,
         Sender sender,
         ModelRegistry modelRegistry,
-        CCMFeature ccmFeature
+        CCMFeature ccmFeature,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
@@ -549,7 +563,8 @@ public class InferencePlugin extends Plugin
             services.threadPool(),
             ccmAuthApplierFactory,
             ccmFeature,
-            ccmService
+            ccmService,
+            inferencePreferencesCache
         );
 
         var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
@@ -864,9 +879,7 @@ public class InferencePlugin extends Plugin
         Map<String, Mapper.TypeParser> mappers = new HashMap<>();
         mappers.put(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.parser(getModelRegistry()));
         mappers.put(OffsetSourceFieldMapper.CONTENT_TYPE, OffsetSourceFieldMapper.PARSER);
-        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
-            mappers.put(SemanticFieldMapper.CONTENT_TYPE, SemanticFieldMapper.parser(getModelRegistry()));
-        }
+        mappers.put(SemanticFieldMapper.CONTENT_TYPE, SemanticFieldMapper.parser(getModelRegistry()));
         return Collections.unmodifiableMap(mappers);
     }
 

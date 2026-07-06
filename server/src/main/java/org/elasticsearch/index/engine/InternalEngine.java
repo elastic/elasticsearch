@@ -77,7 +77,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -1096,7 +1095,7 @@ public class InternalEngine extends Engine {
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final DocIdAndVersion docIdAndVersion = performActionWithDirectoryReader(SearcherScope.INTERNAL, directoryReader -> {
-                if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+                if (engineConfig.getIndexSettings().getMode().isTsdb()) {
                     assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
                     return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
                         directoryReader,
@@ -1707,7 +1706,7 @@ public class InternalEngine extends Engine {
         // Phase 2: single Lucene reader acquisition for all versionMap misses.
         // Collect misses into flat arrays and resolve them all in one sorted segment scan.
         if (anyNeedsLucene) {
-            final boolean isTimeSeries = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+            final boolean isTimeSeries = engineConfig.getIndexSettings().getMode().isTsdb();
             int luceneCount = 0;
             for (int i = 0; i < count; i++) {
                 if (needsLucene[i]) luceneCount++;
@@ -3337,7 +3336,7 @@ public class InternalEngine extends Engine {
             engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()
                 ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME
                 : SourceFieldMapper.RECOVERY_SOURCE_NAME,
-            engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES,
+            engineConfig.getIndexSettings().getMode().isTsdb(),
             pruneSeqNo,
             () -> softDeletesPolicy.getRetentionQuery(seqNoIndexOptions),
             new SoftDeletesRetentionMergePolicy(

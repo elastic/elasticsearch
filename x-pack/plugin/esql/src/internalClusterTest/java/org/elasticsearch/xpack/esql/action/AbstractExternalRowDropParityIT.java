@@ -7,29 +7,20 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
-import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,19 +42,21 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * <p>A small stripe grid ({@code esql.source.cache.stripe.size=64kb}) over a &gt;1MB uncompressed file forces many
  * stripes split across parallel chunk boundaries -- the layout where the offset/row-alignment invariant bites.
+ *
+ * <p>Datasource/dataset registration, the SPI-extension wiring, the feature-flag gate and the local-path
+ * allowlist all come from {@link AbstractExternalDataSourceIT}; the {@code local_ds} data source and every
+ * registered dataset are auto-torn-down by the base's {@code cleanupRegistry()}.
  */
 // numDataNodes=1: mirrors the aggregate matrix IT (multi-node dataset publication trips an unrelated assertion).
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public abstract class AbstractExternalRowDropParityIT extends AbstractEsqlIntegTestCase {
+public abstract class AbstractExternalRowDropParityIT extends AbstractExternalDataSourceIT {
 
+    // Overrides the base's 30s TIMEOUT: the 60k-row fixtures need the longer budget.
     protected static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(60);
     protected static final int ROWS = 60_000; // ~2MB decompressed -> multiple 1MB chunks, many 64kb stripes
 
     /** The dataset {@code format} setting (e.g. {@code "csv"}). */
     protected abstract String format();
-
-    /** Reader plugin(s) backing this format. */
-    protected abstract Collection<Class<? extends Plugin>> formatPlugins();
 
     /** File extension for the (pre-gzip) fixture, e.g. {@code ".csv"}. */
     protected abstract String fileExtension();
@@ -77,19 +70,7 @@ public abstract class AbstractExternalRowDropParityIT extends AbstractEsqlIntegT
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("esql.source.cache.stripe.size", "64kb")
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.addAll(formatPlugins());
-        plugins.add(AbstractExternalAggregatePushdownMatrixIT.TestDataSourcePlugin.class);
-        return plugins;
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("esql.source.cache.stripe.size", "64kb").build();
     }
 
     @Override
@@ -98,15 +79,8 @@ public abstract class AbstractExternalRowDropParityIT extends AbstractEsqlIntegT
     }
 
     @Before
-    public void requireFeatureFlag() {
-        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
-        assertAcked(
-            client().execute(
-                PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "local_ds", "test", null, new HashMap<>())
-            )
-        );
+    public void registerDataSource() {
+        registerDataSource("local_ds", Map.of());
     }
 
     /** Clean multi-stripe: warm MIN/MAX AND COUNT all short-circuit. */
@@ -142,12 +116,7 @@ public abstract class AbstractExternalRowDropParityIT extends AbstractEsqlIntegT
         Map<String, Object> settings = new HashMap<>();
         settings.put("format", format());
         settings.putAll(extraSettings);
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, datasetName, "local_ds", StoragePath.fileUri(file), null, settings)
-            )
-        );
+        registerDataset(datasetName, "local_ds", StoragePath.fileUri(file), settings);
         return datasetName;
     }
 

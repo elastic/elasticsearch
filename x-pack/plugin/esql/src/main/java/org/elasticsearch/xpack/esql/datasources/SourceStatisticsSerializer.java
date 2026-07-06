@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -227,6 +228,21 @@ public final class SourceStatisticsSerializer {
         statsMap.remove(columnMaxKey(columnName));
         statsMap.put(columnMinUnservableKey(columnName), Boolean.TRUE);
         statsMap.put(columnMaxUnservableKey(columnName), Boolean.TRUE);
+    }
+
+    /**
+     * Compares two keyword/text stat extrema in UTF-8 byte order — the SAME order the runtime keyword MIN/MAX
+     * aggregators and comparisons use ({@link BytesRef} unsigned-byte order) — NOT {@link String#compareTo}'s
+     * UTF-16 code-unit order, which disagrees for supplementary (astral) chars vs BMP chars in
+     * {@code [U+E000..U+FFFF]}. Accepts either representation a stat value takes: {@code String} (parquet footer)
+     * or {@link BytesRef} (text harvest). Single owner of keyword-stat ordering: the cross-file fold
+     * ({@code SplitStats.mergedMin}/{@code mergedMax}), the split-filter classifier ({@code StatValueComparator}),
+     * and the parquet cross-row-group fold ({@code ParquetFormatReader}) all delegate here.
+     */
+    public static int compareKeywordUtf8(Object a, Object b) {
+        BytesRef ba = a instanceof BytesRef br ? br : new BytesRef((String) a);
+        BytesRef bb = b instanceof BytesRef br ? br : new BytesRef((String) b);
+        return ba.compareTo(bb);
     }
 
     /**

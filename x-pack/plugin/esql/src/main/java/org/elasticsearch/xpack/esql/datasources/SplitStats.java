@@ -450,8 +450,8 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      */
     @Nullable
     private static Object sameClassExtremum(Object existing, Object incoming, boolean wantMin) {
-        if (existing instanceof String sa) {
-            int cmp = new BytesRef(sa).compareTo(new BytesRef((String) incoming));
+        if (existing instanceof String) {
+            int cmp = SourceStatisticsSerializer.compareKeywordUtf8(existing, incoming);
             return (wantMin ? cmp <= 0 : cmp >= 0) ? existing : incoming;
         }
         if (existing instanceof Comparable) {

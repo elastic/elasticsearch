@@ -1294,6 +1294,23 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
+     * Compares two cross-row-group extremum candidates. BINARY/keyword extrema arrive here as {@code String}
+     * (from {@link #normalizeStatValue}); they are ordered by the single shared UTF-8 keyword comparator
+     * ({@link org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer#compareKeywordUtf8}), matching
+     * the runtime keyword MIN/MAX and the cross-file fold — NOT {@link String#compareTo}'s UTF-16 code units,
+     * which disagree for supplementary (astral) chars vs BMP chars in {@code [U+E000..U+FFFF]}. Other stat types
+     * compare naturally.
+     */
+    // Package-private for a direct unit test of the UTF-8 ordering (ParquetFormatReaderTests).
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static int compareStatExtremum(Comparable a, Comparable b) {
+        if (a instanceof String && b instanceof String) {
+            return SourceStatisticsSerializer.compareKeywordUtf8(a, b);
+        }
+        return a.compareTo(b);
+    }
+
+    /**
      * Normalizes Parquet-specific stat values to types that Elasticsearch can serialize, in the same unit
      * the scan path emits: date32 and {@code timestamp[ms]} to epoch-millis (DATETIME), {@code timestamp[us|ns]}
      * to epoch-nanos (DATE_NANOS), and TIME to its scan unit. Parquet {@link Binary} (BYTE_ARRAY / string) is
@@ -1319,23 +1336,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * it reads, so stats must match or MIN/MAX pushdown and split-skip classification would
      * compare against the wrong domain.
      */
-    /**
-     * Compares two cross-row-group extremum candidates. BINARY/keyword extrema arrive here as {@code String}
-     * (from {@link #normalizeStatValue}) and must order by UTF-8 bytes — the SAME order the runtime keyword
-     * MIN/MAX and the cross-file stat fold ({@code SplitStats.mergedMin}) use (BytesRef unsigned-byte order) —
-     * NOT {@link String#compareTo}'s UTF-16 code units, which disagree whenever the divergence point pairs a
-     * supplementary (astral) char against a BMP char in {@code [U+E000..U+FFFF]}. Other stat types compare
-     * naturally.
-     */
-    // Package-private for a direct unit test of the UTF-8 ordering (ParquetFormatReaderTests).
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    static int compareStatExtremum(Comparable a, Comparable b) {
-        if (a instanceof String sa && b instanceof String sb) {
-            return new BytesRef(sa).compareTo(new BytesRef(sb));
-        }
-        return a.compareTo(b);
-    }
-
     private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
         if (ParquetColumnDecoding.hasTemporalStatEncoding(primitiveType)) {
             return ParquetColumnDecoding.decodeTemporalStat(value, primitiveType);

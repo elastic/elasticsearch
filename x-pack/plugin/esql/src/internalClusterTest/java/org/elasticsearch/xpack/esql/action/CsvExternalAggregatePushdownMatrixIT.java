@@ -82,7 +82,7 @@ public class CsvExternalAggregatePushdownMatrixIT extends AbstractExternalAggreg
         }
         Path file = dir.resolve("mv.csv");
         Files.writeString(file, sb.toString());
-        registerDataset("mv_brackets", StoragePath.fileUri(file), Map.of("multi_value_syntax", "brackets"));
+        registerFormatDataset("mv_brackets", StoragePath.fileUri(file), Map.of("multi_value_syntax", "brackets"));
 
         assertColdThenWarmShortCircuit("mv_brackets", "STATS c = COUNT(tags), lo = MIN(tags), hi = MAX(tags)", ROWS, rows -> {
             assertThat("COUNT(tags) counts bracket values, not rows", ((Number) rows.get(0).get(0)).longValue(), equalTo(2L * ROWS));

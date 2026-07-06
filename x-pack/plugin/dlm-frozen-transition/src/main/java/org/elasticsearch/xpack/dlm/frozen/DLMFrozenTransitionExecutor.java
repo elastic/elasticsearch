@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexFrozenTransition;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -48,7 +50,7 @@ class DLMFrozenTransitionExecutor {
     private final MasterServiceTaskQueue<UnmarkIndexForFrozenTask> unmarkIndexForDlmFrozenConversionQueue;
     private final DLMFrozenTransitionSettings frozenTransitionSettings;
 
-    private volatile Map<String, Future<?>> submittedTransitions;
+    private volatile Map<TransitionKey, TransitionTracker> submittedTransitions;
     private volatile boolean isAccepting = true;
 
     DLMFrozenTransitionExecutor(
@@ -70,12 +72,21 @@ class DLMFrozenTransitionExecutor {
         );
     }
 
-    public boolean transitionSubmitted(String indexName) {
-        return submittedTransitions.containsKey(indexName);
+    public boolean transitionSubmitted(ProjectId projectId, String indexName) {
+        return submittedTransitions.containsKey(new TransitionKey(projectId, indexName));
     }
 
     public boolean hasCapacity() {
         return submittedTransitions.size() < maxSubmitted;
+    }
+
+    /**
+     * Returns the current execution status of the frozen tier transition for the given index, as tracked by this
+     * executor. An index with no submitted transition is reported as {@link ExplainIndexFrozenTransition.Status#NOT_STARTED}.
+     */
+    public ExplainIndexFrozenTransition.Status getTransitionStatus(ProjectId projectId, String indexName) {
+        TransitionTracker tracker = submittedTransitions.get(new TransitionKey(projectId, indexName));
+        return tracker == null ? ExplainIndexFrozenTransition.Status.NOT_STARTED : tracker.status;
     }
 
     // We need the thread to be interrupted to prevent concurrent transitions on multiple nodes,
@@ -83,7 +94,7 @@ class DLMFrozenTransitionExecutor {
     @SuppressForbidden(reason = "Future#cancel()")
     public synchronized void stop() {
         isAccepting = false;
-        submittedTransitions.values().forEach(future -> future.cancel(true));
+        submittedTransitions.values().forEach(tracker -> tracker.future.cancel(true));
         submittedTransitions = Collections.synchronizedMap(new HashMap<>(maxSubmitted));
     }
 
@@ -92,33 +103,22 @@ class DLMFrozenTransitionExecutor {
     }
 
     public synchronized Future<?> submit(DLMFrozenTransitionRunnable task) {
-        final String indexName = task.getIndexName();
+        final TransitionKey key = new TransitionKey(task.getProjectId(), task.getIndexName());
         if (isAccepting == false) {
             throw new RejectedExecutionException("DLM frozen executor is stopped");
         }
-        FutureTask<?> futureTask = new FutureTask<>(wrapRunnable(task), null);
-        Future<?> previousValue = submittedTransitions.put(indexName, futureTask);
+        TransitionTracker tracker = new TransitionTracker();
+        FutureTask<?> futureTask = new FutureTask<>(new WrappedDlmFrozenTransitionRunnable(task, submittedTransitions), null);
+        tracker.future = futureTask;
+        TransitionTracker previousValue = submittedTransitions.put(key, tracker);
         assert Objects.isNull(previousValue) : "expected the previous value be null, but it was " + previousValue;
         try {
             executor.execute(futureTask);
             return futureTask;
         } catch (Exception e) {
-            submittedTransitions.remove(indexName);
+            submittedTransitions.remove(key);
             throw e;
         }
-    }
-
-    /**
-     * Wraps the task with index tracking and error handling. Ensures the index name is always removed from
-     * {@link #submittedTransitions} when the thread completes, whether successfully or with an error.
-     * <p>
-     * The current {@code submittedTransitions} map reference is captured here so that the wrapper's cleanup
-     * removes the entry from the map the task was registered in. {@link #stop()} replaces the field with a
-     * fresh map; if the wrapper re-read the field at completion time it could otherwise remove an entry
-     * belonging to a different task submitted after a {@code stop()}/{@code start()} cycle.
-     */
-    private Runnable wrapRunnable(DLMFrozenTransitionRunnable task) {
-        return new WrappedDlmFrozenTransitionRunnable(task, submittedTransitions);
     }
 
     public boolean isAccepting() {
@@ -134,6 +134,12 @@ class DLMFrozenTransitionExecutor {
     boolean hasSubmittedTransitions() {
         return submittedTransitions.isEmpty() == false;
     }
+
+    /**
+     * Identifies a submitted transition by the project and index it belongs to. Multiple projects can contain
+     * indices with the same name, so the index name alone is not a safe map key.
+     */
+    private record TransitionKey(ProjectId projectId, String indexName) {}
 
     public static class UnmarkIndexForDLMFrozenExecutor implements ClusterStateTaskExecutor<UnmarkIndexForFrozenTask> {
         @Override
@@ -152,23 +158,46 @@ class DLMFrozenTransitionExecutor {
         }
     }
 
+    /**
+     * Tracks a single submitted transition: its execution status (queued when submitted, running once the task
+     * starts) and the future used to cancel it on {@link #stop()}.
+     */
+    static final class TransitionTracker {
+        volatile ExplainIndexFrozenTransition.Status status = ExplainIndexFrozenTransition.Status.QUEUED;
+        volatile Future<?> future;
+    }
+
+    /**
+     * Wraps the submitted task with index tracking and error handling. Ensures the entry is always removed from
+     * {@link #submittedTransitions} when the thread completes, whether successfully or with an error.
+     * <p>
+     * The current {@code submittedTransitions} map reference is captured here (via the constructor argument) so
+     * that the wrapper's cleanup removes the entry from the map the task was registered in. {@link #stop()}
+     * replaces the field with a fresh map; if the wrapper re-read the field at completion time it could otherwise
+     * remove an entry belonging to a different task submitted after a {@code stop()}/{@code start()} cycle.
+     */
     class WrappedDlmFrozenTransitionRunnable implements Runnable {
         private final DLMFrozenTransitionRunnable task;
-        private final Map<String, Future<?>> transitionsMap;
+        private final Map<TransitionKey, TransitionTracker> transitionsMap;
+        private final TransitionTracker tracker;
+        private final TransitionKey key;
 
-        private WrappedDlmFrozenTransitionRunnable(DLMFrozenTransitionRunnable task, Map<String, Future<?>> transitionsMap) {
+        private WrappedDlmFrozenTransitionRunnable(DLMFrozenTransitionRunnable task, Map<TransitionKey, TransitionTracker> transitionsMap) {
             this.task = task;
             this.transitionsMap = transitionsMap;
+            this.key = new TransitionKey(task.getProjectId(), task.getIndexName());
+            this.tracker = transitionsMap.get(key);
         }
 
         @Override
         public void run() {
             final String indexName = getIndexName();
+            tracker.status = ExplainIndexFrozenTransition.Status.RUNNING;
             try {
                 logger.debug("Starting transition for index [{}]", indexName);
                 task.run();
                 logger.debug("Transition completed for index [{}]", indexName);
-                transitionsMap.remove(indexName);
+                transitionsMap.remove(key);
             } catch (DLMUnrecoverableException err) {
                 logger.debug(
                     "DLM encountered an unrecoverable error while converting [{}] "
@@ -179,7 +208,7 @@ class DLMFrozenTransitionExecutor {
                     "dlm-unmark-frozen-" + indexName,
                     new UnmarkIndexForFrozenTask(task.getProjectId(), task.getIndexName(), ActionListener.wrap(resp -> {
                         logger.debug("DLM successfully unmarked index [{}] for frozen conversion", indexName);
-                        transitionsMap.remove(indexName);
+                        transitionsMap.remove(key);
                     }, exception -> {
                         errorStore.recordAndLogError(
                             task.getProjectId(),
@@ -188,7 +217,7 @@ class DLMFrozenTransitionExecutor {
                             Strings.format("Error unmarking index [%s] for conversion to frozen index", indexName),
                             frozenTransitionSettings.getErrorRetryInterval()
                         );
-                        transitionsMap.remove(indexName);
+                        transitionsMap.remove(key);
                     })),
                     null
                 );
@@ -212,7 +241,7 @@ class DLMFrozenTransitionExecutor {
                         frozenTransitionSettings.getErrorRetryInterval()
                     );
                 }
-                transitionsMap.remove(indexName);
+                transitionsMap.remove(key);
             }
         }
 

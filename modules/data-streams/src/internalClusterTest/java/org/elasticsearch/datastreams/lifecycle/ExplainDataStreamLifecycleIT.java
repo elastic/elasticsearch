@@ -128,6 +128,8 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
+                // frozen_after is not configured on this lifecycle, so no frozen transition state is reported
+                assertThat(explainIndex.getFrozenTransition(), nullValue());
                 if (internalCluster().numDataNodes() > 1) {
                     // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
                     assertThat(explainIndex.getError(), nullValue());
@@ -303,6 +305,8 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
+                // frozen_after is not configured on this lifecycle, so no frozen transition state is reported
+                assertThat(explainIndex.getFrozenTransition(), nullValue());
                 if (internalCluster().numDataNodes() > 1) {
                     // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
                     assertThat(explainIndex.getError(), nullValue());
@@ -545,6 +549,45 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 }
             }
         });
+    }
+
+    public void testExplainLifecycleFrozenTransitionAbsentWithoutPlugin() throws Exception {
+        // This test cluster does not load the dlm-frozen-transition plugin (see ExplainDataStreamLifecycleIT#nodePlugins),
+        // so a transition can never actually run here regardless of frozen_after being configured. The explain response
+        // must therefore omit the frozen block entirely rather than report misleading status.
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .enabled(true)
+            .frozenAfter(TimeValue.timeValueMillis(1))
+            .buildTemplate();
+
+        putComposableIndexTemplate("id1", null, List.of("metrics-frozen*"), null, null, lifecycle);
+        String dataStreamName = "metrics-frozen";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        indexDocs(dataStreamName, 1);
+
+        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String firstGenerationIndex = backingIndices.get(0);
+        String secondGenerationIndex = backingIndices.get(1);
+
+        ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { firstGenerationIndex, secondGenerationIndex }
+        );
+        ExplainDataStreamLifecycleAction.Response response = client().execute(
+            ExplainDataStreamLifecycleAction.INSTANCE,
+            explainIndicesRequest
+        ).actionGet();
+        assertThat(response.getIndices().size(), is(2));
+        for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
+            assertThat(explainIndex.isManagedByLifecycle(), is(true));
+            assertThat(explainIndex.getIndex(), explainIndex.getFrozenTransition(), nullValue());
+        }
     }
 
     static void indexDocs(String dataStream, int numDocs) {

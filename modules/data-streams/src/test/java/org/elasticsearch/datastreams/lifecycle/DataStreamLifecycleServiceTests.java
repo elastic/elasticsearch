@@ -1872,6 +1872,66 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         );
     }
 
+    public void testIndicesPastFrozenAfter() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        int backingIndices = randomIntBetween(3, 10);
+        DataStream dataStreamWithNoFrozen = createDataStream(
+            builder,
+            "my-datastream",
+            backingIndices,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+            now
+        );
+        DataStream dataStreamWithFrozen = createDataStream(
+            builder,
+            "my-datastream-with-frozen",
+            backingIndices,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(true).frozenAfter(TimeValue.timeValueMinutes(1)).build(),
+            now
+        );
+        builder.put(dataStreamWithNoFrozen);
+        builder.put(dataStreamWithFrozen);
+        ProjectMetadata projectMetadata = builder.build();
+
+        // a lifecycle with no frozen_after configured never reports any indices as past it
+        assertThat(
+            DataStreamLifecycleService.indicesPastFrozenAfter(projectMetadata, dataStreamWithNoFrozen, () -> now),
+            equalTo(Set.of())
+        );
+        assertThat(
+            DataStreamLifecycleService.indicesPastFrozenAfter(
+                projectMetadata,
+                dataStreamWithNoFrozen,
+                () -> now + TimeValue.timeValueDays(2).millis()
+            ),
+            equalTo(Set.of())
+        );
+
+        // not yet past frozen_after
+        assertThat(DataStreamLifecycleService.indicesPastFrozenAfter(projectMetadata, dataStreamWithFrozen, () -> now), equalTo(Set.of()));
+
+        // past frozen_after excludes the write index, matching candidatesForFrozen's age check
+        Set<Index> pastFrozenAfter = DataStreamLifecycleService.indicesPastFrozenAfter(
+            projectMetadata,
+            dataStreamWithFrozen,
+            () -> now + TimeValue.timeValueMinutes(2).millis()
+        );
+        assertThat(
+            new TreeSet<>(pastFrozenAfter.stream().map(Index::getName).toList()),
+            equalTo(
+                new TreeSet<>(
+                    dataStreamWithFrozen.getIndices()
+                        .subList(0, (int) dataStreamWithFrozen.getGeneration() - 1)
+                        .stream()
+                        .map(Index::getName)
+                        .toList()
+                )
+            )
+        );
+    }
+
     public void testGatheringCandidatesForFrozenSkipsDlmCreatedIndices() {
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         int backingIndices = randomIntBetween(3, 10);

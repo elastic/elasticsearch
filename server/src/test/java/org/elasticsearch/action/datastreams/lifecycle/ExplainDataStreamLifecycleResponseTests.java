@@ -121,6 +121,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 } else {
                     assertThat(explainIndexMap.get("error"), is(nullValue()));
                 }
+                assertFrozenTransitionXContent(explainIndex, explainIndexMap);
             }
         }
 
@@ -204,6 +205,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 Map<String, Object> lifecycleRollover = (Map<String, Object>) lifecycleMap.get("rollover");
                 assertThat(lifecycleRollover.get("min_primary_shard_docs"), is(4));
                 assertThat(lifecycleRollover.get("max_primary_shard_docs"), is(9));
+
+                assertFrozenTransitionXContent(explainIndex, explainIndexMap);
             }
         }
         {
@@ -246,6 +249,19 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private void assertFrozenTransitionXContent(ExplainIndexDataStreamLifecycle explainIndex, Map<String, Object> explainIndexMap) {
+        ExplainIndexFrozenTransition frozenTransition = explainIndex.getFrozenTransition();
+        if (frozenTransition != null) {
+            Map<String, Object> frozenMap = (Map<String, Object>) explainIndexMap.get("frozen");
+            assertThat(frozenMap.get("eligible"), is(frozenTransition.eligible()));
+            assertThat(frozenMap.get("marked_for_transition"), is(frozenTransition.markedForTransition()));
+            assertThat(frozenMap.get("status"), is(frozenTransition.status().toString()));
+        } else {
+            assertThat(explainIndexMap.get("frozen"), is(nullValue()));
+        }
+    }
+
     public void testChunkCount() {
         long now = System.currentTimeMillis();
         DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
@@ -284,6 +300,13 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     new NullPointerException("bad times").getMessage(),
                     System.currentTimeMillis(),
                     randomIntBetween(0, 30)
+                )
+                : null,
+            randomBoolean()
+                ? new ExplainIndexFrozenTransition(
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomFrom(ExplainIndexFrozenTransition.Status.values())
                 )
                 : null
         );

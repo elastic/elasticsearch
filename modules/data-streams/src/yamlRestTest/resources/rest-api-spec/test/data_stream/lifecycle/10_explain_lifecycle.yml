@@ -49,6 +49,92 @@
   - match: { indices.$backing_index.lifecycle.data_retention: '30d' }
   - is_true: indices.$backing_index.lifecycle.rollover
 
+---
+"Explain does not include frozen without frozen_after":
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "Data stream lifecycle was released as tech preview in 8.11"
+      test_runner_features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [template-with-lifecycle-no-frozen] has index patterns [managed-data-stream-no-frozen] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-with-lifecycle-no-frozen] will take precedence during new index creation"
+      indices.put_index_template:
+        name: template-with-lifecycle-no-frozen
+        body:
+          index_patterns: [ managed-data-stream-no-frozen ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+            lifecycle:
+              data_retention: "30d"
+          data_stream: { }
+  - do:
+      indices.create_data_stream:
+        name: managed-data-stream-no-frozen
+  - is_true: acknowledged
 
+  - do:
+      indices.get_data_stream:
+        name: "managed-data-stream-no-frozen"
+  - set:
+      data_streams.0.indices.0.index_name: backing_index_no_frozen
 
+  - do:
+      indices.explain_data_lifecycle:
+        index: $backing_index_no_frozen
+  - match: { indices.$backing_index_no_frozen.managed_by_lifecycle: true }
+  - is_false: indices.$backing_index_no_frozen.frozen
 
+---
+"Explain includes frozen transition state":
+  - requires:
+      reason: "Frozen after added"
+      test_runner_features: [ "capabilities", "allowed_warnings" ]
+      capabilities:
+        - method: PUT
+          path: /_data_stream/{name}/_lifecycle
+          capabilities: [ "dlm.frozen_after" ]
+        - method: GET
+          path: /{index}/_lifecycle/explain
+          capabilities: [ "frozen_transition_explain" ]
+  - do:
+      allowed_warnings:
+        - "index template [template-with-lifecycle-frozen] has index patterns [managed-data-stream-frozen] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-with-lifecycle-frozen] will take precedence during new index creation"
+      indices.put_index_template:
+        name: template-with-lifecycle-frozen
+        body:
+          index_patterns: [ managed-data-stream-frozen ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+            lifecycle:
+              data_retention: "30d"
+          data_stream: { }
+  - do:
+      indices.create_data_stream:
+        name: managed-data-stream-frozen
+  - is_true: acknowledged
+
+  - do:
+      allowed_warnings:
+        - "Data stream lifecycle field [frozen_after] is not supported in serverless."
+      indices.put_data_lifecycle:
+        name: managed-data-stream-frozen
+        body:
+          data_retention: "30d"
+          frozen_after: "10d"
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "managed-data-stream-frozen"
+  - set:
+      data_streams.0.indices.0.index_name: backing_index_frozen
+
+  - do:
+      indices.explain_data_lifecycle:
+        index: $backing_index_frozen
+  - match: { indices.$backing_index_frozen.managed_by_lifecycle: true }
+  - match: { indices.$backing_index_frozen.frozen.eligible: false }
+  - match: { indices.$backing_index_frozen.frozen.marked_for_transition: false }
+  - match: { indices.$backing_index_frozen.frozen.status: 'not_started' }

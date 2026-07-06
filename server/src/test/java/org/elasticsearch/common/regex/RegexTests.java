@@ -108,6 +108,44 @@ public class RegexTests extends ESTestCase {
         );
     }
 
+    public void testManyWildcardsStillMatch() {
+        // Not a pathological number of wildcard groups, so this should match same as always.
+        final int wildcards = 500;
+        final StringBuilder pattern = new StringBuilder();
+        final StringBuilder str = new StringBuilder();
+        for (int i = 0; i < wildcards; i++) {
+            pattern.append('a').append('*');
+            str.append('a');
+        }
+        pattern.append('b');
+        str.append('b');
+        assertTrue(Regex.simpleMatch(pattern.toString(), str.toString()));
+    }
+
+    public void testShallowWideBacktrackingIsRejected() {
+        // depth only guard doesn't catch shallow recursion depth (~15) but combinatorial backtracking
+        final int groups = 15;
+        final StringBuilder pattern = new StringBuilder();
+        for (int i = 0; i < groups; i++) {
+            pattern.append("*a");
+        }
+        pattern.append('b'); // 'b' never occurs in str, forcing exhaustive backtracking before failing
+        final String str = "a".repeat(groups * 2);
+        expectThrows(IllegalArgumentException.class, () -> Regex.simpleMatch(pattern.toString(), str));
+    }
+
+    public void testExcessiveWildcardsRejectedGracefully() {
+        // A pathological number of wildcard groups should fail fast with a clean exception.
+        final int wildcards = 50_000;
+        final StringBuilder pattern = new StringBuilder();
+        final StringBuilder str = new StringBuilder();
+        for (int i = 0; i < wildcards; i++) {
+            pattern.append('a').append('*');
+            str.append('a');
+        }
+        expectThrows(IllegalArgumentException.class, () -> Regex.simpleMatch(pattern.toString(), str.toString()));
+    }
+
     public void testSimpleMatch() {
         for (int i = 0; i < 1000; i++) {
             final String matchingString = randomAlphaOfLength(between(0, 50));

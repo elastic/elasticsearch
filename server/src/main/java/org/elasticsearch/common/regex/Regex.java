@@ -207,10 +207,19 @@ public class Regex {
             pattern = Strings.toLowercaseAscii(pattern);
             str = Strings.toLowercaseAscii(str);
         }
-        return simpleMatchWithNormalizedStrings(pattern, str);
+        return simpleMatchWithNormalizedStrings(pattern, str, new int[1]);
     }
 
-    private static boolean simpleMatchWithNormalizedStrings(String pattern, String str) {
+    /**
+     * Caps total match operations (not just recursion depth) to prevent both stack overflow and
+     * combinatorial backtracking blowup on adversarial patterns. No legitimate pattern needs this many.
+     */
+    private static final int MAX_MATCH_OPERATIONS = 1000;
+
+    private static boolean simpleMatchWithNormalizedStrings(String pattern, String str, int[] operations) {
+        if (++operations[0] > MAX_MATCH_OPERATIONS) {
+            throw new IllegalArgumentException("Pattern is too complex to match, exceeded max operations of " + MAX_MATCH_OPERATIONS);
+        }
         final int firstIndex = pattern.indexOf('*');
         if (firstIndex == -1) {
             return pattern.equals(str);
@@ -229,12 +238,12 @@ public class Regex {
                 while (wildcards < pattern.length() && pattern.charAt(wildcards) == '*') {
                     wildcards++;
                 }
-                return simpleMatchWithNormalizedStrings(pattern.substring(wildcards - 1), str);
+                return simpleMatchWithNormalizedStrings(pattern.substring(wildcards - 1), str, operations);
             }
             final String part = pattern.substring(1, nextIndex);
             int partIndex = str.indexOf(part);
             while (partIndex != -1) {
-                if (simpleMatchWithNormalizedStrings(pattern.substring(nextIndex), str.substring(partIndex + part.length()))) {
+                if (simpleMatchWithNormalizedStrings(pattern.substring(nextIndex), str.substring(partIndex + part.length()), operations)) {
                     return true;
                 }
                 partIndex = str.indexOf(part, partIndex + 1);
@@ -243,7 +252,7 @@ public class Regex {
         }
         return str.regionMatches(0, pattern, 0, firstIndex)
             && (firstIndex == pattern.length() - 1 // only wildcard in pattern is at the end, so no need to look at the rest of the string
-                || simpleMatchWithNormalizedStrings(pattern.substring(firstIndex), str.substring(firstIndex)));
+                || simpleMatchWithNormalizedStrings(pattern.substring(firstIndex), str.substring(firstIndex), operations));
     }
 
     /**

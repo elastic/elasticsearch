@@ -352,9 +352,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testFromStatsGroupingByDate
   issue: https://github.com/elastic/elasticsearch/issues/152475
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=mapping/20_synthetic_source/synthetic_source text as multi-field}
-  issue: https://github.com/elastic/elasticsearch/issues/152827
 - class: org.elasticsearch.packaging.test.PackageUpgradeTests
   method: test12SetupBwcVersion
   issue: https://github.com/elastic/elasticsearch/issues/152819

@@ -606,6 +606,20 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
         return scope;
     }
 
+    /**
+     * Collects the clusters that feed rows into a LOOKUP JOIN by walking only the data-bearing spine of its left subtree.
+     * <p>
+     * For any {@link AbstractSubqueryJoin} (SEMI/ANTI/MARK) that {@code InSubqueryResolver} produces for {@code field IN (subquery)}, only
+     * the left child carries rows into the subsequent plan; the right child does not contribute source clusters to this join.
+     * So {@code ... | WHERE x IN (FROM remote:idx) | LOOKUP JOIN ...} scopes the lookup to the outer source only, not to {@code remote}.
+     * A {@code FROM a, b} union ({@code Fork}/{@code UnionAll}) instead reads from every branch, so all of its children are followed.
+     * The behavior is validated by {@code CrossClusterInSubqueryIT.testMissingLookupIndexAfterWhereInSubquery}
+     * <p>
+     * Each index source contributes the clusters its pattern resolved to; a {@link Row} - a coordinator-only source carrying no index
+     * relation - contributes the local cluster. The behavior is validated by
+     * {@code CrossClusterInSubqueryIT.testMissingLookupIndexInsideWhereInSubquery} and
+     * {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery}.
+     */
     private static void collectLookupJoinLeftScope(
         LogicalPlan plan,
         Set<String> scope,

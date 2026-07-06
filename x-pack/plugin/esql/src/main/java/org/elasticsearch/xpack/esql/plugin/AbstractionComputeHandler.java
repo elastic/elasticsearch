@@ -25,9 +25,11 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.Result;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 /**
@@ -55,9 +57,11 @@ final class AbstractionComputeHandler implements TransportRequestHandler<Execute
     /** {@code "indices:data/read/esql/execute_abstraction"} — {@code indices:}-scoped, sibling of {@code .../cluster}. */
     static final String EXECUTE_ABSTRACTION_ACTION_NAME = EsqlQueryAction.NAME + "/execute_abstraction";
 
+    /** Names the compute phase in profiles/descriptions (sibling qualifiers: {@code "remote_reduce"}, {@code "subplan-N"}). */
+    private static final String ABSTRACTION_PROFILE_QUALIFIER = "abstraction";
+
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
-    private final TransportService transportService;
     private final AbstractionResolver abstractionResolver;
 
     /**
@@ -86,7 +90,6 @@ final class AbstractionComputeHandler implements TransportRequestHandler<Execute
     ) {
         this.computeService = computeService;
         this.exchangeService = exchangeService;
-        this.transportService = transportService;
         this.abstractionResolver = abstractionResolver;
         transportService.registerRequestHandler(EXECUTE_ABSTRACTION_ACTION_NAME, searchExecutor, ExecuteAbstractionRequest::new, this);
     }
@@ -125,36 +128,56 @@ final class AbstractionComputeHandler implements TransportRequestHandler<Execute
         // subquery executor already uses). The resolver hands us the per-request EsqlExecutionInfo so executePlan
         // threads the same info the session built. Validate the resolved schema against the coordinator's expectation
         // (B1) before running.
-        Function<EsqlExecutionInfo, EsqlSession.PlanRunner> runnerFactory = execInfo -> (
-            plan,
-            configuration,
-            foldCtx,
-            planTimeProfile,
-            resultListener) -> {
-            try {
-                validateSchema(request.abstractionName(), request.expectedAttributes(), plan);
-            } catch (Exception e) {
-                resultListener.onFailure(e);
-                return;
-            }
-            // Root the plan in an ExchangeSinkExec so LocalExecutionPlanner builds a sink operator bound to our
-            // exchange-sink supplier. The collect path (computeService.execute) instead wraps in OutputExec; the sink
-            // path must present an ExchangeSinkExec terminal, exactly as the distributed/subplan sink paths do.
-            PhysicalPlan sinkPlan = new ExchangeSinkExec(plan.source(), plan.output(), false, plan);
-            computeService.executePlan(
-                sessionId,
-                parentTask,
-                computeService.createFlags(),
-                sinkPlan,
-                configuration,
-                foldCtx,
-                execInfo,
-                ComputeService.DATA_DESCRIPTION,
-                resultListener,
-                () -> exchangeSink.createExchangeSink(() -> {}),
-                Map.of(),
-                planTimeProfile
-            );
+        Function<EsqlExecutionInfo, EsqlSession.PlanRunner> runnerFactory = execInfo -> {
+            // EsqlSession routes every query through executeSubPlans and invokes the runner ONCE per subplan (INLINE
+            // STATS / IN-subquery) plus once for the main plan. A sink-bound runner is only valid for a single run:
+            // a subplan's output is an intermediate whose schema differs from the abstraction's, and the sink path
+            // never collects pages back for the main-plan rewrite. Reject multi-run bodies loudly rather than
+            // mis-validating or mis-binding — abstraction bodies with subplans are a later increment.
+            final AtomicBoolean ran = new AtomicBoolean();
+            return (plan, configuration, foldCtx, planTimeProfile, resultListener) -> {
+                if (ran.compareAndSet(false, true) == false) {
+                    resultListener.onFailure(
+                        new IllegalStateException(
+                            "abstraction ["
+                                + request.abstractionName()
+                                + "] resolves to a body with subplans (INLINE STATS / IN-subquery), which remote"
+                                + " execution does not support yet"
+                        )
+                    );
+                    return;
+                }
+                try {
+                    validateSchema(request.abstractionName(), request.expectedAttributes(), plan);
+                } catch (Exception e) {
+                    resultListener.onFailure(e);
+                    return;
+                }
+                // Root the plan in an ExchangeSinkExec so LocalExecutionPlanner builds a sink operator bound to our
+                // exchange-sink supplier. The collect path (computeService.execute) instead wraps in OutputExec; the
+                // sink path must present an ExchangeSinkExec terminal, exactly as the distributed/subplan sink paths do.
+                PhysicalPlan sinkPlan = new ExchangeSinkExec(plan.source(), plan.output(), false, plan);
+                // Snapshot the initial cluster statuses so executePlan's remote-cluster legs are not silently skipped
+                // (a null status reads as not-RUNNING and drops the leg) — mirror ComputeService.execute.
+                Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses = new HashMap<>(execInfo.clusterInfo.size());
+                for (Map.Entry<String, EsqlExecutionInfo.Cluster> entry : execInfo.clusterInfo.entrySet()) {
+                    initialClusterStatuses.put(entry.getKey(), entry.getValue().getStatus());
+                }
+                computeService.executePlan(
+                    sessionId,
+                    parentTask,
+                    computeService.createFlags(),
+                    sinkPlan,
+                    configuration,
+                    foldCtx,
+                    execInfo,
+                    ABSTRACTION_PROFILE_QUALIFIER,
+                    resultListener,
+                    () -> exchangeSink.createExchangeSink(() -> {}),
+                    initialClusterStatuses,
+                    planTimeProfile
+                );
+            };
         };
 
         abstractionResolver.resolveAndExecute(

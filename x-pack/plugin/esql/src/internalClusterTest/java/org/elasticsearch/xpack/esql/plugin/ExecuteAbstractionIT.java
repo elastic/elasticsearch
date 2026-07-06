@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -69,8 +70,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class ExecuteAbstractionIT extends AbstractExternalDataSourceIT {
-
-    private static final String EXECUTE_ABSTRACTION_ACTION_NAME = EsqlQueryAction.NAME + "/execute_abstraction";
 
     private Path csvFixture;
 
@@ -156,6 +155,53 @@ public class ExecuteAbstractionIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * Multi-run guard (B1): a body with a subplan (INLINE STATS) drives the session's PlanRunner more than once — the
+     * sink-bound runner is single-shot (a subplan's intermediate schema and pages are not the abstraction's final
+     * result). The handler must reject such bodies loudly — never sink an intermediate as if it were the final result.
+     * The subplan is run first, so its intermediate output ({@code [m, first_name]}) does not match the coordinator's
+     * expected final schema and the schema-drift guard rejects it; a body whose subplan schema coincidentally matched
+     * would instead trip the explicit single-shot guard on the second run. Either way: a loud failure, not wrong rows.
+     */
+    public void testSubplanBodyIsRejected() throws Exception {
+        createIndex("sp_index");
+        prepareIndex("sp_index").setId("1").setSource(Map.of("emp_no", 1, "first_name", "Alice")).get();
+        prepareIndex("sp_index").setId("2").setSource(Map.of("emp_no", 2, "first_name", "Alice")).get();
+        refresh("sp_index");
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    new View("sp_view", "FROM sp_index | INLINE STATS m = MAX(emp_no) BY first_name")
+                )
+            )
+        );
+
+        List<Attribute> expectedSchema;
+        try (var response = run(EsqlQueryRequest.syncEsqlQueryRequest("FROM sp_view"), TIMEOUT)) {
+            expectedSchema = schemaOf(response);
+        }
+
+        Exception e = expectThrows(Exception.class, () -> dispatchAndDrain("sp_view", expectedSchema));
+        String message = exceptionChainMessage(e);
+        assertThat(
+            message,
+            anyOf(containsString("resolves to a body with subplans"), containsString("schema drift executing abstraction [sp_view]"))
+        );
+    }
+
+    /**
+     * Name-splice injection guard (B3): the abstraction name is wire input authorized as one opaque string, then spliced
+     * into {@code FROM <name>}. A name embedding a comma would parse as two relations and read a second, unauthorized
+     * index. The handler must reject metacharacter-bearing names loudly rather than mis-parse them.
+     */
+    public void testNameWithMetacharacterIsRejected() throws Exception {
+        Exception e = expectThrows(Exception.class, () -> dispatchAndDrain("employees,other_index", List.of()));
+        assertThat(exceptionChainMessage(e), containsString("illegal abstraction name [employees,other_index]"));
+    }
+
+    /**
      * Performs the coordinator-dispatch dance directly (mirroring {@code ClusterComputeHandler.startComputeOnRemoteCluster}
      * for a single leaf, but against the local node): open an exchange for a fresh session, send the
      * {@link ExecuteAbstractionRequest} to {@link AbstractionComputeHandler}, add a remote sink into a source handler, and
@@ -203,7 +249,7 @@ public class ExecuteAbstractionIT extends AbstractExternalDataSourceIT {
             PlainActionFuture<Void> responseFuture = new PlainActionFuture<>();
             transportService.sendChildRequest(
                 connection,
-                EXECUTE_ABSTRACTION_ACTION_NAME,
+                AbstractionComputeHandler.EXECUTE_ABSTRACTION_ACTION_NAME,
                 request,
                 rootTask,
                 TransportRequestOptions.EMPTY,

@@ -28,9 +28,9 @@ import java.util.Objects;
  * of the plan already resolves against.
  * <p>
  * Execution mirrors {@link RemoteViewExec} exactly — the same {@code execute_abstraction} action serves both, because the
- * remote resolves the name through the same kind-blind {@code SchemaService} umbrella. The coordinator lowers this leaf to
- * an exchange-source operator, opens an exchange to {@link #handle}, dispatches {@code ExecuteAbstractionRequest} carrying
- * only the dataset's {@link #datasetName}, and polls result pages back.
+ * remote resolves the name through the same kind-blind {@code SchemaService} umbrella. The coordinator <em>will</em> lower
+ * this leaf to an exchange-source operator (a later increment), open an exchange to {@link #handle}, dispatch
+ * {@code ExecuteAbstractionRequest} carrying only the dataset's {@link #datasetName}, and poll result pages back.
  */
 public class RemoteDatasetExec extends LeafExec {
 

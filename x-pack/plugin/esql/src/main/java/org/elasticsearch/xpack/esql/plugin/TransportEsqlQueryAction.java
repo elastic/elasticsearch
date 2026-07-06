@@ -447,8 +447,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         Function<EsqlExecutionInfo, PlanRunner> runnerFactory,
         ActionListener<Result> listener
     ) {
+        // The name is wire input spliced into query text; security authorized indices()=={name} as one opaque string.
+        // Reject ES|QL metacharacters so the splice cannot smuggle a second relation (e.g. "employees,secret_index"
+        // parses as two relations) or otherwise re-interpret past the authorized name. Identifier quoting is a follow-up;
+        // for now a name that would need it is rejected rather than silently mis-parsed.
+        if (containsEsqlMetacharacter(abstractionName)) {
+            listener.onFailure(new VerificationException("illegal abstraction name [" + abstractionName + "]"));
+            return;
+        }
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest("FROM " + abstractionName);
-        request.allowPartialResults(defaultAllowPartialResults);
+        // Federation execution fails loud rather than going quietly partial: a home-side shard/split failure must not be
+        // swallowed into a success response with fewer rows (partial-status propagation to the coordinator is a follow-up).
+        request.allowPartialResults(false);
         TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         String sessionId = UUIDs.randomBase64UUID();
         EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(request);
@@ -473,6 +483,22 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             parentTask::isCancelled,
             listener.map(Versioned::inner)
         );
+    }
+
+    /**
+     * Rejects names that would parse as more than the single authorized relation when spliced into {@code FROM <name>}:
+     * a comma (index list), a pipe (extra command), whitespace, a back-quote (quoted identifier), or a colon
+     * (cluster-qualified name). Security authorized the raw name as one string; these characters let it re-interpret
+     * past that grant.
+     */
+    private static boolean containsEsqlMetacharacter(String name) {
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c == ',' || c == '|' || c == '`' || c == ':' || Character.isWhitespace(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {

@@ -25,12 +25,13 @@ import java.util.Objects;
  * its home cluster and stream back its rows". It carries the remote {@code handle} (home cluster) and the resolved
  * output schema.
  * <p>
- * On the coordinator this leaf is lowered to an exchange-source operator (see {@code LocalExecutionPlanner}): the
- * coordinator opens an exchange to the {@link #handle} home cluster, dispatches {@code ExecuteAbstractionRequest} carrying
- * only the view's {@link #viewName} (its identity — never query text or a coordinator-built plan), and polls result pages
- * back through that exchange. The home cluster resolves the name through its own {@code SchemaService} umbrella, plans and
- * runs the resolved body locally, and sinks the pages into the exchange. This is the execution half of federation, the
- * sibling of {@code resolve_schema}'s schema half — both name-based, both resolved on the remote.
+ * On the coordinator this leaf <em>will be</em> lowered to an exchange-source operator (a later increment wires
+ * {@code LocalExecutionPlanner}): the coordinator opens an exchange to the {@link #handle} home cluster, dispatches
+ * {@code ExecuteAbstractionRequest} carrying only the view's {@link #viewName} (its identity — never query text or a
+ * coordinator-built plan), and polls result pages back through that exchange. The home cluster resolves the name through
+ * its own {@code SchemaService} umbrella (handled by {@code AbstractionComputeHandler}), plans and runs the resolved body
+ * locally, and sinks the pages into the exchange. This is the execution half of federation, the sibling of
+ * {@code resolve_schema}'s schema half — both name-based, both resolved on the remote.
  */
 public class RemoteViewExec extends LeafExec {
 

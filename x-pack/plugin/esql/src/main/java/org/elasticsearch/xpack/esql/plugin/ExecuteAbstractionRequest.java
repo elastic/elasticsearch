@@ -77,7 +77,10 @@ final class ExecuteAbstractionRequest extends AbstractTransportRequest implement
     /**
      * @param clusterAlias       the cluster alias of the querying (coordinator) cluster, as seen from the home cluster
      * @param sessionId          the sessionId of the exchange sink the home cluster places its output pages into
-     * @param configuration      the configuration for this compute
+     * @param configuration      the coordinator's configuration; today it is only the {@code PlanStreamOutput} context
+     *                           for (de)serializing {@link #expectedAttributes}. The home session synthesizes its own
+     *                           configuration from the {@code FROM <name>} request, so timezone/locale/pragma propagation
+     *                           from the coordinator is a follow-up.
      * @param abstractionName    the identity (name) of the view or dataset to resolve and run on the home cluster
      * @param expectedAttributes the ordered output schema the coordinator resolved against; the home handler validates
      *                           its freshly-resolved plan's output against this and fails loud on drift (schema-drift guard)

@@ -4326,7 +4326,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 try {
                     return splitAndConvertQuoted(buf, from, to);
                 } catch (MalformedRowException e) {
-                    onRowError(e.getMessage(), e, directRawLine(), true);
+                    onRowError("CSV parse error: " + e.getMessage(), e, EMPTY_ROW, true);
                     return false;
                 }
             }
@@ -4419,6 +4419,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return rejectFieldTooLarge(end - start);
                 }
                 if (isStringType(dt) == false) {
+                    // Mirror tryConvertValue's raw-first null-marker check: a whitespace-bearing null_value
+                    // (e.g. " 0 ") must match the UNTRIMMED value, else a typed column trims it away and misses
+                    // it while the house arm (which compares the raw field) nulls it — a silent divergence.
+                    if (hasCustomNullValue && end - start == nullValueStr.length() && regionEquals(buf, start, nullValueStr)) {
+                        stageNullValue(bufIdx);
+                        return true;
+                    }
                     while (start < end && buf[start] <= ' ') {
                         start++;
                     }
@@ -4686,7 +4693,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         r++;
                     }
                     if (r < len && buf[r] != delim) {
-                        onRowError("CSV row has unexpected content after a closing quote", null, directRawLine(), true);
+                        onRowError("CSV parse error: CSV row has unexpected content after a closing quote", null, EMPTY_ROW, true);
                         return false;
                     }
                     if (projected) {

@@ -122,6 +122,22 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("ok")), row(br("fine"))), rows);
     }
 
+    /**
+     * Both arms report the identical wrapped message for junk after a closing quote — the direct-block arm
+     * previously emitted it without the {@code "CSV parse error: "} prefix that the fallback arm adds.
+     */
+    public void testContentAfterCloseQuoteErrorParity() throws IOException {
+        assertFailFastParity(
+            false,
+            Map.of(),
+            null,
+            "k:keyword\n\"x\"y\n",
+            "line -1:-1: CSV parse error at row [1]: CSV parse error: CSV row has unexpected content after a closing "
+                + "quote; row: <unparsed>; set error_mode to skip_row (or null_field) in WITH options to skip and warn "
+                + "instead of failing"
+        );
+    }
+
     /** The cap is measured on the trimmed value, so surrounding whitespace does not push a field over. */
     public void testMaxFieldSizeTrimmedWithinCap() throws IOException {
         List<List<Object>> rows = read(false, Map.of("max_field_size", 5, "trim_spaces", true), "k:keyword\n  abc  \n");
@@ -218,6 +234,19 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDecimalInLongColumnNullFieldYieldsNull() throws IOException {
         List<List<Object>> rows = read(false, nullField(), "a:long\n1.0\n");
         assertEquals(List.of(row((Object) null)), rows);
+    }
+
+    /**
+     * A whitespace-bearing {@code null_value} nulls a typed value that equals the RAW marker, identically on
+     * both arms — the direct arm previously trimmed the value before the marker check and missed it.
+     */
+    public void testPaddedNullMarkerOnTypedColumnParity() throws IOException {
+        // Padded marker " 0 ", value " 0 " (== raw marker) → null on both arms.
+        assertEquals(List.of(row((Object) null)), read(false, Map.of("null_value", " 0 "), "a:integer\n 0 \n"));
+        // Unpadded marker "0", padded value " 0 " → null via the trimmed re-check (both arms already agree).
+        assertEquals(List.of(row((Object) null)), read(false, Map.of("null_value", "0"), "a:integer\n 0 \n"));
+        // A padded value that is NOT the marker still parses.
+        assertEquals(List.of(row(5)), read(false, Map.of("null_value", " 0 "), "a:integer\n 5 \n"));
     }
 
     // ---------------------------------------------------------------------------------------------

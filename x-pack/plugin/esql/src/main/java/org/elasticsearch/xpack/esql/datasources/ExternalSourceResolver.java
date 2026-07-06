@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -164,6 +166,19 @@ public class ExternalSourceResolver {
     private final BooleanSupplier isCancelled;
 
     /**
+     * Captured at construction time from the coordinating request's transport thread (see {@code PlanExecutor#esql}),
+     * i.e. while still on the thread that carries the caller's {@code Authentication}. Restored around the outward
+     * {@link #resolve} completion listener so that when a factory's async metadata read completes on a non-ES thread
+     * (e.g. a Netty I/O thread owned by a native async storage SDK client, which never had the ES context installed),
+     * the rest of the synchronous continuation — back through {@code EsqlSession} and into the compute transport
+     * send — runs with the original request's security context rather than an empty one.
+     * {@code null} means "no context to preserve" (used by tests and call sites that do not run inside a real
+     * request, matching the existing {@code isCancelled == null} convention).
+     */
+    @Nullable
+    private final ThreadContext threadContext;
+
+    /**
      * The {@link #executor} decorated so that every task it runs has the query cancellation signal installed as the
      * ambient {@link StorageRetryCancellation} scope. This is the executor handed to factories for the async footer
      * reads: for storage backends whose {@code readBytesAsync} is an executor-backed synchronous read (local, GCS,
@@ -244,6 +259,28 @@ public class ExternalSourceResolver {
         @Nullable BooleanSupplier isCancelled,
         int metadataReadConcurrency
     ) {
+        this(executor, dataSourceModule, settings, cacheService, isCancelled, metadataReadConcurrency, null);
+    }
+
+    /**
+     * @param isCancelled consulted before each per-file footer read so a wide-glob discovery aborts promptly on
+     *            cancellation; {@code null} means "never cancelled".
+     * @param metadataReadConcurrency maximum number of in-flight per-file metadata reads during a multi-file
+     *            discovery. Production passes the {@code esql_worker} pool size.
+     * @param threadContext the calling request's transport {@link ThreadContext}, captured while still on the
+     *            authenticated calling thread; restored around the outward {@link #resolve} completion listener so
+     *            that async completions on non-ES threads don't lose the request's security context. {@code null}
+     *            when there is no context to preserve (tests, non-request call sites).
+     */
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        @Nullable BooleanSupplier isCancelled,
+        int metadataReadConcurrency,
+        @Nullable ThreadContext threadContext
+    ) {
         if (metadataReadConcurrency < 1) {
             throw new IllegalArgumentException("metadataReadConcurrency must be >= 1, got: " + metadataReadConcurrency);
         }
@@ -254,6 +291,7 @@ public class ExternalSourceResolver {
         this.isCancelled = isCancelled;
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
         this.metadataReadConcurrency = metadataReadConcurrency;
+        this.threadContext = threadContext;
         // Install the query cancellation signal as the ambient StorageRetryCancellation scope for every footer read
         // dispatched to the executor, so an executor-backed synchronous read's backoff aborts promptly on cancel.
         this.metadataReadExecutor = command -> executor.execute(
@@ -360,8 +398,18 @@ public class ExternalSourceResolver {
         // ambient StorageRetryCancellation scope for the whole sequential prep: a cancelled wide-glob discovery then
         // aborts its glob-expansion and anchor/single-file read backoff promptly, matching the per-read wrapping the
         // async fan-out already gets.
+        //
+        // Wrap the outward listener so that when a factory's async metadata read completes on a non-ES thread (e.g.
+        // a Netty I/O thread owned by a native async storage SDK client), the caller's authenticated ThreadContext is
+        // restored before the listener's continuation runs — covering the rest of the synchronous chain back through
+        // EsqlSession and into the compute transport send. See the field javadoc on threadContext for details.
+        ActionListener<ExternalSourceResolution> resolveListener = threadContext == null
+            ? listener
+            : ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
         Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
-        metadataReadExecutor.execute(() -> resolveNextPath(paths, 0, pathConfigs, filterHints, pathsRequiringStats, resolved, listener));
+        metadataReadExecutor.execute(
+            () -> resolveNextPath(paths, 0, pathConfigs, filterHints, pathsRequiringStats, resolved, resolveListener)
+        );
     }
 
     /**

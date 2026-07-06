@@ -83,6 +83,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
@@ -4644,7 +4645,15 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         plugins.add(EncryptionPlugin.class);
         plugins.add(EsqlPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
+        plugins.add(AddSettingPlugin.class);
         return plugins;
+    }
+
+    public static class AddSettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(SplitTargetService.START_SPLIT_RETRY_TIMEOUT);
+        }
     }
 
     @Override
@@ -4654,7 +4663,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             // when we start re-splitting bulk requests.
             .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s")
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
-            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
+            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5));
     }
 
     @Override

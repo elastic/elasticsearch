@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
@@ -56,6 +58,22 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
     @Override
     protected QueryPragmas getPragmas() {
         return QueryPragmas.EMPTY;
+    }
+
+    /**
+     * Pins every query to one coordinator. {@code ExternalSourceCacheService} is a per-node singleton, so the
+     * cold scan's harvested stripes are reconciled into that coordinator's cache and a warm COUNT(*)/MIN/MAX is
+     * served from stripes only by the SAME coordinator. The default {@code run()} routes through {@code client()},
+     * which picks a random node per call, so the warm query could land on a different coordinator with an empty
+     * cache and re-scan (flaky {@code filesScanned() == 0} assertions). Mirrors {@link ExternalMultiFileWarmAggregateFoldIT}.
+     */
+    @Override
+    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
+        try {
+            return client(internalCluster().getMasterName()).execute(EsqlQueryAction.INSTANCE, request).actionGet(timeout);
+        } catch (ElasticsearchTimeoutException e) {
+            throw new AssertionError("timeout", e);
+        }
     }
 
     public void testExternalQueryProfileFieldsArePopulated() throws Exception {

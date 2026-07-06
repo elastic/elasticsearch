@@ -54,6 +54,26 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         tryRunTestsLoadOnly(query, stages, null, nestedPaths).ifPresent(e -> { throw new RuntimeException("Load mode failed", e); });
     }
 
+    /**
+     * Runs LOAD mode pinned to the exact given transport version, unlike the {@code minimumSupportedVersion} overloads
+     * which randomize a version that <em>supports</em> (i.e. is at or after) the given one. Use this to deterministically
+     * exercise a version that predates a given wire-format change, e.g. via {@link TransportVersionUtils#randomVersionNotSupporting}.
+     */
+    protected void runTestsLoadOnlyAtVersion(
+        String query,
+        EnumSet<Stage> stages,
+        TransportVersion transportVersion,
+        String... nestedPaths
+    ) {
+        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled() == false) {
+            return;
+        }
+        builder(setUnmappedLoad(query)).nestedPath(ArrayUtils.prepend("load", nestedPaths))
+            .stages(stages)
+            .transportVersion(transportVersion)
+            .run();
+    }
+
     private Optional<Throwable> tryRunTestsNullifyOnly(
         String query,
         EnumSet<Stage> stages,

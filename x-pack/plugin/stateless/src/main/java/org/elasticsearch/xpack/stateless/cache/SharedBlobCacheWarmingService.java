@@ -719,7 +719,10 @@ public class SharedBlobCacheWarmingService {
                                         var offset = byteRangeToWarmForCC(referencedCompoundCommit).end();
                                         targetsToWarmComputed.merge(
                                             referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile(),
-                                            // We use timestamps only when internal files replicated content for search shards is enabled
+                                            // We use timestamps only when cache boost preference feature is enabled, which in turn requires
+                                            // internal files replicated content for search shards to be enabled. However, the current
+                                            // branch is taken only when replicated content feature is disabled, so we can safely avoid
+                                            // calculating the timestamp and use an unknown timestamp here.
                                             WarmTarget.withUnknownTimestamp(offset),
                                             WarmTarget::merge
                                         );

@@ -274,7 +274,8 @@ public abstract class DenseVectorQuery extends Query {
             if (denormalize) {
                 NumericDocValues magnitudes = leafReaderContext.reader()
                     .getNumericDocValues(field + DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX);
-                return new RawFloatVectorScorer(new DenormalizedCosineFloatVectorValues(vectorValues, magnitudes), query, function);
+                DenormalizedCosineFloatVectorValues values = new DenormalizedCosineFloatVectorValues(vectorValues, magnitudes);
+                return new RawVectorScorer<>(values, values::vectorValue, query, function::compare);
             }
             FieldInfo fieldInfo = leafReaderContext.reader().getFieldInfos().fieldInfo(field);
             if (fieldInfo != null && fieldInfo.getVectorSimilarityFunction() == function) {
@@ -303,30 +304,6 @@ public abstract class DenseVectorQuery extends Query {
         @Override
         public int hashCode() {
             return Objects.hash(field, Arrays.hashCode(query), function, denormalize);
-        }
-
-        private static final class RawFloatVectorScorer implements VectorScorer {
-            private final FloatVectorValues values;
-            private final float[] target;
-            private final VectorSimilarityFunction function;
-            private final KnnVectorValues.DocIndexIterator iterator;
-
-            RawFloatVectorScorer(FloatVectorValues values, float[] target, VectorSimilarityFunction function) {
-                this.values = values;
-                this.target = target;
-                this.function = function;
-                this.iterator = values.iterator();
-            }
-
-            @Override
-            public float score() throws IOException {
-                return function.compare(target, values.vectorValue(iterator.index()));
-            }
-
-            @Override
-            public DocIdSetIterator iterator() {
-                return iterator;
-            }
         }
     }
 

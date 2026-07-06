@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -21,11 +20,9 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -33,14 +30,10 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
-import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
@@ -48,11 +41,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -60,10 +50,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -74,7 +62,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -131,12 +118,6 @@ public class Verifier {
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
-        // Partially-unmapped non-keyword field references are checked before the bail-out so that a query with both
-        // an UnsupportedAttribute and a PUNK field produces both errors in one batch.
-        if (unmappedResolution == UnmappedResolution.LOAD) {
-            checkPartiallyUnmappedNonKeywordReferences(plan, failures, context);
-        }
-
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {
             return failures.failures();
@@ -144,7 +125,6 @@ public class Verifier {
 
         if (unmappedResolution == UnmappedResolution.LOAD) {
             checkLoadModeDisallowedCommands(plan, failures);
-            checkLoadModeDisallowedFunctions(plan, failures);
             checkFlattenedSubFieldLoad(plan, failures);
         }
 
@@ -165,7 +145,7 @@ public class Verifier {
             planCheckers.forEach(c -> c.accept(p, failures));
             p.forEachExpression(e -> {
                 if (e instanceof PostAnalysisVerificationAware va) {
-                    va.postAnalysisVerification(failures);
+                    va.postAnalysisVerification(context.analysisRegistry(), failures);
                 }
             });
 
@@ -467,40 +447,14 @@ public class Verifier {
     }
 
     /**
-     * {@code unmapped_fields="load"} does not yet support branching commands (FORK, subqueries/views).
-     * See https://github.com/elastic/elasticsearch/issues/142033
+     * {@code unmapped_fields="load"} does not yet support PROMQL
      */
     private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {
-            if (p instanceof Fork && p instanceof UnionAll == false) {
-                failures.add(fail(p, "FORK is not supported with unmapped_fields=\"load\""));
-            }
-            if (p instanceof Subquery) {
-                failures.add(fail(p, "Subqueries and views are not supported with unmapped_fields=\"load\""));
-            }
             if (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
                 failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
             }
         });
-    }
-
-    /**
-     * Disallow full-text search when unmapped_fields=load. We do not restrict to "only when the FTF
-     * is applied to an unmapped field" because FTFs like KQL can reference unmapped fields inside the
-     * query string (e.g. KQL("author: Faulkner")), and the desired behavior there is unclear.
-     */
-    private static void checkLoadModeDisallowedFunctions(LogicalPlan plan, Failures failures) {
-        List<FullTextFunction> fullTextFunctions = new ArrayList<>();
-        plan.forEachExpressionDown(FullTextFunction.class, fullTextFunctions::add);
-        fullTextFunctions.forEach(
-            f -> failures.add(
-                fail(
-                    f,
-                    "unmapped_fields=\"load\" does not support full-text search function [{}]; use \"default\" or \"nullify\"",
-                    f.functionName()
-                )
-            )
-        );
     }
 
     /**
@@ -555,114 +509,6 @@ public class Verifier {
         }
 
         return names;
-    }
-
-    /**
-     * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) that couldn't be auto-cast by
-     * {@code ResolveTwoLeggedPunksInEsRelation} when {@code unmapped_fields="load"}.
-     *
-     * Expressions referencing these non-auto-castable PUNKs are flagged as a verification failure, except in KEEP/DROP.
-     *
-     * <p>
-     * Example
-     * <p>
-     * With the two indices below
-     * <ol>
-     *     <li>index1 has foo(aggregate_metric_double)</li>
-     *     <li>index2 has bar(keyword)</li>
-     * </ol>
-     *
-     * The following queries should pass (assume unmapped_fields="load" and reading from both indices)
-     * <ul>
-     *     <li>KEEP foo</li>
-     *     <li>DROP foo*</li>
-     * </ul>
-     * The following queries should fail (assume unmapped_fields="load" and reading from both indices)
-     * <ul>
-     *     <li>RENAME foo as x</li>
-     *     <li>EVAL x = foo</li>
-     *     <li>EVAL x = foo::aggregate_metric_double</li>
-     *     <li>WHERE foo IS NOT NULL</li>
-     * </ul>
-     */
-    private static void checkPartiallyUnmappedNonKeywordReferences(LogicalPlan plan, Failures failures, AnalyzerContext context) {
-        final String errorMessage = "Using partially unmapped non-KEYWORD field [{}] is not supported with unmapped_fields=\"load\"";
-
-        AttributeSet punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
-        Consumer<FieldAttribute> addFailureIfPunk = fa -> {
-            if (punks.contains(fa)) {
-                failures.add(fail(fa, errorMessage, fa.fieldName().string()));
-            }
-        };
-
-        plan.forEachUp(p -> {
-            // Fork will have a PUNK in the output even if it wasn't actually used in the query, that's fine.
-            if (p instanceof EsRelation || p instanceof Fork) {
-                return;
-            }
-
-            // Project represents KEEP/DROP/RENAME. We are consistent with UnsupportedAttribute (unsupported type/type conflict):
-            // - RENAME is forbidden.
-            // - KEEP/DROP are fine, with and without wildcards.
-            if (p instanceof Project project) {
-                for (NamedExpression projection : project.projections()) {
-                    if (projection instanceof Attribute) {
-                        continue;
-                    }
-                    projection.forEachDown(FieldAttribute.class, addFailureIfPunk);
-                }
-                return;
-            }
-
-            p.forEachExpression(FieldAttribute.class, addFailureIfPunk);
-        });
-    }
-
-    /**
-     * Walks the plan's {@link EsRelation} nodes and collects partially unmapped non-keyword attributes.
-     */
-    private static AttributeSet partiallyUnmappedNonKeywords(LogicalPlan plan, Map<IndexPattern, IndexResolution> indexResolutions) {
-        AttributeSet.Builder punks = AttributeSet.builder();
-
-        plan.forEachUp(EsRelation.class, relation -> {
-            IndexResolution indexResolution = indexResolutions.get(new IndexPattern(relation.source(), relation.indexPattern()));
-            if (indexResolution != null && indexResolution.isValid() && indexResolution.get().mapping().isEmpty() == false) {
-                Set<String> punkFieldNames = collectPotentiallyUnmappedNonKeywords(indexResolution.get().mapping());
-                for (Attribute attr : relation.output()) {
-                    // punk_field::long is fine; in this case, the FieldAttribute contains a MultiTypeEsField with the conversions.
-                    if (attr instanceof FieldAttribute fa
-                        && punkFieldNames.contains(fa.fieldName().string())
-                        && fa.field() instanceof UnionTypeEsField == false) {
-                        punks.add(fa);
-                    }
-                }
-            }
-        });
-
-        return punks.build();
-    }
-
-    private static Set<String> collectPotentiallyUnmappedNonKeywords(Map<String, EsField> mapping) {
-        HashSet<String> result = new HashSet<>();
-        collectPotentiallyUnmappedNonKeywords(mapping, null, result);
-        return result;
-    }
-
-    private static void collectPotentiallyUnmappedNonKeywords(
-        Map<String, EsField> mapping,
-        @Nullable String prefix,
-        Set<String> aggregator
-    ) {
-        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
-            String name = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
-            EsField field = entry.getValue();
-            if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped()) {
-                aggregator.add(name);
-            }
-            if (field.getProperties() != null && field.getProperties().isEmpty() == false) {
-                collectPotentiallyUnmappedNonKeywords(field.getProperties(), name, aggregator);
-            }
-        }
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

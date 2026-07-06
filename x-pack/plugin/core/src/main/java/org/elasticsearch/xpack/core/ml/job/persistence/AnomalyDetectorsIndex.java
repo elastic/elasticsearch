@@ -35,7 +35,7 @@ public final class AnomalyDetectorsIndex {
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
     private static final String RESOURCE_PATH = "/ml/anomalydetection/";
     private static final String WRITE_ALIAS_PREFIX = ".write-";
-    public static final int RESULTS_INDEX_MAPPINGS_VERSION = 1;
+    public static final int RESULTS_INDEX_MAPPINGS_VERSION = 2;
 
     private AnomalyDetectorsIndex() {}
 

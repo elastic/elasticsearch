@@ -729,7 +729,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
             boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
-            boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES);
+            boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode().isTsdb());
             boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
 
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
@@ -1455,9 +1455,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // The prefix isn't user-configurable in v1; the plan node carries it as a field so a future
         // grammar extension can override it without changing serialization.
         String prefix = Highlight.DEFAULT_PREFIX;
+        // TODO: support the bare form by deriving the query from a preceding full-text WHERE, stopping at row-shaping
+        // commands such as STATS, INLINESTATS, and LOOKUP JOIN.
         Expression query = ctx.queryText == null ? null : visitString(ctx.queryText);
-        List<Expression> fields = ctx.highlightFields.qualifiedName().stream().map(qn -> (Expression) visitQualifiedName(qn)).toList();
-        return p -> applyHighlightOptions(new Highlight(source, p, prefix, query, fields, null), ctx.commandNamedParameters());
+        // TODO: support `HIGHLIGHT ON *` and deriving ON fields from the resolved query. Today fields must be listed.
+        List<NamedExpression> fields = ctx.highlightFields.qualifiedName()
+            .stream()
+            .map(qn -> (NamedExpression) visitQualifiedName(qn))
+            .toList();
+        // Recompute generatedFields when fields can be derived after analysis.
+        List<Attribute> generatedFields = Highlight.generatedAttributesFor(source, prefix, fields);
+        return p -> applyHighlightOptions(
+            new Highlight(source, p, prefix, query, fields, null, generatedFields),
+            ctx.commandNamedParameters()
+        );
     }
 
     private Highlight applyHighlightOptions(Highlight h, EsqlBaseParser.CommandNamedParametersContext ctx) {

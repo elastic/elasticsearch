@@ -76,7 +76,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                     () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
                         client(),
                         ".ml-anomalies-",
-                        10000005,
+                        10000006,
                         List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*")
                     )
                 );

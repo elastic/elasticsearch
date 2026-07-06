@@ -113,6 +113,11 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     }
 
     @Override
+    public String functionName() {
+        return "LIKE";
+    }
+
+    @Override
     protected NodeInfo<WildcardLikeList> info() {
         return NodeInfo.create(this, WildcardLikeList::new, field(), pattern(), caseInsensitive());
     }

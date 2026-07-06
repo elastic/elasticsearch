@@ -26,6 +26,9 @@ public final class SliceIndexing {
     public static final String PARAM_NAME = "_slice";
     public static final FeatureFlag SLICE_FEATURE_FLAG = new FeatureFlag("slice_indexing");
     public static final TransportVersion SLICE_MISSING_EXCEPTION_VERSION = TransportVersion.fromName("slice_missing_exception");
+    public static final TransportVersion REINDEX_DEST_ROUTING_PROVENANCE_VERSION = TransportVersion.fromName(
+        "reindex_dest_routing_provenance"
+    );
     public static final TransportVersion SEARCH_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName("search_slice_routing_state");
     public static final TransportVersion CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName(
         "cluster_search_shards_slice_routing_state"
@@ -155,6 +158,8 @@ public final class SliceIndexing {
 
     /**
      * Validates request-level slice/routing requirements and resolves effective routing for search-style APIs.
+     * When {@code anySliceEnabled} is true and no {@code _slice} parameter was provided, the request is treated
+     * as {@code _slice=_all} (routing is left unrestricted, covering all slices).
      */
     public static String validateAndResolveSliceRoutingRequirement(
         boolean anySliceEnabled,
@@ -177,11 +182,6 @@ public final class SliceIndexing {
         if (routingFromSlice && anySliceEnabled == false && allowSliceWhenNoLocalSliceEnabled == false) {
             throw new IllegalArgumentException(
                 "[_slice] is not allowed when [index.slice.enabled] is false for " + requestDescription + " targeting [" + target + "]"
-            );
-        }
-        if (anySliceEnabled && routingFromSlice == false) {
-            throw new IllegalArgumentException(
-                "[_slice] is required when [index.slice.enabled] is true for " + requestDescription + " targeting [" + target + "]"
             );
         }
         if (routingFromSlice) {

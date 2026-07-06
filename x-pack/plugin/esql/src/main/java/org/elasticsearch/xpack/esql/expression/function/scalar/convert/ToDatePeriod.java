@@ -37,6 +37,7 @@ public class ToDatePeriod extends FoldablesConvertFunction {
         @Param(
             name = "field",
             type = { "date_period", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Input value. The input is a valid constant date period expression."
         ) Expression v
     ) {

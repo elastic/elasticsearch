@@ -207,17 +207,17 @@ public class EsqlCCSUtils {
      * Collects all view errors across all clusters and merges them into a single exception.
      */
     public static void checkForViewErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
-        RemoteViewNotSupportedException merged = null;
+        List<String> views = new ArrayList<>();
         for (var entry : failures.entrySet()) {
             for (FieldCapabilitiesFailure failure : entry.getValue()) {
                 Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
                 if (cause instanceof RemoteViewNotSupportedException viewEx) {
-                    merged = merged == null ? viewEx : RemoteViewNotSupportedException.merge(merged, viewEx);
+                    views.addAll(viewEx.views());
                 }
             }
         }
-        if (merged != null) {
-            throw merged;
+        if (views.isEmpty() == false) {
+            throw new RemoteViewNotSupportedException(views);
         }
     }
 

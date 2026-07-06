@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -260,7 +261,7 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
                 (e, r, l) -> preAnalyzeFlatMainIndices(
                     e.getKey(),
                     e.getValue(),
-                    ctx.configuration().projectRouting(),
+                    QuerySettings.PROJECT_ROUTING.get(ctx.configuration().resolvedSettings()),
                     preAnalysis,
                     executionInfo,
                     trackUnmappedFieldIndices,
@@ -274,7 +275,7 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
                         strictResult,
                         (sp, r, ll) -> preAnalyzeLinkedIndices(
                             sp,
-                            ctx.configuration().projectRouting(),
+                            QuerySettings.PROJECT_ROUTING.get(ctx.configuration().resolvedSettings()),
                             preAnalysis,
                             executionInfo,
                             trackUnmappedFieldIndices,

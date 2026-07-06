@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
 import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -51,6 +52,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     private static final int VPC = 128;
 
     private static final IvfSegmentConfig CODEC_DEFAULT = IvfSegmentConfig.fromCodecDefaults(
+        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
         ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
         false
     );
@@ -73,6 +75,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         IvfAutoCalibration selector = new IvfAutoCalibration();
         FieldInfo fieldInfo = vectorFieldInfo("f");
         IvfSegmentConfig codecDefault = IvfSegmentConfig.fromCodecDefaults(
+            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
             ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
             true
         );
@@ -98,13 +101,11 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     }
 
     public void testProductionMergeResolverPersistsCodecDefaultOnForceMerge() throws IOException {
-        Random rnd = random();
         int vectorsPerSegment = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 100;
         try (Directory dir = newDirectory()) {
             try (
                 DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildForceMergedWithDisagreeingFlushCalibration(
                     dir,
-                    rnd,
                     8,
                     vectorsPerSegment,
                     VPC
@@ -196,11 +197,6 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             ) {}
 
             @Override
-            public Map<String, Long> getOffHeapByteSize(FieldInfo info) {
-                return Map.of();
-            }
-
-            @Override
             public void checkIntegrity() {}
 
             @Override
@@ -243,7 +239,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             null,
             null,
             null,
-            false
+            false,
+            null
         );
     }
 
@@ -285,13 +282,9 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     }
 
     private static FloatVectorValues randomHeapVectors(int count, int dim) throws IOException {
-        Random rnd = random();
         List<float[]> vecs = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            float[] v = new float[dim];
-            for (int d = 0; d < dim; d++) {
-                v[d] = rnd.nextFloat();
-            }
+            float[] v = randomVector(dim);
             org.apache.lucene.util.VectorUtil.l2normalize(v);
             vecs.add(v);
         }

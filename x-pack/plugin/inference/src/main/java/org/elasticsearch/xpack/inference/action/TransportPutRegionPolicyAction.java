@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -29,6 +30,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.inference.ToXContentParams;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
@@ -40,11 +43,13 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.action.PutRegionPolicyAction;
+import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.RegionPolicyResponse;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicyDoc;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -53,10 +58,13 @@ import java.util.Optional;
 
 public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRegionPolicyAction.Request, RegionPolicyResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportPutRegionPolicyAction.class);
+
     private final OriginSettingClient client;
     private final Optional<SecurityContext> securityContext;
     private final ClusterService clusterService;
     private final FeatureService featureService;
+    private final InferencePreferencesCache inferencePreferencesCache;
 
     @Inject
     public TransportPutRegionPolicyAction(
@@ -66,7 +74,8 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         ActionFilters actionFilters,
         Client client,
         ClusterService clusterService,
-        FeatureService featureService
+        FeatureService featureService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         super(
             PutRegionPolicyAction.NAME,
@@ -81,6 +90,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             : Optional.empty();
         this.clusterService = clusterService;
         this.featureService = featureService;
+        this.inferencePreferencesCache = inferencePreferencesCache;
     }
 
     @Override
@@ -144,7 +154,15 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         indexRequestBuilder.execute(new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
-                listener.onResponse(new RegionPolicyResponse(doc));
+                inferencePreferencesCache.invalidate(
+                    ActionListener.runAfter(
+                        ActionListener.wrap(
+                            ignored -> {},
+                            e -> logger.warn("Failed to invalidate inference preferences cache after updating region policy", e)
+                        ),
+                        () -> refreshAuthorizedEndpointsAndRespond(doc, listener)
+                    )
+                );
             }
 
             @Override
@@ -162,6 +180,20 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
                 }
             }
         });
+    }
+
+    private void refreshAuthorizedEndpointsAndRespond(RegionPolicyDoc doc, ActionListener<RegionPolicyResponse> listener) {
+        client.execute(
+            RefreshAuthorizedEndpointsAction.INSTANCE,
+            new RefreshAuthorizedEndpointsAction.Request(),
+            ActionListener.runAfter(
+                ActionListener.<ActionResponse.Empty>wrap(
+                    ignored -> {},
+                    e -> logger.warn("Failed to refresh authorized endpoints after updating region policy", e)
+                ),
+                () -> listener.onResponse(new RegionPolicyResponse(doc))
+            )
+        );
     }
 
     private RegionPolicyDoc createNewRegionPolicyDoc(@Nullable RegionPolicyDoc existingRegionPolicy, RegionPolicy newRegionPolicy) {

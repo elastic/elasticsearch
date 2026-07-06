@@ -83,6 +83,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
@@ -1370,6 +1371,50 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         refresh(indexName);
 
         assertHitCount(prepareSearchAll(indexName), indexedDocs);
+    }
+
+    public void testReshardVectordbDocumentIndex() {
+        String indexNode = startMasterAndIndexNode();
+        startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_DOCUMENT.getName()).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        // index documents before resharding so the split has data to copy
+        final int preReshardDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, preReshardDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs);
+
+        final int multiple = 2;
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        waitForReshardCompletion(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, multiple);
+
+        // documents indexed before resharding must survive the split
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs);
+
+        // All shards should be usable
+        var shards = IntStream.range(0, multiple).boxed().collect(Collectors.toSet());
+        int docsPerRequest = randomIntBetween(10, 100);
+        int postReshardDocs = 0;
+        do {
+            for (var item : indexDocs(indexName, docsPerRequest).getItems()) {
+                postReshardDocs += 1;
+                shards.remove(item.getResponse().getShardId().getId());
+            }
+        } while (shards.isEmpty() == false);
+
+        refresh(indexName);
+
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs + postReshardDocs);
     }
 
     public void testReshardSearchShardWillNotBeAllocatedUntilIndexingShard() throws Exception {
@@ -4600,7 +4645,15 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         plugins.add(EncryptionPlugin.class);
         plugins.add(EsqlPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
+        plugins.add(AddSettingPlugin.class);
         return plugins;
+    }
+
+    public static class AddSettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(SplitTargetService.START_SPLIT_RETRY_TIMEOUT);
+        }
     }
 
     @Override
@@ -4610,7 +4663,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             // when we start re-splitting bulk requests.
             .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s")
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
-            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
+            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5));
     }
 
     @Override

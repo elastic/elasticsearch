@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 150602
+summary: Test race condition in `RecoveriesCollection`
+type: bug

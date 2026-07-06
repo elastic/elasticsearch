@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -309,7 +310,21 @@ public class FileSplitProvider implements SplitProvider {
             }
 
             tasks.add(
-                new FileTask(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema, context.maxRecordBytes())
+                new FileTask(
+                    filePath,
+                    fileLength,
+                    format,
+                    config,
+                    partitionValues,
+                    columnMapping,
+                    readSchema,
+                    // Reconciled query types (by unified name). Under UNION_BY_NAME (the only path that can widen
+                    // a mixed-temporal column) file column names equal unified names, so footer split stats key
+                    // by the same names and normalize by-name. Strict reconciliation rejects differing types, so
+                    // there is no mixed-unit column to normalize on that path.
+                    unifiedSchema != null ? attributesToTypeMap(unifiedSchema.attributes()) : null,
+                    context.maxRecordBytes()
+                )
             );
         }
 
@@ -379,8 +394,17 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> partitionValues,
         @Nullable ColumnMapping columnMapping,
         @Nullable List<Attribute> readSchema,
+        @Nullable Map<String, DataType> reconciledTypes,
         int maxRecordBytes
     ) {}
+
+    private static Map<String, DataType> attributesToTypeMap(List<Attribute> attributes) {
+        Map<String, DataType> types = new HashMap<>(attributes.size());
+        for (Attribute a : attributes) {
+            types.put(a.name(), a.dataType());
+        }
+        return types;
+    }
 
     /**
      * Computes the splits for a single file. Uses the hoisted provider when provided (non-null),
@@ -425,6 +449,7 @@ public class FileSplitProvider implements SplitProvider {
             task.partitionValues(),
             task.columnMapping(),
             task.readSchema(),
+            task.reconciledTypes(),
             fileSplits,
             hoistedProvider
         )) {
@@ -621,6 +646,7 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> partitionValues,
         @Nullable ColumnMapping columnMapping,
         @Nullable List<Attribute> readSchema,
+        @Nullable Map<String, DataType> reconciledTypes,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider
     ) {
@@ -655,6 +681,17 @@ public class FileSplitProvider implements SplitProvider {
 
             for (SplitRange range : ranges) {
                 Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
+                if (rangeStats != null && readSchema != null && reconciledTypes != null) {
+                    // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query
+                    // type so the split-filter classifier (which compares a reconciled-unit literal) and the
+                    // filtered merge compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos)
+                    // files, not unit-blind. A non-normalizable representation safe-misses via the marker.
+                    rangeStats = SourceStatisticsSerializer.normalizeStatsToReconciled(
+                        rangeStats,
+                        attributesToTypeMap(readSchema),
+                        reconciledTypes
+                    );
+                }
                 splits.add(
                     FileSplit.withStatisticsAndReadSchema(
                         "file",

@@ -1,0 +1,18 @@
+area: ES|QL
+highlight:
+  body: |-
+    The `match` function and `:` operator can now work with expressions that
+    no longer need to represent a mapped field in an Elasticsearch index.
+
+    The `match` function no longer needs to be pushed down as a Lucene query
+    to the shard. When matching on an expression that does not represent an
+    Elasticsearch mapped field, but has the `text` data type, we evaluate
+    the `match` function on-the-fly by analyzing the value of the expression
+    for each row and checking whether any of the analyzed tokens match the
+    analyzed tokens of the given query string.
+  notable: true
+  title: Release support for match with non-mapped expressions
+issues: []
+pr: 152941
+summary: Release support for match with non-mapped expressions
+type: enhancement

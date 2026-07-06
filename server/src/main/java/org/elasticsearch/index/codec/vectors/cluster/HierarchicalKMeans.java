@@ -295,7 +295,7 @@ public class HierarchicalKMeans<V> {
     }
 
     private Soar<V> buildSoar(int numVectors, float soarLambda) {
-        if (soarLambda < 0) return Soar.none();
+        assert soarLambda >= 0;
 
         int numWorkers = Math.min(this.numWorkers, numVectors / MIN_VECTORS_PER_THREAD);
         return executor == null || numWorkers <= 1
@@ -683,12 +683,7 @@ public class HierarchicalKMeans<V> {
         return assignments;
     }
 
-    private OverspillAssignments assignSoarOnly(ClusteringVectorValues<V> vectors, KMeansResult<V> kMeansResult, float soarLambda)
-        throws IOException {
-        if (soarLambda < 0) {
-            return null;
-        }
-
+    private OverspillAssignments assignSoarOnly(ClusteringVectorValues<V> vectors, KMeansResult<V> kMeansResult) throws IOException {
         NeighborHood[] neighborhoods = null;
         V[] centroids = kMeansResult.centroids();
         if (centroids.length > clustersPerNeighborhood) {
@@ -697,7 +692,7 @@ public class HierarchicalKMeans<V> {
                 : NeighborHood.computeNeighborhoods(ops, executor, numWorkers, centroids, clustersPerNeighborhood);
         }
 
-        return buildSoar(vectors.size(), soarLambda).assignSpilled(vectors, kMeansResult, neighborhoods);
+        return buildSoar(vectors.size(), DEFAULT_SOAR_LAMBDA).assignSpilled(vectors, kMeansResult, neighborhoods);
     }
 
     /**
@@ -877,12 +872,7 @@ public class HierarchicalKMeans<V> {
         if (concatClusteringIsDegenerate(centroidVectorCount)) {
             logger.debug("clusterByInsertion: post-assignment distribution is degenerate, falling back to full rebuild");
             KMeansNeighbors<V> kMeansNeighbors = cluster(vectors, targetSize);
-            OverspillAssignments soar = computeSoar(
-                vectors,
-                kMeansNeighbors.result(),
-                kMeansNeighbors.neighborHoods(),
-                DEFAULT_SOAR_LAMBDA
-            );
+            OverspillAssignments soar = computeSoar(vectors, kMeansNeighbors.result(), kMeansNeighbors.neighborHoods());
             return new KMeansWithOverspill<>(kMeansNeighbors.result(), soar);
         }
 
@@ -893,7 +883,7 @@ public class HierarchicalKMeans<V> {
         if (kMeansResult.centroids().length > 1 && kMeansResult.centroids().length < vectors.size()) {
             KMeansLocal<V> refinementKMeans = buildKmeansLocal(vectors.size(), vectors.size(), 1);
             NeighborHood[] neighborhoods = refinementKMeans.cluster(vectors, kMeansResult, clustersPerNeighborhood);
-            OverspillAssignments overspill = computeSoar(vectors, kMeansResult, neighborhoods, DEFAULT_SOAR_LAMBDA);
+            OverspillAssignments overspill = computeSoar(vectors, kMeansResult, neighborhoods);
             return new KMeansWithOverspill<>(kMeansResult, overspill);
         }
 
@@ -970,12 +960,7 @@ public class HierarchicalKMeans<V> {
         if (priorIsDegenerate(priorCount, clusterSizes, coverageScaledK)) {
             logger.debug("clusterByConcatenation: prior is degenerate, falling back to full rebuild");
             KMeansNeighbors<V> kMeansNeighbors = cluster(vectors, targetSize);
-            OverspillAssignments soar = computeSoar(
-                vectors,
-                kMeansNeighbors.result(),
-                kMeansNeighbors.neighborHoods(),
-                DEFAULT_SOAR_LAMBDA
-            );
+            OverspillAssignments soar = computeSoar(vectors, kMeansNeighbors.result(), kMeansNeighbors.neighborHoods());
             return new KMeansWithOverspill<>(kMeansNeighbors.result(), soar);
         }
 
@@ -1011,12 +996,7 @@ public class HierarchicalKMeans<V> {
         if (concatClusteringIsDegenerate(centroidVectorCount)) {
             logger.debug("clusterByConcatenation: post-assignment distribution is degenerate, falling back to full rebuild");
             KMeansNeighbors<V> kMeansNeighbors = cluster(vectors, targetSize);
-            OverspillAssignments soar = computeSoar(
-                vectors,
-                kMeansNeighbors.result(),
-                kMeansNeighbors.neighborHoods(),
-                DEFAULT_SOAR_LAMBDA
-            );
+            OverspillAssignments soar = computeSoar(vectors, kMeansNeighbors.result(), kMeansNeighbors.neighborHoods());
             return new KMeansWithOverspill<>(kMeansNeighbors.result(), soar);
         }
 
@@ -1024,7 +1004,7 @@ public class HierarchicalKMeans<V> {
 
         // SOAR assignment only — benchmarks showed refinement pass never justifies its cost
         if (kMeansResult.centroids().length > 1 && kMeansResult.centroids().length < vectors.size()) {
-            return new KMeansWithOverspill<>(kMeansResult, assignSoarOnly(vectors, kMeansResult, DEFAULT_SOAR_LAMBDA));
+            return new KMeansWithOverspill<>(kMeansResult, assignSoarOnly(vectors, kMeansResult));
         }
 
         return new KMeansWithOverspill<>(kMeansResult, OverspillAssignments.NONE);

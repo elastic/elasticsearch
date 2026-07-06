@@ -47,7 +47,7 @@ public record KMeansWithOverspill<V>(KMeansResult<V> result, OverspillAssignment
 
         int centroidOffset = 0;
         int assignmentOffset = 0;
-        int assignmentIdx = 0;
+        int spillAssignmentIdx = 0;
         for (KMeansWithOverspill<V> result : results) {
             V[] resultCentroids = result.centroids();
             int[] resultAssignments = result.assignments();
@@ -58,23 +58,25 @@ public record KMeansWithOverspill<V>(KMeansResult<V> result, OverspillAssignment
 
             OverspillAssignments overspill = result.overspill();
             if (overspill.size() > 0) {
-                spillAssignmentOffsets[assignmentIdx] = assignmentOffset;
-                spillCentroidOffsets[assignmentIdx] = centroidOffset;
-                overspills[assignmentIdx] = overspill;
-                assignmentIdx++;
+                spillAssignmentOffsets[spillAssignmentIdx] = assignmentOffset;
+                spillCentroidOffsets[spillAssignmentIdx] = centroidOffset;
+                overspills[spillAssignmentIdx] = overspill;
+                spillAssignmentIdx++;
             }
 
             centroidOffset += resultCentroids.length;
             assignmentOffset += resultAssignments.length;
         }
-        return new KMeansWithOverspill<>(
-            new KMeansResult<>(centroids, assignments),
-            new MergedOverspillAssignments(
-                Arrays.copyOf(spillAssignmentOffsets, assignmentIdx),
-                Arrays.copyOf(spillCentroidOffsets, assignmentIdx),
-                Arrays.copyOf(overspills, assignmentIdx)
-            )
-        );
+
+        OverspillAssignments overspill = spillAssignmentIdx == 0
+            ? OverspillAssignments.NONE
+            : new MergedOverspillAssignments(
+                Arrays.copyOf(spillAssignmentOffsets, spillAssignmentIdx),
+                Arrays.copyOf(spillCentroidOffsets, spillAssignmentIdx),
+                Arrays.copyOf(overspills, spillAssignmentIdx)
+            );
+
+        return new KMeansWithOverspill<>(new KMeansResult<>(centroids, assignments), overspill);
     }
 
     private static class MergedOverspillAssignments implements OverspillAssignments {

@@ -198,30 +198,30 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
         assertThat("preference [" + preference + "]", actualDocs, equalTo(expectedCount));
     }
 
-    private NodeVersionSpec getNodeId(Predicate<Version> versionPredicate) throws IOException {
-        return findRandomNodeId(nodeVersionSpec -> versionPredicate.test(Version.fromString(nodeVersionSpec.version())));
+    private NodeVersionSpec getNode(Predicate<Version> versionPredicate) throws IOException {
+        return findRandomNode(nodeVersionSpec -> versionPredicate.test(Version.fromString(nodeVersionSpec.version())));
     }
 
-    private NodeVersionSpec tryGetUpgradedNodeId() throws IOException {
-        var matchingNodeSpec = findRandomNodeId(
+    private NodeVersionSpec tryGetUpgradedNode() throws IOException {
+        var matchingNodeSpec = findRandomNode(
             nodeVersionSpec -> isOldClusterVersion(nodeVersionSpec.version(), nodeVersionSpec.buildHash()) == false
         );
         if (matchingNodeSpec == null) {
             // This means we "upgraded" to the same version, or have not yet upgraded any nodes, take any node ID
-            matchingNodeSpec = findRandomNodeId(nodeVersionSpec -> true);
+            matchingNodeSpec = findRandomNode(nodeVersionSpec -> true);
             logger.info("All nodes on same version, taking {} as \"upgraded\" node", matchingNodeSpec);
         }
         return matchingNodeSpec;
     }
 
-    private NodeVersionSpec getOldNodeId(Predicate<NodeVersionSpec> nodePredicate) throws IOException {
-        return findRandomNodeId(
+    private NodeVersionSpec getOldNode(Predicate<NodeVersionSpec> nodePredicate) throws IOException {
+        return findRandomNode(
             nodeVersionSpec -> isOldClusterVersion(nodeVersionSpec.version(), nodeVersionSpec.buildHash())
                 && nodePredicate.test(nodeVersionSpec)
         );
     }
 
-    private NodeVersionSpec findRandomNodeId(Predicate<NodeVersionSpec> predicate) throws IOException {
+    private NodeVersionSpec findRandomNode(Predicate<NodeVersionSpec> predicate) throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
@@ -257,10 +257,10 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
             // node stops, we lose the master too, so a replica will not be promoted)
             updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
         } else if (isMixedCluster()) {
-            final NodeVersionSpec newNode = tryGetUpgradedNodeId();
+            final NodeVersionSpec newNode = tryGetUpgradedNode();
             assertNotNull(newNode);
             // We need to ensure we don't select the same node for old & new, which could occur in an "upgrade" to the same version
-            final NodeVersionSpec oldNode = getOldNodeId(nodeVersionSpec -> !newNode.equals(nodeVersionSpec));
+            final NodeVersionSpec oldNode = getOldNode(nodeVersionSpec -> !newNode.equals(nodeVersionSpec));
             assertNotNull(oldNode);
 
             // remove the replica and guarantee the primary is placed on the old node
@@ -339,7 +339,7 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
                 if (randomBoolean()) {
                     indexDocs(index, i, 1); // update
                 } else if (randomBoolean()) {
-                    if (getNodeId(v -> v.onOrAfter(Version.V_7_0_0)) == null) {
+                    if (getNode(v -> v.onOrAfter(Version.V_7_0_0)) == null) {
                         client().performRequest(new Request("DELETE", index + "/test/" + i));
                     } else {
                         client().performRequest(new Request("DELETE", index + "/_doc/" + i));

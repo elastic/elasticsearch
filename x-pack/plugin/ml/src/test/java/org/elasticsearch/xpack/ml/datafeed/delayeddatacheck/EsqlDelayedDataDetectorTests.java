@@ -46,8 +46,8 @@ import static org.mockito.Mockito.when;
 
 public class EsqlDelayedDataDetectorTests extends ESTestCase {
 
-    private static final long BUCKET_SPAN_MS = 60_000L;   // 1 minute
-    private static final long WINDOW_MS = 600_000L;       // 10 minutes
+    private static final long BUCKET_SPAN_MS = 60_000L;
+    private static final long WINDOW_MS = 600_000L;
     private static final String JOB_ID = "test-job";
     private static final String TIME_FIELD = "ts";
     private static final String COUNT_FIELD = "event_count";
@@ -121,7 +121,7 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
         List<BucketWithMissingData> missing = detector.detectMissingData(latestMs);
 
         assertThat(missing, hasSize(1));
-        assertThat(missing.get(0).getMissingDocumentCount(), equalTo(2L)); // 4 - 2
+        assertThat(missing.get(0).getMissingDocumentCount(), equalTo(2L));
     }
 
     public void testAccumulateBucketCountsGivenMissingSummaryCountFieldThrows() {
@@ -253,7 +253,6 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
         GetBucketsAction.Response response = new GetBucketsAction.Response(page);
         ActionFuture<GetBucketsAction.Response> future = mock(ActionFuture.class);
         when(future.actionGet()).thenReturn(response);
-        // Match on the actual start/end the detector requested, rather than any(), so a wrong window is caught.
         when(
             client.execute(
                 eq(GetBucketsAction.INSTANCE),

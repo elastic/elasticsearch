@@ -64,9 +64,6 @@ public class EsqlDatafeedQueryValidator {
         String limitZeroQuery = esqlQuery + " | LIMIT 0";
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
-            // Do NOT close/decRef the response here: the transport framework's respondAndRelease
-            // calls decRef() after this method returns, which is the correct single release.
-            // Closing it here double-releases and triggers "invalid decRef call: already closed".
             try {
                 checkRequiredColumns(response.response().columns(), timeField, summaryCountField);
                 listener.onResponse(Boolean.TRUE);

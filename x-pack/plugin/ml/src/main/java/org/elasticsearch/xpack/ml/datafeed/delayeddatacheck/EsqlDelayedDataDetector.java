@@ -71,16 +71,6 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
         this.client = client;
     }
 
-    /**
-     * Compares the job's finalized bucket event counts against a re-run of the datafeed's ES|QL query over the window
-     * {@code [latestFinalizedBucketMs - window, latestFinalizedBucketMs]}.
-     *
-     * It is done synchronously, and can block for a considerable amount of time, it should only be executed within the appropriate
-     * thread pool.
-     *
-     * @param latestFinalizedBucketMs The latest finalized bucket timestamp in milliseconds, signifies the end of the time window check
-     * @return A List of {@link BucketWithMissingData} objects that contain each bucket with the current number of missing docs
-     */
     @Override
     public List<BucketWithMissingData> detectMissingData(long latestFinalizedBucketMs) {
         final long end = Intervals.alignToFloor(latestFinalizedBucketMs, bucketSpan);

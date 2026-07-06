@@ -255,7 +255,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         }
         String actual = BytesRefs.toString(value.fold(FoldContext.small()));
         if (option.isValid(actual) == false) {
-            failures.add(fail(this, "Invalid [{}] value [{}] in HIGHLIGHT, expected one of {}", option.name(), actual, option.allowed()));
+            failures.add(
+                fail(this, "Invalid value [{}] for option [{}] in HIGHLIGHT, expected one of {}", actual, option.name(), option.allowed())
+            );
         }
     }
 
@@ -267,7 +269,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         try {
             HighlightOptions.validate(name, value, FoldContext.small());
         } catch (RuntimeException e) {
-            failures.add(fail(this, "Invalid [{}] value in HIGHLIGHT: {}", name, e.getMessage()));
+            failures.add(fail(this, "Invalid value for option [{}] in HIGHLIGHT: {}", name, e.getMessage()));
         }
     }
 

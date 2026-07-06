@@ -83,19 +83,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "HighlightOperator[query="
-                + config.queryText()
-                + ", fields="
-                + fieldEvaluatorFactories.size()
-                + ", number_of_fragments="
-                + config.numberOfFragments()
-                + ", fragment_size="
-                + config.fragmentSize()
-                + ", no_match_size="
-                + config.noMatchSize()
-                + ", order_by_score="
-                + config.orderByScore()
-                + "]";
+            return "HighlightOperator[" + config.describe() + ", fields=" + fieldEvaluatorFactories.size() + "]";
         }
     }
 
@@ -205,7 +193,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 try {
                     appendSnippets(builder, highlight(text));
                 } catch (IOException e) {
-                    throw new IllegalStateException("Failed to highlight field", e);
+                    throw new IllegalStateException("HIGHLIGHT failed to highlight field", e);
                 }
             }
             return builder.build();
@@ -297,14 +285,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         return getClass().getSimpleName()
             + "[query="
             + query
-            + ", number_of_fragments="
-            + config.numberOfFragments()
-            + ", fragment_size="
-            + config.fragmentSize()
-            + ", no_match_size="
-            + config.noMatchSize()
-            + ", order_by_score="
-            + config.orderByScore()
+            + ", "
+            + config.describe()
             + ", fields="
             + Arrays.toString(fieldEvaluators)
             + "]";

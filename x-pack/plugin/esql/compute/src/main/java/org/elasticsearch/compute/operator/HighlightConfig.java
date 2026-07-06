@@ -39,4 +39,34 @@ public record HighlightConfig(
 
     /** Encoder name that escapes HTML markup in the highlighted text; any other value uses the default (no escaping). */
     public static final String HTML_ENCODER = "html";
+
+    public String describe() {
+        return "query="
+            + queryText
+            + ", pre_tag="
+            + preTag
+            + ", post_tag="
+            + postTag
+            + ", encoder="
+            + encoder
+            + ", number_of_fragments="
+            + numberOfFragments
+            + ", fragment_size="
+            + fragmentSize
+            + ", no_match_size="
+            + noMatchSize
+            + ", word_boundary="
+            + wordBoundary
+            + ", locale="
+            + locale
+            + ", order_by_score="
+            + orderByScore
+            + ", max_analyzed_offset="
+            + maxAnalyzedOffset;
+    }
+
+    @Override
+    public String toString() {
+        return "HighlightConfig[" + describe() + "]";
+    }
 }

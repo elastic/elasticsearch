@@ -45,6 +45,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -309,7 +310,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Strict (dynamic:false) declaration over the CSV fixture whose physical header is emp_no:integer,first_name:keyword.
         // The declaration relabels the columns and pins emp_no's type to LONG (inference would have produced INTEGER),
         // proving the declared mapping is used and inference is skipped.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("name", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
@@ -352,7 +353,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Non-strict (dynamic:true) declaration over the CSV fixture (emp_no:integer, first_name:keyword). We declare
         // only emp_no, pinning it to LONG (no rename); first_name is left to inference. The result must show the
         // declared type override AND the inferred remainder.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("long", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
@@ -392,7 +393,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // Strict declaration that RENAMES via `source`: physical emp_no/first_name are exposed as id/name. CSV is read
         // positionally, so the declared order must match the file order; the logical names id/name are what the query sees.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
@@ -432,7 +433,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
         // Non-strict declaration that renames emp_no -> id (and retypes to LONG); first_name is left to inference.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
@@ -470,7 +471,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // Non-strict copy: emp_no is kept AND copied to emp_copy. The copy materializes as EVAL emp_copy = emp_no above
         // the base relation, so both columns carry the same value and the read path is untouched.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("long", null, "emp_copy"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
@@ -514,7 +515,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // KEEP a subset down to just the renamed column: stresses the projection path under a rename (the column the
         // reader must read is the physical emp_no, exposed as id).
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
@@ -551,7 +552,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
         // Strict declaration: `ts` is a date parsed with the access-log pattern (which carries an explicit zone).
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
         properties.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
@@ -586,7 +587,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // Non-strict overlay retypes the inferred keyword `ts` to a date with the declared format; date comparison then
         // works on the parsed instants. Only the 11/Oct row (2000-10-11T16:00:00Z) is >= the 2000-10-11T00:00:00Z bound.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
@@ -622,7 +623,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // File-level datetime_format is a pattern that CANNOT parse the access-log text; the column's own declared
         // format must win for that column, so the value still parses to the exact zone-aware epoch.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
         properties.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
@@ -657,7 +658,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Regression: a declared date column with NO format keeps the ISO/default parse path unchanged.
         Path isoFixture = createTempFile("dataset-iso-fixture-", ".csv");
         Files.writeString(isoFixture, String.join("\n", "ts:keyword", "2000-10-10T20:55:36Z") + "\n");
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", new DatasetFieldMapping("date", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
@@ -689,7 +690,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // A declared date `format` is a text-parse pattern; columnar formats carry native typed values, so it is
         // rejected loudly at query resolution rather than silently ignored.
         Path parquet = writeParquetRenameFixture();
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", new DatasetFieldMapping("date", "emp_no", List.of(), ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
@@ -719,7 +720,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // NDJSON already parses dates via the ES DateFormatter; a per-column declared format reparses that column with
         // its own pattern (same zone-aware semantics).
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
@@ -752,7 +753,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // The format must follow the column through the rename (the spec is logical-keyed; FileSourceFactory physicalizes
         // the key back to `ts` for the reader). If the logical->physical re-keying were inverted, the reader would look
         // up the formatter under the wrong name and the value would fall to the undeclared path.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("event_time", new DatasetFieldMapping("date", "ts", List.of(), ACCESS_LOG_FORMAT));
         properties.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
@@ -799,7 +800,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Non-strict so the format/sourceType is inferred through the extension-based reader (the strict path derives the
         // sourceType from the file extension and doesn't yet see through a compound `.csv.gz` — a separate, pre-existing
         // gap unrelated to declared date formats). The overlay retypes the inferred `ts` to a date with the format.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
@@ -831,7 +832,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // A declared date format on a columnar column is rejected in STRICT mode too, not just non-strict — the strict
         // resolution path bypasses the non-strict overlay's reject, so it must guard the columnar case itself.
         Path parquet = writeParquetRenameFixture();
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", new DatasetFieldMapping("date", "emp_no", List.of(), ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
@@ -867,7 +868,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // prior clean failure instead of an NPE-wrapped 500 — even though no date format is declared here.
         Path noExt = createTempFile("dataset-noext-", "");
         Files.writeString(noExt, "id\n1\n");
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
@@ -896,7 +897,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // NDJSON is read BY NAME (JSON key), so rename exercises the reader's logical->physical key resolution: the
         // declared id/name columns must be read from the JSON fields emp_no/first_name.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
@@ -936,7 +937,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
         // Non-strict over NDJSON: emp_no renamed to id (retyped LONG); first_name inferred and read by its own JSON key.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
@@ -971,7 +972,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     public void testSourceDisabledReturnsEmptySource() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("integer", null));
         // _source.enabled: false -> METADATA _source must succeed with a null _source column, matching a real
         // index whose _source is disabled (SourceFieldMapper's ConstantNull block loader) rather than erroring.
@@ -1047,7 +1048,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path dir = createTempDir();
         Files.write(dir.resolve("part1.parquet"), parquetRenameFixtureBytes());
         Files.write(dir.resolve("part2.parquet"), parquetRenameFixtureBytes());
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
         properties.put("comp", new DatasetFieldMapping("integer", "salary"));
@@ -1170,7 +1171,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         // Swap: emp_no reads first_name, first_name reads emp_no. Each output name is unique and each physical is used
         // once (a bijection), so it should be allowed and the values should cross over.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("keyword", "first_name")); // emp_no <- physical first_name (text)
         properties.put("first_name", new DatasetFieldMapping("long", "emp_no"));     // first_name <- physical emp_no (num)
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
@@ -1204,7 +1205,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testCopyToMultipleTargets() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         // copy_to a LIST of targets: emp_no is copied to both emp_a and emp_b (one EVAL alias per target).
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("long", null, java.util.List.of("emp_a", "emp_b")));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
         assertAcked(
@@ -1245,7 +1246,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         // Non-strict copy whose target collides with a REAL (inferred) file column. PUT can't see inferred columns, so
         // it passes; the query must reject rather than let the EVAL silently overwrite first_name with a copy of emp_no.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("long", null, "first_name")); // target == an inferred column
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
         assertAcked(
@@ -1277,7 +1278,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // as the datetimes at epoch millis 1,2,3 (1970-01-01T00:00:00.001/.002/.003Z).
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetRenameFixture();
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("datetime", "emp_no")); // physical int64 -> coerce to datetime
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
@@ -1314,7 +1315,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // (long -> BytesRef).
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetDeferredCoerceFixture();
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", new DatasetFieldMapping("date", "event_ts", List.of(), ACCESS_LOG_FORMAT));
         properties.put("id_str", new DatasetFieldMapping("keyword", "id")); // physical int64 -> stringify
         properties.put("msg", new DatasetFieldMapping("keyword", null));
@@ -1425,7 +1426,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     private void putBadDateTokenDataset(String name, Map<String, Object> extraSettings) throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetBadDateTokenFixture();
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", new DatasetFieldMapping("date", "event_ts", List.of(), ACCESS_LOG_FORMAT));
         properties.put("id_str", new DatasetFieldMapping("keyword", "id"));
         properties.put("msg", new DatasetFieldMapping("keyword", null));
@@ -1513,7 +1514,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // CSV leg: same declared coercion, same bad token, same explicit policy -> same outcome.
         Path csv = createTempFile("dataset-bad-date-", ".csv");
         Files.writeString(csv, "ts:keyword,note:keyword\ndefinitely-not-a-date,alpha\n");
-        java.util.Map<String, DatasetFieldMapping> csvProps = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> csvProps = new LinkedHashMap<>();
         csvProps.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
         csvProps.put("note", new DatasetFieldMapping("keyword", null));
         assertAcked(
@@ -1550,7 +1551,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             {"ts":"10/Oct/2000:13:55:36 -0700","note":"alpha"}
             {"ts":"definitely-not-a-date","note":"beta"}
             """;
-        java.util.Map<String, DatasetFieldMapping> props = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
         props.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props));
@@ -1637,7 +1638,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // route through the one DeclaredTypeCoercions.parseDatetimeMillis. Assert the two reads equal EACH OTHER.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        java.util.Map<String, DatasetFieldMapping> csvProps = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> csvProps = new LinkedHashMap<>();
         csvProps.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
         csvProps.put("note", new DatasetFieldMapping("keyword", null));
         assertAcked(
@@ -1657,7 +1658,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
 
         Path parquet = writeParquetStringDateFixture();
-        java.util.Map<String, DatasetFieldMapping> pqProps = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> pqProps = new LinkedHashMap<>();
         pqProps.put("id", new DatasetFieldMapping("long", null));
         pqProps.put("ts", new DatasetFieldMapping("date", "event_ts", List.of(), ACCESS_LOG_FORMAT));
         assertAcked(
@@ -1690,7 +1691,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         Path csv = createTempFile("dataset-string-long-", ".csv");
         Files.writeString(csv, "n:keyword\n42\n");
-        java.util.Map<String, DatasetFieldMapping> csvProps = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> csvProps = new LinkedHashMap<>();
         csvProps.put("n", new DatasetFieldMapping("long", null));
         assertAcked(
             client().execute(
@@ -1711,7 +1712,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
 
         Path parquet = writeParquetTypedStringsFixture();
-        java.util.Map<String, DatasetFieldMapping> pqProps = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> pqProps = new LinkedHashMap<>();
         pqProps.put("id", new DatasetFieldMapping("long", null));
         pqProps.put("n", new DatasetFieldMapping("long", "s_long"));
         assertAcked(
@@ -1757,7 +1758,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // exercises, via the same DeclaredTypeCoercions matrix both columnar readers consult (parquet/orc consistency).
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetRenameFixture();
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("comp", new DatasetFieldMapping("long", "salary")); // int32 -> long coerce
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
@@ -1794,7 +1795,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Integer-valued (not Long) non-null results prove both the coercion happened AND the target type is INTEGER.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetRenameFixture(); // physical emp_no int64 = 1,2,3 (all fit in integer)
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("integer", "emp_no")); // int64 -> integer NARROWING (declared)
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
         assertAcked(
@@ -1826,7 +1827,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // (a number has no ip form — even bulk ingest rejects it) is rejected at resolution, not silently nulled.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetRenameFixture();
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("ip", "emp_no")); // physical int64 -> ip: no coercion
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
@@ -1857,7 +1858,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // time, exactly like bulk ingest of a long into a double field. Pre-widening this pair was rejected.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetRenameFixture();
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("double", "emp_no")); // physical int64 -> double coerce
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
@@ -1889,7 +1890,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // declared type cannot coerce nulls THAT cell (bulk leniency), never failing the read or reading garbage.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetTypedStringsFixture();
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("v_long", new DatasetFieldMapping("long", "s_long"));
         properties.put("v_double", new DatasetFieldMapping("double", "s_double"));
@@ -1977,7 +1978,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path dir = createTempDir();
         Files.write(dir.resolve("part1.parquet"), parquetRenameFixtureBytes());
         Files.write(dir.resolve("part2.parquet"), parquetRenameFixtureBytes());
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("datetime", "emp_no")); // physical int64 -> coerce to datetime
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
@@ -2009,7 +2010,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // source and pushes down — the trickiest combination (strict, columnar pushdown, copy alias-substitution).
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetRenameFixture();
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("comp", new DatasetFieldMapping("integer", "salary", "comp2")); // move salary->comp, copy to comp2
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
@@ -2048,7 +2049,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     private void putParquetRenameDataset(String name, Path parquet) {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
         properties.put("comp", new DatasetFieldMapping("integer", "salary"));
@@ -2078,7 +2079,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // IS checked at first read: a declaration WIDER than the file's header — the file can't supply the declared
         // columns (drifted file, or the wrong file), so it fails loudly instead of null-splicing every row.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        java.util.Map<String, DatasetFieldMapping> tooWide = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> tooWide = new LinkedHashMap<>();
         tooWide.put("emp_no", new DatasetFieldMapping("integer", null));
         tooWide.put("first_name", new DatasetFieldMapping("keyword", null));
         tooWide.put("department", new DatasetFieldMapping("keyword", null)); // fixture has only 2 columns
@@ -2112,7 +2113,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // rejected at resolution with an actionable message rather than dying deep in the engine or reading as silent null.
         Path parquet = writeParquetRenameFixture();
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("ip", null)); // physical int64!
         properties.put("first_name", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
@@ -2176,7 +2177,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // ts::long recovers the raw epoch millis, proving the -0700 offset was honored (a zone-dropping parse is 7h off).
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetStringDateFixture();
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("ts", new DatasetFieldMapping("date", "event_ts", List.of(), ACCESS_LOG_FORMAT)); // string -> date
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
@@ -2237,7 +2238,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Files.writeString(root.resolve("part2.csv"), "emp_no:integer,first_name:keyword\n3,Carol\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("name", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
@@ -2275,7 +2276,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Files.writeString(root.resolve("part2.csv"), "emp_no:integer,first_name:keyword\n3,Carol\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("long", null)); // retype only; first_name inferred
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
         assertAcked(
@@ -2835,7 +2836,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Non-strict declaration whose only knob is _id.path = first_name (a keyword column). The columns keep their
         // inferred names/types; _id is stamped from first_name's value.
         DatasetMapping mapping = new DatasetMapping(
-            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new java.util.LinkedHashMap<>(), null, "first_name")
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), null, "first_name")
         );
 
         assertAcked(
@@ -2909,7 +2910,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // The id-source is a LOGICAL name: declare uid as a rename of the physical first_name column and point
         // _id.path at the logical uid. The whole chain (pin, projection, reader translation, stamp) must stay in
         // logical space — _id equals the renamed column's values.
-        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("uid", new DatasetFieldMapping("keyword", "first_name"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties, null, "uid"));
         assertAcked(
@@ -2954,7 +2955,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Files.writeString(east.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        java.util.Map<String, DatasetFieldMapping> props = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("emp_no", new DatasetFieldMapping("integer", null));
         props.put("first_name", new DatasetFieldMapping("keyword", null));
         // Non-strict, _id.path = region (the partition key). PUT accepts (non-strict defers the id-column existence
@@ -2994,7 +2995,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Files.writeString(east.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        java.util.Map<String, DatasetFieldMapping> props = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("region", new DatasetFieldMapping("integer", null)); // collides with the partition key "region"
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props));
         assertAcked(
@@ -3022,7 +3023,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // Same reject via the physical name: a declared column whose `path` points at the partition key
         // collides just as a name-match does — the read would map the physical to a shadowed path-derived column.
-        java.util.Map<String, DatasetFieldMapping> pathProps = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> pathProps = new LinkedHashMap<>();
         pathProps.put("region_alias", new DatasetFieldMapping("integer", "region")); // path physical collides with "region"
         DatasetMapping pathMapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, pathProps));
         assertAcked(
@@ -3058,7 +3059,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Files.writeString(west.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n3,Carol\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        java.util.Map<String, DatasetFieldMapping> strictProps = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> strictProps = new LinkedHashMap<>();
         strictProps.put("emp_no", new DatasetFieldMapping("integer", null));
         strictProps.put("first_name", new DatasetFieldMapping("keyword", null));
         DatasetMapping strictMapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, strictProps));
@@ -3096,7 +3097,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // A declared column colliding with a partition key is rejected loudly (never silently shadowed — under
         // strict, shadowing would re-bind the positional text columns).
-        java.util.Map<String, DatasetFieldMapping> colliding = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> colliding = new LinkedHashMap<>();
         colliding.put("emp_no", new DatasetFieldMapping("integer", null));
         colliding.put("region", new DatasetFieldMapping("keyword", null));
         DatasetMapping collidingMapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, colliding));
@@ -3127,7 +3128,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Non-strict declaration whose _id.path names a column that exists in NO file — a typo, or the files lost it.
         // PUT accepts it (non-strict defers the existence check to query time; the files may not exist yet at PUT).
         DatasetMapping mapping = new DatasetMapping(
-            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new java.util.LinkedHashMap<>(), null, "no_such_column")
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), null, "no_such_column")
         );
         assertAcked(
             client().execute(

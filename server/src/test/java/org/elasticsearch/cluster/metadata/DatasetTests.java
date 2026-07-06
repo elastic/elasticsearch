@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -117,7 +118,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
     private static DatasetMapping.Mappings randomMappings() {
         DatasetMapping.Dynamic dynamic = randomFrom(DatasetMapping.Dynamic.values());
         int count = randomIntBetween(0, 4);
-        Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>(count);
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>(count);
         for (int i = 0; i < count; i++) {
             String type = randomFrom("keyword", "long", "integer", "double", "boolean", "date");
             String path = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
@@ -269,13 +270,13 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         // XContent of a no-mapping dataset must not emit any mapping keys
         XContentBuilder builder = JsonXContent.contentBuilder();
         dataset.toXContent(builder, null);
-        String json = org.elasticsearch.common.bytes.BytesReference.bytes(builder).utf8ToString();
+        String json = BytesReference.bytes(builder).utf8ToString();
         assertFalse(json.contains("mappings"));
         assertFalse(json.contains("id_field"));
     }
 
     public void testXContentRoundTripWithDeclaredSchema() throws IOException {
-        Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("when", new DatasetFieldMapping("date", "ts"));
         properties.put("status", new DatasetFieldMapping("integer", null));
         var mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties, null, "request_id"));

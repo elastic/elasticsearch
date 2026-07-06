@@ -247,6 +247,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row((Object) null)), read(false, Map.of("null_value", "0"), "a:integer\n 0 \n"));
         // A padded value that is NOT the marker still parses.
         assertEquals(List.of(row(5)), read(false, Map.of("null_value", " 0 "), "a:integer\n 5 \n"));
+        // Escaped path: field "\ 5 " (escaped space + "5 ") decodes to " 5 " == the padded marker, and nulls
+        // on both arms — emitUnquotedEscapedField now defers the typed trim to tryConvertValue like its house
+        // peer, so the raw marker isn't stripped before the check.
+        assertEquals(List.of(row((Object) null)), read(false, Map.of("null_value", " 5 "), "a:integer\n\\ 5 \n"));
     }
 
     // ---------------------------------------------------------------------------------------------

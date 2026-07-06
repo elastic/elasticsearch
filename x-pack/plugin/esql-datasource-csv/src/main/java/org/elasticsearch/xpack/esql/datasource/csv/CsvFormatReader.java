@@ -4783,16 +4783,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * {@code \} and leaves it as a lone escape (dropped), producing a different boundary value.
          */
         private boolean emitUnquotedEscapedField(char[] buf, int start, int end, int bufIdx, DataType dt) {
-            // Typed columns always trim (they parse); string columns keep their bytes unless trim_spaces is set.
+            // Only trim_spaces trims here (mirrors the house peer emitUnquotedEscapedSplitField); the typed
+            // trim is deferred to tryConvertValue below, so a whitespace-bearing null_value survives to its
+            // raw-marker check instead of being stripped first.
             final boolean trimSpaces = options.trimSpaces();
-            final boolean trim = isStringType(dt) == false || trimSpaces;
-            // Trim raw leading whitespace (matches Jackson's skip-leading-ws before the decode loop). Remember
-            // how much we skipped: under no-trim Jackson counts it toward maxStringLength, so the cap must too.
-            int rawLeadingWs = 0;
-            if (trim) {
+            if (trimSpaces) {
                 while (start < end && buf[start] <= ' ') {
                     start++;
-                    rawLeadingWs++;
                 }
             }
             if (start == end) {
@@ -4815,7 +4812,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // Trim trailing whitespace from the decoded value (matches Jackson's TRIM_SPACES: trim the
             // collected decoded chars, not the raw input) — gated the same way as the leading trim.
             int trimEnd = value.length();
-            if (trim) {
+            if (trimSpaces) {
                 while (trimEnd > 0 && value.charAt(trimEnd - 1) <= ' ') {
                     trimEnd--;
                 }
@@ -4824,12 +4821,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 stageNullValue(bufIdx);
                 return true;
             }
-            // The cap (Jackson's maxStringLength) governs the tokenized value: fully trimmed when trim_spaces
-            // is set, otherwise the raw token including the leading whitespace skipped above — matching the
-            // unprojected cap check so projection cannot change whether a row survives.
-            int capLen = trimSpaces ? trimEnd : value.length() + rawLeadingWs;
-            if (capLen > maxFieldChars) {
-                return rejectFieldTooLarge(capLen);
+            // Cap on the tokenized value (full decoded length under no-trim, trimmed under trim_spaces).
+            if (trimEnd > maxFieldChars) {
+                return rejectFieldTooLarge(trimEnd);
             }
             return emitConvertedStageField(trimEnd == value.length() ? value.toString() : value.substring(0, trimEnd), bufIdx, dt);
         }

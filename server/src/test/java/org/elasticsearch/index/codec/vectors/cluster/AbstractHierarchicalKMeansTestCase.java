@@ -18,7 +18,13 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.index.codec.vectors.cluster.Soar.NO_SOAR_ASSIGNMENT;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Abstract base class for HierarchicalKMeans tests, parameterized by vector type.
@@ -272,13 +278,12 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
             var overspill = hkmeans.computeSoar(vectors, result.result(), result.neighborHoods(), soarLambda);
 
             int[] assignments = result.assignments();
-            int[] soarAssignments = overspill.assignments();
 
             if (result.centroids().length > 1 && result.centroids().length < nVectors) {
-                assertEquals(nVectors, soarAssignments.length);
+                assertEquals(nVectors, overspill.size());
                 for (int i = 0; i < assignments.length; i++) {
-                    int soar = soarAssignments[i];
-                    if (soar != NO_SOAR_ASSIGNMENT) {
+                    var it = overspill.getAssignmentsFor(i);
+                    if (it.hasNext()) {
                         assertNotEquals(
                             "SOAR assignment collides with primary assignment for vector "
                                 + i
@@ -286,7 +291,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
                                 + assignments[i]
                                 + ")",
                             assignments[i],
-                            soar
+                            it.nextInt()
                         );
                     }
                 }
@@ -344,16 +349,15 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
     protected static <V> void assertKMeansResultValid(KMeansWithOverspill<V> result, int nVectors, int expectedClusters) {
         V[] centroids = result.centroids();
         int[] assignments = result.assignments();
-        int[] soarAssignments = result.soarAssignments();
+        var overspill = result.overspill();
 
         if (expectedClusters > 0) {
             assertEquals(Math.min(expectedClusters, nVectors), centroids.length, 25);
         }
-        assertTrue("Expected at least 1 centroid", centroids.length >= 1);
-        assertEquals(nVectors, assignments.length);
+        assertThat(centroids, not(emptyArray()));
 
         for (int assignment : assignments) {
-            assertTrue(assignment >= 0 && assignment < centroids.length);
+            assertThat(assignment, both(greaterThanOrEqualTo(0)).and(lessThan(centroids.length)));
         }
 
         // Verify no empty clusters
@@ -362,20 +366,21 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
             counts[a]++;
         }
         for (int count : counts) {
-            assertTrue("Empty cluster found", count > 0);
+            assertThat("Empty cluster found", count, greaterThan(0));
         }
         assertArrayEquals(counts, result.result().clusterCounts());
 
         if (centroids.length > 1 && centroids.length < nVectors) {
-            assertEquals(nVectors, soarAssignments.length);
             // verify no duplicates exist
             for (int i = 0; i < assignments.length; i++) {
-                int soarAssignment = soarAssignments[i];
-                assertTrue(soarAssignment == NO_SOAR_ASSIGNMENT || (soarAssignment >= 0 && soarAssignment < centroids.length));
-                assertNotEquals(assignments[i], soarAssignment);
+                for (var it = overspill.getAssignmentsFor(i); it.hasNext();) {
+                    int os = it.nextInt();
+                    assertThat(os, both(greaterThanOrEqualTo(0)).and(lessThan(centroids.length)));
+                    assertNotEquals(assignments[i], os);
+                }
             }
         } else {
-            assertEquals(0, soarAssignments.length);
+            assertThat(overspill.size(), is(0));
         }
     }
 

@@ -24,10 +24,6 @@ public record CentroidAssignments(
     }
 
     public CentroidAssignments {
-        if (overspillAssignments == null) {
-            overspillAssignments = OverspillAssignments.NONE;
-        }
-
         assert assignments.length == overspillAssignments.size() || overspillAssignments.size() == 0
             : "assignments and overspillAssignments must have the same length";
         assert centroidSlices == null || Arrays.stream(centroidSlices.sliceNumVectors()).sum() == assignments.length;

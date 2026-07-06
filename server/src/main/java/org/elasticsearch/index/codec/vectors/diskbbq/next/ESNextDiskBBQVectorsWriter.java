@@ -61,7 +61,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
-import org.elasticsearch.index.codec.vectors.diskbbq.SoarAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.TieredMergeStrategy;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.logging.LogManager;
@@ -837,7 +836,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 fieldInfo.getVectorDimension(),
                 kMeansResult.centroids(),
                 kMeansResult.assignments(),
-                new SoarAssignments(kMeansResult.soarAssignments())
+                kMeansResult.overspill()
             );
         } finally {
             // CentroidData owns the IndexInput backing the streaming centroid view; close once
@@ -909,7 +908,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 sliceNumVectors
             );
             final KMeansNeighbors<float[]> kMeansResult = hierarchicalKMeans.cluster(slice, vectorPerCluster);
-            final SoarAssignments overspill = hierarchicalKMeans.computeSoar(slice, kMeansResult.result(), kMeansResult.neighborHoods());
+            final OverspillAssignments overspill = hierarchicalKMeans.computeSoar(
+                slice,
+                kMeansResult.result(),
+                kMeansResult.neighborHoods()
+            );
             kmeansResults.add(new KMeansWithOverspill<>(kMeansResult.result(), overspill));
             sliceLengths[i] = sliceNumVectors;
             sliceOffsets[i] = i == 0 ? kMeansResult.centroids().length : sliceOffsets[i - 1] + kMeansResult.centroids().length;
@@ -923,7 +926,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             floatVectorValues.dimension(),
             merged.centroids(),
             merged.assignments(),
-            new SoarAssignments(merged.soarAssignments()),
+            merged.overspill(),
             centroidSlices
         );
     }
@@ -987,7 +990,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         }
         HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
         KMeansNeighbors<float[]> kMeansResult = hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);
-        SoarAssignments soarOverspill = hierarchicalKMeans.computeSoar(
+        OverspillAssignments soarOverspill = hierarchicalKMeans.computeSoar(
             floatVectorValues,
             kMeansResult.result(),
             kMeansResult.neighborHoods()

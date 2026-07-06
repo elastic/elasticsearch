@@ -4,13 +4,9 @@ highlight:
     Introduce `IndexMode.TSDB` as a new, first-class index mode for metrics.
     It currently behaves identically to `TIME_SERIES`, so `index.mode: tsdb` 
     is now accepted anywhere `index.mode: time_series` is — without renaming 
-    or changing anything about existing `time_series` indices. 
-    
-    The new mode will be automatically selected and applied to new and 
-    existing OTel and Prometheus data streams, with newer backing indices 
-    using the `TSDB` mode. The querying experience and downsampling support 
-    remains seamless, regardless of the mix of `TSDB` and `TIME_SERIES` 
-    indices in a data stream.
+    or changing anything about existing `time_series` indices. The querying 
+    experience and downsampling support remains seamless, regardless of the 
+    mix of `TSDB` and `TIME_SERIES` indices in a data stream.
 
   notable: true
   title: Add `IndexMode.TSDB` as a preferred alias for TIME_SERIES

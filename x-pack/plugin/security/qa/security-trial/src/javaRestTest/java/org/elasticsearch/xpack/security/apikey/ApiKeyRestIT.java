@@ -674,6 +674,22 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 },
                 {
                   "names": [
+                    ".cases*",
+                    ".cases-activity*",
+                    ".cases-attachments*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "query": [
+                    "{\\"term\\":{\\"owner\\":\\"cases\\"}}",
+                    "{\\"term\\":{\\"owner\\":\\"observability\\"}}",
+                    "{\\"term\\":{\\"owner\\":\\"securitySolution\\"}}"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     ".alert-actions*",
                     ".rule-events*"
                   ],

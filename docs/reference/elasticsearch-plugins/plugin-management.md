@@ -20,7 +20,7 @@ Plugins extend {{es}}'s core functionality and can serve various purposes, inclu
 
 How you add and manage plugins depends on where {{es}} runs:
 * Hosted Cloud deployments such as [{{ech}}](#managing-plugins-for-ech) and [{{ece}}](#managing-plugins-for-ece) expose plugin and extension management in the Cloud console and API.
-* [Self-managed deployments](#managing-plugins-for-self-managed) use the `elasticsearch-plugin` CLI to install, list, and remove plugins on each node, while for Docker, you can also declare plugins in a [configuration file](manage-plugins-using-configuration-file.md).
+* [Self-managed deployments](#managing-plugins-for-self-managed) — use a [configuration file](manage-plugins-using-configuration-file.md) with the official Docker image, or the `elasticsearch-plugin` CLI for package and archive installs.
 * On [{{eck}}](#managing-plugins-for-eck) deployments you install plugins by building a custom container image or using init containers.
 
 ::::{note} {{serverless-full}} projects
@@ -59,9 +59,25 @@ To add plugins to an {{ece}} deployment, refer to:
     self: ga
 ```
 
-If you run {{es}} using the [official {{es}} Docker image](https://www.docker.elastic.co/), manage plugins with a declarative [configuration file](manage-plugins-using-configuration-file.md). When {{es}} starts, it installs, upgrades, or removes plugins to match the file.
+How you manage plugins depends on how you install {{es}}:
 
-For all other installation methods, use the `elasticsearch-plugin` command line tool to install, list, and remove plugins. It is located in the `$ES_HOME/bin` directory by default but it may be in a different location depending on which {{es}} package you installed. For more information, see [](_plugins_directory.md).
+* If you run {{es}} using the [official {{es}} Docker image](https://www.docker.elastic.co/), manage plugins with a declarative [configuration file](manage-plugins-using-configuration-file.md).
+* For all [other installation methods](#manage-plugins-with-package-and-archive-installs), use the `elasticsearch-plugin` command-line tool to install, list, and remove plugins.
+
+### Manage plugins with the Docker image
+
+List the plugins you want in `elasticsearch-plugins.yml` in your config directory. Each time the container starts, {{es}} syncs installed plugins to match that list: installing missing plugins, removing ones you deleted from the file, and upgrading official plugins when you upgrade {{es}}.
+
+To add or remove a plugin, edit the file and restart the container. Do not use `elasticsearch-plugin install` or `remove` as those commands are disabled when `elasticsearch-plugins.yml` is present.
+
+Refer to the following pages:
+
+* [Manage plugins using a configuration file](./manage-plugins-using-configuration-file.md)
+* [Mandatory plugins](./mandatory-plugins.md)
+
+### Manage plugins with package and archive installs [manage-plugins-with-package-and-archive-installs]
+
+Use the `elasticsearch-plugin` command-line tool. It is located in the `$ES_HOME/bin` directory by default, but it might be in a different location depending on which {{es}} package you installed. For more information, see [Plugins directory](_plugins_directory.md).
 
 Run the following command to get usage instructions:
 
@@ -69,21 +85,18 @@ Run the following command to get usage instructions:
 sudo bin/elasticsearch-plugin -h
 ```
 
-:::{important} Running as root
-If {{es}} was installed using the deb or rpm package then run `/usr/share/elasticsearch/bin/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk. Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the {{es}} files.
+:::{important} - Running as root
+If {{es}} was installed using the deb or rpm package, then run `/usr/share/elasticsearch/bin/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk. Otherwise, run `bin/elasticsearch-plugin` as the user that owns all of the {{es}} files.
 :::
 
-The following pages document plugin management for self-managed deployments. Use the column that matches how you install {{es}}.
+Refer to the following pages:
 
-| Documentation page | Package and archive installs (`elasticsearch-plugin`) | Official Docker image (`elasticsearch-plugins.yml`) |
-| --- | --- | --- |
-| [](./installation.md) | Install core plugins by name with `elasticsearch-plugin install`. | Add plugins by `id` in the [configuration file](manage-plugins-using-configuration-file.md) and restart the container. |
-| [](./plugin-management-custom-url.md) | Install from an HTTP URL or local ZIP path. | Set the `location` field for each plugin in the config file. |
-| [](./installing-multiple-plugins.md) | Install several plugins in one CLI invocation. | List each plugin as a separate entry in the config file. |
-| [](./mandatory-plugins.md) | Set `plugin.mandatory` in `elasticsearch.yml`. | This applies to all self-managed deployments, including Docker. |
-| [](./listing-removing-updating.md) | List, remove, or reinstall plugins with the CLI. | Edit the config file and restart to add or remove plugins; the `list` command and [node-info API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-info) still work for inspection. |
-| [](./_other_command_line_parameters.md) | Options for `install`, such as batch mode, proxy settings, and a custom config path. | Set `proxy` in the config file instead. |
-
+* [Installing plugins](./installation.md)
+* [Custom URL or file system](./plugin-management-custom-url.md)
+* [Installing multiple plugins](./installing-multiple-plugins.md)
+* [Mandatory plugins](./mandatory-plugins.md)
+* [Listing, removing and updating installed plugins](./listing-removing-updating.md)
+* [Other command line parameters](./_other_command_line_parameters.md)
 ## Managing plugins for {{eck}} [managing-plugins-for-eck]
 ```{applies_to}
     eck: ga

@@ -209,7 +209,7 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
      * this scenario, all nodes match the predicate {@link #isOldClusterVersion(String, String)}. This method will
      * return any random node in that scenario.
      *
-     * @return A random upgraded node, or any random node if all nodes are running the same verison
+     * @return A random upgraded node, or any random node if all nodes are running the same version
      */
     private NodeVersionSpec tryGetUpgradedNode() throws IOException {
         var matchingNodeSpec = findRandomNode(

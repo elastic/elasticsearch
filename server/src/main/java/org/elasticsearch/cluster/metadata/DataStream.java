@@ -609,7 +609,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             Index index = backingIndices.indices.get(i);
             IndexMetadata im = project.index(index);
 
-            if (im.getIndexMode() != IndexMode.TIME_SERIES) {
+            if (IndexMode.isTsdb(im.getIndexMode()) == false) {
                 // Not a tsdb backing index, so skip.
                 // (This can happen if this is a migrated tsdb data stream)
                 continue;
@@ -633,7 +633,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @param imSupplier Function that supplies {@link IndexMetadata} instances based on the provided index name
      */
     public void validate(Function<String, IndexMetadata> imSupplier) {
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (IndexMode.isTsdb(indexMode)) {
             // Get a sorted overview of each backing index with there start and end time range:
             var startAndEndTimes = backingIndices.indices.stream().map(index -> {
                 IndexMetadata im = imSupplier.apply(index.getName());
@@ -883,8 +883,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         if (dsIndexMode != indexModeFromTemplate) {
-            if (indexModeFromTemplate == IndexMode.TIME_SERIES
-                && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
+            if (IndexMode.isTsdb(indexModeFromTemplate) && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
                 LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
             }
             dsIndexMode = indexModeFromTemplate;
@@ -1327,7 +1326,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
 
         IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
-        if (indexMetadata == null || IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+        if (indexMetadata == null || IndexSettings.MODE.get(indexMetadata.getSettings()).isTsdb() == false) {
             return List.of();
         }
         TimeValue indexGenerationTime = getGenerationLifecycleDate(indexMetadata);
@@ -1782,7 +1781,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return getWriteIndex();
         }
 
-        if (getIndexMode() != IndexMode.TIME_SERIES) {
+        if (IndexMode.isTsdb(getIndexMode()) == false) {
             return getWriteIndex();
         }
 

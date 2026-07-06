@@ -170,7 +170,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         arena.close();
     }
 
-    private float scoreSingle(MemorySegment vec, MemorySegment query, int dims) {
+    private float callSingleScore(MemorySegment vec, MemorySegment query, int dims) {
         return switch (queryType) {
             case FLOAT32 -> switch (function) {
                 case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductDBF16QF32(vec, query, dims);
@@ -185,7 +185,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         };
     }
 
-    private void scoreBulkOp(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment results) {
+    private void callBulkScore(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment results) {
         switch (queryType) {
             case FLOAT32 -> {
                 switch (function) {
@@ -204,7 +204,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         }
     }
 
-    private void scoreBulkOffsetsOp(
+    private void callBulkOffsetsScore(
         MemorySegment a,
         MemorySegment b,
         int dims,
@@ -263,7 +263,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         }
     }
 
-    private void scoreBulkSparseOp(MemorySegment addresses, MemorySegment b, int dims, int count, MemorySegment results) {
+    private void callBulkSparseScore(MemorySegment addresses, MemorySegment b, int dims, int count, MemorySegment results) {
         switch (queryType) {
             case FLOAT32 -> {
                 switch (function) {
@@ -290,7 +290,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
                 MemorySegment vec = dataset.asSlice((long) ids[v] * bytesPerVector, bytesPerVector);
-                scores[i] = scoreSingle(vec, query, dims);
+                scores[i] = callSingleScore(vec, query, dims);
             }
         }
         return scores;
@@ -304,7 +304,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
                 MemorySegment vec = dataset.asSlice((long) ordinals[v] * bytesPerVector, bytesPerVector);
-                scores[i] = scoreSingle(vec, query, dims);
+                scores[i] = callSingleScore(vec, query, dims);
             }
         }
         return scores;
@@ -317,7 +317,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int count = Math.min(bulkSize, numVectorsToScore - i);
             MemorySegment slice = dataset.asSlice((long) i * bytesPerVector, (long) count * bytesPerVector);
-            scoreBulkOp(slice, query, dims, count, resultsSeg);
+            callBulkScore(slice, query, dims, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
@@ -330,7 +330,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int count = Math.min(bulkSize, numVectorsToScore - i);
             MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-            scoreBulkOffsetsOp(dataset, query, dims, bytesPerVector, ordinalsSeg, count, resultsSeg);
+            callBulkOffsetsScore(dataset, query, dims, bytesPerVector, ordinalsSeg, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
@@ -346,7 +346,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
                 long addr = datasetAddress + (long) ordinals[i + j] * bytesPerVector;
                 addressesSeg.set(ValueLayout.JAVA_LONG, (long) j * Long.BYTES, addr);
             }
-            scoreBulkSparseOp(addressesSeg, query, dims, count, resultsSeg);
+            callBulkSparseScore(addressesSeg, query, dims, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;

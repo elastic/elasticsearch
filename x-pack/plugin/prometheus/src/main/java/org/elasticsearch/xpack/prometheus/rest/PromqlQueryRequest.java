@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 public class PromqlQueryRequest extends PreparedEsqlQueryRequest {
     private final String index;
@@ -37,14 +38,21 @@ public class PromqlQueryRequest extends PreparedEsqlQueryRequest {
         List<QueryParam> queryParams = new ArrayList<>();
         for (int i = 0; i < params.length; i += 2) {
             if (i + 1 >= params.length) {
-                break;
+                throw new IllegalArgumentException("Missing value for parameter: " + params[i]);
             }
             String paramName = String.valueOf(params[i]);
             Object paramValue = params[i + 1];
             if (paramValue == null || (paramValue instanceof Collection<?> collection && collection.isEmpty())) {
                 continue;
             }
-            queryParams.add(new QueryParam(paramName, paramValue, DataType.fromJava(paramValue), ParserUtils.ParamClassification.VALUE));
+            queryParams.add(
+                new QueryParam(
+                    paramName,
+                    paramValue,
+                    Objects.requireNonNullElse(DataType.fromJava(paramValue), DataType.KEYWORD),
+                    ParserUtils.ParamClassification.VALUE
+                )
+            );
         }
         return queryParams;
     }

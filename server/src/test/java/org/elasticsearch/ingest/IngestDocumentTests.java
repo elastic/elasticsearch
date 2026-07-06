@@ -1915,7 +1915,7 @@ public class IngestDocumentTests extends ESTestCase {
             someList.add(someList); // the list contains itself
             ingestDocument.setFieldValue("someList", someList);
             Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
-            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself (source document)"));
         }
 
         {
@@ -1925,7 +1925,7 @@ public class IngestDocumentTests extends ESTestCase {
             selfReference.put("self", selfReference);
             ingestDocument.getIngestMetadata().put("self", selfReference);
             Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
-            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself (ingest metadata)"));
         }
     }
 

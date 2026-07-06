@@ -17,7 +17,7 @@
 ## Project Structure
 The repository is organized into several key directories:
 *   `server`: The core Elasticsearch server. Few third-party dependencies (Lucene plus a handful of small libraries). Key `org.elasticsearch` sub-packages: `cluster` (cluster state machine), `index` (per-index logic), `search` (query execution), `action` (transport actions), `snapshots` (snapshot/restore), plus `indices`, `repositories`, `rest`, `ingest`, etc.
-*   `modules`: Features shipped with Elasticsearch by default but not "core"; favor the interface/implementation split for swappability (not always cleanly). Examples: `transport-netty4`, `repository-s3`/`repository-gcs`/`repository-azure`, `apm` (APM agent integration).
+*   `modules`: Features shipped with Elasticsearch by default, but not considered "core" server code. Many modules provide a specific implementation of a pluggable interface defined in `server`, such as `transport-netty4` (the transport layer) or `repository-s3`/`repository-gcs`/`repository-azure` (snapshot repositories). Others integrate with external systems, such as `apm` (Application Performance Monitoring agent integration).
 *   `plugins`: Optional, not bundled by default, but officially supported. Examples: `discovery-ec2`/`discovery-gce`/`discovery-azure-classic` (cloud-aware cluster discovery).
 *   `libs`: Internal libraries used by multiple parts of the project. Examples: `logging`, `x-content` (JSON/CBOR/YAML/SMILE parsing abstraction).
 *   `client`: The official Java REST client.
@@ -26,7 +26,7 @@ The repository is organized into several key directories:
 *   `rest-api-spec`: JSON spec definitions for the public REST API endpoints.
 *   `docs`: Project documentation.
 *   `distribution`: Logic for building distribution packages.
-*   `x-pack`: Modules, plugins, and commercial features under the Elastic License 2.0. Sub-plugins include `security`, `ml` (machine learning), `ccr` (cross-cluster replication), `logsdb` (optimized index mode for log data), and `stateless`.
+*   `x-pack`: Modules, plugins, and commercial features under the Elastic License 2.0. Example sub-plugins: `security`, `ml` (machine learning), `ccr` (cross-cluster replication), `logsdb` (optimized index mode for log data), and `stateless`.
 *   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic. Refer to BUILDING.md for details on how these are structured and used.
 
 ## Stateless Elasticsearch

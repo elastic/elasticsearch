@@ -272,7 +272,8 @@ Notable pools and their purpose:
 - `CLUSTER_COORDINATION` carries all cluster-state updates. It is sized to a **single thread by design** so that
   cluster-state application is serialized and correctness is guaranteed (see the [Cluster Coordination](#cluster-coordination) section).
 - `MANAGEMENT` (scaling) serves health, monitoring, and admin read APIs.
-- `FLUSH` / `REFRESH` / `MERGE` (scaling) perform shard maintenance operations.
+- `FLUSH` / `REFRESH` / `MERGE` (scaling) run the corresponding shard maintenance operations, described under
+  [Segments, Refresh, and Flush](#segments-refresh-and-flush) and [Segment Merges](#segment-merges).
 
 #### `AbstractRunnable` and `ActionRunnable`
 
@@ -329,15 +330,11 @@ the JVM exit that should follow such a fatal condition. `ActionListener` makes t
 
 #### Composition
 
-You almost never subclass `ActionListener` directly. Instead you compose delegates using its static factory methods.
-
-- `wrap(onResponse, onFailure)` builds an inline listener from two lambdas.
-- `runAfter(listener, runnable)` runs a cleanup action after completion, on either path.
-- `notifyOnce(listener)` guarantees the delegate is invoked at most once, for example when a timeout races a normal response.
-- `delegateFailureAndWrap((l, response) -> ...)` overrides only `onResponse`, forwarding `onFailure` to the delegate
-  automatically and also catching exceptions thrown by your `onResponse` logic.
-- `releaseAfter(listener, releasable)` ties a resource's lifetime to a listener, and is commonly used with `RefCounted` objects.
-- `delegateResponse((l, e) -> ...)` intercepts the failure path to log or swallow a specific exception before propagating.
+You almost never subclass `ActionListener` directly. Instead you compose delegates using its static factory methods, for
+example `wrap` to build an inline listener from two lambdas, `runAfter` to run a cleanup action once the delegate
+completes, or `delegateFailureAndWrap` to handle only the success path while forwarding failures automatically. See the
+[`ActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
+class itself for the full set of factory methods and their exact semantics.
 
 #### Fan-out and specialized implementations
 
@@ -545,8 +542,8 @@ two new roles:
 
 It is worth distinguishing two terms that are often conflated. **Stateless** is the *architecture*. It separates storage
 from compute, keeps durability in an object store, and treats nodes as ephemeral workers. **Serverless** is the managed
-*offering* built on that architecture. It runs on Kubernetes and abstracts away provisioning, autoscaling, and error
-handling, billing users for shared resource usage rather than for statically provisioned servers. The public
+*offering* built on that architecture. It abstracts away provisioning, autoscaling, and error handling, billing users
+for shared resource usage rather than for statically provisioned servers. The public
 [Elastic serverless architecture blog](https://www.elastic.co/blog/elastic-serverless-architecture) contains an
 architecture diagram of the two-tier design, and the design is described in detail in the SoCC'25 paper
 [*Elasticsearch on the cloud: a stateless architecture*](https://dl.acm.org/doi/10.1145/3772052.3772245).

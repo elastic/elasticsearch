@@ -21,6 +21,8 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
@@ -64,6 +66,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     private final CCMFeature ccmFeature;
     private final CCMService ccmService;
     private final CompletionCompatibilityService completionCompatibilityService;
+    private final InferencePreferencesCache inferencePreferencesCache;
 
     public ElasticInferenceServiceAuthorizationRequestHandler(
         @Nullable String baseUrl,
@@ -72,7 +75,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         CCMFeature ccmFeature,
         CCMService ccmService,
         ClusterService clusterService,
-        FeatureService featureService
+        FeatureService featureService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         this(
             baseUrl,
@@ -82,7 +86,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             ccmFeature,
             ccmService,
             clusterService,
-            featureService
+            featureService,
+            inferencePreferencesCache
         );
     }
 
@@ -95,7 +100,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         CCMFeature ccmFeature,
         CCMService ccmService,
         ClusterService clusterService,
-        FeatureService featureService
+        FeatureService featureService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         this.baseUrl = baseUrl;
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -107,6 +113,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             Objects.requireNonNull(clusterService),
             Objects.requireNonNull(featureService)
         );
+        this.inferencePreferencesCache = Objects.requireNonNull(inferencePreferencesCache);
     }
 
     /**
@@ -178,12 +185,22 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             authModelListener.onFailure(e);
         });
 
-        SubscribableListener.newForked(authFactory::getAuthenticationApplier)
-            .<InferenceServiceResults>andThen((authListener, authApplier) -> {
-                var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
-                var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo(), requestMetadata, authApplier);
-                sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);
-            })
+        SubscribableListener.<InferencePreferences>newForked(inferencePreferencesCache::get)
+            .<InferenceServiceResults>andThen(
+                (resultListener, preferences) -> authFactory.getAuthenticationApplier(
+                    resultListener.delegateFailureAndWrap((authListener, authApplier) -> {
+                        var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
+                        var request = new ElasticInferenceServiceAuthorizationRequest(
+                            baseUrl,
+                            getCurrentTraceInfo(),
+                            requestMetadata,
+                            authApplier,
+                            preferences
+                        );
+                        sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);
+                    })
+                )
+            )
             .andThenApply(authResult -> {
                 if (authResult instanceof ElasticInferenceServiceAuthorizationResponseEntity authResponseEntity) {
                     logger.debug(() -> Strings.format("Received authorization information from gateway %s", authResponseEntity));

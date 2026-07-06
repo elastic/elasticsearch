@@ -23,7 +23,11 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xpack.core.inference.regionpolicy.CspRegion;
+import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -31,6 +35,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -95,7 +100,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createMockCcmFeature(false),
             createMockCcmService(false),
             mockClusterServiceEmpty(),
-            createFeatureService()
+            createFeatureService(),
+            createMockPreferencesCache()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -126,7 +132,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createMockCcmFeature(false),
             createMockCcmService(false),
             mockClusterServiceEmpty(),
-            createFeatureService()
+            createFeatureService(),
+            createMockPreferencesCache()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -158,7 +165,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createMockCcmFeature(false),
             createMockCcmService(false),
             mockClusterServiceEmpty(),
-            createFeatureService()
+            createFeatureService(),
+            createMockPreferencesCache()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -220,7 +228,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             mockCcmFeature,
             mockCcmService,
             mockClusterServiceEmpty(),
-            createFeatureService()
+            createFeatureService(),
+            createMockPreferencesCache()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -269,6 +278,45 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testGetAuthorization_IncludesRegionPolicyHeaders_WhenCacheReturnsPreferences() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+        var logger = mock(Logger.class);
+
+        var regionPolicy = new RegionPolicy(null, List.of(new CspRegion("aws", "eu-west-1")));
+        var cache = mock(InferencePreferencesCache.class);
+        doAnswer(invocation -> {
+            ((ActionListener<InferencePreferences>) invocation.getArgument(0)).onResponse(new InferencePreferences(regionPolicy));
+            return Void.TYPE;
+        }).when(cache).get(any());
+
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            logger,
+            createNoopApplierFactory(),
+            createMockCcmFeature(false),
+            createMockCcmService(false),
+            mockClusterServiceEmpty(),
+            createFeatureService(),
+            cache
+        );
+
+        try (var sender = senderFactory.createSender()) {
+            var responseData = getEisElserAuthorizationResponse(eisGatewayUrl);
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
+
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            authHandler.getAuthorization(listener, sender);
+            listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+            assertThat(webServer.requests().size(), is(1));
+            var header = webServer.requests().get(0).getHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER);
+            assertThat(header, is("aws:eu-west-1"));
+        }
+    }
+
     private static void assertNoAuthHeader(List<MockRequest> requests) {
         assertThat(requests.size(), is(1));
         assertNull(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION));
@@ -290,7 +338,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             mockCcmFeature,
             mockCcmService,
             mockClusterServiceEmpty(),
-            createFeatureService()
+            createFeatureService(),
+            createMockPreferencesCache()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -334,7 +383,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             mockCcmFeature,
             mockCcmService,
             mockClusterServiceEmpty(),
-            createFeatureService()
+            createFeatureService(),
+            createMockPreferencesCache()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -403,7 +453,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             mockCcmFeature,
             mockCcmService,
             mockClusterServiceEmpty(),
-            createFeatureService()
+            createFeatureService(),
+            createMockPreferencesCache()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -443,7 +494,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             mockCcmFeature,
             mockCcmService,
             mockClusterServiceEmpty(),
-            createFeatureService()
+            createFeatureService(),
+            createMockPreferencesCache()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -482,7 +534,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createMockCcmFeature(false),
             createMockCcmService(false),
             mockClusterServiceEmpty(),
-            createFeatureService()
+            createFeatureService(),
+            createMockPreferencesCache()
         );
 
         var elserResponseBody = getEisElserAuthorizationResponse(eisGatewayUrl).responseJson();
@@ -526,7 +579,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createMockCcmFeature(false),
             createMockCcmService(false),
             mockClusterServiceEmpty(),
-            createFeatureService()
+            createFeatureService(),
+            createMockPreferencesCache()
         );
 
         PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
@@ -574,7 +628,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createMockCcmFeature(false),
             createMockCcmService(false),
             mockClusterServiceEmpty(),
-            createFeatureService()
+            createFeatureService(),
+            createMockPreferencesCache()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -598,6 +653,16 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
         return featureService;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static InferencePreferencesCache createMockPreferencesCache() {
+        var cache = mock(InferencePreferencesCache.class);
+        doAnswer(invocation -> {
+            ((ActionListener<InferencePreferences>) invocation.getArgument(0)).onResponse(InferencePreferences.EMPTY);
+            return Void.TYPE;
+        }).when(cache).get(any());
+        return cache;
     }
 
     private static CCMFeature createMockCcmFeature(boolean isCcmSupportedEnvironment) {

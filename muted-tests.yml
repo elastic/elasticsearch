@@ -716,18 +716,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.HollowIndexShardsMergesIT
   method: testQueuedOrOnGoingMergesPreventHollowing
   issue: https://github.com/elastic/elasticsearch/issues/152723
-- class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
-  method: testSymmetric1BitDotProductMatchesNativeWhenSupported
-  issue: https://github.com/elastic/elasticsearch/issues/150155
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testUnreferencedCommitsAreReleasedAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/152730
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/152734
-- class: org.elasticsearch.transport.RemoteClusterClientTests
-  method: testGetConnectionFailureCompletesOnResponseExecutor
-  issue: https://github.com/elastic/elasticsearch/issues/152779
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search only}
   issue: https://github.com/elastic/elasticsearch/issues/152784
@@ -809,3 +803,6 @@ tests:
 - class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
   method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with multiple _slice values and duplicatessearches across the requested slices}
   issue: https://github.com/elastic/elasticsearch/issues/152722
+- class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with _all}
+  issue: https://github.com/elastic/elasticsearch/issues/153006

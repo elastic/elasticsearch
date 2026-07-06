@@ -428,7 +428,8 @@ public class InferencePlugin extends Plugin
             elasticInferenceServiceFactory.get().createSender(),
             modelRegistry.get(),
             ccmFeature.get(),
-            inferenceFeatureService
+            inferenceFeatureService,
+            inferencePreferencesCache
         );
         components.addAll(ccmRelatedComponents.components());
 
@@ -539,7 +540,8 @@ public class InferencePlugin extends Plugin
         Sender sender,
         ModelRegistry modelRegistry,
         CCMFeature ccmFeature,
-        InferenceFeatureService inferenceFeatureService
+        InferenceFeatureService inferenceFeatureService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
@@ -567,7 +569,8 @@ public class InferencePlugin extends Plugin
             ccmFeature,
             ccmService,
             services.clusterService(),
-            services.featureService()
+            services.featureService(),
+            inferencePreferencesCache
         );
 
         var authTaskExecutor = AuthorizationTaskExecutor.create(
@@ -881,9 +884,7 @@ public class InferencePlugin extends Plugin
         Map<String, Mapper.TypeParser> mappers = new HashMap<>();
         mappers.put(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.parser(getModelRegistry()));
         mappers.put(OffsetSourceFieldMapper.CONTENT_TYPE, OffsetSourceFieldMapper.PARSER);
-        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
-            mappers.put(SemanticFieldMapper.CONTENT_TYPE, SemanticFieldMapper.parser(getModelRegistry()));
-        }
+        mappers.put(SemanticFieldMapper.CONTENT_TYPE, SemanticFieldMapper.parser(getModelRegistry()));
         return Collections.unmodifiableMap(mappers);
     }
 

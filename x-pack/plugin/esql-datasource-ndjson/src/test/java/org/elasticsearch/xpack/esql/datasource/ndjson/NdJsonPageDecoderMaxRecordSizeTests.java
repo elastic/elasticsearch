@@ -171,11 +171,33 @@ public class NdJsonPageDecoderMaxRecordSizeTests extends ESTestCase {
     }
 
     private NdJsonPageDecoder byteArrayDecoder(byte[] data, ErrorPolicy policy) throws IOException {
-        return new NdJsonPageDecoder(data, 0, data.length, SCHEMA, PROJECT_ID, 100, blockFactory, policy, "test", counters);
+        return new NdJsonPageDecoder(
+            data,
+            0,
+            data.length,
+            null /* DateFormatter */,
+            SCHEMA,
+            PROJECT_ID,
+            100,
+            blockFactory,
+            policy,
+            "test",
+            counters
+        );
     }
 
     private NdJsonPageDecoder streamingDecoder(byte[] data, ErrorPolicy policy) throws IOException {
-        return new NdJsonPageDecoder(new ByteArrayInputStream(data), SCHEMA, PROJECT_ID, 100, blockFactory, policy, "test", counters);
+        return new NdJsonPageDecoder(
+            new ByteArrayInputStream(data),
+            null /* DateFormatter */,
+            SCHEMA,
+            PROJECT_ID,
+            100,
+            blockFactory,
+            policy,
+            "test",
+            counters
+        );
     }
 
     private static void consumeAll(NdJsonPageDecoder decoder) throws IOException {

@@ -316,7 +316,7 @@ public class PlannerUtils {
     /**
      * Runs local logical/physical optimization with external splits injected before the physical optimizer.
      * Splits are attached to any empty {@link ExternalSourceExec} nodes so that rules like
-     * {@code PushAggregatesToExternalSource} can see per-split statistics.
+     * {@code PushStatsToExternalSource} can see per-split statistics.
      */
     public static PhysicalPlan localPlan(
         PlannerSettings plannerSettings,

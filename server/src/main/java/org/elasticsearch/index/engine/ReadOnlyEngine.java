@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
@@ -622,9 +623,10 @@ public class ReadOnlyEngine extends Engine {
     public SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
-        SplitShardCountSummary splitShardCountSummary
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> externalDirectoryReaderWrapper,
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager
     ) throws EngineException {
-        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope, splitShardCountSummary);
+        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope, externalDirectoryReaderWrapper, referenceManager);
         return new SearcherSupplier(wrapper) {
             @Override
             protected void doClose() {

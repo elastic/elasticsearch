@@ -38,6 +38,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
+                randomBoolean(),
                 metricType,
                 meta
             );

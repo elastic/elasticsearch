@@ -162,7 +162,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         FOUR_BIT_SYMMETRIC(2, (byte) 4, (byte) 4) {
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
@@ -190,12 +190,12 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         SEVEN_BIT_SYMMETRIC(3, (byte) 7, (byte) 7) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
@@ -224,12 +224,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 ESVectorUtil.packAsBinary(quantized, destination);
             }
         };
-
-        private static void packAsBytes(int[] quantized, byte[] destination) {
-            for (int i = 0; i < quantized.length; i++) {
-                destination[i] = (byte) quantized[i];
-            }
-        }
 
         private static void packNibbles(int[] quantized, byte[] destination) {
             assert quantized.length == destination.length * 2;

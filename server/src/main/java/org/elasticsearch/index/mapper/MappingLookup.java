@@ -62,6 +62,9 @@ public final class MappingLookup {
     private final Map<String, FieldMapper> metricFieldMappers;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
+    // [nullability=false] field paths partitioned by their nearest nested parent path ("" = the root document). Each Lucene doc is checked
+    // against only its own partition: the root doc against "", each nested instance against its nested path. Empty when no required fields.
+    private final Map<String, Set<String>> requiredFieldsByNestedParent;
     private final FieldTypeLookup fieldTypeLookup;
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
     private final Map<String, NamedAnalyzer> indexAnalyzers;
@@ -192,6 +195,7 @@ public final class MappingLookup {
         final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
         final Map<String, FieldMapper> dimensionMappers = new LinkedHashMap<>();
         final Map<String, FieldMapper> metricMappers = new LinkedHashMap<>();
+        this.requiredFieldsByNestedParent = new HashMap<>();
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.fullPath())) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined both as an object and a field");
@@ -203,6 +207,12 @@ public final class MappingLookup {
             if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
             }
+            if (mapper.isNullable() == false) {
+                // Partition by nearest nested parent (null -> "" root document) so every Lucene doc is checked against only its own fields.
+                String nestedParent = nestedLookup.getNestedParent(mapper.fullPath());
+                requiredFieldsByNestedParent.computeIfAbsent(nestedParent == null ? "" : nestedParent, k -> new HashSet<>())
+                    .add(mapper.fullPath());
+            }
             MappedFieldType fieldType = mapper.fieldType();
             if (fieldType.isDimension()) {
                 dimensionMappers.put(mapper.fullPath(), mapper);
@@ -211,6 +221,9 @@ public final class MappingLookup {
                 metricMappers.put(mapper.fullPath(), mapper);
             }
         }
+        // Freeze inner sets only: requiredFields(...) returns them directly to per doc enforcement so they must be immutable. The outer Map
+        // never escapes MappingLookup, so it stays a plain HashMap that is simply never mutated again, once this constructor finishes here.
+        requiredFieldsByNestedParent.replaceAll((nestedParent, fields) -> Set.copyOf(fields));
 
         for (FieldAliasMapper aliasMapper : aliasMappers) {
             if (objects.containsKey(aliasMapper.fullPath())) {
@@ -348,8 +361,9 @@ public final class MappingLookup {
      * doc-value columns and never keep a generic source fallback, so a fallback field (no doc values, or a type whose
      * doc-value encoding cannot rebuild its own source) has no columnar representation. The check covers every field
      * mapper, including those nested inside object and nested fields, since {@link #fieldMappers()} is the flattened set
-     * of all field mappers by full path. Metadata fields are exempt (reconstructed by their own machinery) and so are
-     * multi-fields (alternate indexings of their parent that never appear in {@code _source}).
+     * of all field mappers by full path. Metadata fields are exempt (reconstructed by their own machinery), as are
+     * multi-fields and the internal sub-fields of an {@link InferenceFieldMapper} (e.g. a {@code semantic_text} field's
+     * chunk embeddings and offsets) - none of these appear in {@code _source}.
      */
     @Nullable
     public String firstFieldNotReconstructableFromDocValues() {
@@ -357,11 +371,27 @@ public final class MappingLookup {
             if (mapper instanceof FieldMapper fieldMapper
                 && mapper instanceof MetadataFieldMapper == false
                 && isMultiField(fieldMapper.fullPath()) == false
+                && isInferenceFieldInternal(fieldMapper.fullPath()) == false
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
                 return fieldMapper.fullPath();
             }
         }
         return null;
+    }
+
+    /**
+     * Whether the field is an internal sub-field of an {@link InferenceFieldMapper} (it lives under an inference field's path).
+     * Such fields are not part of {@code _source}; the inference field reconstructs them into {@code _inference_fields} itself.
+     */
+    private boolean isInferenceFieldInternal(String fieldPath) {
+        for (String inferenceFieldPath : inferenceFields.keySet()) {
+            if (fieldPath.length() > inferenceFieldPath.length()
+                && fieldPath.startsWith(inferenceFieldPath)
+                && fieldPath.charAt(inferenceFieldPath.length()) == '.') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -488,6 +518,21 @@ public final class MappingLookup {
 
     public NestedLookup nestedLookup() {
         return nestedLookup;
+    }
+
+    /**
+     * Whether the mapping has any {@code [nullability=false]} fields. When {@code false}, enforcement is skipped entirely.
+     */
+    public boolean hasRequiredFields() {
+        return requiredFieldsByNestedParent.isEmpty() == false;
+    }
+
+    /**
+     * The {@code [nullability=false]} field paths whose nearest nested parent is {@code nestedParent} ({@code ""} for the root document);
+     * the set of fields a Lucene doc in that partition must carry a non-null value for. Returns an empty set when none are required there.
+     */
+    public Set<String> requiredFields(String nestedParent) {
+        return requiredFieldsByNestedParent.getOrDefault(nestedParent, Set.of());
     }
 
     public boolean isMultiField(String field) {
@@ -677,7 +722,7 @@ public final class MappingLookup {
         if (shadowed == null) {
             return;
         }
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             if (shadowed.isDimension()) {
                 throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_dimension");
             }

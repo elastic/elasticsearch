@@ -47,7 +47,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 /**
  * Extracts a value from a JSON string using a {@link JsonPath} subset.
- * Preview / snapshot-only, gated behind {@code FN_JSON_EXTRACT}.
  */
 public class JsonExtract extends EsqlScalarFunction {
     private static final BytesRef TRUE_BYTES = new BytesRef("true");
@@ -70,8 +69,9 @@ public class JsonExtract extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "=9.4"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5+") },
         briefSummary = "Extracts a value from a JSON string using JSONPath syntax.",
         description = """
             Extracts a value from a JSON string using a subset of

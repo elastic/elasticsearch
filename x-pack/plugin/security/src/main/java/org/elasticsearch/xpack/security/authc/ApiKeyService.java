@@ -152,6 +152,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
@@ -470,6 +471,16 @@ public class ApiKeyService implements Closeable {
             );
             return false;
         }
+        if (transportVersion.supports(ESQL_DATASOURCE_PRIVILEGE) == false && hasGlobalDatasourcePrivilege(roleDescriptors)) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "all nodes must have version ["
+                        + ESQL_DATASOURCE_PRIVILEGE.toReleaseVersion()
+                        + "] or higher to support the datasource privilege for API keys"
+                )
+            );
+            return false;
+        }
         return true;
     }
 
@@ -518,6 +529,13 @@ public class ApiKeyService implements Closeable {
             && roleDescriptors.stream()
                 .flatMap(roleDescriptor -> Arrays.stream(roleDescriptor.getConditionalClusterPrivileges()))
                 .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege);
+    }
+
+    private static boolean hasGlobalDatasourcePrivilege(Collection<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors != null
+            && roleDescriptors.stream()
+                .flatMap(roleDescriptor -> Arrays.stream(roleDescriptor.getConditionalClusterPrivileges()))
+                .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.DatasourcePrivileges);
     }
 
     private static IllegalArgumentException validateWorkflowsRestrictionConstraints(

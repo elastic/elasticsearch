@@ -381,12 +381,17 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed);
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed, true);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
-        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed) {
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed, false) {
             @Override
             public SyntheticSourceExample example(int maxVals) {
                 var example = super.example(maxVals);
@@ -403,11 +408,18 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     private static class ScaledFloatSyntheticSourceSupport implements SyntheticSourceSupport {
         private final boolean ignoreMalformedEnabled;
+        private final boolean isColumnar;
         private final double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
         private final Double nullValue = usually() ? null : round(randomValue());
 
-        private ScaledFloatSyntheticSourceSupport(boolean ignoreMalformedEnabled) {
+        private ScaledFloatSyntheticSourceSupport(boolean ignoreMalformedEnabled, boolean isColumnar) {
             this.ignoreMalformedEnabled = ignoreMalformedEnabled;
+            this.isColumnar = isColumnar;
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -422,7 +434,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             List<Value> values = randomList(1, maxValues, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
 
-            List<Double> outputFromDocValues = values.stream().filter(v -> v.malformedOutput == null).map(Value::output).sorted().toList();
+            Stream<Double> nonMalformedOutputs = values.stream().filter(v -> v.malformedOutput == null).map(Value::output);
+            List<Double> outputFromDocValues = (isColumnar ? nonMalformedOutputs : nonMalformedOutputs.sorted()).toList();
             List<Object> malformedOutput = values.stream()
                 .filter(v -> v.malformedOutput != null)
                 .map(Value::malformedOutput)
@@ -447,10 +460,17 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             // Here we mostly want to verify behavior of arrays that contain malformed
             // values since there are modifications specific to synthetic source.
             if (ignoreMalformedEnabled && randomBoolean()) {
-                List<Supplier<Object>> choices = List.of(
-                    () -> randomAlphaOfLengthBetween(1, 10),
-                    () -> Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
-                );
+                List<Supplier<Object>> choices;
+                if (isColumnar) {
+                    // Columnar mode uses subobjects:false, so object values are flattened into dynamic sub-fields
+                    // instead of being rejected by ignore_malformed, breaking the round-trip comparison.
+                    choices = List.of(() -> randomAlphaOfLengthBetween(1, 10));
+                } else {
+                    choices = List.of(
+                        () -> randomAlphaOfLengthBetween(1, 10),
+                        () -> Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
+                    );
+                }
                 var malformedInput = randomFrom(choices).get();
                 return new Value(malformedInput, null, malformedInput);
             }

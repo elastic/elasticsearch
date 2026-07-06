@@ -178,6 +178,9 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    // Coordinator-side dispatcher for remote-abstraction leaves. Held here (like the lookup services) so Increment 3 can
+    // thread it into LocalExecutionPlanner, where the remote-abstraction source operator will be planned.
+    private final FederationExecutionService federationExecutionService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
@@ -200,6 +203,7 @@ public class ComputeService {
         TransportActionServices transportActionServices,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
+        FederationExecutionService federationExecutionService,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactory blockFactory,
@@ -215,6 +219,7 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
+        this.federationExecutionService = federationExecutionService;
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -248,6 +253,14 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    /**
+     * The coordinator-side federation dispatcher. Increment 3 reads this at {@code LocalExecutionPlanner} construction to
+     * hand it to the remote-abstraction source operator, the same way the lookup services are threaded into the planner.
+     */
+    FederationExecutionService federationExecutionService() {
+        return federationExecutionService;
     }
 
     FormatReaderRegistry formatReaderRegistry() {

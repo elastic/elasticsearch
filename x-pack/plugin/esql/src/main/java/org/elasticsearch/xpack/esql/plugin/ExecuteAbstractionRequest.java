@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -55,6 +56,16 @@ import java.util.Objects;
  * before the {@code indices:}-scoped handler runs it.
  */
 final class ExecuteAbstractionRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
+
+    /**
+     * Marks the transport version in which the {@code execute_abstraction} action and this request type first appear. The
+     * request is entirely new wire — an older remote has no handler for it — so the coordinator dispatch
+     * ({@code FederationExecutionService.fetchAbstraction}) gates on this: it refuses to send to a connection whose
+     * negotiated version does not {@link TransportVersion#supports} it, failing loud instead of hitting an
+     * unknown-action rejection. There is no BWC-conditional field inside {@code writeTo}/the reader: the whole request is
+     * version-gated at the send site.
+     */
+    static final TransportVersion ESQL_EXECUTE_ABSTRACTION = TransportVersion.fromName("esql_execute_abstraction");
 
     /**
      * Index options mirroring {@code TransportResolveSchemaAction.Request.SCHEMA_INDICES_OPTIONS}: the abstraction name

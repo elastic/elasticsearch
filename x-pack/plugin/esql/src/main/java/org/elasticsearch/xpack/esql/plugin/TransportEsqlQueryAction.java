@@ -222,6 +222,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             client
         );
 
+        // The coordinator-side dispatcher of the federation execution half (the sender counterpart of the
+        // AbstractionComputeHandler receiver). Built before ComputeService and threaded into it exactly like the lookup
+        // services, so Increment 3's RemoteAbstractionSourceOperator can reach it through the LocalExecutionPlanner.
+        FederationExecutionService federationExecutionService = new FederationExecutionService(
+            transportService,
+            exchangeService,
+            requestExecutor
+        );
+
         var dataSourceModule = planExecutor.dataSourceModule();
         // External source coordination and blocking file reads both run on the external blob-store pool, so a single
         // executor backs both roles of the registry.
@@ -230,6 +239,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             services,
             enrichLookupService,
             lookupFromIndexService,
+            federationExecutionService,
             threadPool,
             bigArrays,
             blockFactoryProvider.blockFactory(),

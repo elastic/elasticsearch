@@ -16,14 +16,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.SequencedMap;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -147,17 +144,5 @@ public class UserAgent extends CompoundOutputEval<UserAgent> {
 
     public String regexFile() {
         return regexFile;
-    }
-
-    /**
-     * Returns the full set of possible output fields and their types, keyed by field name and sorted alphabetically.
-     * Used by DocsV3Support to render the Kibana command definition's output block.
-     */
-    public static SortedMap<String, DataType> allOutputFieldTypes() {
-        SortedMap<String, DataType> result = new TreeMap<>();
-        for (var entry : UserAgentFunctionBridge.getAllOutputFields().entrySet()) {
-            result.put(entry.getKey(), DataType.fromJavaType(entry.getValue()));
-        }
-        return result;
     }
 }

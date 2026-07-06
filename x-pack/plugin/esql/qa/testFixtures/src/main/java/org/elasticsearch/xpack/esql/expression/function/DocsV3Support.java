@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.ingest.geoip.Database;
-import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
@@ -44,7 +42,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -65,7 +62,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1259,40 +1255,68 @@ public abstract class DocsV3Support {
         }
 
         /**
-         * Glob patterns for known ip location database file names, in the order they should be rendered.
-         * MaxMind databases are matched by filename suffix (reliable); ipinfo databases are matched heuristically
-         * by substring, since ipinfo file names are not standardized.
+         * Package prefix under which the {@code <Command>OutputFields} reflection targets live, in the
+         * ES|QL test sourceset alongside {@code CommandLicenseTests}.
          */
-        private static final LinkedHashMap<String, Database> IP_LOCATION_DATABASE_GLOBS = new LinkedHashMap<>();
-        static {
-            IP_LOCATION_DATABASE_GLOBS.put("*-City.mmdb", Database.City);
-            IP_LOCATION_DATABASE_GLOBS.put("*-Country.mmdb", Database.Country);
-            IP_LOCATION_DATABASE_GLOBS.put("*-ASN.mmdb", Database.Asn);
-            IP_LOCATION_DATABASE_GLOBS.put("*-Anonymous-IP.mmdb", Database.AnonymousIp);
-            IP_LOCATION_DATABASE_GLOBS.put("*-Connection-Type.mmdb", Database.ConnectionType);
-            IP_LOCATION_DATABASE_GLOBS.put("*-Domain.mmdb", Database.Domain);
-            IP_LOCATION_DATABASE_GLOBS.put("*-Enterprise.mmdb", Database.Enterprise);
-            IP_LOCATION_DATABASE_GLOBS.put("*-ISP.mmdb", Database.Isp);
-            IP_LOCATION_DATABASE_GLOBS.put("ipinfo*plus*.mmdb", Database.IpinfoPlus);
-            IP_LOCATION_DATABASE_GLOBS.put("ipinfo*asn*.mmdb", Database.AsnV2);
-            IP_LOCATION_DATABASE_GLOBS.put("ipinfo*country*.mmdb", Database.CountryV2);
-            IP_LOCATION_DATABASE_GLOBS.put("ipinfo*location*.mmdb", Database.CityV2);
-            IP_LOCATION_DATABASE_GLOBS.put("ipinfo*privacy*.mmdb", Database.PrivacyDetection);
+        private static final String OUTPUT_FIELDS_PACKAGE = "org.elasticsearch.xpack.esql.plan.logical.";
+
+        /**
+         * Renders the "output" block describing the columns produced by commands with a known output
+         * schema. Commands without a known output schema (no matching reflection target found) render
+         * nothing. Two shapes are supported, each driven by a differently-shaped static method found via
+         * reflection on a test "mothership" class named {@code <Command>OutputFields} in the same package
+         * as {@code CommandLicenseTests}:
+         * <ul>
+         *   <li>{@code vary_by: "none"}: a single {@code allOutputFieldTypes()} returning
+         *       {@code SortedMap<String, DataType>}.</li>
+         *   <li>{@code vary_by: "database_file"}: a {@code DATABASE_GLOBS} field plus a
+         *       {@code renderVariantFields(XContentBuilder, Database)} method (currently only
+         *       {@code IpLocationOutputFields}).</li>
+         * </ul>
+         */
+        private static void renderOutputBlock(XContentBuilder builder, LogicalPlan command) throws IOException {
+            Class<?> outputFieldsClass = findOutputFieldsClass(command);
+            if (outputFieldsClass == null) {
+                return;
+            }
+            if (renderDatabaseFileOutputBlock(builder, outputFieldsClass)) {
+                return;
+            }
+            renderFixedOutputBlock(builder, outputFieldsClass);
         }
 
         /**
-         * Renders the "output" block describing the columns produced by commands with known, fixed output
-         * schemas ({@code vary_by: "none"}) or output schemas that depend on the ip location database file used
-         * ({@code vary_by: "database_file"}). Commands without a known output schema render nothing.
+         * Finds the {@code <Command>OutputFields} reflection target for the given command by naming
+         * convention, avoiding a per-command switch statement or a dependency on the command's own package.
+         * Returns {@code null} if no such class exists, meaning the command has no known output schema.
          */
-        private static void renderOutputBlock(XContentBuilder builder, LogicalPlan command) throws IOException {
-            if (command instanceof IpLocation) {
-                renderIpLocationOutputBlock(builder);
-                return;
+        private static Class<?> findOutputFieldsClass(LogicalPlan command) {
+            String className = OUTPUT_FIELDS_PACKAGE + command.getClass().getSimpleName() + "OutputFields";
+            try {
+                return Class.forName(className);
+            } catch (ClassNotFoundException e) {
+                return null;
             }
-            SortedMap<String, DataType> outputFieldTypes = simpleOutputFieldTypes(command);
-            if (outputFieldTypes == null) {
+        }
+
+        /**
+         * Renders the {@code vary_by: "none"} shape of the output block, reflectively invoking a public static
+         * {@code allOutputFieldTypes()} method returning {@code SortedMap<String, DataType>} on
+         * {@code outputFieldsClass}. Renders nothing if no such method is found.
+         */
+        @SuppressWarnings("unchecked")
+        private static void renderFixedOutputBlock(XContentBuilder builder, Class<?> outputFieldsClass) throws IOException {
+            SortedMap<String, DataType> outputFieldTypes;
+            try {
+                Method m = outputFieldsClass.getMethod("allOutputFieldTypes");
+                if (Modifier.isStatic(m.getModifiers()) == false) {
+                    return;
+                }
+                outputFieldTypes = (SortedMap<String, DataType>) m.invoke(null);
+            } catch (NoSuchMethodException e) {
                 return;
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
             }
             builder.startObject("output");
             builder.field("vary_by", "none");
@@ -1309,62 +1333,58 @@ public abstract class DocsV3Support {
         }
 
         /**
-         * Reflectively looks for a static {@code allOutputFieldTypes()} method on the command's class, avoiding
-         * the need to import each concrete command class here. Returns {@code null} if the command has no such
-         * method, meaning it has no known fixed output schema.
+         * Renders the {@code vary_by: "database_file"} shape of the output block (currently only IP_LOCATION),
+         * reflectively looking for a public static {@code DATABASE_GLOBS} field and a public static
+         * {@code renderVariantFields(XContentBuilder, Database)} method on {@code outputFieldsClass}. Matching is
+         * filename-based on known glob patterns; a custom database registered under a standard name would get
+         * incorrect autocomplete hints in Kibana, but ES itself resolves fields from the actual database
+         * metadata, so queries are unaffected.
+         *
+         * @return {@code true} if the block was rendered, {@code false} if {@code outputFieldsClass} doesn't
+         * expose this shape and the caller should fall back to {@link #renderFixedOutputBlock}.
          */
-        @SuppressWarnings("unchecked")
-        private static SortedMap<String, DataType> simpleOutputFieldTypes(LogicalPlan cmd) {
+        private static boolean renderDatabaseFileOutputBlock(XContentBuilder builder, Class<?> outputFieldsClass) throws IOException {
+            Map<?, ?> databaseGlobs;
+            Method renderVariantFields = null;
             try {
-                Method m = cmd.getClass().getMethod("allOutputFieldTypes");
-                if (Modifier.isStatic(m.getModifiers())) {
-                    return (SortedMap<String, DataType>) m.invoke(null);
+                Field globsField = outputFieldsClass.getField("DATABASE_GLOBS");
+                if (Modifier.isStatic(globsField.getModifiers()) == false) {
+                    return false;
                 }
-            } catch (NoSuchMethodException ignored) {} catch (ReflectiveOperationException e) {
+                databaseGlobs = (Map<?, ?>) globsField.get(null);
+                for (Method candidate : outputFieldsClass.getMethods()) {
+                    if (candidate.getName().equals("renderVariantFields")
+                        && candidate.getParameterCount() == 2
+                        && candidate.getParameterTypes()[0].equals(XContentBuilder.class)
+                        && Modifier.isStatic(candidate.getModifiers())) {
+                        renderVariantFields = candidate;
+                        break;
+                    }
+                }
+                if (renderVariantFields == null) {
+                    return false;
+                }
+            } catch (NoSuchFieldException e) {
+                return false;
+            } catch (ReflectiveOperationException e) {
                 throw new RuntimeException(e);
             }
-            return null;
-        }
-
-        /**
-         * Renders the IP_LOCATION command's output block, which varies by the ip location database file used.
-         * Matching is filename-based on known glob patterns; a custom database registered under a standard name
-         * would get incorrect autocomplete hints in Kibana, but ES itself resolves fields from the actual
-         * database metadata, so queries are unaffected.
-         */
-        private static void renderIpLocationOutputBlock(XContentBuilder builder) throws IOException {
             builder.startObject("output");
             builder.field("vary_by", "database_file");
             builder.field("selected_by", "properties");
             builder.startObject("variants");
-            for (Map.Entry<String, Database> entry : IP_LOCATION_DATABASE_GLOBS.entrySet()) {
-                builder.startObject(entry.getKey());
-                renderIpLocationVariantFields(builder, entry.getValue());
+            for (Map.Entry<?, ?> entry : databaseGlobs.entrySet()) {
+                builder.startObject((String) entry.getKey());
+                try {
+                    renderVariantFields.invoke(null, builder, entry.getValue());
+                } catch (ReflectiveOperationException e) {
+                    throw new RuntimeException(e);
+                }
                 builder.endObject();
             }
             builder.endObject();
             builder.endObject();
-        }
-
-        private static void renderIpLocationVariantFields(XContentBuilder builder, Database database) throws IOException {
-            Set<DatabaseProperty> defaultProperties = database.defaultProperties();
-            SortedMap<String, DatabaseProperty> sortedProperties = new TreeMap<>();
-            for (DatabaseProperty property : database.properties()) {
-                sortedProperties.put(property.fieldName(), property);
-            }
-            for (Map.Entry<String, DatabaseProperty> entry : sortedProperties.entrySet()) {
-                DatabaseProperty property = entry.getValue();
-                DataType dataType = DataType.fromJavaType(property.fieldType());
-                if (dataType == null && DatabaseProperty.LOCATION.fieldName().equals(entry.getKey())) {
-                    dataType = DataType.GEO_POINT;
-                }
-                builder.startObject(entry.getKey());
-                builder.field("type", dataType.esNameIfPossible());
-                if (defaultProperties.contains(property) == false) {
-                    builder.field("default", false);
-                }
-                builder.endObject();
-            }
+            return true;
         }
 
         @Override

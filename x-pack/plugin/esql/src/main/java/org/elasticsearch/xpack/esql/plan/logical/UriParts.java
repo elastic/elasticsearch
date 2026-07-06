@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 import java.io.IOException;
 import java.util.List;
 import java.util.SequencedMap;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -100,17 +98,5 @@ public class UriParts extends CompoundOutputEval<UriParts> {
                 failures.add(fail(input, "Input for URI_PARTS must be of type [string] but is [{}]", type.typeName()));
             }
         }
-    }
-
-    /**
-     * Returns the full set of possible output fields and their types, keyed by field name and sorted alphabetically.
-     * Used by DocsV3Support to render the Kibana command definition's output block.
-     */
-    public static SortedMap<String, DataType> allOutputFieldTypes() {
-        SortedMap<String, DataType> result = new TreeMap<>();
-        for (var entry : UriPartsFunctionBridge.getAllOutputFields().entrySet()) {
-            result.put(entry.getKey(), DataType.fromJavaType(entry.getValue()));
-        }
-        return result;
     }
 }

@@ -13,9 +13,13 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.TempDir
 
 
 class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
+
+    @TempDir
+    File gradleUserHome
 
     def "resolves current version from local build"() {
         given:

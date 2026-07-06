@@ -109,7 +109,6 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
     }
 
     def setup() {
-        configurationCacheCompatible = false
         internalBuild()
         settingsFile << """
             include ':myserver'

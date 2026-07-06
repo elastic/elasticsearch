@@ -34,6 +34,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -48,17 +49,19 @@ import static java.util.stream.Collectors.joining;
 public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     /**
-     * Default target rows per output page when chunking partial/intermediate output, i.e. the default of the
-     * {@code esql.time_series.target_chunk_rows} setting. In partial/intermediate mode the operator slices its single
-     * emitted result into pages of about this many rows, bounding the size of each page sent to the coordinator. A
-     * {@code _tsid} may straddle a page boundary; the coordinator re-merges groups by key.
+     * Default target rows per output page when chunking the operator's output, i.e. the default of the
+     * {@code esql.time_series.target_chunk_rows} setting. The operator slices its single emitted result into pages of
+     * about this many rows, bounding the size of each page. The same target applies to both partial/intermediate output
+     * (bounding pages sent to the coordinator) and final output (bounding the coordinator's peak memory during final
+     * evaluation and the page sizes handed to downstream operators). A {@code _tsid} may straddle a page boundary; the
+     * coordinator re-merges groups by key.
      */
     public static final int DEFAULT_TARGET_CHUNK_ROWS = 100_000;
 
     /**
-     * @param targetChunkRows target number of rows per output page when chunking partial/intermediate output. The
-     *        operator slices its emitted result into pages of about this many rows. Only takes effect in
-     *        partial/intermediate mode; final output is not chunked here.
+     * @param targetChunkRows target number of rows per output page when chunking output. The operator slices its emitted
+     *        result into pages of about this many rows. The same target applies to both partial/intermediate and final
+     *        output.
      */
     public record Factory(
         Rounding.Prepared timeBucket,
@@ -96,9 +99,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            final boolean outputPartial = aggregatorMode.isOutputPartial();
-            final boolean outputFinal = outputPartial == false;
-            final int effectiveTargetChunkRows = outputPartial ? targetChunkRows : Integer.MAX_VALUE;
+            final boolean outputFinal = aggregatorMode.isOutputPartial() == false;
             return new TimeSeriesAggregationOperator(
                 timeBucket,
                 dateNanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
@@ -119,7 +120,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     return BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, true);
                 },
                 outputTimeBucket,
-                effectiveTargetChunkRows,
+                targetChunkRows,
                 driverContext
             );
         }
@@ -177,72 +178,111 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             super.emit();
             return;
         }
-        Block[] blocks = null;
-        Block[] outputKeys = null;
-        IntVector allSelected = null;
-        IntVector outputSelected = null;
         long startInNanos = System.nanoTime();
-        boolean success = false;
-        boolean keysFiltered = false;
         try {
-            allSelected = blockHash.nonEmpty();
+            output = new OutputFilteredResult(outputPositions);
+        } finally {
+            rowsAddedInCurrentBatch = 0;
+            emitNanos += System.nanoTime() - startInNanos;
+            emitCount++;
+        }
+    }
 
-            Block[] fullKeys = blockHash.getKeys(allSelected);
-            outputKeys = new Block[fullKeys.length];
+    /**
+     * Multi-page output for the output-filtered (sub-bucketed) final/SINGLE path. Each aggregator is prepared once over
+     * the full output-aligned selection so that window aggregators can still see every internal group through
+     * {@link TimeSeriesGroupingAggregatorEvaluationContext#allGroupIds()}; the selection is then sliced into pages of about
+     * {@link #maxPageSize()} rows, emitting one page per slice. This bounds the coordinator's peak memory the same way the
+     * generic {@link HashAggregationOperator} chunking does for the non-filtered path (before this the whole result was
+     * built as a single, potentially jumbo, page).
+     */
+    private final class OutputFilteredResult implements ReleasableIterator<Page> {
+        private final GroupingAggregatorEvaluationContext ctx;
+        // The full set of internal groups; kept for the window aggregators via ctx#allGroupIds and closed here (not owned
+        // by ctx, matching the previous emit path).
+        private final IntVector allSelected;
+        private final IntVector outputSelected;
+        private final IntVector[] aggsSelected;
+        private final List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators;
+        private final int[] aggBlockCounts;
+        private int rowOffset = 0;
+
+        OutputFilteredResult(int[] outputPositions) {
+            this.aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
+            final int count = aggregators.size();
+            GroupingAggregatorEvaluationContext ctx = null;
+            IntVector allSelected = null;
+            IntVector outputSelected = null;
+            IntVector[] aggsSelected = new IntVector[count];
+            List<GroupingAggregatorFunction.PreparedForEvaluation> prepared = new ArrayList<>(count);
+            boolean success = false;
             try {
-                for (int b = 0; b < fullKeys.length; b++) {
-                    outputKeys[b] = fullKeys[b].filter(false, outputPositions);
+                allSelected = blockHash.nonEmpty();
+                try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(outputPositions.length)) {
+                    for (int i = 0; i < outputPositions.length; i++) {
+                        builder.appendInt(i, outputPositions[i]);
+                    }
+                    outputSelected = builder.build();
                 }
-                keysFiltered = true;
-            } finally {
-                Releasables.close(fullKeys);
-                if (keysFiltered == false) {
-                    Releasables.closeExpectNoException(outputKeys);
-                }
-            }
-
-            try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(outputPositions.length)) {
-                for (int i = 0; i < outputPositions.length; i++) {
-                    builder.appendInt(i, outputPositions[i]);
-                }
-                outputSelected = builder.build();
-            }
-
-            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-            int keyBlockCount = outputKeys.length;
-            blocks = new Block[keyBlockCount + Arrays.stream(aggBlockCounts).sum()];
-            System.arraycopy(outputKeys, 0, blocks, 0, outputKeys.length);
-            outputKeys = null;
-            int offset = keyBlockCount;
-
-            try (var ctx = evaluationContext(blockHash)) {
+                ctx = evaluationContext(blockHash);
                 if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsCtx) {
                     tsCtx.setAllGroupIds(allSelected);
                 }
-                for (int i = 0; i < aggregators.size(); i++) {
-                    try (
-                        var customizeSelected = customizeSelected(aggregators.get(i), outputSelected);
-                        var prepared = aggregators.get(i).prepareForEvaluate(customizeSelected, ctx)
-                    ) {
-                        prepared.evaluate(blocks, offset, customizeSelected);
-                    }
-                    offset += aggBlockCounts[i];
+                for (int i = 0; i < count; i++) {
+                    aggsSelected[i] = customizeSelected(aggregators.get(i), outputSelected);
+                    prepared.add(aggregators.get(i).prepareForEvaluate(aggsSelected[i], ctx));
                 }
-                output = ReleasableIterator.single(new Page(blocks));
                 success = true;
-            }
-        } finally {
-            rowsAddedInCurrentBatch = 0;
-            Releasables.close(allSelected, outputSelected);
-            if (success == false) {
-                if (blocks != null) {
-                    Releasables.closeExpectNoException(blocks);
-                } else if (keysFiltered) {
-                    Releasables.closeExpectNoException(outputKeys);
+            } finally {
+                if (success == false) {
+                    Releasables.close(ctx, allSelected, outputSelected, Releasables.wrap(aggsSelected), Releasables.wrap(prepared));
                 }
             }
-            emitNanos += System.nanoTime() - startInNanos;
-            emitCount++;
+            this.ctx = ctx;
+            this.allSelected = allSelected;
+            this.outputSelected = outputSelected;
+            this.aggsSelected = aggsSelected;
+            this.preparedAggregators = prepared;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return rowOffset < outputSelected.getPositionCount();
+        }
+
+        @Override
+        public Page next() {
+            long startInNanos = System.nanoTime();
+            int endOffset = Math.min(maxPageSize() + rowOffset, outputSelected.getPositionCount());
+            try (IntVector keySlice = outputSelected.slice(rowOffset, endOffset)) {
+                Block[] keys = blockHash.getKeys(keySlice);
+                Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
+                System.arraycopy(keys, 0, blocks, 0, keys.length);
+                try {
+                    int offset = keys.length;
+                    for (int i = 0; i < preparedAggregators.size(); i++) {
+                        try (IntVector aggSlice = aggsSelected[i].slice(rowOffset, endOffset)) {
+                            preparedAggregators.get(i).evaluate(blocks, offset, aggSlice);
+                        }
+                        offset += aggBlockCounts[i];
+                    }
+                    Page page = new Page(blocks);
+                    blocks = null;
+                    rowOffset = endOffset;
+                    return page;
+                } finally {
+                    if (blocks != null) {
+                        Releasables.closeExpectNoException(blocks);
+                    }
+                }
+            } finally {
+                emitNanos += System.nanoTime() - startInNanos;
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(ctx, allSelected, outputSelected, Releasables.wrap(aggsSelected), Releasables.wrap(preparedAggregators));
         }
     }
 

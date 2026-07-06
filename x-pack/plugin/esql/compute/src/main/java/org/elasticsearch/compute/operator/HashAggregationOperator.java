@@ -547,6 +547,14 @@ public class HashAggregationOperator implements Operator {
         return selected;
     }
 
+    /**
+     * Target number of rows per emitted output page. Subclasses that build their own output iterator use this to slice a
+     * large result into multiple pages, matching the chunking the base operator applies on its own emit path.
+     */
+    protected int maxPageSize() {
+        return maxPageSize;
+    }
+
     protected boolean shouldEmitPartialResultsPeriodically() {
         if (aggregatorMode.isOutputPartial() == false) {
             return false;

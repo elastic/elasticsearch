@@ -10,26 +10,21 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -37,36 +32,11 @@ import static org.hamcrest.Matchers.equalTo;
  * Cold-then-warm: first run populates the cache; second run is rewritten to LocalSourceExec.
  * Mirrors {@link ExternalParquetCountPushdownIT}.
  */
-public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
-
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
+public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesEnabled() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class);
     }
 
     @Override
@@ -92,12 +62,11 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testCountStarColdThenWarmShortCircuits() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 200;
         Path csvFile = writeCsvFile(totalRows);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS c = COUNT(*)";
+            String dataset = registerDataset("csv_agg", StoragePath.fileUri(csvFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
             // Cold: scan, capture hook populates the cache.
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
@@ -116,12 +85,11 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testCountStarPushdownSingleRowFile() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 1;
         Path csvFile = writeCsvFile(totalRows);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS c = COUNT(*)";
+            String dataset = registerDataset("csv_agg", StoragePath.fileUri(csvFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);
@@ -136,12 +104,11 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMinMaxColdThenWarmShortCircuits() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 50;
         Path csvFile = writeCsvFile(totalRows);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS lo = MIN(value), hi = MAX(value)";
+            String dataset = registerDataset("csv_agg", StoragePath.fileUri(csvFile), Map.of());
+            String query = "FROM " + dataset + " | STATS lo = MIN(value), hi = MAX(value)";
 
             // Cold: scan + capture per-column stats for value.
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
@@ -160,12 +127,11 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testCountColumnColdThenWarmShortCircuits() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 30;
         Path csvFile = writeCsvFile(totalRows);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS c = COUNT(value)";
+            String dataset = registerDataset("csv_agg", StoragePath.fileUri(csvFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(value)";
 
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);
@@ -180,13 +146,48 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMinMaxKeywordColdThenWarmShortCircuits() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+    /**
+     * Regression for the cross-query partial-harvest path. A cold {@code COUNT(*)} caches the file's row
+     * count but harvests no per-column stats (it projects zero columns). A later {@code COUNT(value)} on the
+     * same file is warm and finds {@code row_count} but no {@code value} column in the cache.
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource} is
+     * format-agnostic; without the text safe-miss it
+     * would serve {@code rowCount - columnNullCount(value) = rowCount - rowCount = 0}
+     * ({@code columnNullCount} returns {@code rowCount} for an absent column under the implicit-nulls contract,
+     * which line-oriented text formats do not honour). The fix makes it safe-miss and re-scan, so the warm
+     * {@code COUNT(value)} is the true count, not 0.
+     */
+    public void testCountColumnWarmAfterCountStarColdReScansNotZero() throws Exception {
+        int totalRows = 40;
+        Path csvFile = writeCsvFile(totalRows);
+        try {
+            String dataset = registerDataset("csv_agg", StoragePath.fileUri(csvFile), Map.of());
+            // Cold COUNT(*): caches row_count only, no per-column stats harvested.
+            try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)").profile(true))) {
+                assertCount(response, totalRows);
+            }
+            // Warm COUNT(value): value was never harvested, so the rule must safe-miss and re-scan rather than
+            // serve 0. The true count is totalRows (value is non-null for every row), and documentsFound shows
+            // the re-scan happened (it is not a zero-scan LocalSourceExec serve).
+            try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(value)").profile(true))) {
+                assertCount(response, totalRows);
+                assertThat(
+                    "warm COUNT(value) of an un-harvested text column must re-scan, not serve 0",
+                    response.documentsFound(),
+                    equalTo((long) totalRows)
+                );
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
 
+    public void testMinMaxKeywordColdThenWarmShortCircuits() throws Exception {
         int totalRows = 5;
         Path csvFile = writeCsvFile(totalRows);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS lo = MIN(name), hi = MAX(name)";
+            String dataset = registerDataset("csv_agg", StoragePath.fileUri(csvFile), Map.of());
+            String query = "FROM " + dataset + " | STATS lo = MIN(name), hi = MAX(name)";
 
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertKeywordMinMax(response, "row_0", "row_4");
@@ -203,8 +204,6 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMinMaxBooleanColdThenWarmShortCircuits() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         // Mixed flag column: even rows true, odd rows false → MIN(flag)=false, MAX(flag)=true. The
         // mixed values catch a default-valued or swapped serve (false/false, true/true, true/false
         // would all fail) while proving the warm path reads the captured boolean stat.
@@ -216,7 +215,8 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
         Path csvFile = createTempDir().resolve("bool_pushdown_test.csv");
         Files.writeString(csvFile, sb.toString(), StandardCharsets.UTF_8);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS lo = MIN(flag), hi = MAX(flag)";
+            String dataset = registerDataset("csv_agg", StoragePath.fileUri(csvFile), Map.of());
+            String query = "FROM " + dataset + " | STATS lo = MIN(flag), hi = MAX(flag)";
 
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertBooleanMinMax(response, false, true);
@@ -233,8 +233,6 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testAllNullColumnMinMaxReturnsNull() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         // Column 'maybe' is keyword and all cells are empty. The optimizer cannot short-circuit
         // here (cached min/max are null, so the rule bails to a regular scan), but the regular
         // scan must still return null on both cold and warm runs.
@@ -245,7 +243,8 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
         Path csvFile = createTempDir().resolve("allnull.csv");
         Files.writeString(csvFile, sb.toString(), StandardCharsets.UTF_8);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS lo = MIN(maybe), hi = MAX(maybe)";
+            String dataset = registerDataset("csv_agg", StoragePath.fileUri(csvFile), Map.of());
+            String query = "FROM " + dataset + " | STATS lo = MIN(maybe), hi = MAX(maybe)";
 
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 List<List<Object>> rows = getValuesList(response);
@@ -265,20 +264,19 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFilteredAggregateDoesNotServeCachedStats() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         // 50 rows, value column ranges 0..490. WHERE narrows to 100..200 → MIN must be 100, not 0.
         int totalRows = 50;
         Path csvFile = writeCsvFile(totalRows);
         try {
-            String prime = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS lo = MIN(value)";
+            String dataset = registerDataset("csv_agg", StoragePath.fileUri(csvFile), Map.of());
+            String prime = "FROM " + dataset + " | STATS lo = MIN(value)";
             // Prime the cache with whole-file stats (min=0).
             try (var response = run(syncEsqlQueryRequest(prime).profile(true))) {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
             }
             // Filtered query: MIN over rows where value >= 100 → 100, not the cached 0.
-            String filtered = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | WHERE value >= 100 | STATS lo = MIN(value)";
+            String filtered = "FROM " + dataset + " | WHERE value >= 100 | STATS lo = MIN(value)";
             try (var response = run(syncEsqlQueryRequest(filtered).profile(true))) {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat(

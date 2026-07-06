@@ -227,6 +227,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         TransformInternalIndex.createLatestVersionedIndexIfRequired(
             clusterService,
             new ParentTaskAssigningClient(client, parentTaskId),
+            projectResolver.getProjectId(),
             extension.getTransformExtension().getTransformInternalIndexAdditionalSettings(),
             createIndexListener.delegateResponse((l, e) -> {
                 l.onFailure(

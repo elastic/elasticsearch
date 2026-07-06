@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
-
 import java.util.List;
 
 /**
@@ -78,14 +76,6 @@ public class KMeansResult<V> {
     void setCentroids(V[] centroids, int[] clusterCounts) {
         this.centroids = centroids;
         this.clusterCounts = clusterCounts;
-    }
-
-    @SuppressWarnings("unchecked")
-    public CentroidSupplier centroidsSupplier() {
-        // TODO: update this in a subsequent PR to support byte[] as well
-        float[][] floatCentroids = (float[][]) centroids;
-        int dims = floatCentroids.length > 0 ? floatCentroids[0].length : 0;
-        return CentroidSupplier.fromArray(floatCentroids, FLOAT_EMPTY, dims);
     }
 
     public int[] assignments() {

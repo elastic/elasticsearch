@@ -2003,6 +2003,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         continue;
                     }
                     inQuotes = false;
+                    // Trailing whitespace between the closing quote and the delimiter/EOL is not part of the value
+                    // (matches the direct quoted walker), so skip it; otherwise no-trim bracket mode keeps it
+                    // ("y"+ws -> value+ws) while the quoted grammar drops it. Non-whitespace after the closing
+                    // quote is still concatenated; bracket mode is lenient there by design.
+                    int j = i + 1;
+                    while (j < line.length() && line.charAt(j) <= ' ') {
+                        j++;
+                    }
+                    if (j == line.length() || line.charAt(j) == delim) {
+                        i = j;
+                        continue;
+                    }
                 } else if (c == esc && i + 1 < line.length() && line.charAt(i + 1) == delim) {
                     current.append(delim);
                     i += 2;
@@ -4946,6 +4958,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             continue;
                         }
                         inQuotes = false;
+                        // Trailing whitespace between the closing quote and the delimiter/EOL is not part of
+                        // the value (matches the direct quoted walker and splitCommaDelimiterBracketAwareFields);
+                        // skip it so no-trim bracket mode agrees. Non-whitespace is still concatenated.
+                        int j = i + 1;
+                        while (j < line.length() && line.charAt(j) <= ' ') {
+                            j++;
+                        }
+                        if (j == line.length() || line.charAt(j) == delim) {
+                            i = j;
+                            continue;
+                        }
                     } else if (c == esc && i + 1 < line.length() && line.charAt(i + 1) == delim) {
                         if (isProjected) current.append(delim);
                         numericValid = false;

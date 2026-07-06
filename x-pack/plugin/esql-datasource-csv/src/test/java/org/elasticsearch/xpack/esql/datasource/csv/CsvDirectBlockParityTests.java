@@ -253,6 +253,20 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row((Object) null)), read(false, Map.of("null_value", " 5 "), "a:integer\n\\ 5 \n"));
     }
 
+    /** Bracket mode drops trailing whitespace after a closing quote under no-trim, matching the quoted grammar. */
+    public void testBracketTrailingWhitespaceAfterCloseQuoteDropped() throws IOException {
+        // Unprojected read → the full-split bracket walker.
+        assertEquals(
+            List.of(row(br("x"), br("y"))),
+            read(false, Map.of("multi_value_syntax", "brackets"), "a:keyword,b:keyword\nx,\"y\"  \n")
+        );
+        // Projected read → the fused bracket walker.
+        assertEquals(
+            List.of(row(br("y"))),
+            read(false, Map.of("multi_value_syntax", "brackets"), null, List.of("b"), "a:keyword,b:keyword\nx,\"y\"  \n")
+        );
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Double
     // ---------------------------------------------------------------------------------------------

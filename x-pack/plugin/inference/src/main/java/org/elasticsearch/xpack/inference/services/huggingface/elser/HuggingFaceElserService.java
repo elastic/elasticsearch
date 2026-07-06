@@ -18,7 +18,6 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -102,10 +101,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
             (delegate, response) -> delegate.onResponse(translateToChunkedResults(inputs, response))
         );
 
-        long estimatedBytes = inputs.stream()
-            .flatMap(c -> c.input().inferenceStrings().stream())
-            .mapToLong(InferenceString::ramBytesUsed)
-            .sum();
+        long estimatedBytes = inputs.stream().map(ChunkInferenceInput::input).mapToLong(InferenceStringGroup::ramBytesUsed).sum();
 
         // TODO chunking sparse embeddings not implemented
         doInfer(

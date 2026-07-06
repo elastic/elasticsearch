@@ -103,7 +103,11 @@ You can route on any project tag:
 - Predefined tags, such as `_alias`, `_csp`, and `_region`. For the full list, refer to [Tags in CPS](docs-content://explore-analyze/cross-project-search/cross-project-search-tags.md).
 - Custom tags that you define in the {{ecloud}} UI.
 
-You can combine tags with the `AND`, `OR`, and `NOT` operators, group terms with parentheses, and use prefix or suffix wildcards (`*`) to match part of a tag value. Tag matching is case-insensitive. The syntax is the same for {{esql}} and the `_search` API.
+You can combine tags with the `AND`, `OR`, and `NOT` operators, group terms with parentheses, and use prefix or suffix wildcards (`*`) to match part of a tag value. Tag value matching is case-insensitive, so `_csp:AWS` matches the value `aws`. Tag names are case-sensitive, so use `_csp`, not `_CSP`. The syntax is the same for {{esql}} and the `_search` API.
+
+:::{note}
+You can optionally add the `_project.` prefix to a tag name, for example `_project._csp:aws`. This is the same prefix used to reference tags in queries. In project routing the prefix is optional, so `_csp:aws` and `_project._csp:aws` are equivalent.
+:::
 
 The following expressions are all valid:
 
@@ -113,12 +117,14 @@ The following expressions are all valid:
 | `_alias:lin*` | Projects whose alias starts with `lin` |
 | `_csp:aws AND _region:us*` | AWS projects in a US region |
 | `(_region:us-* AND _csp:aws) OR _csp:gcp` | AWS projects in a US region, or any project on Google Cloud |
+| `_csp:GCP` | Google Cloud projects (value matching is case-insensitive, so this also matches `gcp`) |
 
 :::{note}
-Every term in an expression needs a tag prefix, and every tag must be defined. These expressions fail:
+Every term in an expression needs a tag name, and every tag must be defined. These expressions fail:
 
-- `_csp:aws OR gcp` fails because the bare term `gcp` has no tag prefix. Use `_csp:aws OR _csp:gcp` instead.
+- `_csp:aws OR gcp` fails because the bare term `gcp` has no tag name. Use `_csp:aws OR _csp:gcp` instead.
 - `_foo:bar` fails because `_foo` isn't a defined tag.
+- `NOT _csp:azure` fails because an expression can't be only a negation. To match every project except Azure, include first and then exclude: `_csp:* AND NOT _csp:azure`.
 :::
 
 You can specify project routing in two ways:

@@ -287,6 +287,20 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     // nullability
     // -----------------------------------------------------------------------
 
+    public void testNullabilityRejectedInNonColumnarMode() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (boolean nullability : new boolean[] { false, true }) {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", nullability).endObject())
+                )
+            );
+            assertThat(e.getMessage(), containsString("cannot configure [doc_values] as an object"));
+            assertThat(e.getMessage(), containsString("only available in columnar index modes"));
+        }
+    }
+
     public void testNullabilityFalseParsedFromMapForm() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
@@ -418,9 +432,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         mapper.parse(source(b -> {}));
         mapper.parse(source(b -> b.nullField("field")));
     }
-
-    // Note: no equivalent "satisfied by copy_to" test exists here, unlike multi_value: copy_to is rejected outright in
-    // strict-columnar index modes, so it can never coexist with the doc_values object form that nullability requires.
 
     public void testNullabilityFalseNestedEnforcedPerInstance() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());

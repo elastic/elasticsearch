@@ -6,7 +6,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.extended_only_in_columnar"]
+      cluster_features: ["mapper.doc_values.extended_form_only_in_columnar"]
       reason: "doc_values object form is rejected outside columnar index modes starting with this feature"
 
   - do:

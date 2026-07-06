@@ -52,7 +52,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         return isColumnar;
     }
 
-    public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource) {
+    public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource, boolean isColumnar) {
         if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             if (allowIgnoredSource && ESTestCase.randomBoolean()) {
                 return FieldMapper.DocValuesParameter.Values.DISABLED;
@@ -61,12 +61,23 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             }
         }
 
+        // multi_value=false is only valid in strict-columnar index modes.
+        boolean multiValue = isColumnar == false || ESTestCase.randomBoolean();
+
         // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
-            // multiValue is fixed to true: multi_value=false is rejected outside strict-columnar index modes, which this
-            // generator has no visibility into (it is shared by both the columnar and non-columnar synthetic-source paths).
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true, true);
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true);
+            case 0 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                multiValue,
+                true
+            );
+            case 1 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                multiValue,
+                true
+            );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };

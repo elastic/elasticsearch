@@ -1678,11 +1678,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         if (preserveLeafArrays == PreserveLeafArrays.LOSSY) {
             arrayContext = null;
         } else {
-            // Shared across every parseCreateField call for this field within the document (e.g. field supplied as an
-            // array of objects) and flushed once, via DocumentParserContext#processArrayOffsets, after parsing completes.
-            // A context created and flushed per call would encode offset ordinals relative to only the values that call
-            // observed, while the keyed values themselves accumulate across all calls into one document-wide sorted-unique
-            // set — corrupting reconstruction. See https://github.com/elastic/elasticsearch/issues/153014.
             arrayContext = (FlattenedFieldArrayContext) context.getOffSetContext(
                 mappedFieldType.name(),
                 () -> new FlattenedFieldArrayContext(mappedFieldType.name())

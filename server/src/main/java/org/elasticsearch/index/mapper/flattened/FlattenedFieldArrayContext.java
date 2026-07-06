@@ -54,16 +54,11 @@ public final class FlattenedFieldArrayContext extends FieldArrayContext {
 
     @Override
     public void addToLuceneDocument(DocumentParserContext context) throws IOException {
-        // This context instance is shared by every parseCreateField call for this field within the document (see
-        // DocumentParserContext#getOffSetContext(String, java.util.function.Supplier)) and flushed exactly once, after all
-        // of them have run. That keeps offset ordinals consistent with the document-wide sorted-unique value set they are
-        // decoded against; flushing per call (one context per call) previously encoded ordinals relative to only the
-        // values a single call observed, silently corrupting reconstruction when a field's value was an array of objects.
-        // See https://github.com/elastic/elasticsearch/issues/153014.
         for (var docEntry : offsetsPerDoc.entrySet()) {
             // A null key means no document was set while recording (e.g. direct unit-test usage); fall back to the document
             // being flushed.
             LuceneDocument doc = docEntry.getKey() != null ? docEntry.getKey() : context.doc();
+            // Offsets must only be encoded and recorded once
             assert doc.getField(offsetsFieldName) == null;
             for (var entry : docEntry.getValue().entrySet()) {
                 String fieldName = entry.getKey();

@@ -1,0 +1,15 @@
+area: ES|QL
+issues: []
+pr: 151949
+summary: Make `date_range` tech preview
+type: enhancement
+highlight:
+  notable: true
+  title: "`date_range` field type available as tech preview"
+  body: |-
+    The `date_range` field type is now available in ES|QL as a technical
+    preview. This unlocks the range-specific functions `TO_DATE_RANGE`,
+    `TO_RANGE`, `RANGE_MIN`, `RANGE_MAX`, `RANGE_CONTAINS`,
+    `RANGE_INTERSECTS`, and `RANGE_WITHIN`, as well as support for
+    `date_range` fields in generic functions such as `COUNT`, `PRESENT`,
+    `ABSENT`, and the `MV_*` family.

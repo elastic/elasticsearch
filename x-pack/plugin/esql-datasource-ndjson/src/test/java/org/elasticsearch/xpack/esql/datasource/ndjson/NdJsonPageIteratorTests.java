@@ -1149,6 +1149,31 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testDeclaredDatetimeFormatOverridesNumericEpochShortcut() throws IOException {
+        // A column declared {datetime, format:"yyyyMMdd"} must read the numeric token 20260101 as
+        // 2026-01-01 (the declared format is authoritative), NOT as epoch millis — matching CSV and the
+        // columnar readers. Regression for the epoch-reinterpret-past-declared-format bug.
+        String ndjson = "{\"ts\": 20260101}\n";
+        var object = new BytesStorageObject("file:///dt.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory).withDeclaredDateFormats(Map.of("ts", "yyyyMMdd"));
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATETIME));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("ts"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(Instant.parse("2026-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
     public void testTypeDifferentFromSchema() throws IOException {
 
         String ndjson = """

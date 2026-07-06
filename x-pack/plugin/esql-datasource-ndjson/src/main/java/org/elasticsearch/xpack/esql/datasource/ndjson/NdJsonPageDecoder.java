@@ -1597,24 +1597,33 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         private void decodeDatetimeValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
-            if (token == JsonToken.VALUE_NUMBER_INT) {
-                // epoch-millis reinterpret, matching the columnar long->datetime fused decode and CSV's
-                // numeric-epoch shortcut — a JSON number in a datetime column is epoch milliseconds.
+            if (declaredFormatter != null && (token == JsonToken.VALUE_STRING || token == JsonToken.VALUE_NUMBER_INT)) {
+                // A declared `format` is authoritative and OVERRIDES the numeric-epoch shortcut, exactly as
+                // CsvFormatReader.tryParseDatetime does (declaredFormatters win over looksNumeric): a column
+                // declared {datetime, format:"yyyyMMdd"} reads the token 20260101 as 2026-01-01, NOT as epoch
+                // millis. Parses through the shared DeclaredTypeCoercions.parseDatetimeMillis — the SAME
+                // string->datetime conversion the columnar readers use — so identical bytes + declared format
+                // yield the same instant across every format.
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(
+                        DeclaredTypeCoercions.parseDatetimeMillis(parser.getValueAsString(), declaredFormatter)
+                    );
+                } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                // No declared format: a JSON number is epoch milliseconds, matching the columnar long->datetime
+                // fused reinterpret (supports(LONG, DATETIME) is true). This is a genuine improvement over the
+                // old file-level path, which silently null-filled an epoch number.
                 try {
                     ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
                 } catch (InputCoercionException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
                 }
             } else if (token == JsonToken.VALUE_STRING) {
+                // No declared format: parse with the file-level formatter (STRICT_DATE_OPTIONAL_TIME by default).
                 try {
-                    // A declared `format` parses through the shared DeclaredTypeCoercions.parseDatetimeMillis — the
-                    // SAME string->datetime conversion the columnar readers use — so identical bytes + declared
-                    // format yield the same instant across formats; no declared format uses the file-level formatter.
-                    String raw = parser.getValueAsString();
-                    long millis = declaredFormatter != null
-                        ? DeclaredTypeCoercions.parseDatetimeMillis(raw, declaredFormatter)
-                        : datetimeFormatter.parseMillis(raw);
-                    ((LongBlock.Builder) blockBuilder).appendLong(millis);
+                    ((LongBlock.Builder) blockBuilder).appendLong(datetimeFormatter.parseMillis(parser.getValueAsString()));
                 } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
                 }

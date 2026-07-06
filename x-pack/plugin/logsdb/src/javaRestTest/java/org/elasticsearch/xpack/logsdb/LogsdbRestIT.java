@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -178,6 +180,9 @@ public class LogsdbRestIT extends ESRestTestCase {
                 "data_stream": {},
                 "priority": 1000,
                 "template": {
+                    "settings": {
+                        "index.mode": "logsdb"
+                    },
                     "mappings": {
                         "runtime": {
                             "message_length": { "type": "long" },
@@ -277,6 +282,39 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertThat(maxLength, equalTo(20));
         var sumLength = ((List<?>) values.getFirst()).get(5);
         assertThat(sumLength, equalTo(20 * numDocs));
+    }
+
+    public void testEsqlRuntimeFieldsRejectedInLogsdbColumnar() throws IOException {
+        var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-runtime-rejected-template");
+        templateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["logs-test-esql-runtime-rejected-*"],
+                "data_stream": {},
+                "priority": 1000,
+                "template": {
+                    "settings": {
+                        "index.mode": "logsdb_columnar"
+                    },
+                    "mappings": {
+                        "runtime": {
+                            "message_length": { "type": "long" },
+                            "log.offset": { "type": "long" }
+                        },
+                        "dynamic": false,
+                        "properties": {
+                            "@timestamp": { "type": "date" },
+                            "log": {
+                                "properties": {
+                                    "level": { "type": "keyword" },
+                                    "file": { "type": "keyword" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        assertTemplateRejectsRuntimeFieldsInLogsdbColumnar(templateRequest);
     }
 
     public void testEsqlScanWildcardField() throws IOException {
@@ -480,6 +518,9 @@ public class LogsdbRestIT extends ESRestTestCase {
                 "data_stream": {},
                 "priority": 1000,
                 "template": {
+                    "settings": {
+                        "index.mode": "logsdb"
+                    },
                     "mappings": {
                         "runtime": {
                             "message_length": { "type": "long" }
@@ -582,5 +623,45 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertThat(shardsHeader.get("failed"), equalTo(0));
         assertThat((Integer) shardsHeader.get("successful"), greaterThanOrEqualTo(1));
         assertThat(shardsHeader.get("skipped"), equalTo(0));
+    }
+
+    public void testSyntheticSourceRuntimeFieldQueriesRejectedInLogsdbColumnar() throws IOException {
+        var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-synthetic-rejected-template");
+        templateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["logs-test-esql-synthetic-rejected-*"],
+                "data_stream": {},
+                "priority": 1000,
+                "template": {
+                    "settings": {
+                        "index.mode": "logsdb_columnar"
+                    },
+                    "mappings": {
+                        "runtime": {
+                            "message_length": { "type": "long" }
+                        },
+                        "dynamic": false,
+                        "properties": {
+                            "@timestamp": { "type": "date" },
+                            "log": {
+                                "properties": {
+                                    "level": { "type": "keyword" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        assertTemplateRejectsRuntimeFieldsInLogsdbColumnar(templateRequest);
+    }
+
+    private void assertTemplateRejectsRuntimeFieldsInLogsdbColumnar(Request templateRequest) {
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(templateRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(
+            e.getMessage(),
+            containsString("mapping-level runtime fields are not allowed in index using [logsdb_columnar] index mode")
+        );
     }
 }

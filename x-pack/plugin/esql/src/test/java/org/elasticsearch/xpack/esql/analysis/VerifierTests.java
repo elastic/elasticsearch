@@ -881,14 +881,7 @@ public class VerifierTests extends ESTestCase {
             );
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
-            .error(
-                "FROM decades | LIMIT 1 BY date_range",
-                equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
-                        ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
-                        : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
-                )
-            );
+            .error("FROM decades | LIMIT 1 BY date_range", equalTo("1:27: cannot group by on [date_range] type for grouping [date_range]"));
         tsdb().error(
             "FROM test | LIMIT 1 BY network.bytes_in",
             equalTo("1:24: cannot group by on [counter_long] type for grouping [network.bytes_in]")
@@ -912,11 +905,7 @@ public class VerifierTests extends ESTestCase {
             .stripErrorPrefix(true)
             .error(
                 "FROM decades | STATS count(*) BY date_range",
-                equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
-                        ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
-                        : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
-                )
+                equalTo("1:34: cannot group by on [date_range] type for grouping [date_range]")
             );
         analyzer().addIndex("test", "mapping-all-types.json")
             .stripErrorPrefix(true)
@@ -1623,7 +1612,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testDateRangeSorting() {
-        assumeTrue("Requires DATE_RANGE_FIELD_TYPE_V6 capability", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
@@ -1688,7 +1676,7 @@ public class VerifierTests extends ESTestCase {
             "FROM test | STATS count(network.bytes_out)",
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, histogram, or date_range],"
+                    + " [any type except counter types or histogram],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -1939,28 +1927,33 @@ public class VerifierTests extends ESTestCase {
     public void testMatchInsideEval() throws Exception {
         defaultAnalyzer().error(
             "row title = \"brown fox\" | eval x = title:\"fox\" ",
-            equalTo(
-                "1:36: [:] operator is only supported in WHERE and STATS commands or in EVAL within score(.) function"
-                    + "\n"
-                    + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping"
-            )
+            equalTo("1:36: [:] operator is only supported in WHERE and STATS commands or in EVAL within score(.) function")
         );
     }
 
     public void testFieldBasedFullTextFunctions() throws Exception {
-        checkFieldBasedWithNonIndexedColumn("MATCH", "match(text, \"cat\")", "function");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
+        // MATCH and : support runtime search; after mv_expand on the same field, the expanded attribute is no
+        // longer a direct FieldAttribute so isRuntimeSearch()=true and command restrictions are bypassed.
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")", true);
 
-        checkFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
-        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
+        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"", true);
 
         checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")");
+        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", false);
 
-        checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
+        checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
     }
 
     private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
+        checkFieldBasedFunctionNotAllowedAfterCommands(functionName, functionType, functionInvocation, false);
+    }
+
+    private void checkFieldBasedFunctionNotAllowedAfterCommands(
+        String functionName,
+        String functionType,
+        String functionInvocation,
+        boolean supportsRuntimeSearch
+    ) {
         fullText().error(
             "from test | limit 10 | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
@@ -1982,14 +1975,20 @@ public class VerifierTests extends ESTestCase {
             "from test | sort id | limit 1 by id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
         );
-        fullText().stripErrorPrefix(false)
-            .error(
-                "from test | mv_expand " + fieldName + " | where " + functionInvocation,
-                allOf(
-                    containsString("Found 1 problem"),
-                    containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
-                )
-            );
+        if (supportsRuntimeSearch) {
+            // After mv_expand on the searched field, the expanded attribute is no longer a direct FieldAttribute,
+            // so runtime search takes over and command restrictions are bypassed.
+            fullText().query("from test | mv_expand " + fieldName + " | where " + functionInvocation);
+        } else {
+            fullText().stripErrorPrefix(false)
+                .error(
+                    "from test | mv_expand " + fieldName + " | where " + functionInvocation,
+                    allOf(
+                        containsString("Found 1 problem"),
+                        containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+                    )
+                );
+        }
         if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
             fullText().error(
                 "from test | dedup | where " + functionInvocation,
@@ -2023,19 +2022,13 @@ public class VerifierTests extends ESTestCase {
         fullText().stripErrorPrefix(false)
             .error(
                 "from test metadata _id, _index, _score "
-                    + "| fork (where true) (where true | EVAL title = \"abc\") "
+                    + "| fork (where true) (where true | EVAL title = to_text(\"abc\")) "
                     + "| keep title "
                     + "| where title : \"data\"",
-                allOf(
-                    containsString("Found 3 problems"),
-                    containsString("[:] operator cannot be used after FORK"),
-                    containsString("[:] operator cannot operate on [title], which is not a field from an index mapping"),
-                    containsString("Column [title] has conflicting data types in FORK branches: [KEYWORD] and [TEXT]")
-                )
+                allOf(containsString("Found 1 problem"), containsString("[:] operator cannot be used after FORK"))
             );
     }
 
-    // These should pass eventually once we lift some restrictions on match function
     private void checkFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
         fullText().error(
             "from test | eval text = substring(title, 1) | where " + functionInvocation,
@@ -2345,14 +2338,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsRejectEvalColumns() throws Exception {
-        fullText().error(
-            "from test | eval name = title | where match(name, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [name], which is not a field from an index mapping")
-        );
-        fullText().error(
-            "from test | eval name = title | where name : \"Meditation\"",
-            containsString("[:] operator cannot operate on [name], which is not a field from an index mapping")
-        );
+        // match and : support runtime search and can operate on EVAL columns
+        fullText().query("from test | eval name = title | where match(name, \"Meditation\")");
+        fullText().query("from test | eval name = title | where name : \"Meditation\"");
+        // match_phrase still requires an index field
         fullText().error(
             "from test | eval name = title | where match_phrase(name, \"Meditation\")",
             containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
@@ -2360,26 +2349,35 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsRejectRenamedNonIndexFields() throws Exception {
+        // MATCH supports runtime search and can operate on renamed non-index fields
+        fullText().query("from test | eval text = concat(title, body) | rename text as content | where match(content, \"Meditation\")");
+        fullText().query("from test | eval name = title | rename name as x | where match(x, \"Meditation\")");
+        fullText().query("from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match(x, \"Meditation\")");
+        fullText().query("from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")");
+        fullText().query("from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")");
+
+        // MATCH_PHRASE still requires an argument that is a field from an index mapping
         fullText().error(
-            "from test | eval text = concat(title, body) | rename text as content | where match(content, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [content], which is not a field from an index mapping")
+            "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")",
+            containsString("[MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
         );
         fullText().error(
-            "from test | eval name = title | rename name as x | where match(x, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+            "from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")",
+            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
         );
         fullText().error(
-            "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match(x, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+            "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
+            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
         );
         fullText().error(
-            "from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+            "from test | dissect title \"%{extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
+            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
         );
         fullText().error(
-            "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [y], which is not a field from an index mapping")
+            "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match_phrase(y, \"Meditation\")",
+            containsString("[MatchPhrase] function cannot operate on [y], which is not a field from an index mapping")
         );
+
     }
 
     public void testConditionalFunctionsWithMixedNumericTypes() {

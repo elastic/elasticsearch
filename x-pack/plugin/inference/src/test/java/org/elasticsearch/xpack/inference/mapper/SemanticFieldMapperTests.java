@@ -60,8 +60,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
      * with the base64 payload stored decoded and regenerated on read.
      */
     public void testOriginalValueRoundTripFromDocValues() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion version = IndexVersion.current();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
@@ -96,8 +94,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
      * accepted because its original value is stored in doc values and its internal inference sub-fields are exempt.
      */
     public void testSemanticFieldAcceptedInColumnar() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion version = IndexVersion.current();
         String dvFieldName = SemanticTextField.getOriginalValuesFieldName("my_field");
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
@@ -126,8 +122,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
      * from the binary doc values store: text comes back as a string and a data URI as its {@code {type, format, value}} object.
      */
     public void testOriginalValueFetchedFromDocValues() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion version = IndexVersion.current();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
@@ -198,8 +192,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
      * coerces it to its string form, so the doc-values {@code _source} round-trip returns the value as a string.
      */
     public void testBooleanAndNumericValuesRoundTripAsStrings() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion version = IndexVersion.current();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
@@ -227,7 +219,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
      * but must still load {@code _source} when the value is kept there (stored source).
      */
     public void testHighlighterAvoidsSourceWhenValuesInDocValues() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
         SemanticTextHighlighter highlighter = new SemanticTextHighlighter();
         IndexVersion version = IndexVersion.current();
 
@@ -271,8 +262,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSemanticFieldNotSupportedOnOldIndices() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SEMANTIC_FIELD_TYPE);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), oldVersion).build();
 
@@ -288,8 +277,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSemanticFieldSupportedOnNewIndices() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion newVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), newVersion).build();
 
@@ -311,8 +298,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSemanticFieldMappingUpdateNotSupportedOnOldIndices() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SEMANTIC_FIELD_TYPE);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), oldVersion).build();
 
@@ -330,8 +315,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSemanticFieldMappingUpdateSupportedOnNewIndices() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion newVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), newVersion).build();
 

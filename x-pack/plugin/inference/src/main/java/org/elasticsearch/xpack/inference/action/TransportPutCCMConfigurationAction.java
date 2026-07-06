@@ -29,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
@@ -59,6 +60,7 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
     private final Sender eisSender;
     private final ElasticInferenceServiceSettings eisSettings;
     private final FeatureService featureService;
+    private final InferencePreferencesCache inferencePreferencesCache;
 
     @Inject
     public TransportPutCCMConfigurationAction(
@@ -71,7 +73,8 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
         CCMFeature ccmFeature,
         Sender eisSender,
         ElasticInferenceServiceSettings eisSettings,
-        FeatureService featureService
+        FeatureService featureService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         super(
             PutCCMConfigurationAction.NAME,
@@ -89,6 +92,7 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
         this.eisSender = Objects.requireNonNull(eisSender);
         this.eisSettings = Objects.requireNonNull(eisSettings);
         this.featureService = Objects.requireNonNull(featureService);
+        this.inferencePreferencesCache = Objects.requireNonNull(inferencePreferencesCache);
     }
 
     @Override
@@ -114,7 +118,8 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
                 threadPool,
                 new ValidationAuthenticationFactory(request.getApiKey()),
                 ccmFeature,
-                ccmService
+                ccmService,
+                inferencePreferencesCache
             );
 
             var errorListener = authValidationListener.delegateResponse((delegate, exception) -> {

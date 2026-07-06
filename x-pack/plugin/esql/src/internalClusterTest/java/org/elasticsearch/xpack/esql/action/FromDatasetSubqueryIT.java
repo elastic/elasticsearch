@@ -888,16 +888,33 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    // Full-text functions against external data sources
-
-    public void testMatchOnDatasetFieldRejected() {
+    public void testMatchAfterSubquery() {
         registerEmployees();
+        registerEmployeesAlt();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE MATCH(first_name, \"Alice\"))"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "[MATCH] function cannot operate on [first_name], which is not a field from an index mapping");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees METADATA _index), (FROM employees_alt METADATA _index)
+            | WHERE MATCH(first_name, "Alice")
+            | KEEP first_name, last_name, _index
+            | SORT _index
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name", "_index"));
+            assertColumnTypes(response.columns(), List.of("keyword", "keyword", "keyword"));
+            assertValues(response.values(), List.of(List.of("Alice", "Anderson", "employees")));
+        }
+    }
+
+    // Full-text functions against external data sources
+    public void testMatchOnDatasetField() {
+        registerEmployees();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | WHERE MATCH(first_name, "Alice"))
+            | KEEP first_name, last_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+            assertColumnTypes(response.columns(), List.of("keyword", "keyword"));
+            assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+        }
     }
 
     public void testMatchPhraseOnDatasetFieldRejected() {
@@ -930,14 +947,14 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         assertCauseMessageContains(ex, "[QSTR] function cannot be used after [FROM employees]");
     }
 
-    public void testMatchAfterSubqueryRejected() {
+    public void testMatchPhraseAfterSubqueryRejected() {
         registerEmployees();
         registerEmployeesAlt();
 
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("""
-            FROM (FROM employees), (FROM employees_alt) | WHERE MATCH(first_name, "Alice")
+            FROM (FROM employees), (FROM employees_alt) | WHERE MATCH_PHRASE(first_name, "Alice")
             """), TIMEOUT));
-        assertCauseMessageContains(ex, "[MATCH] function cannot operate on [first_name], which is not a field from an index mapping");
+        assertCauseMessageContains(ex, "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping");
     }
 
     // Mixed data types across subquery branches

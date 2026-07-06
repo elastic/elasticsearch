@@ -6,18 +6,60 @@
 //   parquet_ubn_b.parquet — schema [age:long, name:keyword, city:keyword]
 //                           rows: charlie(50, paris), dave(60, london)
 //
-// Note: Tests that read the widened `age` column under UNION_BY_NAME (which would require
-// casting int32 → int64 across files A and B) hit a current engine limitation around
-// cross-file column-type widening and are intentionally excluded here. The UBN tests below
-// only project columns that do not require widening.
-//
 // Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. ParquetFormatSpecIT
 // registers the dataset on every storage backend and runs the FROM query verbatim. The dataset name encodes
 // the schema_resolution option so the same name always carries the same settings.
+//
+// The widened `age` cases below intentionally verify cross-file int32 -> int64 reconciliation.
 
 // ===== UNION_BY_NAME on divergent Parquet schemas =====
 // Unified schema: name:keyword, age:long (widened), score:double (null in B), city:keyword (null in A)
-// Only tests that project columns NOT requiring cross-file widening are included.
+
+// Cross-file column-type widening (C3): age is int32 in file A and int64 in file B; the union
+// widens both to long. Projecting age must read all rows with correct values (file A's int32 is
+// cast up to long), not fail with "Failed to map page".
+parquetUbnProjectWidenedColumn
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| KEEP name, age
+| SORT name ASC;
+
+name:keyword | age:long
+alice        | 30
+bob          | 40
+charlie      | 50
+dave         | 60
+;
+
+parquetUbnAggregateWidenedColumn
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| STATS total = SUM(age);
+
+total:long
+180
+;
+
+parquetUbnFilterWidenedColumn
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE age > 45
+| KEEP name, age
+| SORT name ASC;
+
+name:keyword | age:long
+charlie      | 50
+dave         | 60
+;
 
 parquetUbnCount
 required_capability: dataset_in_from_command
@@ -98,5 +140,68 @@ warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk
 name:keyword | score:double
 alice        | 85.5
 bob          | 92.0
+;
+
+// ===== Cross-file column-order reconciliation (C4) =====
+// Uses {{x_multifile_perm}} which resolves to multifile_perm/*.parquet.
+// Two fixture files, same three columns in different physical order, distinct types so a swap
+// cannot pass silently:
+//   parquet_perm_a.parquet — schema [p:integer, q:keyword, r:double]
+//                            rows: (1, alpha, 1.5), (2, beta, 2.5)
+//   parquet_perm_b.parquet — schema [r:double, q:keyword, p:integer]   (columns reversed)
+//                            rows: (3, gamma, 3.5), (4, delta, 4.5)
+// Under union_by_name the unified schema adopts the column order of the first-listed file
+// (glob listing is sorted, so parquet_perm_a). The other file's physical order differs; every
+// column value must still land under its own name (no swap), including the reversed file.
+
+parquetPermThreeColumnReorder
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: reorder_multifile: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM reorder_multifile
+| KEEP p, q, r
+| SORT p ASC;
+
+p:integer | q:keyword | r:double
+1         | alpha     | 1.5
+2         | beta      | 2.5
+3         | gamma     | 3.5
+4         | delta     | 4.5
+;
+
+// Order invariance: projecting in the reverse of the unified column order must not disturb the
+// first-listed file's rows (guards the "unified order happens to be identity" masking).
+parquetPermReversedProjection
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: reorder_multifile: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM reorder_multifile
+| KEEP r, q, p
+| SORT p ASC;
+
+r:double | q:keyword | p:integer
+1.5      | alpha     | 1
+2.5      | beta      | 2
+3.5      | gamma     | 3
+4.5      | delta     | 4
+;
+
+// Reversed-file row isolation: filter selects only the reversed file's rows, confirming its
+// values are correct per column after reconciliation.
+parquetPermNonAnchorRows
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: reorder_multifile: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM reorder_multifile
+| WHERE p > 2
+| KEEP p, q, r
+| SORT p ASC;
+
+p:integer | q:keyword | r:double
+3         | gamma     | 3.5
+4         | delta     | 4.5
 ;
 

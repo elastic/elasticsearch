@@ -658,6 +658,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
     private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
     /**
+     * Suffix that triggers a multi-file glob whose files share the same columns in different
+     * physical order (anchor vs reversed non-anchor) with distinct per-column types, used to lock
+     * cross-file column-order reconciliation against silent value swaps.
+     */
+    private static final String MULTIFILE_PERM_SUFFIX = "_multifile_perm";
+    /**
      * Suffix that triggers multi-file UBN glob with cross-file type drift (one file's sampler
      * infers INTEGER, the other infers KEYWORD for the same column). Used by csv-union-by-name
      * to exercise the KEYWORD-fallback path: under UBN the reconciler widens to KEYWORD with a
@@ -677,6 +683,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         String relativePath;
         if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
             relativePath = "multifile_type_drift/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_PERM_SUFFIX)) {
+            // Column-permutation multi-file template: x_multifile_perm -> multifile_perm/*.<format>
+            relativePath = "multifile_perm/*." + format;
         } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
             // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
             relativePath = "multifile_ubn/*." + format;

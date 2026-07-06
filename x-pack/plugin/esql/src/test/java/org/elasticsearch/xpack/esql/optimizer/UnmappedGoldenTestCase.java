@@ -66,15 +66,10 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         runTestsLoadOnly(query, stages, null, nestedPaths);
     }
 
-    protected void runTestsLoadOnly(
-        String query,
-        EnumSet<Stage> stages,
-        TransportVersion minimumSupportedVersion,
-        String... nestedPaths
-    ) {
-        tryRunTestsLoadOnly(query, stages, minimumSupportedVersion, Map.of(), nestedPaths).ifPresent(
-            e -> { throw new RuntimeException("Load mode failed", e); }
-        );
+    protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, TransportVersion minimumSupportedVersion, String... nestedPaths) {
+        tryRunTestsLoadOnly(query, stages, minimumSupportedVersion, Map.of(), nestedPaths).ifPresent(e -> {
+            throw new RuntimeException("Load mode failed", e);
+        });
     }
 
     private Optional<Throwable> tryRunTestsNullifyOnly(

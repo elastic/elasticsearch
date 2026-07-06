@@ -113,8 +113,8 @@ public class GcsStorageProvider implements StorageProvider {
         // google-cloud-storage client's default NetHttpTransport is backed by HttpURLConnection, whose
         // http.maxConnections (default 5) bounds only the idle keep-alive cache — NOT the number of concurrent
         // connections, which HttpURLConnection opens on demand. So GCS has no SDK-side pool cap. It does not need
-        // one: GCS reads are blocking, so they run on the dedicated esql_external_blocking_io thread pool (sized by
-        // esql.external.max_connections), which already bounds read concurrency. Sizing an SDK pool would mean
+        // one: GCS reads are blocking, so their concurrency is bounded by the per-scheme permit semaphore in
+        // StorageProviderRegistry (sized by esql.external.max_concurrent_requests). Sizing an SDK pool would mean
         // swapping in ApacheHttpTransport + a PoolingHttpClientConnectionManager — a production dependency that
         // neither this plugin nor repository-gcs carries (apache-httpclient is test-scope only there).
         if (config == null) {

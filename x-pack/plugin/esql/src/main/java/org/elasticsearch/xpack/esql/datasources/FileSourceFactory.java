@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -467,6 +468,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .parsingParallelism(context.parsingParallelism())
                 .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
                 .maxRecordBytes(context.maxRecordBytes())
+                .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
+                .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
                 .parallelism(context.parallelism())
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)

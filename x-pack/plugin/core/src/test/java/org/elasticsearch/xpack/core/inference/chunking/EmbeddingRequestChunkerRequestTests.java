@@ -13,6 +13,8 @@ import org.elasticsearch.inference.InferenceString;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
 public class EmbeddingRequestChunkerRequestTests extends InferenceObjectRamBytesUsedTest<EmbeddingRequestChunker.Request> {
 
     private static final String INPUT = "document";
@@ -25,9 +27,18 @@ public class EmbeddingRequestChunkerRequestTests extends InferenceObjectRamBytes
     @Override
     public List<EmbeddingRequestChunker.Request> objectsToEstimateWithLargerInput() {
         return List.of(
-            // Larger chunk (also exercises the chunkContainsWholeInput code path)
-            new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 7), new InferenceString(DataType.TEXT, INPUT))
+            // Larger chunk
+            new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 7), new InferenceString(DataType.TEXT, INPUT)),
+            // Whole-input chunk
+            new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 8), new InferenceString(DataType.TEXT, INPUT))
         );
+    }
+
+    public void testRamBytesUsed_EmptyInput_AttributesWholeInputString() {
+        var emptyInput = new InferenceString(DataType.TEXT, "");
+        var request = new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 0), emptyInput);
+
+        assertThat(request.ramBytesUsed(), greaterThanOrEqualTo(emptyInput.ramBytesUsed()));
     }
 
     @Override

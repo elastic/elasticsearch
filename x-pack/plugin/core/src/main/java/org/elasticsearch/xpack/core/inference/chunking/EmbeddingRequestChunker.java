@@ -64,7 +64,8 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         @Override
         public long ramBytesUsed() {
             int chunkChars = chunk.end() - chunk.start();
-            double fraction = (double) chunkChars / (double) input.value().length();
+            int length = input.value().length();
+            double fraction = length == 0 ? 1.0 : (double) chunkChars / (double) length;
             return SHALLOW_SIZE + (long) (input.ramBytesUsed() * fraction);
         }
 

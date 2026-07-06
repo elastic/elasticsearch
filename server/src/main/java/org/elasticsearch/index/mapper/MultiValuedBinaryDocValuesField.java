@@ -653,7 +653,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
                 for (int i = 0; i < slotCount; i++) {
                     BytesRef slot = slots.get(i);
-                    if (nullMarkers != null && nullMarkers.get(i)) {
+                    if (nullMarkers.get(i)) {
                         // Null slot: [0]key\0
                         out.writeVInt(0);
                         out.writeBytes(slot.bytes, slot.offset, slot.length);

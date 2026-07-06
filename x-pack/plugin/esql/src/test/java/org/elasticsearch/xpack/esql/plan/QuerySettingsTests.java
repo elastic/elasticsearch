@@ -525,11 +525,43 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(QuerySettings.COLUMN_METADATA.aliases().isEmpty(), is(true));
     }
 
+    public void testResolveColumnMetadataDefault() {
+        // Nothing supplied it anywhere (no body, no SET) — the registered default applies.
+        ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.FALSE));
+    }
+
     public void testResolveRequestParameterAppliesColumnMetadata() {
         Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
         requestParams.put(QuerySettings.COLUMN_METADATA, Boolean.TRUE);
         ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.TRUE));
+    }
+
+    public void testResolveRequestParameterAppliesColumnMetadataExplicitFalse() {
+        // Explicit false is a real, user-supplied value — distinct from "not supplied" even though both
+        // resolve to the same FALSE default. Guards against a reconciler/resolver that mistakes a falsy
+        // value for an absent one (e.g. an accidental truthiness check instead of a null check).
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.COLUMN_METADATA, Boolean.FALSE);
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.FALSE));
+    }
+
+    public void testResolveColumnMetadataRejectsMalformedSetValue() {
+        // resolve() calls readFromExpression() directly and does not repeat validate()'s upfront type check.
+        // This confirms the bool() factory's own defensive check rejects a non-boolean SET value on its own,
+        // so a malformed value can't silently slip through resolve() even if validate() were ever bypassed.
+        QuerySetting setting = new QuerySetting(
+            Source.EMPTY,
+            new Alias(Source.EMPTY, "column_metadata", Literal.integer(Source.EMPTY, 1))
+        );
+        EsqlStatement statement = new EsqlStatement(null, List.of(setting));
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> QuerySettings.resolve(Map.of(), statement, SNAPSHOT_CTX_WITH_CPS_ENABLED)
+        );
+        assertThat(ex.getMessage(), containsString("Setting [column_metadata] must be a boolean, got [1]"));
     }
 
     public void testResolveBodyColumnMetadataFailsOnNonSnapshot() {

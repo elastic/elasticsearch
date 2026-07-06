@@ -409,10 +409,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return right().anyMatch(
             node -> node instanceof EsRelation rel
                 && rel.indexMode() == IndexMode.LOOKUP
-                && rel.indexNameWithModes()
-                    .keySet()
-                    .stream()
-                    .anyMatch(name -> RemoteClusterAware.splitIndexName(name).clusterAlias() == null)
+                && rel.concreteIndices().containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
         );
     }
 

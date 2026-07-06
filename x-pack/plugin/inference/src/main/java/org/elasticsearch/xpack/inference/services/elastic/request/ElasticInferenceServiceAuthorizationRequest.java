@@ -35,7 +35,8 @@ public class ElasticInferenceServiceAuthorizationRequest extends ElasticInferenc
         ElasticInferenceServiceRequestMetadata requestMetadata,
         CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(requestMetadata, authApplier);
+        // We should add preferences for the authorization request too
+        super(requestMetadata, null, authApplier);
         this.uri = createUri(Objects.requireNonNull(url));
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }

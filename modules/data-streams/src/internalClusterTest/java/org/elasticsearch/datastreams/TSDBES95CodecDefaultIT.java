@@ -119,6 +119,35 @@ public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
         }
     }
 
+    public void testClusterSettingDisablesCodecForStandaloneIndex() throws Exception {
+        final String clusterKey = ES95CodecClusterSettingProvider.TIME_SERIES_ES95_CODEC_CLUSTER_ENABLED_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(clusterKey, false));
+        try {
+            final String indexName = "tsdb-standalone-" + randomIdentifier();
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("hostname"))
+                .put("index.time_series.start_time", "2024-01-01T00:00:00Z")
+                .put("index.time_series.end_time", "2025-01-01T00:00:00Z")
+                .build();
+            final String mapping = """
+                {
+                  "properties": {
+                    "@timestamp": { "type": "date" },
+                    "hostname":   { "type": "keyword", "time_series_dimension": true },
+                    "metric":     { "type": "long" }
+                  }
+                }
+                """;
+            assertAcked(indicesAdmin().prepareCreate(indexName).setSettings(settings).setMapping(mapping));
+
+            final Settings indexSettings = indexSettingsFor(indexName);
+            assertThat(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.get(indexSettings), equalTo(false));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(clusterKey));
+        }
+    }
+
     public void testSettingIsFinal() throws Exception {
         final String dataStreamName = randomDataStreamName();
         putTsdbTemplate(dataStreamName, Settings.EMPTY);

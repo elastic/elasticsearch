@@ -26,6 +26,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -7915,7 +7916,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 null,
                 new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
             ),
-            List.of()
+            List.of(),
+            MatcherWatchdog.noop()
         );
 
         return planner.plan("test", FoldContext.small(), plan);

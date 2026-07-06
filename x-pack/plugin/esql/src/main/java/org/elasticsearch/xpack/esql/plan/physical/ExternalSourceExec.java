@@ -933,15 +933,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             sb.append("[limit=").append(pushedLimit).append("]");
         }
         if (pushedTopN != null) {
-            sb.append("[topN=order:")
-                .append(pushedTopN.order())
-                .append(",asc:")
-                .append(pushedTopN.asc())
-                .append(",nullsFirst:")
-                .append(pushedTopN.nullsFirst())
-                .append(",limit:")
-                .append(pushedTopN.limit())
-                .append("]");
+            sb.append("[topN=keys:").append(pushedTopN.sortKeys().size()).append(",limit:").append(pushedTopN.limit()).append("]");
         }
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");

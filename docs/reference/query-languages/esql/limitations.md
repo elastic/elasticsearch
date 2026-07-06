@@ -160,6 +160,18 @@ in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command direct
 [`FROM`](/reference/query-languages/esql/commands/from.md) source command, or close enough to it.
 Otherwise, the query will fail with a validation error.
 
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+This restriction does not apply when `MATCH` targets an expression rather
+than an indexed field (for example, a column produced by `EVAL` or `STATS`).
+In that case, `MATCH` evaluates by scanning values row by row instead of
+using the index, and can appear anywhere in the query.
+When searching expressions:
+
+* [Function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+  (match query options) are not supported.
+* `MATCH` on an expression does not contribute to the relevance score when
+  using `METADATA _score`.
+
 For example, this query is valid:
 
 ```esql

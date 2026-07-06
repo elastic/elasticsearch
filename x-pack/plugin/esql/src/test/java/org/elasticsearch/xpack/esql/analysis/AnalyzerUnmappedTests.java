@@ -61,6 +61,7 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.nonLoadablePunkWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
@@ -835,6 +836,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             FROM languages_mixed_numerics, partial_message_types_lookup, (FROM clientips)
             | EVAL x = to_string(language_code_float)
             """));
+        // The raw language_code_float still flows to the default output as a non-loadable float PUNK (null where unmapped).
+        assertWarnings(nonLoadablePunkWarning("language_code_float", "float"));
     }
 
     public void testLoadModeToStringOverMultiTypeUnionFieldInSubqueryBranch() {
@@ -856,6 +859,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             FROM clientips, (FROM languages_mixed_numerics, partial_message_types_lookup)
             | EVAL x = to_string(language_code_float)
             """));
+        // The raw language_code_float still flows to the default output as a non-loadable float PUNK (null where unmapped).
+        assertWarnings(nonLoadablePunkWarning("language_code_float", "float"));
     }
 
     public void testLoadModeCrossBranchTextPunkResolvesToTextNotUnsupported() {
@@ -888,6 +893,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             ua -> ua.output()
                 .forEach(at -> assertThat(at.name() + " should not be UNSUPPORTED", at.dataType(), not(equalTo(DataType.UNSUPPORTED))))
         );
+        assertWarnings(nonLoadablePunkWarning("foo", "text"));
     }
 
     public void testLoadModeCrossBranchSmallNumericPunkResolvesToWidenedNotUnsupported() {
@@ -913,6 +919,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(foo.dataType(), equalTo(DataType.DOUBLE));
         plan.output()
             .forEach(at -> assertThat(at.name() + " should not be UNSUPPORTED", at.dataType(), not(equalTo(DataType.UNSUPPORTED))));
+        assertWarnings(nonLoadablePunkWarning("foo", "float"));
     }
 
     public void testSingleTypeLongUnmappedAutoCast() {
@@ -1186,12 +1193,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             }
         }
         assertThat(noConverterTypes, equalTo(NO_IMPLICIT_KEYWORD_CONVERTER_PUNK_TYPES));
+        // Every surviving single-type PUNK falls back to null where unmapped, so all of them warn.
+        assertWarnings(
+            noConverterTypes.stream()
+                .map(dt -> nonLoadablePunkWarning("test_field", dt.widenSmallNumeric().typeName()))
+                .toArray(String[]::new)
+        );
     }
 
     private static boolean supportsKeywordConversionUnderLoad(DataType mappedType) {
-        if (mappedType == DataType.TEXT) {
-            return false;
-        }
         if (mappedType == DataType.DENSE_VECTOR) {
             // #152184: implicit KEYWORD->DENSE_VECTOR is unsafe because source-backed unmapped vectors load as numeric arrays.
             return false;
@@ -1574,6 +1584,123 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
     }
 
+    public void testNonLoadablePunkWarnsWhenInOutputNotWhenExcluded() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        var kept = new EsField("kept_amd", DataType.AGGREGATE_METRIC_DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var excluded = new EsField("excluded_amd", DataType.AGGREGATE_METRIC_DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var esIndex = partialIndex(
+            Map.of("kept_amd", kept, "excluded_amd", excluded, "common", keywordField("common")),
+            Set.of("kept_amd", "excluded_amd")
+        );
+        var analyzer = analyzer().addIndex(esIndex);
+
+        var plan = analyzer.statement(setUnmappedLoad("FROM idx* | KEEP kept_amd, common"));
+        var keptAttr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("kept_amd")).toList());
+        assertThat(keptAttr.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
+        assertWarnings(nonLoadablePunkWarning("kept_amd", "aggregate_metric_double"));
+    }
+
+    public void testNonLoadablePunkWarnsUnderBareFrom() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        var plan = analyzer().addIndex(partialAmdAndCommonIndex()).statement(setUnmappedLoad("FROM idx*"));
+        var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_amd")).toList());
+        assertThat(attr.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
+        assertWarnings(nonLoadablePunkWarning("partial_amd", "aggregate_metric_double"));
+    }
+
+    public void testNonLoadablePunkWarnsUnderKeepWildcard() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        var plan = analyzer().addIndex(partialAmdAndCommonIndex()).statement(setUnmappedLoad("FROM idx* | KEEP *"));
+        var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_amd")).toList());
+        assertThat(attr.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
+        assertWarnings(nonLoadablePunkWarning("partial_amd", "aggregate_metric_double"));
+    }
+
+    public void testNonLoadablePunkNoWarnWhenExcludedByKeepWildcard() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        // partial_amd is excluded by the wildcard, so it never reaches the output and must not warn.
+        var plan = analyzer().addIndex(partialAmdAndCommonIndex()).statement(setUnmappedLoad("FROM idx* | KEEP comm*"));
+        var attr = EsqlTestUtils.singleValue(plan.output());
+        assertThat(attr.name(), equalTo("common"));
+    }
+
+    public void testNonLoadablePunkNoWarnWhenDropped() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        // A dropped PUNK, whether named explicitly or matched by a wildcard, leaves the output and must not warn.
+        for (String query : List.of("FROM idx* | DROP partial_amd", "FROM idx* | DROP partial*")) {
+            var plan = analyzer().addIndex(partialAmdAndCommonIndex()).statement(setUnmappedLoad(query));
+            var attr = EsqlTestUtils.singleValue(plan.output());
+            assertThat("query [" + query + "]", attr.name(), equalTo("common"));
+        }
+    }
+
+    public void testNonLoadablePunkDirectCastLeavesKeptRawFieldAsFallback() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        var field = "partial_amd";
+        var esIndex = partialIndex(Map.of(field, aggregateMetricDoubleField(field)), Set.of(field));
+        var plan = analyzer().addIndex(esIndex)
+            .statement(setUnmappedLoad("FROM idx* | EVAL x = " + field + "::keyword | KEEP x, " + field));
+        // The cast loads into a separate KEYWORD attribute (x); the kept raw field keeps its own identity, stays an
+        // AGGREGATE_METRIC_DOUBLE null fallback, and therefore still warns.
+        var x = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("x")).toList());
+        assertThat(x.dataType(), equalTo(DataType.KEYWORD));
+        var raw = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals(field)).toList());
+        assertThat(raw.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
+        assertTrue(
+            "Expected x to load unmapped rows from _source via a KEYWORD union",
+            unionFields(plan).stream().anyMatch(u -> u.getDataType() == DataType.KEYWORD && u.getUnmappedConversionExpression() != null)
+        );
+        assertWarnings(nonLoadablePunkWarning(field, "aggregate_metric_double"));
+    }
+
+    public void testNonLoadablePunkEvalSameNameOverrideDoesNotWarn() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        var plan = analyzer().addIndex(partialAmdAndCommonIndex())
+            .statement(setUnmappedLoad("FROM idx* | EVAL partial_amd = partial_amd :: keyword"));
+        var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_amd")).toList());
+        assertThat(attr.dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testNonLoadablePunkNoWarningWhenVerifierFails() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        var analyzer = analyzer().addIndex(partialAmdAndCommonIndex());
+        var e = expectThrows(VerificationException.class, () -> analyzer.statement(setUnmappedLoad("FROM idx* | WHERE common | LIMIT 10")));
+        assertThat(e.getMessage(), containsString("Condition expression needs to be boolean, found [KEYWORD]"));
+        assertWarnings();
+    }
+
     public void testLoadWithPartiallyMappedNonKeywordInSortAutoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
@@ -1797,10 +1924,19 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         Set<String> mappedIndices = Set.of("idx_mapped");
         Map<String, EsField> wrappedMapping = new HashMap<>(mapping);
         for (String fieldName : partialFieldNames) {
-            EsField field = wrappedMapping.get(fieldName);
-            wrappedMapping.put(fieldName, IndexResolver.wrapPartiallyUnmappedField(field, fieldName, fieldName, mappedIndices));
+            wrappedMapping.compute(
+                fieldName,
+                (k, field) -> IndexResolver.wrapPartiallyUnmappedField(field, fieldName, fieldName, mappedIndices)
+            );
         }
         return new EsIndex("idx*", wrappedMapping, Map.of("idx_mapped", IndexMode.STANDARD), Map.of(), Map.of());
+    }
+
+    private static EsIndex partialAmdAndCommonIndex() {
+        return partialIndex(
+            Map.of("partial_amd", aggregateMetricDoubleField("partial_amd"), "common", keywordField("common")),
+            Set.of("partial_amd")
+        );
     }
 
     private static EsField longField(String name) {
@@ -1832,6 +1968,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(attr.name(), equalTo("x"));
         assertThat(attr.dataType(), equalTo(DataType.KEYWORD));
         assertThat(unionFields(plan), Matchers.empty());
+        // The cast targets the renamed alias, not the field itself, so the unmapped leg is not loaded and partial_text falls back to null.
+        assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
     }
 
     private static final List<DataType> SMALL_NUMERIC_TYPES = List.of(
@@ -1887,6 +2025,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 ((AbstractConvertFunction) compact.getUnmappedConversionExpression()).field().dataType(),
                 is(DataType.KEYWORD)
             );
+            // The raw (uncast) field reaches the default output and falls back to null where unmapped.
+            assertWarnings(nonLoadablePunkWarning(smallTypeField, dt.typeName()));
         }
     }
 
@@ -1907,6 +2047,10 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     private static EsField textField(String name) {
         return new EsField(name, DataType.TEXT, emptyMap(), false, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static EsField aggregateMetricDoubleField(String name) {
+        return new EsField(name, DataType.AGGREGATE_METRIC_DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
     }
 
     private static List<UnionTypeEsField> unionFields(LogicalPlan plan) {

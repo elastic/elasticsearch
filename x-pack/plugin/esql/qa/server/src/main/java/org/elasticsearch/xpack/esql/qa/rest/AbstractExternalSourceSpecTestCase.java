@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.elasticsearch.Version;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -37,7 +38,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.ACCOUNT;
@@ -111,7 +111,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
             for (StorageBackend backend : BACKENDS) {
@@ -160,7 +160,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
             for (String extra : extraParams) {

@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.junit.Assert.assertNull;
@@ -22,10 +23,10 @@ public final class SpecReader {
 
     private SpecReader() {}
 
-    public static List<Object[]> readScriptSpec(List<URL> urls, Parser parser) throws Exception {
+    public static List<Object[]> readScriptSpec(List<URL> urls, Supplier<Parser> parserSupplier) throws Exception {
         List<Object[]> results = emptyList();
         for (URL url : urls) {
-            List<Object[]> specs = readURLSpec(url, parser);
+            List<Object[]> specs = readURLSpec(url, parserSupplier.get());
             if (results.isEmpty()) {
                 results = specs;
             } else {

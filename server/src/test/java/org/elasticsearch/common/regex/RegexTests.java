@@ -109,7 +109,6 @@ public class RegexTests extends ESTestCase {
     }
 
     public void testManyWildcardsStillMatch() {
-        // Not a pathological number of wildcard groups, so this should match same as always.
         final int wildcards = 500;
         final StringBuilder pattern = new StringBuilder();
         final StringBuilder str = new StringBuilder();
@@ -122,20 +121,22 @@ public class RegexTests extends ESTestCase {
         assertTrue(Regex.simpleMatch(pattern.toString(), str.toString()));
     }
 
-    public void testShallowWideBacktrackingIsRejected() {
-        // depth only guard doesn't catch shallow recursion depth (~15) but combinatorial backtracking
+    public void testShallowWideBacktrackingResolvesCorrectly() {
+        // Shape that caused combinatorial backtracking blowup in the old recursive implementation;
+        // the iterative algorithm resolves it in a single pass with no backtracking possible.
         final int groups = 15;
         final StringBuilder pattern = new StringBuilder();
         for (int i = 0; i < groups; i++) {
             pattern.append("*a");
         }
-        pattern.append('b'); // 'b' never occurs in str, forcing exhaustive backtracking before failing
+        pattern.append('b'); // 'b' never occurs in str, so the correct result is no match
         final String str = "a".repeat(groups * 2);
-        expectThrows(IllegalArgumentException.class, () -> Regex.simpleMatch(pattern.toString(), str));
+        assertFalse(Regex.simpleMatch(pattern.toString(), str));
     }
 
-    public void testExcessiveWildcardsRejectedGracefully() {
-        // A pathological number of wildcard groups should fail fast with a clean exception.
+    public void testVeryLongPatternMatchesCorrectly() {
+        // Shape that could exhaust the call stack in the old recursive implementation; the iterative
+        // algorithm has no recursion at all, so pattern length alone is never a problem.
         final int wildcards = 50_000;
         final StringBuilder pattern = new StringBuilder();
         final StringBuilder str = new StringBuilder();
@@ -143,7 +144,7 @@ public class RegexTests extends ESTestCase {
             pattern.append('a').append('*');
             str.append('a');
         }
-        expectThrows(IllegalArgumentException.class, () -> Regex.simpleMatch(pattern.toString(), str.toString()));
+        assertTrue(Regex.simpleMatch(pattern.toString(), str.toString()));
     }
 
     public void testSimpleMatch() {

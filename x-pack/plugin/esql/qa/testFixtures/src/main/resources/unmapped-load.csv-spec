@@ -2,8 +2,6 @@
 # No loading tests #
 ####################
 // Reproducer for #151525: a partially unmapped small numeric field is implicitly widened (short -> integer) without a cast.
-// FIXME(gal, nocommit): Add issue number. The [short] warning below is a known limitation: small numerics never implicitly load
-// because the KEYWORD converter is looked up for the raw type (short) before widening to integer, so [id] stays null where unmapped.
 partiallyUnmappedSmallNumericFieldIsWidened
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_small_numeric
@@ -15,6 +13,7 @@ FROM apps_short, partial_mapping_sample_data
 | SORT name DESC NULLS LAST
 | LIMIT 3
 ;
+// TODO This shouldn't warn. See #151525.
 warning:Field [id] of type [short] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 id:integer | name:keyword

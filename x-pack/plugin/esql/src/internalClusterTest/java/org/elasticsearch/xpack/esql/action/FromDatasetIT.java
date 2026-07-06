@@ -32,6 +32,7 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -626,6 +627,154 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(((Number) rows.get(0).get(maxIdx)).longValue(), equalTo(20L));
             assertThat(((Number) rows.get(0).get(minIdx)).longValue(), equalTo(1L));
         }
+    }
+
+    /**
+     * COUNT_DISTINCT across a heterogeneous FROM: exercises the intermediate-state pushdown
+     * ({@code ToPartial}/{@code FromPartial}) for the HLL sketch. The overlapping value (emp_no=3 in both
+     * sources) proves the branches' sketches are <b>unioned</b>, not summed.
+     *
+     * <p>ES {@code cd_idx}: emp_no 1,2,3. Dataset {@code heavy_ds}: emp_no 3,4,5.
+     * Distinct union = {1,2,3,4,5} = 5 (a naive sum of per-branch distincts would give 6).
+     */
+    public void testFromMixedCountDistinct() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("cd_idx").setMapping("emp_no", "type=integer"));
+        prepareIndex("cd_idx").setSource(Map.of("emp_no", 1)).get();
+        prepareIndex("cd_idx").setSource(Map.of("emp_no", 2)).get();
+        prepareIndex("cd_idx").setSource(Map.of("emp_no", 3)).get();
+        client().admin().indices().prepareRefresh("cd_idx").get();
+
+        Path fixture = createTempFile("cd-fixture-", ".csv");
+        Files.writeString(fixture, "emp_no:integer\n3\n4\n5\n");
+        putHeavyDataset(fixture);
+
+        try (var response = run(syncEsqlQueryRequest("FROM cd_idx, heavy_ds | STATS d = COUNT_DISTINCT(emp_no)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            int dIdx = columnIndex(response, "d");
+            assertThat(((Number) rows.get(0).get(dIdx)).longValue(), equalTo(5L));
+        }
+    }
+
+    /**
+     * Grouped COUNT_DISTINCT across a heterogeneous FROM: the grouped happy path for the intermediate-state
+     * pushdown: each branch builds a per-group HLL sketch ({@code ToPartial} BY dept) and the coordinator
+     * merges per group ({@code FromPartial}).
+     *
+     * <p>ES {@code cdgrp_idx}: (dept=1,emp_no=1),(dept=1,emp_no=2),(dept=2,emp_no=3).
+     * Dataset: (dept=1,emp_no=2),(dept=2,emp_no=4). Distinct emp_no per dept: dept=1 {1,2}=2; dept=2 {3,4}=2.
+     */
+    public void testFromMixedCountDistinctGrouped() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("cdgrp_idx").setMapping("dept", "type=integer", "emp_no", "type=integer"));
+        prepareIndex("cdgrp_idx").setSource(Map.of("dept", 1, "emp_no", 1)).get();
+        prepareIndex("cdgrp_idx").setSource(Map.of("dept", 1, "emp_no", 2)).get();
+        prepareIndex("cdgrp_idx").setSource(Map.of("dept", 2, "emp_no", 3)).get();
+        client().admin().indices().prepareRefresh("cdgrp_idx").get();
+
+        Path fixture = createTempFile("cdgrp-fixture-", ".csv");
+        Files.writeString(fixture, "dept:integer,emp_no:integer\n1,2\n2,4\n");
+        putHeavyDataset(fixture);
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM cdgrp_idx, heavy_ds | STATS d = COUNT_DISTINCT(emp_no) BY dept | SORT dept"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            int dIdx = columnIndex(response, "d");
+            int deptIdx = columnIndex(response, "dept");
+            assertThat(((Number) rows.get(0).get(deptIdx)).intValue(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(dIdx)).longValue(), equalTo(2L));
+            assertThat(((Number) rows.get(1).get(deptIdx)).intValue(), equalTo(2));
+            assertThat(((Number) rows.get(1).get(dIdx)).longValue(), equalTo(2L));
+        }
+    }
+
+    /**
+     * Grouped + filtered COUNT_DISTINCT across a heterogeneous FROM. The per-aggregate filter is pushed down into
+     * each branch on the {@code ToPartial} node, and the physical layer wraps the inner aggregator so each branch
+     * folds only the matching rows into its per-group intermediate state. This shape previously <b>hung the query</b>
+     * (the grouping path drives {@code ToPartial} through the mode-aware factory, which the plain filter wrapper does
+     * not implement); this test is the end-to-end regression guard that it now completes and is correct.
+     *
+     * <p>ES {@code cdg_idx}: (dept=1,emp_no=1,salary=10),(dept=1,emp_no=2,salary=20),(dept=2,emp_no=9,salary=5).
+     * Dataset: (dept=1,emp_no=2,salary=30),(dept=2,emp_no=8,salary=40).
+     * With salary>15: dept=1 distinct emp_no {2} = 1; dept=2 distinct emp_no {8} = 1.
+     */
+    public void testFromMixedCountDistinctGroupedWithFilter() throws Exception {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("cdg_idx")
+                .setMapping("dept", "type=integer", "emp_no", "type=integer", "salary", "type=integer")
+        );
+        prepareIndex("cdg_idx").setSource(Map.of("dept", 1, "emp_no", 1, "salary", 10)).get();
+        prepareIndex("cdg_idx").setSource(Map.of("dept", 1, "emp_no", 2, "salary", 20)).get();
+        prepareIndex("cdg_idx").setSource(Map.of("dept", 2, "emp_no", 9, "salary", 5)).get();
+        client().admin().indices().prepareRefresh("cdg_idx").get();
+
+        Path fixture = createTempFile("cdg-fixture-", ".csv");
+        Files.writeString(fixture, "dept:integer,emp_no:integer,salary:integer\n1,2,30\n2,8,40\n");
+        putHeavyDataset(fixture);
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM cdg_idx, heavy_ds | STATS d = COUNT_DISTINCT(emp_no) WHERE salary > 15 BY dept | SORT dept"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            int dIdx = columnIndex(response, "d");
+            int deptIdx = columnIndex(response, "dept");
+            assertThat(((Number) rows.get(0).get(deptIdx)).intValue(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(dIdx)).longValue(), equalTo(1L));
+            assertThat(((Number) rows.get(1).get(deptIdx)).intValue(), equalTo(2));
+            assertThat(((Number) rows.get(1).get(dIdx)).longValue(), equalTo(1L));
+        }
+    }
+
+    /**
+     * AVG grouped across a heterogeneous FROM: AVG is rewritten to SUM/COUNT before the pushdown rule, so it
+     * decomposes through the algebraic path. Verifies the end-to-end result is correct.
+     *
+     * <p>ES {@code avg_idx}: (dept=1,salary=100),(dept=2,salary=300). Dataset: (dept=1,salary=200),(dept=3,salary=400).
+     * AVG(salary) BY dept = {1 → 150}, {2 → 300}, {3 → 400}.
+     */
+    public void testFromMixedAvgGrouped() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("avg_idx").setMapping("dept", "type=integer", "salary", "type=integer"));
+        prepareIndex("avg_idx").setSource(Map.of("dept", 1, "salary", 100)).get();
+        prepareIndex("avg_idx").setSource(Map.of("dept", 2, "salary", 300)).get();
+        client().admin().indices().prepareRefresh("avg_idx").get();
+
+        Path fixture = createTempFile("avg-fixture-", ".csv");
+        Files.writeString(fixture, "dept:integer,salary:integer\n1,200\n3,400\n");
+        putHeavyDataset(fixture);
+
+        try (var response = run(syncEsqlQueryRequest("FROM avg_idx, heavy_ds | STATS a = AVG(salary) BY dept | SORT dept"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            int aIdx = columnIndex(response, "a");
+            int deptIdx = columnIndex(response, "dept");
+            assertThat(((Number) rows.get(0).get(deptIdx)).intValue(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(aIdx)).doubleValue(), closeTo(150.0, 1e-9));
+            assertThat(((Number) rows.get(1).get(deptIdx)).intValue(), equalTo(2));
+            assertThat(((Number) rows.get(1).get(aIdx)).doubleValue(), closeTo(300.0, 1e-9));
+            assertThat(((Number) rows.get(2).get(deptIdx)).intValue(), equalTo(3));
+            assertThat(((Number) rows.get(2).get(aIdx)).doubleValue(), closeTo(400.0, 1e-9));
+        }
+    }
+
+    /** Registers the {@code local_ds} data source and a {@code heavy_ds} CSV dataset pointing at {@code fixture}. */
+    private void putHeavyDataset(Path fixture) {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("heavy_ds", "local_ds", fixture.toUri().toString(), Map.of("format", "csv"));
+    }
+
+    private static int columnIndex(EsqlQueryResponse response, String name) {
+        return response.columns().stream().map(ColumnInfo::name).toList().indexOf(name);
     }
 
     /**

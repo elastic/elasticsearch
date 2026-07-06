@@ -5,6 +5,7 @@
 partiallyUnmappedSmallNumericFieldIsWidened
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_small_numeric
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM apps_short, partial_mapping_sample_data
@@ -12,6 +13,8 @@ FROM apps_short, partial_mapping_sample_data
 | SORT name DESC NULLS LAST
 | LIMIT 3
 ;
+// TODO This shouldn't warn. See #151525.
+warning:Field [id] of type [short] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 id:integer | name:keyword
 14         | mmmmm
@@ -43,12 +46,14 @@ count:long | integer:integer | short_int:integer
 partiallyUnmappedDenseVectorIsNotAutoCast
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_dense_vector
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM dense_vector, dense_vector_unmapped METADATA _index
 | KEEP _index, id, float_vector
 | SORT _index, id
 ;
+warning:Field [float_vector] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 _index: keyword       | id:l | float_vector:dense_vector
 dense_vector          | 0    | [1.0, 2.0, 3.0]
@@ -221,6 +226,7 @@ qstrTextMappedUnmappedAndNonExistentUnderLoad
 required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: qstr_function
 required_capability: fix_unmapped_fields_in_esrelation
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -228,6 +234,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
 | KEEP _index, doc_id, txt
 | SORT _index
 ;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 _index:keyword          | doc_id:keyword | txt:text
 text_state_mapped       | mapped-1       | William Faulkner
@@ -239,6 +246,7 @@ kqlTextMappedUnmappedAndNonExistentUnderLoad
 required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: kql_function
 required_capability: fix_unmapped_fields_in_esrelation
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -246,6 +254,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
 | KEEP _index, doc_id, txt
 | SORT _index
 ;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 _index:keyword          | doc_id:keyword | txt:text
 text_state_mapped       | mapped-1       | William Faulkner
@@ -257,6 +266,7 @@ matchTextMappedUnmappedAndNonExistentUnderLoad
 required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: match_function
 required_capability: fix_unmapped_fields_in_esrelation
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -264,6 +274,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
 | KEEP _index, doc_id, txt
 | SORT _index
 ;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 _index:keyword          | doc_id:keyword | txt:text
 text_state_mapped       | mapped-1       | William Faulkner
@@ -275,6 +286,7 @@ matchOperatorTextMappedUnmappedAndNonExistentUnderLoad
 required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: match_operator_colon
 required_capability: fix_unmapped_fields_in_esrelation
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -282,6 +294,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
 | KEEP _index, doc_id, txt
 | SORT _index
 ;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 _index:keyword          | doc_id:keyword | txt:text
 text_state_mapped       | mapped-1       | William Faulkner
@@ -291,6 +304,7 @@ text_state_unmapped     | unmapped-1     | null
 
 renameTextMappedUnmappedAndNonExistentUnderLoad
 required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -298,6 +312,7 @@ FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _in
 | KEEP _index, doc_id, renamed_txt
 | SORT _index, doc_id
 ;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 _index:keyword          | doc_id:keyword | renamed_txt:text
 text_state_mapped       | mapped-1       | William Faulkner
@@ -2382,6 +2397,7 @@ null           | null           | null          | null               | null     
 loadPartiallyUnmappedTextFieldAcrossForkBranches
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -2392,6 +2408,7 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 | STATS c=COUNT(*) BY _fork, gender, _index
 | SORT c DESC, _fork, gender, _index
 ;
+warning:Field [gender] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 c:long | _fork:keyword | gender:text | _index:keyword
 100    | fork1         | null        | employees_no_gender
@@ -2454,6 +2471,7 @@ fork2         | 42                     | 43
 loadUnmappedFieldsMultiIndexForkWithMvExpand
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM employees, languages METADATA _index
@@ -2462,6 +2480,8 @@ FROM employees, languages METADATA _index
 | KEEP emp_no, *language*, does*, _index
 | STATS c = COUNT(does_not_exist2)
 ;
+warning:Field [languages.byte] of type [byte] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [languages.short] of type [short] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 c:long
 0

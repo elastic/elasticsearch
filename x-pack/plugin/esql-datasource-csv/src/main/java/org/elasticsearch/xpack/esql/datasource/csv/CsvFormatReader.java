@@ -41,6 +41,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -4950,10 +4951,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return value;
         }
 
+        // The numeric parsers reuse the ES|QL :: cast engine (EsqlDataTypeConverter.stringToInt/
+        // stringToLong/stringToDouble) so a declared CSV read is value-identical to ::integer/::long/
+        // ::double and to the columnar readers: a fractional/scientific token parses and ROUNDS for the
+        // whole-number targets (e.g. "1.9" -> 2), where the former Integer/Long.parseLong rejected it as
+        // a policy error. The direct-block fast path still parses clean integers straight from the char
+        // buffer and only falls back here for non-integer tokens, so the hot path is unchanged. A failure
+        // stays a per-field policy error (lastFieldError + null), counted against the read's error budget.
         private Object tryParseInt(String value) {
             try {
-                return Integer.parseInt(value);
-            } catch (NumberFormatException e) {
+                return EsqlDataTypeConverter.stringToInt(value);
+            } catch (NumberFormatException | InvalidArgumentException e) {
                 lastFieldError = "Failed to parse CSV value [" + value + "] as [INTEGER]";
                 return null;
             }
@@ -4961,14 +4969,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private Object tryParseLong(String value) {
             try {
-                return Long.parseLong(value);
-            } catch (NumberFormatException e) {
+                return EsqlDataTypeConverter.stringToLong(value);
+            } catch (NumberFormatException | InvalidArgumentException e) {
                 lastFieldError = "Failed to parse CSV value [" + value + "] as [LONG]";
                 return null;
             }
         }
 
         private Object tryParseDouble(String value) {
+            // Double is NOT routed through the :: engine: it has no truncate-vs-round divergence, and
+            // stringToDouble (StringUtils.parseDouble) rejects NaN/Infinity that the direct-block fast path
+            // (NumberInput.parseDouble) accepts - routing here would break the direct-block parity contract.
             try {
                 return Double.parseDouble(value);
             } catch (NumberFormatException e) {

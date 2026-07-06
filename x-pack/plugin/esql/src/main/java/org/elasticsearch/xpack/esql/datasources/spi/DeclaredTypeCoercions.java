@@ -57,13 +57,14 @@ import java.util.function.IntFunction;
  * a {@code 1.5} token down to a truncated instant), while {@code supports(DOUBLE, DATETIME)} is
  * deliberately {@code false} because a fractional value has no unambiguous epoch reading:
  * <ul>
- *   <li><b>numeric targets</b> ({@code integer}/{@code long}/{@code double}): any numeric or
- *       string source, reusing the ES|QL {@code ::} cast engine ({@link #numericCoercer}) so a
- *       declared read is value-identical to an explicit {@code ::long}/{@code ::integer}/
- *       {@code ::double} — numeric strings parse (fractional and scientific accepted), whole-number
- *       targets <b>round</b> (not truncate), out-of-range throws {@link InvalidArgumentException}.
- *       {@code unsigned_long} keeps its {@code ::}-faithful {@link #coerceToUnsignedLong} twin
- *       (truncates toward zero, matching {@code ::unsigned_long});</li>
+ *   <li><b>whole-number targets</b> ({@code integer}/{@code long}): any numeric or string source,
+ *       reusing the ES|QL {@code ::} cast engine ({@link #numericCoercer}) so a declared read is
+ *       value-identical to an explicit {@code ::long}/{@code ::integer} — numeric strings parse
+ *       (fractional and scientific accepted), the result <b>rounds</b> (not truncates), out-of-range
+ *       throws {@link InvalidArgumentException}. {@code unsigned_long} keeps its {@code ::}-faithful
+ *       {@link #coerceToUnsignedLong} twin (truncates toward zero, matching {@code ::unsigned_long});
+ *       {@code double} keeps the mapper parse (no rounding divergence; finite-value semantics already
+ *       match {@code ::double});</li>
  *   <li><b>string targets</b> ({@code keyword}/{@code text}): any decodable scalar source —
  *       ingest stringifies the token (temporal sources render in the ISO form the default date
  *       format parses back; ip sources render as address text, never the encoded bytes). The
@@ -337,7 +338,11 @@ public final class DeclaredTypeCoercions {
                 case INTEGER, LONG, UNSIGNED_LONG, DOUBLE, BOOLEAN, KEYWORD, TEXT, IP -> String::valueOf;
                 default -> throw new IllegalArgumentException("cannot coerce from [" + from.typeName() + "] blocks");
             };
-            case LONG, INTEGER, DOUBLE -> numericCoercer(from, to);
+            case LONG, INTEGER -> numericCoercer(from, to);
+            // double has no truncate-vs-round divergence (the F-NUM fix is whole-number only), and its
+            // string parse matches ::double for every finite value; keep the mapper parse so the CSV
+            // direct-block double fast path stays byte-parity with this path (NaN/Infinity edge only).
+            case DOUBLE -> v -> NumberFieldMapper.NumberType.DOUBLE.parse(v, true);
             case UNSIGNED_LONG -> DeclaredTypeCoercions::coerceToUnsignedLong;
             case BOOLEAN -> v -> strictParseBoolean((String) v);
             case DATETIME -> fromString
@@ -366,25 +371,25 @@ public final class DeclaredTypeCoercions {
     }
 
     /**
-     * The per-value coercion into a whole/floating numeric target ({@code long}/{@code integer}/
-     * {@code double}), reusing the ES|QL {@code ::} cast engine so a declared read produces the
-     * identical value to an explicit {@code ::long} / {@code ::integer} / {@code ::double}. A string
-     * source runs the same {@link EsqlDataTypeConverter} string parse the cast uses (fractional and
-     * scientific tokens accepted; {@code long}/{@code integer} <b>round</b> via {@code safeDoubleToLong}/
-     * {@code safeToInt}); a numeric source runs {@link DataTypeConverter#converterFor(DataType, DataType)},
-     * the same core converter the cast dispatches to (so {@code double -> long} rounds, not truncates).
-     * Both throw {@link InvalidArgumentException} on an unparseable/overflowing value, which
-     * {@link #castBlock} routes through {@link #onCoercionFailure} (warn+null or fail-fast). Unlike the
-     * former {@code NumberType.parse} path this is not the ingest coercion — it is the query cast, which
-     * is what a user comparing a declared read to {@code ::} expects.
+     * The per-value coercion into a whole-number target ({@code long}/{@code integer}), reusing the
+     * ES|QL {@code ::} cast engine so a declared read produces the identical value to an explicit
+     * {@code ::long} / {@code ::integer}. A string source runs the same {@link EsqlDataTypeConverter}
+     * string parse the cast uses (fractional and scientific tokens accepted; the result <b>rounds</b>
+     * via {@code safeDoubleToLong}/{@code safeToInt}); a numeric source runs
+     * {@link DataTypeConverter#converterFor(DataType, DataType)}, the same core converter the cast
+     * dispatches to (so {@code double -> long} rounds, not truncates). Both throw
+     * {@link InvalidArgumentException} on an unparseable/overflowing value, which {@link #castBlock}
+     * routes through {@link #onCoercionFailure} (warn+null or fail-fast). Unlike the former
+     * {@code NumberType.parse} path this is not the ingest coercion — it is the query cast, which is
+     * what a user comparing a declared read to {@code ::} expects. ({@code double} is not routed here:
+     * it has no rounding divergence and its finite-value parse already matches {@code ::}.)
      */
     private static Function<Object, Object> numericCoercer(DataType from, DataType to) {
         if (from == DataType.KEYWORD || from == DataType.TEXT) {
             return switch (to) {
                 case LONG -> v -> EsqlDataTypeConverter.stringToLong((String) v);
                 case INTEGER -> v -> EsqlDataTypeConverter.stringToInt((String) v);
-                case DOUBLE -> v -> EsqlDataTypeConverter.stringToDouble((String) v);
-                default -> throw new IllegalArgumentException("numericCoercer handles long/integer/double, not [" + to.typeName() + "]");
+                default -> throw new IllegalArgumentException("numericCoercer handles long/integer, not [" + to.typeName() + "]");
             };
         }
         Converter converter = DataTypeConverter.converterFor(from, to);

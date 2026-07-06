@@ -14,11 +14,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator;
@@ -483,8 +483,7 @@ public class LookupExecutionPlanner {
             public Operator get(DriverContext driverContext) {
                 LookupDriverContext lookupCtx = (LookupDriverContext) driverContext;
                 EsPhysicalOperationProviders.ShardContext esShardCtx = lookupCtx.lookupShardContext().context();
-                IndexedByShardId<EsPhysicalOperationProviders.ShardContext> shardContexts =
-                    new IndexedByShardIdFromSingleton<>(esShardCtx);
+                IndexedByShardId<EsPhysicalOperationProviders.ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(esShardCtx);
                 ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(foldCtx, condition, layout, shardContexts);
                 return new FilterOperator(evalFactory.get(driverContext));
             }

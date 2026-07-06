@@ -39,7 +39,10 @@ public class PromqlBuiltinFunctionDefinitions {
      */
     public static final PromqlFunctionDefinition TOPK = PromqlFunctionDefinition.def()
         .acrossSeriesBinaryReduction(PromqlFunctionDefinition.K, (source, field, filter, window, k) -> field)
-        .description("Returns the `k` series with the highest values, keeping their full label set.")
+        .description(
+            "Returns `k` time series with the highest values, keeping their full label set. "
+                + "When used with `by`, `topk` ranks independently within each group."
+        )
         .example("topk(3, http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_5)
         .differenceFromPrometheus(

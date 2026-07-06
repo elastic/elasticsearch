@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "across_series_reduction",
   "name" : "topk",
-  "description" : "Returns the `k` series with the highest values, keeping their full label set.",
+  "description" : "Returns `k` time series with the highest values, keeping their full label set. When used with `by`, `topk` ranks independently within each group.",
   "signatures" : [
     {
       "params" : [

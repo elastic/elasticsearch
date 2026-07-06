@@ -18,32 +18,74 @@ public enum FunctionType {
     /**
      * Aggregates samples within each time series over a time window.
      * <p>
-     * Examples: rate(), irate(), increase(), delta(), avg_over_time(), sum_over_time(),
-     * first_over_time(), last_over_time(), present_over_time(), absent_over_time()
+     * Input: Range vector, with multiple samples per series over the requested window.
+     * <br>
+     * Output: Instant vector, with one aggregated value per series.
+     * <br>
+     * Grouping: Implicit by time series.
+     * <p>
+     * Examples:
+     * <ul>
+     * <li>Rate functions: rate(), irate(), increase(), delta(), idelta()</li>
+     * <li>Aggregations: avg_over_time(), sum_over_time(), max_over_time(), min_over_time(), count_over_time()</li>
+     * <li>Selection: first_over_time(), last_over_time()</li>
+     * <li>Presence: present_over_time(), absent_over_time()</li>
+     * </ul>
      */
     WITHIN_SERIES_AGGREGATION(PromqlDataType.RANGE_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Aggregates multiple time series at a single evaluation timestamp.
+     * Aggregates multiple time series for each evaluation interval.
      * <p>
-     * Examples: sum(), avg(), max(), min(), count(), stddev(), stdvar(), quantile(),
-     * group(), count_values()
+     * Input: Instant vector, with one sample per series for the interval.
+     * <br>
+     * Output: Instant vector, aggregated across series.
+     * <br>
+     * Grouping: Explicit by labels ({@code by}/{@code without}) or ungrouped.
+     * <p>
+     * Examples:
+     * <ul>
+     * <li>Basic: sum(), avg(), max(), min(), count()</li>
+     * <li>Statistical: stddev(), stdvar(), quantile()</li>
+     * <li>Grouping: group(), count_values()</li>
+     * </ul>
      */
     ACROSS_SERIES_AGGREGATION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
-     * Ranks multiple time series at a single evaluation timestamp and keeps a subset of them.
+     * Ranks multiple time series for each evaluation interval and keeps a subset of them.
+     * <p>
+     * Input: Instant vector, with one sample per series for the interval.
+     * <br>
+     * Output: Instant vector, with the selected input series.
+     * <br>
+     * Grouping: Explicit {@code by} partitions the ranking; selected series keep their full label identity.
      * <p>
      * Unlike aggregations, ranking functions preserve the full label identity of selected series.
-     * Examples: topk(), bottomk()
+     * <p>
+     * Examples:
+     * <ul>
+     * <li>Top-k: topk()</li>
+     * <li>Bottom-k: bottomk()</li>
+     * </ul>
      */
     ACROSS_SERIES_REDUCTION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
      * Transforms each sample independently without changing vector cardinality.
      * <p>
-     * Examples: abs(), ceil(), floor(), round(), sqrt(), exp(), ln(), log2(), log10(),
-     * sin(), cos(), clamp(), clamp_max(), clamp_min(), sgn()
+     * Input: Instant vector.
+     * <br>
+     * Output: Instant vector with the same label sets.
+     * <br>
+     * Grouping: none; each sample is transformed independently.
+     * <p>
+     * Examples:
+     * <ul>
+     * <li>Math: abs(), ceil(), floor(), round(), sqrt(), exp(), ln(), log2(), log10()</li>
+     * <li>Trigonometry: sin(), cos()</li>
+     * <li>Clamping/sign: clamp(), clamp_max(), clamp_min(), sgn()</li>
+     * </ul>
      */
     VALUE_TRANSFORMATION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 

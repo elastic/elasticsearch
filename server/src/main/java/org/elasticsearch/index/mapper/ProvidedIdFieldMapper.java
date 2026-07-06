@@ -116,6 +116,10 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         public String contentType() {
             return CONTENT_TYPE;
         }
+
+        Mode getMode() {
+            return mode.getValue();
+        }
     }
 
     /**

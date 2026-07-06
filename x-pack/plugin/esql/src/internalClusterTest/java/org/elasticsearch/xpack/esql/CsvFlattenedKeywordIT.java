@@ -1325,8 +1325,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
     public static final java.util.List<String> EXPECTED_ERRORS = java.util.List.of(
         "ABSENT_OVER_TIME:field is missing",
-        "BUCKET:from is missing",
-        "BUCKET:to is missing",
         "CIDR_MATCH:blockX is missing",
         "CLAMP:field is missing",
         "CLAMP:max is missing",
@@ -1338,7 +1336,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "COUNT_DISTINCT_OVER_TIME:field is missing",
         "COUNT_OVER_TIME:field is missing",
         "DATE_DIFF:unit is missing",
-        "DECAY:scale is missing",
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
         "FIRST_OVER_TIME:field is missing",
@@ -1361,7 +1358,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
         "MATCH_OPERATOR:query is missing",
-        "MATCH_PHRASE:query is missing",
         "MAX_OVER_TIME:field is missing",
         "MIN_OVER_TIME:field is missing",
         // MV_SORT's order argument must be foldable (MvSort#resolveType calls Validations.isFoldable
@@ -1382,14 +1378,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "RLIKE:pattern is missing",
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
-        "TBUCKET:from is missing", // THESE are constant and https://github.com/elastic/elasticsearch/pull/151930 should let us skip it
-        "TBUCKET:to is missing",
         "TEXT_EMBEDDING:text is missing",
-        "TOP:order is missing",
-        "TOP_SNIPPETS:query is missing",
         "TO_CARTESIANPOINT:field is missing",
         "TO_CARTESIANSHAPE:field is missing",
-        "TO_DATEPERIOD:field is missing",
         "TO_DATETIME:field is missing",
         "TO_DATE_NANOS:field is missing",
         "TO_DATE_RANGE:field is missing",
@@ -1399,13 +1390,8 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "TO_GEOHEX:field is missing",
         "TO_GEOSHAPE:field is missing",
         "TO_GEOTILE:field is missing",
-        "TO_TIMEDURATION:field is missing",
         "TO_UNSIGNED_LONG:field is missing",
         "TO_VERSION:field is missing",
-        "TRANGE:end_time is missing",
-        "TRANGE:start_time_or_offset is missing",
-        "TSTEP:from is missing",
-        "TSTEP:to is missing",
         "WITHOUT:dimension is missing"
     );
 
@@ -1465,7 +1451,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                                     Map<String, Object> hint = (Map<String, Object>) params.get(i).get("hint");
                                     if (hint != null) {
                                         Object kind = hint.get("kind");
-                                        if ("entity".equals(kind) || "aggregation".equals(kind)) {
+                                        if ("entity".equals(kind) || "aggregation".equals(kind) || "constant".equals(kind)) {
                                             continue;
                                         }
                                     }

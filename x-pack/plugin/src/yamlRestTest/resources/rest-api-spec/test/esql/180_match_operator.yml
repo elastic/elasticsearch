@@ -128,7 +128,7 @@ setup:
   - match: { error.reason: "/Unknown.column.\\[something\\]/" }
 
 ---
-"match on eval column":
+"match on non-mapped column":
   - requires:
       capabilities:
         - method: POST
@@ -150,7 +150,7 @@ setup:
   - match: { values.1.0: 6 }
 
 ---
-"match on overwritten column":
+"match on overwritten column with non-mapped value":
   - requires:
       capabilities:
         - method: POST

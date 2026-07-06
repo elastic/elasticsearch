@@ -105,12 +105,18 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             // it) until close() releases it; there is no new page to decode, so nothing to release.
             return null;
         }
-        // Per-page release. parquet-mr consumes pages strictly sequentially: the sole caller,
-        // PageColumnReader#loadNextPage, finishes decoding the current page's bytes (its
-        // remainder-skip runs off the current value/def-level buffers) BEFORE calling readPage()
-        // for the next page, and reassigns those buffers to the new page immediately after. So the
-        // previously returned page's decompress buffer is dead the moment the consumer asks for the
-        // next page. Release it now rather than parking every page's buffer until close(): otherwise
+        // Per-page release. Both consumers of this reader ask for pages strictly sequentially and
+        // are done with the current page's bytes before they ask for the next one:
+        // - PageColumnReader#loadNextPage (flat columns) runs its remainder-skip off the current
+        // value/def-level buffers BEFORE calling readPage(), and reassigns those buffers to the
+        // new page immediately after;
+        // - parquet-mr's ColumnReaderBase (list columns, via ColumnReadStoreImpl) calls readPage()
+        // only from checkRead() once the current page is fully consumed, re-initializes all of
+        // its level/value readers from the new page before any further read, and its consumers
+        // (ParquetColumnDecoding#readListRow) copy each value to the heap before the consume()
+        // that can cross a page boundary.
+        // So the previously returned page's decompress buffer is dead the moment the consumer asks
+        // for the next page. Release it now rather than parking every page's buffer until close(): otherwise
         // the live decompressed working set per (column, reader) is O(uncompressed column chunk)
         // instead of O(one page), and — one such reader per projected column, up to 48 concurrent
         // read streams — the accumulation climbs until the OS OOM-killer takes the node, invisible
@@ -351,7 +357,9 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         if (closed.compareAndSet(false, true) == false) {
             return;
         }
-        // Drop the cached dictionary BytesInput; it aliases an ArrowBuf we're about to release.
+        // Drop the cached dictionary page reference. It is deliberately heap-backed (see
+        // readDictionaryPage), so this is reference hygiene, not a buffer-lifetime requirement —
+        // in particular it is NOT in livePageBuffers and is never touched by the per-page release.
         cachedDictionaryPage = null;
         // Release the tail page's buffer(s). Every earlier page was already released by the
         // readPage() call that superseded it, so at most one page's buffer remains here.

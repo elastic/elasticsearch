@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationData
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.CompositeAggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 
 public interface DataExtractorFactory {
@@ -50,6 +51,7 @@ public interface DataExtractorFactory {
         final Client searchClient = cloudCredentialManager.wrapClient(client, datafeed.getCloudInternalCredential());
 
         final boolean hasAggs = datafeed.hasAggregations();
+        final boolean hasEsqlQuery = datafeed.getEsqlQuery() != null;
         final boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
         ActionListener<DataExtractorFactory> factoryHandler = listener.delegateFailureAndWrap(
             (l, factory) -> l.onResponse(
@@ -137,7 +139,9 @@ public interface DataExtractorFactory {
             }
         });
 
-        if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
+        if (hasEsqlQuery) {
+            EsqlDataExtractorFactory.create(client, datafeed, job, timingStatsReporter, factoryHandler);
+        } else if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
             // If we have remote indices in the data feed, don't bother checking for rollup support
             // Rollups + CCS is not supported
             getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());

@@ -77,6 +77,13 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGG
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION;
@@ -162,6 +169,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final ParseField INDEXES = new ParseField("indexes");
     public static final ParseField INDICES = new ParseField("indices");
     public static final ParseField QUERY = new ParseField("query");
+    public static final ParseField ESQL_QUERY = new ParseField("esql_query");
     public static final ParseField SCROLL_SIZE = new ParseField("scroll_size");
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
     public static final ParseField AGGS = new ParseField("aggs");
@@ -238,6 +246,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             (p, c) -> QueryProvider.fromXContent(p, ignoreUnknownFields, DATAFEED_CONFIG_QUERY_BAD_FORMAT),
             QUERY
         );
+        parser.declareString(Builder::setEsqlQuery, ESQL_QUERY);
         parser.declareObject(Builder::setAggregationsSafe, (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields), AGGREGATIONS);
         parser.declareObject(Builder::setAggregationsSafe, (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields), AGGS);
         parser.declareObject(Builder::setScriptFields, (p, c) -> {
@@ -297,6 +306,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     private final List<String> indices;
     private final QueryProvider queryProvider;
+    private final String esqlQuery;
     private final AggProvider aggProvider;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
@@ -311,6 +321,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     @Nullable
     private final PersistedCloudCredential cloudInternalCredential;
 
+    private static final TransportVersion ML_DATAFEED_ESQL_QUERY = TransportVersion.fromName("ml_datafeed_esql_query");
+
     private DatafeedConfig(
         String id,
         String jobId,
@@ -318,6 +330,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         TimeValue frequency,
         List<String> indices,
         QueryProvider queryProvider,
+        String esqlQuery,
         AggProvider aggProvider,
         List<SearchSourceBuilder.ScriptField> scriptFields,
         Integer scrollSize,
@@ -336,6 +349,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.frequency = frequency;
         this.indices = indices == null ? null : Collections.unmodifiableList(indices);
         this.queryProvider = queryProvider == null ? null : new QueryProvider(queryProvider);
+        this.esqlQuery = esqlQuery;
         this.aggProvider = aggProvider == null ? null : new AggProvider(aggProvider);
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
@@ -343,8 +357,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         setHeaders(headers);
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
-        this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
-        this.runtimeMappings = Collections.unmodifiableMap(runtimeMappings);
+        this.indicesOptions = esqlQuery == null ? ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS) : indicesOptions;
+        this.runtimeMappings = runtimeMappings == null ? null : Collections.unmodifiableMap(runtimeMappings);
         this.projectRouting = projectRouting;
         this.cloudInternalCredential = cloudInternalCredential;
     }
@@ -360,7 +374,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.indices = null;
         }
         // each of these writables are version aware
-        this.queryProvider = QueryProvider.fromStream(in);
+        if (in.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
+            this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
+            this.esqlQuery = in.readOptionalString();
+        } else {
+            this.queryProvider = QueryProvider.fromStream(in);
+            this.esqlQuery = null;
+        }
         // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
@@ -374,7 +394,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.headers = in.readImmutableMap(StreamInput::readString);
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalVInt();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        indicesOptions = esqlQuery == null ? IndicesOptions.readIndicesOptions(in) : null;
         runtimeMappings = in.readGenericMap();
         if (in.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
             this.projectRouting = in.readOptionalString();
@@ -487,6 +507,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     }
 
     public Optional<Tuple<TransportVersion, String>> minRequiredTransportVersion() {
+        if (esqlQuery != null) {
+            return Optional.of(
+                new Tuple<>(ML_DATAFEED_ESQL_QUERY, "datafeed uses esql_query which requires transport version ml_datafeed_esql_query")
+            );
+        }
         return Optional.empty();
     }
 
@@ -536,6 +561,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     public Map<String, Object> getQuery() {
         return queryProvider == null ? null : queryProvider.getQuery();
+    }
+
+    public String getEsqlQuery() {
+        return esqlQuery;
     }
 
     /**
@@ -692,8 +721,21 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             out.writeBoolean(false);
         }
 
-        // Each of these writables are version aware
-        queryProvider.writeTo(out); // never null
+        if (out.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
+            out.writeOptionalWriteable(queryProvider);
+            out.writeOptionalString(esqlQuery);
+        } else {
+            if (esqlQuery != null) {
+                throw new IllegalStateException(
+                    "cannot serialize datafeed ["
+                        + id
+                        + "] with an ES|QL query to a node older than ["
+                        + ML_DATAFEED_ESQL_QUERY.toReleaseVersion()
+                        + "]"
+                );
+            }
+            queryProvider.writeTo(out);
+        }
         // This writes a boolean to the stream, if true, it sends the stream to the `writeTo` method
         out.writeOptionalWriteable(aggProvider);
 
@@ -708,7 +750,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         out.writeMap(headers, StreamOutput::writeString);
         out.writeOptionalWriteable(delayedDataCheckConfig);
         out.writeOptionalVInt(maxEmptySearches);
-        indicesOptions.writeIndicesOptions(out);
+        if (indicesOptions != null) {
+            indicesOptions.writeIndicesOptions(out);
+        }
         out.writeGenericMap(runtimeMappings);
         if (out.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
             out.writeOptionalString(projectRouting);
@@ -742,29 +786,40 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (chunkingConfig != null) {
                 builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
             }
-            builder.startObject(INDICES_OPTIONS.getPreferredName());
-            indicesOptions.toXContent(builder, params);
-            builder.endObject();
+            if (indicesOptions != null) {
+                builder.startObject(INDICES_OPTIONS.getPreferredName());
+                indicesOptions.toXContent(builder, params);
+                builder.endObject();
+            }
         } else { // Don't include random defaults or unnecessary defaults in export
             if (queryDelay.equals(defaultRandomQueryDelay(jobId)) == false) {
                 builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
             }
             // Indices options are a pretty advanced feature, better to not include them if they are just the default ones
-            if (indicesOptions.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
+            if (indicesOptions != null && indicesOptions.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
                 builder.startObject(INDICES_OPTIONS.getPreferredName());
                 indicesOptions.toXContent(builder, params);
                 builder.endObject();
             }
             // Removing the default chunking config as it is determined by OTHER fields
-            if (chunkingConfig != null && chunkingConfig.equals(defaultChunkingConfig(aggProvider)) == false) {
+            if (chunkingConfig != null && chunkingConfig.equals(defaultChunkingConfig(aggProvider, esqlQuery)) == false) {
                 builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
             }
         }
-        builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
+        if (queryProvider != null) {
+            builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
+        }
+
+        if (esqlQuery != null) {
+            builder.field(ESQL_QUERY.getPreferredName(), esqlQuery);
+        }
+
         if (frequency != null) {
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
-        builder.field(INDICES.getPreferredName(), indices);
+        if (indices != null) {
+            builder.field(INDICES.getPreferredName(), indices);
+        }
         if (aggProvider != null) {
             builder.field(AGGREGATIONS.getPreferredName(), aggProvider.getAggs());
         }
@@ -775,14 +830,16 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             }
             builder.endObject();
         }
-        builder.field(SCROLL_SIZE.getPreferredName(), scrollSize);
+        if (scrollSize != null) {
+            builder.field(SCROLL_SIZE.getPreferredName(), scrollSize);
+        }
         if (delayedDataCheckConfig != null) {
             builder.field(DELAYED_DATA_CHECK_CONFIG.getPreferredName(), delayedDataCheckConfig);
         }
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
-        if (runtimeMappings.isEmpty() == false) {
+        if (runtimeMappings != null && runtimeMappings.isEmpty() == false) {
             builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
         if (projectRouting != null) {
@@ -802,8 +859,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return TimeValue.timeValueMillis(delayMillis);
     }
 
-    private static ChunkingConfig defaultChunkingConfig(@Nullable AggProvider aggProvider) {
-        if (aggProvider == null || aggProvider.getParsedAggs() == null) {
+    private static ChunkingConfig defaultChunkingConfig(@Nullable AggProvider aggProvider, @Nullable String esqlQuery) {
+        if (esqlQuery != null || aggProvider == null || aggProvider.getParsedAggs() == null) {
             return ChunkingConfig.newAuto();
         } else {
             AggregationBuilder histogram = DatafeedConfigUtils.getHistogramAggregation(
@@ -844,6 +901,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             && Objects.equals(this.queryDelay, that.queryDelay)
             && Objects.equals(this.indices, that.indices)
             && Objects.equals(this.queryProvider, that.queryProvider)
+            && Objects.equals(this.esqlQuery, that.esqlQuery)
             && Objects.equals(this.scrollSize, that.scrollSize)
             && Objects.equals(this.aggProvider, that.aggProvider)
             && Objects.equals(this.scriptFields, that.scriptFields)
@@ -866,6 +924,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             queryDelay,
             indices,
             queryProvider,
+            esqlQuery,
             scrollSize,
             aggProvider,
             scriptFields,
@@ -939,17 +998,18 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private String jobId;
         private TimeValue queryDelay;
         private TimeValue frequency;
-        private List<String> indices = Collections.emptyList();
-        private QueryProvider queryProvider = QueryProvider.defaultQuery();
+        private List<String> indices;
+        private QueryProvider queryProvider;
+        private String esqlQuery;
         private AggProvider aggProvider;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
-        private Integer scrollSize = DEFAULT_SCROLL_SIZE;
+        private Integer scrollSize;
         private ChunkingConfig chunkingConfig;
         private Map<String, String> headers = Collections.emptyMap();
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         private Integer maxEmptySearches;
         private IndicesOptions indicesOptions;
-        private Map<String, Object> runtimeMappings = Collections.emptyMap();
+        private Map<String, Object> runtimeMappings;
         private String projectRouting;
         private PersistedCloudCredential cloudInternalCredential;
 
@@ -966,8 +1026,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.jobId = config.jobId;
             this.queryDelay = config.queryDelay;
             this.frequency = config.frequency;
-            this.indices = new ArrayList<>(config.indices);
+            this.indices = config.indices == null ? null : new ArrayList<>(config.indices);
             this.queryProvider = config.queryProvider == null ? null : new QueryProvider(config.queryProvider);
+            this.esqlQuery = config.esqlQuery;
             this.aggProvider = config.aggProvider == null ? null : new AggProvider(config.aggProvider);
             this.scriptFields = config.scriptFields == null ? null : new ArrayList<>(config.scriptFields);
             this.scrollSize = config.scrollSize;
@@ -976,7 +1037,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
             this.maxEmptySearches = config.getMaxEmptySearches();
             this.indicesOptions = config.indicesOptions;
-            this.runtimeMappings = new HashMap<>(config.runtimeMappings);
+            this.runtimeMappings = config.runtimeMappings == null ? null : new HashMap<>(config.runtimeMappings);
             this.projectRouting = config.projectRouting;
             this.cloudInternalCredential = config.cloudInternalCredential;
         }
@@ -992,7 +1053,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 this.indices = null;
             }
             // each of these writables are version aware
-            this.queryProvider = QueryProvider.fromStream(in);
+            if (in.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
+                this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
+                this.esqlQuery = in.readOptionalString();
+            } else {
+                this.queryProvider = QueryProvider.fromStream(in);
+                this.esqlQuery = null;
+            }
             // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
             this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
@@ -1032,7 +1099,20 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             }
 
             // Each of these writables are version aware
-            queryProvider.writeTo(out); // never null
+            if (out.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
+                out.writeOptionalWriteable(queryProvider);
+                out.writeOptionalString(esqlQuery);
+            } else {
+                if (esqlQuery != null) {
+                    throw new IllegalStateException(
+                        "cannot serialize datafeed builder with an ES|QL query to a node older than ["
+                            + ML_DATAFEED_ESQL_QUERY.toReleaseVersion()
+                            + "]"
+                    );
+                }
+                // Pre-ESQL nodes assume a non-null query; substitute the historical match_all default.
+                (queryProvider == null ? QueryProvider.defaultQuery() : queryProvider).writeTo(out);
+            }
             // This writes a boolean to the stream, if true, it sends the stream to the `writeTo` method
             out.writeOptionalWriteable(aggProvider);
 
@@ -1071,6 +1151,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 && Objects.equals(frequency, builder.frequency)
                 && Objects.equals(indices, builder.indices)
                 && Objects.equals(queryProvider, builder.queryProvider)
+                && Objects.equals(esqlQuery, builder.esqlQuery)
                 && Objects.equals(aggProvider, builder.aggProvider)
                 && Objects.equals(scriptFields, builder.scriptFields)
                 && Objects.equals(scrollSize, builder.scrollSize)
@@ -1093,6 +1174,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 frequency,
                 indices,
                 queryProvider,
+                esqlQuery,
                 aggProvider,
                 scriptFields,
                 scrollSize,
@@ -1149,6 +1231,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         public Builder setQueryProvider(QueryProvider queryProvider) {
             this.queryProvider = ExceptionsHelper.requireNonNull(queryProvider, QUERY.getPreferredName());
+            return this;
+        }
+
+        public Builder setEsqlQuery(String esqlQuery) {
+            this.esqlQuery = esqlQuery;
             return this;
         }
 
@@ -1238,6 +1325,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             return this.indicesOptions;
         }
 
+        public String getEsqlQuery() {
+            return this.esqlQuery;
+        }
+
         public Builder setRuntimeMappings(Map<String, Object> runtimeMappings) {
             this.runtimeMappings = ExceptionsHelper.requireNonNull(
                 runtimeMappings,
@@ -1271,20 +1362,30 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (MlStrings.isValidId(id) == false) {
                 throw ExceptionsHelper.badRequestException(getMessage(INVALID_ID, ID.getPreferredName(), id));
             }
-            if (indices == null || indices.isEmpty() || indices.contains("")) {
+            if (esqlQuery == null && (indices == null || indices.isEmpty() || indices.contains(""))) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
             }
 
             validateScriptFields();
-            RuntimeMappingsValidator.validate(runtimeMappings);
+            setDefaultRuntimeMappings();
+            if (runtimeMappings != null) {
+                RuntimeMappingsValidator.validate(runtimeMappings);
+            }
+            if (esqlQuery != null) {
+                validateEsqlDatafeedConfig();
+            }
+
+            setDefaultScrollSize();
+            setDefaultQuery();
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
-            if (indicesOptions == null) {
+            if (indicesOptions == null && esqlQuery == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
             }
 
-            if (indicesOptions.crossProjectModeOptions().resolveIndexExpression()
+            if (indicesOptions != null
+                && indicesOptions.crossProjectModeOptions().resolveIndexExpression()
                 && CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled() == false) {
                 throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
             }
@@ -1308,6 +1409,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 frequency,
                 indices,
                 queryProvider,
+                esqlQuery,
                 aggProvider,
                 scriptFields,
                 scrollSize,
@@ -1328,6 +1430,30 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             }
             if (scriptFields != null && scriptFields.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
+            }
+        }
+
+        void validateEsqlDatafeedConfig() {
+            if (indices != null) {
+                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES));
+            }
+            if (queryProvider != null) {
+                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY));
+            }
+            if (aggProvider != null) {
+                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS));
+            }
+            if (scriptFields != null) {
+                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS));
+            }
+            if (runtimeMappings != null) {
+                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS));
+            }
+            if (scrollSize != null) {
+                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE));
+            }
+            if (indicesOptions != null) {
+                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS));
             }
         }
 
@@ -1431,9 +1557,27 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             }
         }
 
+        private void setDefaultRuntimeMappings() {
+            if (esqlQuery == null && runtimeMappings == null) {
+                runtimeMappings = Collections.emptyMap();
+            }
+        }
+
+        private void setDefaultScrollSize() {
+            if (esqlQuery == null && scrollSize == null) {
+                scrollSize = DEFAULT_SCROLL_SIZE;
+            }
+        }
+
+        private void setDefaultQuery() {
+            if (esqlQuery == null && queryProvider == null) {
+                queryProvider = QueryProvider.defaultQuery();
+            }
+        }
+
         private void setDefaultChunkingConfig() {
             if (chunkingConfig == null) {
-                chunkingConfig = defaultChunkingConfig(aggProvider);
+                chunkingConfig = defaultChunkingConfig(aggProvider, esqlQuery);
             }
         }
 

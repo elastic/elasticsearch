@@ -144,7 +144,8 @@ public class DatafeedJobBuilder {
                 job,
                 datafeedConfig,
                 parentTaskAssigningClient,
-                xContentRegistry
+                xContentRegistry,
+                dataExtractorFactory
             );
             CrossClusterSearchStats crossClusterSearchStats = new CrossClusterSearchStats(
                 () -> java.time.Instant.ofEpochMilli(currentTimeSupplier.get()),
@@ -194,6 +195,10 @@ public class DatafeedJobBuilder {
 
     private void checkRemoteIndicesAreAvailable(DatafeedConfig datafeedConfig) {
         if (remoteClusterClient == false) {
+            // ESQL datafeeds have no indices list
+            if (datafeedConfig.getIndices() == null) {
+                return;
+            }
             List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfig.getIndices());
             if (remoteIndices.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(

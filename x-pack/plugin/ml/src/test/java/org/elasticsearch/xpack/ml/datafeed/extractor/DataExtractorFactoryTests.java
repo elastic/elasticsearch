@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 import org.junit.Before;
 
@@ -646,6 +647,96 @@ public class DataExtractorFactoryTests extends ESTestCase {
             client,
             cloudCredentialManager,
             datafeedConfig.build(),
+            null,
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            timingStatsReporter,
+            listener
+        );
+    }
+
+    public void testCreateDataExtractorFactoryGivenEsqlQueryRoutesToChunkedEsqlFactory() {
+        // An ES|QL datafeed bypasses rollup/agg/scroll selection and routes to EsqlDataExtractorFactory,
+        // which is then wrapped in ChunkedDataExtractorFactory (ESQL defaults to ChunkingConfig.newAuto()).
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+
+        DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("esql-datafeed", "foo");
+        datafeedConfigBuilder.setEsqlQuery("FROM myIndex");
+        // ChunkingConfig.newAuto() is the default for ESQL; set it explicitly for clarity
+        datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newAuto());
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
+        );
+
+        DataExtractorFactory.create(
+            client,
+            cloudCredentialManager,
+            datafeedConfig,
+            null,
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            timingStatsReporter,
+            listener
+        );
+    }
+
+    public void testCreateDataExtractorFactoryGivenEsqlQueryWithChunkingOffRoutesToBareEsqlFactory() {
+        // When chunking_config.mode is off, the EsqlDataExtractorFactory should be returned unwrapped.
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+
+        DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("esql-datafeed", "foo");
+        datafeedConfigBuilder.setEsqlQuery("FROM myIndex");
+        datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newOff());
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(EsqlDataExtractorFactory.class))
+        );
+
+        DataExtractorFactory.create(
+            client,
+            cloudCredentialManager,
+            datafeedConfig,
+            null,
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            timingStatsReporter,
+            listener
+        );
+    }
+
+    public void testCreateDataExtractorFactoryGivenEsqlQueryBypassesRollupCheck() {
+        // ES|QL datafeeds skip the GetRollupIndexCaps check entirely.
+        // Verify that even with rollup capabilities configured, the ESQL path is taken.
+        givenAggregatableRollup("myField", "max", 5, "termField");
+
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+
+        DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("esql-datafeed", "foo");
+        datafeedConfigBuilder.setEsqlQuery("FROM myIndex");
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            // Should still be ChunkedDataExtractorFactory wrapping EsqlDataExtractorFactory,
+            // not a RollupDataExtractorFactory or AggregationDataExtractorFactory.
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
+        );
+
+        DataExtractorFactory.create(
+            client,
+            cloudCredentialManager,
+            datafeedConfig,
             null,
             jobBuilder.build(new Date()),
             xContentRegistry(),

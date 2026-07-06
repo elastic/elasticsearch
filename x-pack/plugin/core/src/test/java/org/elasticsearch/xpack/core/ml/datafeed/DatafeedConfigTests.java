@@ -74,6 +74,13 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1082,6 +1089,199 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
+    }
+
+    public void testBuild_GivenEsqlQueryWithDslQueryThrows() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setParsedQuery(QueryBuilders.termQuery("field", "value"));
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY));
+    }
+
+    public void testBuild_GivenEsqlQueryWithAggregationsThrows() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        builder.setParsedAggregations(
+            AggregatorFactories.builder().addAggregator(AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime))
+        );
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS));
+    }
+
+    public void testBuild_GivenEsqlQueryWithScriptFieldsThrows() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setScriptFields(
+            Collections.singletonList(new SearchSourceBuilder.ScriptField("computed", mockScript("doc['x'].value"), false))
+        );
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS));
+    }
+
+    public void testBuild_GivenEsqlQueryWithRuntimeMappingsThrows() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("type", "keyword");
+        Map<String, Object> runtimeFields = new HashMap<>();
+        runtimeFields.put("computed_field", settings);
+        builder.setRuntimeMappings(runtimeFields);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS));
+    }
+
+    public void testBuild_GivenEsqlQueryWithCustomScrollSizeThrows() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setScrollSize(500);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE));
+    }
+
+    public void testBuild_GivenEsqlQueryWithChunkingOffSucceeds() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setChunkingConfig(ChunkingConfig.newOff());
+
+        DatafeedConfig config = builder.build();
+        assertThat(config.getChunkingConfig(), equalTo(ChunkingConfig.newOff()));
+    }
+
+    public void testDefaults_GivenEsqlQuery() {
+        DatafeedConfig config = createEsqlDatafeedBuilder().build();
+        assertThat(config.getEsqlQuery(), equalTo("FROM logs"));
+        assertThat(config.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
+        assertThat(config.getScrollSize(), nullValue());
+        assertThat(config.getQuery(), nullValue());
+        assertThat(config.getParsedQuery(xContentRegistry()), nullValue());
+        assertThat(config.getRuntimeMappings(), nullValue());
+        assertThat(config.getIndicesOptions(), nullValue());
+        assertThat(config.getIndices(), nullValue());
+        assertThat(config.getQueryDelay().seconds(), greaterThanOrEqualTo(60L));
+        assertThat(config.getQueryDelay().seconds(), lessThan(120L));
+        assertThat(config.getDelayedDataCheckConfig(), equalTo(DelayedDataCheckConfig.defaultDelayedDataCheckConfig()));
+        assertThat(config.getMaxEmptySearches(), nullValue());
+        assertThat(config.getFrequency(), nullValue());
+    }
+
+    public void testToXContent_GivenEsqlQuery() throws IOException {
+        DatafeedConfig config = createEsqlDatafeedBuilder().build();
+
+        BytesReference bytes = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        DatafeedConfig parsedConfig = DatafeedConfig.STRICT_PARSER.apply(parser(bytes), null).build();
+
+        assertEquals(config, parsedConfig);
+    }
+
+    public void testSerialization_GivenEsqlQuery() throws IOException {
+        DatafeedConfig original = createEsqlDatafeedBuilder().build();
+        assertThat(original.getQuery(), nullValue());
+        assertThat(original.getIndices(), nullValue());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            original.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                DatafeedConfig roundTripped = new DatafeedConfig(in);
+                assertThat(roundTripped.getEsqlQuery(), equalTo(original.getEsqlQuery()));
+                assertThat(roundTripped.getId(), equalTo(original.getId()));
+                assertThat(roundTripped.getQuery(), nullValue());
+                assertThat(roundTripped.getIndices(), nullValue());
+            }
+        }
+    }
+
+    public void testBuild_GivenEsqlQueryWithIndicesThrows() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setIndices(Collections.singletonList("logs"));
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES));
+    }
+
+    public void testBuild_GivenEsqlQueryWithIndicesOptionsThrows() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS));
+    }
+
+    public void testBuild_GivenEsqlQueryWithManualChunkingSucceeds() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        ChunkingConfig chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueHours(1));
+        builder.setChunkingConfig(chunkingConfig);
+
+        DatafeedConfig config = builder.build();
+        assertThat(config.getChunkingConfig(), equalTo(chunkingConfig));
+    }
+
+    public void testBuild_GivenEsqlQueryWithAllConfigurableValuesSucceeds() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        TimeValue queryDelay = TimeValue.timeValueSeconds(90);
+        TimeValue frequency = TimeValue.timeValueMinutes(5);
+        ChunkingConfig chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueHours(1));
+        DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(2));
+        int maxEmptySearches = 42;
+
+        builder.setQueryDelay(queryDelay);
+        builder.setFrequency(frequency);
+        builder.setChunkingConfig(chunkingConfig);
+        builder.setDelayedDataCheckConfig(delayedDataCheckConfig);
+        builder.setMaxEmptySearches(maxEmptySearches);
+
+        DatafeedConfig config = builder.build();
+
+        assertThat(config.getEsqlQuery(), equalTo("FROM logs"));
+        assertThat(config.getQueryDelay(), equalTo(queryDelay));
+        assertThat(config.getFrequency(), equalTo(frequency));
+        assertThat(config.getChunkingConfig(), equalTo(chunkingConfig));
+        assertThat(config.getDelayedDataCheckConfig(), equalTo(delayedDataCheckConfig));
+        assertThat(config.getMaxEmptySearches(), equalTo(maxEmptySearches));
+    }
+
+    /**
+     * Verifies that serializing an ESQL datafeed {@link DatafeedConfig.Builder} to a stream targeting a
+     * pre-ESQL transport version throws an {@link IllegalStateException} rather than silently
+     * substituting a match-all query. Datafeeds with an ES|QL query are rejected at PUT time in a
+     * mixed-version cluster, so this code path should never be reached in practice; the exception
+     * is a last-resort safety net.
+     */
+    public void testSerialization_GivenEsqlQueryBuilderToOldVersionThrows() throws IOException {
+        DatafeedConfig.Builder original = createEsqlDatafeedBuilder();
+        // The version immediately before ml_datafeed_esql_query was added
+        TransportVersion preEsqlVersion = TransportVersion.fromName("histogram_blocks_multivalue_support");
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(preEsqlVersion);
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> original.writeTo(out));
+            assertThat(e.getMessage(), containsString("ES|QL query"));
+        }
+    }
+
+    /**
+     * Verifies that serializing a built {@link DatafeedConfig} with an ES|QL query to a stream targeting
+     * a pre-ESQL transport version throws an {@link IllegalStateException} rather than NPE-ing on a null
+     * {@code queryProvider}. This path is unreachable in a correctly guarded cluster but must fail
+     * loudly rather than silently or with an uninformative NPE.
+     */
+    public void testSerialization_GivenEsqlQueryConfigToOldVersionThrows() throws IOException {
+        DatafeedConfig original = createEsqlDatafeedBuilder().build();
+        TransportVersion preEsqlVersion = TransportVersion.fromName("histogram_blocks_multivalue_support");
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(preEsqlVersion);
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> original.writeTo(out));
+            assertThat(e.getMessage(), containsString("ES|QL query"));
+        }
+    }
+
+    private DatafeedConfig.Builder createEsqlDatafeedBuilder() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setEsqlQuery("FROM logs");
+        return builder;
     }
 
     @Override

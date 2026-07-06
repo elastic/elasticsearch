@@ -304,7 +304,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = invocation.getArgument(1);
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
     }
 
     private static ClusterState mockClusterStateWithNoTasks() {
@@ -386,7 +386,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -463,7 +463,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -753,7 +753,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -815,7 +815,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<

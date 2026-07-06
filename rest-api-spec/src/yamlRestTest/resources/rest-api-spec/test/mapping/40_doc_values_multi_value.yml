@@ -1,16 +1,11 @@
 ---
 "doc_values object form rejected outside columnar mode":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.extended_form_only_in_columnar"]
       reason: "doc_values object form is rejected outside columnar index modes starting with this feature"
 
   - do:
-      catch: /cannot configure \[doc_values\] as an object/
+      catch: /unsupported doc_values configuration/
       indices.create:
         index: test_non_columnar_rejected
         body:

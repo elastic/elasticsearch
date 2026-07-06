@@ -278,8 +278,8 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                     fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", multiValue).endObject())
                 )
             );
-            assertThat(e.getMessage(), containsString("cannot configure [doc_values] as an object"));
-            assertThat(e.getMessage(), containsString("only available in columnar index modes"));
+            assertThat(e.getMessage(), containsString("unsupported doc_values configuration"));
+            assertThat(e.getMessage(), containsString("supported values: [true, false]"));
         }
     }
 
@@ -296,8 +296,8 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                     fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", nullability).endObject())
                 )
             );
-            assertThat(e.getMessage(), containsString("cannot configure [doc_values] as an object"));
-            assertThat(e.getMessage(), containsString("only available in columnar index modes"));
+            assertThat(e.getMessage(), containsString("unsupported doc_values configuration"));
+            assertThat(e.getMessage(), containsString("supported values: [true, false]"));
         }
     }
 

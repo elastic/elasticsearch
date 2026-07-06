@@ -1623,13 +1623,12 @@ public abstract class FieldMapper extends Mapper {
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
-            if (value instanceof Map<?, ?> valueMap && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                if (supportsExtendedDocValues == false) {
+            if (value instanceof Map<?, ?> valueMap) {
+                if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || supportsExtendedDocValues == false) {
                     throw new MapperParsingException(
-                        "field ["
+                        "unsupported doc_values configuration for field ["
                             + field
-                            + "] cannot configure [doc_values] as an object: "
-                            + "this is only available in columnar index modes (columnar, logsdb_columnar)"
+                            + "] in non-columnar index; supported values: [true, false]"
                     );
                 }
                 if (valueMap.containsKey(multiValueParameter.name)) {

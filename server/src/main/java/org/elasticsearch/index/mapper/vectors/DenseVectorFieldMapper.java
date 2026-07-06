@@ -642,7 +642,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * originals rather than the unit-normalized stored representation; see
      * {@link DenseVectorQuery.Floats#rawScored}.
      */
-    sealed interface ResolvedVector permits ResolvedVector.Floats, ResolvedVector.Bytes {
+    sealed interface ResolvedVector permits ResolvedVector.Floats, ResolvedVector.Bytes, ResolvedVector.Bits {
 
         /** Builds the indexed exact-KNN query: codec-bound when {@code useQuantized}, else raw-scored. */
         Query createExactKnnQuery(String field, VectorSimilarityFunction function, boolean useQuantized);
@@ -674,15 +674,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
         }
 
-        // isBit lets callers that must treat bit vectors differently (e.g. never raw-scoring them with a
-        // VectorSimilarityFunction) use a `when isBit` guard on this single case, instead of a separate sealed
-        // variant — callers that don't care (doc values, where BYTE and BIT behave identically) just ignore it.
-        record Bytes(byte[] values, boolean isBit) implements ResolvedVector {
+        record Bytes(byte[] values) implements ResolvedVector {
             @Override
             public Query createExactKnnQuery(String field, VectorSimilarityFunction function, boolean useQuantized) {
-                // BIT has no separate quantized representation — codec scorer is always raw Hamming distance,
-                // so it must never take the raw-VectorSimilarityFunction path that BYTE otherwise would.
-                return (isBit || useQuantized)
+                return useQuantized
                     ? DenseVectorQuery.Bytes.codecScored(values, field)
                     : DenseVectorQuery.Bytes.rawScored(values, field, function);
             }
@@ -694,7 +689,24 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 ElementType elementType,
                 IndexVersion indexVersion
             ) {
-                return new DenseVectorQuery.DocValuesBytes(values, field, function, isBit, indexVersion);
+                return new DenseVectorQuery.DocValuesBytes(values, field, function, false, indexVersion);
+            }
+        }
+
+        record Bits(byte[] values) implements ResolvedVector {
+            @Override
+            public Query createExactKnnQuery(String field, VectorSimilarityFunction function, boolean useQuantized) {
+                return DenseVectorQuery.Bytes.codecScored(values, field);
+            }
+
+            @Override
+            public Query createDocValuesExactKnnQuery(
+                String field,
+                VectorSimilarityFunction function,
+                ElementType elementType,
+                IndexVersion indexVersion
+            ) {
+                return new DenseVectorQuery.DocValuesBytes(values, field, function, true, indexVersion);
             }
         }
     }
@@ -902,7 +914,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = ESVectorUtil.dotProduct(vector, vector);
                 checkVectorMagnitude(effectiveSimilarity, errorElementsAppender(vector), squaredMagnitude);
             }
-            return new ResolvedVector.Bytes(vector, elementType() == ElementType.BIT);
+            return elementType() == ElementType.BIT ? new ResolvedVector.Bits(vector) : new ResolvedVector.Bytes(vector);
         }
 
         @Override
@@ -3453,7 +3465,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     sliceEnabled,
                     sliceRouting
                 );
-                case ResolvedVector.Bytes(byte[] vector, boolean isBit) when isBit -> createKnnBitQuery(
+                case ResolvedVector.Bits(byte[] vector) -> createKnnBitQuery(
                     vector,
                     k,
                     numCands,
@@ -3463,7 +3475,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     knnSearchStrategy,
                     hnswEarlyTermination
                 );
-                case ResolvedVector.Bytes(byte[] vector, boolean isBit) -> createKnnByteQuery(
+                case ResolvedVector.Bytes(byte[] vector) -> createKnnByteQuery(
                     vector,
                     k,
                     numCands,

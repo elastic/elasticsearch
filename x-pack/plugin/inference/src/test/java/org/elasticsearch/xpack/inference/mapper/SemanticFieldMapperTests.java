@@ -41,7 +41,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,11 +63,6 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
 
     public SemanticFieldMapperTests(License.OperationMode operationMode) {
         super(operationMode);
-    }
-
-    @BeforeClass
-    public static void checkFeatureFlag() {
-        assumeTrue("Semantic field feature flag is not enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
     }
 
     @Override
@@ -415,20 +409,6 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
     @Override
     protected IndexVersion boostNotAllowedIndexVersion() {
         return IndexVersions.SEMANTIC_FIELD_TYPE;
-    }
-
-    @Override
-    // TODO: remove this override later when SemanticFieldMapper implements supportsParsingObject()
-    public final void testSupportsParsingObject() throws IOException {
-        DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
-        Object sampleValueForDocument = getSampleObjectForDocument();
-        assertThat(sampleValueForDocument, instanceOf(Map.class));
-        SourceToParse source = source(builder -> {
-            builder.field("field");
-            builder.value(sampleValueForDocument);
-        });
-        ParsedDocument doc = mapper.parse(source);
-        assertNotNull(doc);
     }
 
     public void testCustomInferenceIdIsMandatory() {

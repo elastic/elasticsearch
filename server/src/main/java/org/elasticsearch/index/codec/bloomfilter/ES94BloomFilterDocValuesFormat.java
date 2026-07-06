@@ -1050,17 +1050,20 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     static boolean isAllZeros(RandomAccessInput in) throws IOException {
         final long len = in.length();
         final long longEnd = len & ~7L;   // largest multiple of 8 <= len
-        long acc = 0L;
+        long val = 0L;
         long pos = 0;
         for (; pos < longEnd; pos += Long.BYTES) {
-            acc |= in.readLong(pos);      // endianness irrelevant: 0 is 0 either way
-            if (acc != 0L) {
+            val = in.readLong(pos);      // endianness irrelevant: 0 is 0 either way
+            if (val != 0L) {
                 return false;
             }
         }
         for (; pos < len; pos++) {
-            acc |= in.readByte(pos);
+            val = in.readByte(pos);
+            if (val != 0) {
+                return false;
+            }
         }
-        return acc == 0L;
+        return true;
     }
 }

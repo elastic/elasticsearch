@@ -617,7 +617,8 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testLookupJoinScope0() {
+    // FROM-union (UnionAll) of two remotes merges on the coordinator, so the LOOKUP JOIN above it resolves locally.
+    public void testLookupJoinAfterFromUnionOfRemotesScopedLocal() {
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
@@ -639,7 +640,8 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testLookupJoinScope1() {
+    // Plain comma-separated multi-cluster FROM (not a union) scopes the LOOKUP JOIN to every referenced remote.
+    public void testLookupJoinAfterMultiClusterFromScopedBothRemotes() {
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
@@ -662,7 +664,8 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testLookupJoinScope2() {
+    // Single remote FROM scopes the LOOKUP JOIN to that one remote cluster.
+    public void testLookupJoinAfterSingleRemoteFrom() {
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
@@ -681,7 +684,8 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testLookupJoinScope3() {
+    // A single-branch FROM subquery (no real branching) behaves the same as a plain single remote FROM.
+    public void testLookupJoinAfterSingleBranchFromSubquery() {
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
@@ -700,7 +704,8 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testLookupJoinScope4() {
+    // LOOKUP JOIN inside a WHERE IN subquery whose own source is a FROM-union of two remotes resolves locally, with a local outer FROM.
+    public void testLookupJoinInSubqueryFromUnionScopedLocalWithLocalOuter() {
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
@@ -722,7 +727,8 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testLookupJoinScope5() {
+    // Same as above but the outer FROM is remote too - still scoped local, showing the outer cluster doesn't leak into the subquery.
+    public void testLookupJoinInSubqueryFromUnionScopedLocalWithRemoteOuter() {
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
@@ -745,7 +751,8 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testLookupJoinScope6() {
+    // A ROW-sourced WHERE IN subquery contributes nothing to scope; the LOOKUP JOIN after it is scoped to the outer cluster only.
+    public void testLookupJoinAfterWhereInRowSubqueryScopedToOuter() {
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
@@ -764,7 +771,8 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testLookupJoinScope7() {
+    // A LOOKUP JOIN after a FORK resolves locally regardless of the outer remote cluster, since FORK branches merge on the coordinator.
+    public void testLookupJoinAfterForkScopedLocal() {
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
@@ -779,6 +787,57 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                 """, false)) {
                 assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(0L))));
             }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    // Combines the two previous scopes: LOOKUP JOINs inside each FORK branch's subquery are scoped to remote-b, while the
+    // LOOKUP JOIN placed after the FORK is scoped local.
+    public void testLookupJoinsInsideForkBranchesAndAfterFork() {
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM cluster-a:logs-*
+                | FORK (WHERE v IN (FROM remote-b:logs-* | LOOKUP JOIN values_lookup ON v == lookup_key | KEEP v))
+                       (WHERE v IN (FROM remote-b:logs-* | LOOKUP JOIN values_lookup ON v == lookup_key | KEEP v))
+                | LOOKUP JOIN values_lookup ON v == lookup_key
+                | SORT v
+                | KEEP v
+                | WHERE v <= 1
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(0L), List.of(1L), List.of(1L))));
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    // Same idea as the previous test, but the FORK is nested inside the WHERE IN subquery instead of sitting directly after FROM.
+    // This makes the outer LOOKUP JOIN remote (its left side reads from cluster-a:logs-*), and the remote-join check walks into
+    // the subquery's own branch too, where it finds the coordinator-only FORK and rejects the query.
+    public void testLookupJoinAfterWhereInSubqueryWithForkFailsRemoteCheck() {
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM cluster-a:logs-*
+                | WHERE v IN (FROM remote-b:logs-*
+                                | FORK (WHERE v IN (FROM remote-b:logs-* | LOOKUP JOIN values_lookup ON v == lookup_key | KEEP v))
+                                       (WHERE v IN (FROM remote-b:logs-* | LOOKUP JOIN values_lookup ON v == lookup_key | KEEP v))
+                                | KEEP v
+                              )
+                | LOOKUP JOIN values_lookup ON v == lookup_key
+                | SORT v
+                | KEEP v
+                | WHERE v <= 1
+                """, false));
+            assertThat(ex.getMessage(), containsString("LOOKUP JOIN with remote indices can't be executed after [FORK"));
         } finally {
             clearSkipUnavailable(3);
         }

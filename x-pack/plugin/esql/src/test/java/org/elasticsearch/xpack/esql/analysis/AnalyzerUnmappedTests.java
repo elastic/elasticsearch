@@ -836,6 +836,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             FROM languages_mixed_numerics, partial_message_types_lookup, (FROM clientips)
             | EVAL x = to_string(language_code_float)
             """));
+        // The raw language_code_float still flows to the default output as a non-loadable float PUNK (null where unmapped).
+        assertWarnings(nonLoadablePunkWarning("language_code_float", "float"));
     }
 
     public void testLoadModeToStringOverMultiTypeUnionFieldInSubqueryBranch() {
@@ -857,6 +859,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             FROM clientips, (FROM languages_mixed_numerics, partial_message_types_lookup)
             | EVAL x = to_string(language_code_float)
             """));
+        // The raw language_code_float still flows to the default output as a non-loadable float PUNK (null where unmapped).
+        assertWarnings(nonLoadablePunkWarning("language_code_float", "float"));
     }
 
     public void testLoadModeCrossBranchTextPunkResolvesToTextNotUnsupported() {
@@ -889,6 +893,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             ua -> ua.output()
                 .forEach(at -> assertThat(at.name() + " should not be UNSUPPORTED", at.dataType(), not(equalTo(DataType.UNSUPPORTED))))
         );
+        assertWarnings(nonLoadablePunkWarning("foo", "text"));
     }
 
     public void testLoadModeCrossBranchSmallNumericPunkResolvesToWidenedNotUnsupported() {
@@ -914,6 +919,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(foo.dataType(), equalTo(DataType.DOUBLE));
         plan.output()
             .forEach(at -> assertThat(at.name() + " should not be UNSUPPORTED", at.dataType(), not(equalTo(DataType.UNSUPPORTED))));
+        assertWarnings(nonLoadablePunkWarning("foo", "float"));
     }
 
     public void testSingleTypeLongUnmappedAutoCast() {
@@ -1693,6 +1699,21 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var plan = analyzer().addIndex(partialAmdAndCommonIndex()).statement(setUnmappedLoad("FROM idx* | EVAL partial_amd = \"x\""));
         var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_amd")).toList());
         assertThat(attr.dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testNonLoadablePunkNoWarningWhenVerifierFails() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
+        );
+
+        // partial_amd is an observed non-loadable PUNK, so its warning is collected while analyzing the (resolved) plan. The query then
+        // fails the verifier because WHERE needs a boolean condition. Since emission is deferred until the verifier passes, no warning
+        // must be produced. The explicit LIMIT avoids the unrelated implicit-limit warning.
+        var analyzer = analyzer().addIndex(partialAmdAndCommonIndex());
+        var e = expectThrows(VerificationException.class, () -> analyzer.statement(setUnmappedLoad("FROM idx* | WHERE common | LIMIT 10")));
+        assertThat(e.getMessage(), containsString("Condition expression needs to be boolean, found [KEYWORD]"));
+        assertWarnings();
     }
 
     public void testLoadWithPartiallyMappedNonKeywordInSortAutoCast() {

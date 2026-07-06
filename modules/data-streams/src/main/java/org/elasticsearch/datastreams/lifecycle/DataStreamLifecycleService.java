@@ -1561,14 +1561,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         // "saving" the index name here so we don't capture the entire request
         String targetIndex = deleteIndexRequest.indices()[0];
         logger.trace("Data stream lifecycle issues request to delete index [{}]", targetIndex);
-        ProjectClient projectClient = client.projectClient(projectId);
-        projectClient.admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
+        client.projectClient(projectId).admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (acknowledgedResponse.isAcknowledged()) {
                     logger.info("Data stream lifecycle successfully deleted index [{}] due to {}", targetIndex, reason);
                     if (backingSnapshot != null) {
-                        deleteBackingSnapshot(backingSnapshot, targetIndex, projectClient);
+                        deleteBackingSnapshot(backingSnapshot, targetIndex);
                     }
                 } else {
                     logger.trace(
@@ -1587,7 +1586,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     // index was already deleted, treat this as a success
                     errorStore.clearRecordedError(projectId, targetIndex);
                     if (backingSnapshot != null) {
-                        deleteBackingSnapshot(backingSnapshot, targetIndex, projectClient);
+                        deleteBackingSnapshot(backingSnapshot, targetIndex);
                     }
                     listener.onResponse(null);
                     return;
@@ -1610,13 +1609,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Failures are logged but do not fail the retention run: any snapshot left behind here is reclaimed later by the periodic
      * data stream lifecycle frozen cleanup's orphaned snapshot scan.
      */
-    private void deleteBackingSnapshot(FrozenBackingSnapshot backingSnapshot, String sourceIndex, Client projectClient) {
+    private void deleteBackingSnapshot(FrozenBackingSnapshot backingSnapshot, String sourceIndex) {
         DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             backingSnapshot.repository(),
             backingSnapshot.snapshotName()
         );
-        projectClient.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new ActionListener<>() {
+        client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info(

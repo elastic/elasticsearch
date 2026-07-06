@@ -258,25 +258,6 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         assertArrayEquals(expectedScores, bulkScores, delta);
     }
 
-    public void testByteBulk8() {
-        assumeTrue(notSupportedMsg(), supported());
-        assumeTrue("Heap segments required", supportsHeapSegments());
-        final int dims = size;
-        var values = new byte[8][];
-        var segments = new MemorySegment[8];
-        for (int i = 0; i < 8; i++) {
-            values[i] = randomByteArrayOfLength(dims);
-            segments[i] = MemorySegment.ofArray(values[i]);
-        }
-        int queryOrd = randomInt(7);
-        float[] expectedScores = new float[8];
-        ScalarOperations.bulk(function, values[queryOrd], values, expectedScores);
-
-        float[] bulkScores = new float[8];
-        similarityBulk8(segments, MemorySegment.ofArray(values[queryOrd]), dims, MemorySegment.ofArray(bulkScores));
-        assertArrayEquals(expectedScores, bulkScores, delta);
-    }
-
     // Verifies that individual offset values are bounds-checked against the data segment.
     public void testBulkOffsetsOutOfRange() {
         assumeTrue(notSupportedMsg(), supported());
@@ -425,12 +406,4 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         }
     }
 
-    void similarityBulk8(MemorySegment[] as, MemorySegment query, int dims, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT8, VectorSimilarityFunctions.Operation.BULK8)
-                .invokeExact(as[0], as[1], as[2], as[3], as[4], as[5], as[6], as[7], query, dims, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
-    }
 }

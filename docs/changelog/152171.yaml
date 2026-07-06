@@ -2,7 +2,7 @@ area: PromQL
 highlight:
   body: |-
     You can now query exponential_histogram fields with PromQL syntax for native histograms.
-    The supported functions are `increase()`, `sum()`, `histogram_quantile()`, `histogram_avg()`, `histogram_count()` and `histogram_avg()`.
+    The supported functions are `increase()`, `sum()`, `histogram_quantile()`, `histogram_avg()`, `histogram_count()` and `histogram_sum()`.
   notable: true
 issues:
  - 150074

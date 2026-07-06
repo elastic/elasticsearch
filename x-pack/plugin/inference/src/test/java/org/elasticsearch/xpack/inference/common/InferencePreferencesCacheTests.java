@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
 public class InferencePreferencesCacheTests extends ESTestCase {
 
     public void testCacheMiss_FetchesAndCaches() {
-        var regionPolicy = new RegionPolicy(null, List.of(new CspRegion("aws", "eu-west-1")), null);
+        var regionPolicy = new RegionPolicy(null, List.of(new CspRegion("aws", "eu-west-1")));
         var fetchCount = new AtomicInteger();
         var cache = createCache(listener -> {
             fetchCount.incrementAndGet();
@@ -99,7 +99,7 @@ public class InferencePreferencesCacheTests extends ESTestCase {
     }
 
     public void testInvalidateLocal_ForcesRefetch() {
-        var regionPolicy = new RegionPolicy(List.of("eu"), null, null);
+        var regionPolicy = new RegionPolicy(List.of("eu"), null);
         var fetchCount = new AtomicInteger();
         var cache = createCache(listener -> {
             fetchCount.incrementAndGet();
@@ -147,7 +147,7 @@ public class InferencePreferencesCacheTests extends ESTestCase {
     }
 
     public void testCacheDisabled_AlwaysFetchesAndNeverCaches() {
-        var regionPolicy = new RegionPolicy(List.of("eu"), null, null);
+        var regionPolicy = new RegionPolicy(List.of("eu"), null);
         var fetchCount = new AtomicInteger();
         var cache = new InferencePreferencesCache(
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,

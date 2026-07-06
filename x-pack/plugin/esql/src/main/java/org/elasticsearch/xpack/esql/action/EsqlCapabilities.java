@@ -931,7 +931,7 @@ public class EsqlCapabilities {
          * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns, gated behind the
          * {@code SET column_metadata=true} setting. Without the setting, non-approximation metadata is omitted.
          */
-        COLUMN_METADATA_BUCKET_V2(Build.current().isSnapshot()),
+        COLUMN_METADATA_BUCKET_V2,
 
         /**
          * Allow mixed numeric types in coalesce

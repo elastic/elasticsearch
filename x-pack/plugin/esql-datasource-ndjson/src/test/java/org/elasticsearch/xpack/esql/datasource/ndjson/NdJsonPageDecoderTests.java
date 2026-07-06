@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Targeted unit tests for {@link NdJsonPageDecoder}'s keyword-decode path. Sibling
@@ -502,7 +503,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 "test://declared-date",
                 new NdJsonReaderCounters(),
-                Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z")
+                Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"),
+                Set.of()
             )
         ) {
             try (Page page = decoder.decodePage()) {

@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -61,6 +63,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -1145,7 +1148,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     iterator.next();
                 }
             });
-            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to the declared type [long]"));
+            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [long]"));
         }
     }
 
@@ -1205,6 +1208,127 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
             assertEquals(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
             assertTrue(page.getBlock(0).isNull(1)); // Boolean ignored
+        }
+    }
+
+    public void testDeclaredCrossKindBooleanFailsUnderStrict() throws IOException {
+        // A boolean in a DECLARED long column is an unsupported cross-kind token with no coercion. On a declared
+        // column it must route through the error policy (strict fails) rather than silently reading as null — the
+        // declared-type invariant that no declared type may silently read as null.
+        String ndjson = "{\"n\": true}\n";
+        var object = new BytesStorageObject("file:///xkind.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory).withDeclaredTypeColumns(Set.of("n"));
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("n"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            });
+            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [long]"));
+        }
+    }
+
+    public void testInferredCrossKindBooleanStaysSilentNull() throws IOException {
+        // An inferred (not declared) long column keeps the pre-existing schema-on-read tolerance: a boolean on a
+        // later line is silently null, unchanged. Mirrors testTypeDifferentFromSchema.
+        String ndjson = """
+            {"n": 1}
+            {"n": true}
+            """;
+        var settings = Settings.builder().put(NdJsonFormatReader.SCHEMA_SAMPLE_SIZE_SETTING, 1).build();
+        var reader = new NdJsonFormatReader(settings, blockFactory);
+        var object = new BytesStorageObject("file:///inferred.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("n"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            var n = page.getBlock(0);
+            assertEquals(2, n.getPositionCount());
+            assertFalse(n.isNull(0));
+            assertTrue(n.isNull(1)); // boolean cross-kind silently null on an inferred column
+        }
+    }
+
+    public void testDeclaredTextColumnReadsString() throws IOException {
+        // TEXT is declarable (DeclaredSchemaValidator.DECLARABLE_TYPES) and reads like KEYWORD — a BytesRef block.
+        String ndjson = "{\"t\": \"hello\"}\n";
+        var object = new BytesStorageObject("file:///text.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "t", DataType.TEXT));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("t"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            BytesRefBlock t = page.getBlock(0);
+            assertEquals(new BytesRef("hello"), t.getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    public void testDeclaredIpColumnReadsValidIpAndBadFailsUnderStrict() throws IOException {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "addr", DataType.IP));
+
+        // A valid IP string parses to the encoded InetAddressPoint form (matching CsvFormatReader.tryParseIp).
+        String good = "{\"addr\": \"192.168.1.1\"}\n";
+        try (
+            var iterator = reader.read(
+                new BytesStorageObject("file:///ip.ndjson", good.getBytes(StandardCharsets.UTF_8)),
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("addr"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            BytesRefBlock addr = page.getBlock(0);
+            assertEquals(
+                new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.1"))),
+                addr.getBytesRef(0, new BytesRef())
+            );
+        }
+
+        // A string that is not a valid IP is a coercion failure routed through the error policy (strict fails).
+        String bad = "{\"addr\": \"not-an-ip\"}\n";
+        try (
+            var iterator = reader.read(
+                new BytesStorageObject("file:///ipbad.ndjson", bad.getBytes(StandardCharsets.UTF_8)),
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("addr"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            });
+            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [ip]"));
         }
     }
 

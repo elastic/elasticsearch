@@ -14,9 +14,11 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -56,6 +58,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Parses NDJSON into {@link Page}s for a single input stream.
@@ -229,6 +232,15 @@ public class NdJsonPageDecoder implements Closeable {
      * and parses that column's timestamps with it instead of {@link #datetimeFormatter}.
      */
     private final Map<String, String> declaredDateFormats;
+    /**
+     * Physical (file) column names whose target type came from an explicit declaration. A cross-kind token
+     * (a boolean in a numeric/datetime column, a number in a boolean column, a non-string in an IP column)
+     * on such a column has no silent-null tolerance — it routes through {@link BlockDecoder#coercionFailure}
+     * per the declared-type invariant that no declared type may silently read as null. An INFERRED column
+     * (not in this set) keeps the schema-on-read {@link BlockDecoder#unexpectedValue} tolerance. Empty when
+     * no column type was declared.
+     */
+    private final Set<String> declaredTypeColumns;
 
     /** Number of malformed records observed during decoding (lenient policies swallow these). */
     long errorCount() {
@@ -304,7 +316,8 @@ public class NdJsonPageDecoder implements Closeable {
             errorPolicy,
             sourceLocation,
             counters,
-            Map.of()
+            Map.of(),
+            Set.of()
         );
     }
 
@@ -318,7 +331,8 @@ public class NdJsonPageDecoder implements Closeable {
         ErrorPolicy errorPolicy,
         String sourceLocation,
         NdJsonReaderCounters counters,
-        Map<String, String> declaredDateFormats
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns
     ) throws IOException {
         this(
             input,
@@ -334,7 +348,8 @@ public class NdJsonPageDecoder implements Closeable {
             datetimeFormatter,
             counters,
             NdJsonUtils.JSON_FACTORY,
-            declaredDateFormats
+            declaredDateFormats,
+            declaredTypeColumns
         );
     }
 
@@ -364,7 +379,8 @@ public class NdJsonPageDecoder implements Closeable {
             errorPolicy,
             sourceLocation,
             counters,
-            Map.of()
+            Map.of(),
+            Set.of()
         );
     }
 
@@ -386,7 +402,8 @@ public class NdJsonPageDecoder implements Closeable {
         ErrorPolicy errorPolicy,
         String sourceLocation,
         NdJsonReaderCounters counters,
-        Map<String, String> declaredDateFormats
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns
     ) throws IOException {
         this(
             null,
@@ -402,7 +419,8 @@ public class NdJsonPageDecoder implements Closeable {
             datetimeFormatter,
             counters,
             NdJsonUtils.JSON_FACTORY,
-            declaredDateFormats
+            declaredDateFormats,
+            declaredTypeColumns
         );
     }
 
@@ -435,7 +453,8 @@ public class NdJsonPageDecoder implements Closeable {
             null,
             new NdJsonReaderCounters(),
             factory,
-            Map.of()
+            Map.of(),
+            Set.of()
         );
     }
 
@@ -453,7 +472,8 @@ public class NdJsonPageDecoder implements Closeable {
         DateFormatter datetimeFormatter,
         NdJsonReaderCounters counters,
         JsonFactory factory,
-        Map<String, String> declaredDateFormats
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns
     ) throws IOException {
         this.jsonFactory = factory;
         this.input = input;
@@ -481,6 +501,7 @@ public class NdJsonPageDecoder implements Closeable {
         this.counters = counters;
         this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
+        this.declaredTypeColumns = declaredTypeColumns != null ? Set.copyOf(declaredTypeColumns) : Set.of();
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
             "NDJSON read from ["
@@ -1175,9 +1196,9 @@ public class NdJsonPageDecoder implements Closeable {
                     case INTEGER -> blockFactory.newIntBlockBuilder(batchSize);
                     case LONG -> blockFactory.newLongBlockBuilder(batchSize);
                     case DOUBLE -> blockFactory.newDoubleBlockBuilder(batchSize);
-                    case KEYWORD -> blockFactory.newBytesRefBlockBuilder(batchSize);
+                    case KEYWORD, TEXT, IP -> blockFactory.newBytesRefBlockBuilder(batchSize);
                     case DATETIME -> blockFactory.newLongBlockBuilder(batchSize); // milliseconds since epoch
-                    default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
+                    default -> throw unsupportedTypeForNdjson(dataType);
                 };
                 blockBuilders[blockIdx] = blockBuilder;
             }
@@ -1187,6 +1208,19 @@ public class NdJsonPageDecoder implements Closeable {
                     child.setupBuilders(blockBuilders);
                 }
             }
+        }
+
+        /**
+         * The declared type passed create + resolution (it is in {@code DeclaredSchemaValidator.DECLARABLE_TYPES})
+         * but NDJSON has no builder/decoder arm for it — for example {@code unsigned_long}, which no text format
+         * reads yet. Names the column and type so the failure is actionable rather than a bare internal error.
+         * Reserved for the {@code default} arm of the two type switches: an unexpected value there is a coverage
+         * gap, not a routine per-record condition.
+         */
+        private IllegalArgumentException unsupportedTypeForNdjson(DataType type) {
+            return new IllegalArgumentException(
+                "column [" + name + "] has declared type [" + type.typeName() + "] which is not supported for NDJSON reads"
+            );
         }
 
         private void decodeObject(JsonParser parser, boolean inArray) throws IOException {
@@ -1487,13 +1521,14 @@ public class NdJsonPageDecoder implements Closeable {
                 case LONG -> decodeLongValue(parser, token, inArray);
                 case DOUBLE -> decodeDoubleValue(parser, token, inArray);
                 case DATETIME -> decodeDatetimeValue(parser, token, inArray);
-                case KEYWORD -> {
+                case KEYWORD, TEXT -> {
                     var chars = CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
                     ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(chars));
                 }
+                case IP -> decodeIpValue(parser, token, inArray);
                 // A NULL-typed column expects no value; a stray scalar keeps the policy-blind channel (edge case).
                 case NULL -> unexpectedValue(blockBuilder, parser, inArray);
-                default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
+                default -> throw unsupportedTypeForNdjson(dataType);
             }
         }
 
@@ -1511,7 +1546,9 @@ public class NdJsonPageDecoder implements Closeable {
          *       value, closing the "policy-blind silent null" gap for the coercible cases.</li>
          *   <li>An <b>unsupported cross-kind</b> token — a boolean in a numeric/datetime column, a number in a
          *       boolean column: {@code supports(from, to)} is false, the pair the columnar readers reject at
-         *       resolution. NDJSON has no physical schema to reject upfront, so it keeps the pre-existing
+         *       resolution. NDJSON has no physical schema to reject upfront, so {@link #crossKindDrift} splits by
+         *       whether the column was DECLARED: a declared column routes the drift through {@link #coercionFailure}
+         *       (no declared type may silently read as null), while an inferred column keeps the pre-existing
          *       {@link #unexpectedValue} silent null — schema-on-read tolerance of a heterogeneous JSON field,
          *       the same tolerance {@code unexpectedValue} already gave primitive type drift.</li>
          * </ul>
@@ -1534,7 +1571,29 @@ public class NdJsonPageDecoder implements Closeable {
                 }
             } else {
                 // A number in a boolean column: an unsupported cross-kind drift, not a coercion attempt
-                // (supports(numeric, boolean) is false). See unexpectedValue's schema-on-read rationale.
+                // (supports(numeric, boolean) is false).
+                crossKindDrift(parser, inArray, DataType.BOOLEAN);
+            }
+        }
+
+        /**
+         * A cross-kind token — a JSON kind that has no coercion to this column's declared type (a boolean in a
+         * numeric/datetime column, a number in a boolean column, a non-string in an IP column). The columnar
+         * readers reject such a pair at schema resolution; NDJSON has no physical schema to reject upfront, so it
+         * splits by whether the target type was DECLARED:
+         * <ul>
+         *   <li>a DECLARED column has no third state — {@link DeclaredTypeCoercions} requires that a declared type
+         *       which cannot be produced from the physical value must never silently read as null — so the drift is
+         *       routed through {@link #coercionFailure} ({@code fail_fast} fails, other modes warn + null + budget);</li>
+         *   <li>an INFERRED column keeps the pre-existing {@link #unexpectedValue} silent null — schema-on-read
+         *       tolerance of a heterogeneous JSON field, the same tolerance {@code unexpectedValue} already gave
+         *       primitive type drift.</li>
+         * </ul>
+         */
+        private void crossKindDrift(JsonParser parser, boolean inArray, DataType target) throws IOException {
+            if (declaredTypeColumns.contains(name)) {
+                coercionFailure(blockBuilder, parser, inArray, target);
+            } else {
                 unexpectedValue(blockBuilder, parser, inArray);
             }
         }
@@ -1554,7 +1613,7 @@ public class NdJsonPageDecoder implements Closeable {
                     coercionFailure(blockBuilder, parser, inArray, DataType.INTEGER);
                 }
             } else {
-                unexpectedValue(blockBuilder, parser, inArray); // boolean in a number column: unsupported cross-kind drift
+                crossKindDrift(parser, inArray, DataType.INTEGER); // boolean in a number column: unsupported cross-kind drift
             }
         }
 
@@ -1572,7 +1631,7 @@ public class NdJsonPageDecoder implements Closeable {
                     coercionFailure(blockBuilder, parser, inArray, DataType.LONG);
                 }
             } else {
-                unexpectedValue(blockBuilder, parser, inArray);
+                crossKindDrift(parser, inArray, DataType.LONG); // boolean in a number column: unsupported cross-kind drift
             }
         }
 
@@ -1592,7 +1651,7 @@ public class NdJsonPageDecoder implements Closeable {
                     coercionFailure(blockBuilder, parser, inArray, DataType.DOUBLE);
                 }
             } else {
-                unexpectedValue(blockBuilder, parser, inArray); // boolean in a double column: unsupported cross-kind drift
+                crossKindDrift(parser, inArray, DataType.DOUBLE); // boolean in a double column: unsupported cross-kind drift
             }
         }
 
@@ -1629,7 +1688,28 @@ public class NdJsonPageDecoder implements Closeable {
                 }
             } else {
                 // a boolean, or a fractional number, in a datetime column: unsupported cross-kind drift
-                unexpectedValue(blockBuilder, parser, inArray);
+                crossKindDrift(parser, inArray, DataType.DATETIME);
+            }
+        }
+
+        /**
+         * Decodes a declared {@code ip} column. A {@code VALUE_STRING} is parsed and encoded to the 16-byte
+         * {@link InetAddressPoint} form (matching {@code CsvFormatReader.tryParseIp} so identical bytes yield the
+         * same value across formats); a string that is not a valid IP is a {@link #coercionFailure}. A cross-kind
+         * non-string token uses the declared/inferred gate ({@link #crossKindDrift}).
+         */
+        private void decodeIpValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_STRING) {
+                try {
+                    ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(
+                        new BytesRef(InetAddressPoint.encode(InetAddresses.forString(parser.getValueAsString())))
+                    );
+                } catch (IllegalArgumentException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.IP);
+                }
+            } else {
+                // a boolean or a number in an ip column: unsupported cross-kind drift
+                crossKindDrift(parser, inArray, DataType.IP);
             }
         }
 
@@ -1658,20 +1738,25 @@ public class NdJsonPageDecoder implements Closeable {
          */
         private void coercionFailure(Block.Builder builder, JsonParser parser, boolean inArray, DataType target) throws IOException {
             String value = parser.getValueAsString();
+            // Not "the declared type": this path also fires for a supported-pair failure on an INFERRED column
+            // (e.g. a bad string in an inferred long), where the target type was not declared.
             String message = "column ["
                 + name
                 + "] at line ["
                 + totalRowCount
                 + "]: value ["
                 + value
-                + "] could not be coerced to the declared type ["
+                + "] could not be coerced to type ["
                 + target.typeName()
                 + "] — this record's ["
                 + name
                 + "] is null";
             parser.skipChildren();
             if (errorPolicy.isStrict()) {
-                throw new EsqlIllegalArgumentException(message);
+                // Mirror CsvFormatReader.onRowErrorImpl's field-error hint so the fail-fast message is actionable.
+                throw new EsqlIllegalArgumentException(
+                    message + "; set error_mode to null_field (or skip_row) in WITH options to null-fill/skip and warn instead of failing"
+                );
             }
             if (inArray == false) {
                 builder.appendNull();

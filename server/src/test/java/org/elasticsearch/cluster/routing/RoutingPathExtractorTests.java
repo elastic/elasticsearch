@@ -210,7 +210,7 @@ public class RoutingPathExtractorTests extends ESTestCase {
     }
 
     private static IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath(String routingPath) {
-        return forRoutingPath(routingPath, IndexMode.TIME_SERIES);
+        return forRoutingPath(routingPath, randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB));
     }
 
     private static IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath(String routingPath, IndexMode indexMode) {

@@ -160,9 +160,8 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
     }
 
     public void testCreateIndicesWhenNeeded() throws Exception {
-        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         Instant now = Instant.now();
-        ClusterState clusterState = stateWithExisting(List.of(), now, mode);
+        ClusterState clusterState = stateWithExisting(List.of(), now);
         List<Integer> dayOffsets = List.of(5, 3, 2);
         List<String> createdNames = new ArrayList<>();
         // Add two timestamps that fall within one index
@@ -453,20 +452,6 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             .build();
     }
 
-    /**
-     * Equivalent of {@link #stateWithExisting(List, Instant)} that builds the data stream in the given
-     * {@link IndexMode}, to verify that {@code IndexMode.isTsdb} treats {@link IndexMode#TSDB} and
-     * {@link IndexMode#TIME_SERIES} identically.
-     */
-    private ClusterState stateWithExisting(List<Tuple<Instant, Instant>> timeSlices, Instant now, IndexMode mode) {
-        if (mode == IndexMode.TIME_SERIES) {
-            return stateWithExisting(timeSlices, now);
-        }
-        List<Tuple<Instant, Instant>> allSlices = new ArrayList<>(timeSlices);
-        allSlices.add(Tuple.tuple(now, now.plus(randomIntBetween(1, 3), ChronoUnit.DAYS)));
-        return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectWithDataStream(mode, allSlices)).build();
-    }
-
     /** Builds a ClusterState with a data stream that has one non-TSDB (standard) backing index. */
     private ClusterState stateWithNoTsdbIndices() {
         String indexName = DataStream.getDefaultBackingIndexName(DATA_STREAM, 1);
@@ -477,7 +462,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
     }
 
     private static IndexMetadata createIndexMetadata(String indexName, Instant startTime, Instant endTime) {
-        return createIndexMetadata(indexName, startTime, endTime, IndexMode.TIME_SERIES);
+        return createIndexMetadata(indexName, startTime, endTime, randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB));
     }
 
     private static IndexMetadata createIndexMetadata(String indexName, Instant startTime, Instant endTime, IndexMode indexMode) {
@@ -492,8 +477,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
 
     /**
      * Builds a ProjectMetadata with a data stream in the given {@link IndexMode} whose backing indices
-     * cover the given time ranges, to verify that {@code IndexMode.isTsdb} treats {@link IndexMode#TSDB}
-     * and {@link IndexMode#TIME_SERIES} identically in {@link TransportPastTimeSeriesIndexCreationAction}.
+     * cover the given time ranges.
      */
     private ProjectMetadata projectWithDataStream(IndexMode mode, List<Tuple<Instant, Instant>> timeSlices) {
         List<IndexMetadata> backingIndices = new ArrayList<>();

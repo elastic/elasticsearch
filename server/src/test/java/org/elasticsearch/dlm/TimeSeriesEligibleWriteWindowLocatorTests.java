@@ -56,12 +56,11 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
      * with either mode must be treated identically by the eligible write window logic.
      */
     public void testWriteWindowDefinedByRetention() {
-        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         // Configured retention
         {
             TimeValue retention = TimeValue.timeValueDays(30);
             DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(retention).build();
-            DataStream dataStream = dataStream("metrics-test", lifecycle, mode);
+            DataStream dataStream = dataStream("metrics-test", lifecycle);
             ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
             long requestTimestamp = randomNonNegativeLong();
             assertThat(
@@ -78,7 +77,7 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
                 lifecycleBuilder.dataRetention(retention);
             }
             DataStreamLifecycle lifecycle = lifecycleBuilder.build();
-            DataStream dataStream = dataStream("metrics-test", lifecycle, mode);
+            DataStream dataStream = dataStream("metrics-test", lifecycle);
             ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
             DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(null, globalMax);
             long requestTimestamp = randomNonNegativeLong();
@@ -141,11 +140,10 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
     }
 
     private static DataStream dataStream(String name, DataStreamLifecycle lifecycle) {
-        return dataStream(name, lifecycle, IndexMode.TIME_SERIES);
-    }
-
-    private static DataStream dataStream(String name, DataStreamLifecycle lifecycle, IndexMode indexMode) {
         Index index = new Index(DataStream.getDefaultBackingIndexName(name, 1), randomAlphaOfLength(10));
-        return DataStream.builder(name, List.of(index)).setLifecycle(lifecycle).setIndexMode(indexMode).build();
+        return DataStream.builder(name, List.of(index))
+            .setLifecycle(lifecycle)
+            .setIndexMode(randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB))
+            .build();
     }
 }

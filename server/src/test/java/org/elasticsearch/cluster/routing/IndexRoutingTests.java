@@ -707,7 +707,8 @@ public class IndexRoutingTests extends ESTestCase {
             ),
             8,
             "dim.*,other.*,top",
-            randomBoolean()
+            randomBoolean(),
+            IndexMode.TIME_SERIES
         );
         assertFalse(TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
         /*
@@ -1247,20 +1248,6 @@ public class IndexRoutingTests extends ESTestCase {
         IndexVersion createdVersion,
         int shards,
         String path,
-        boolean useSyntheticId
-    ) {
-        return indexRoutingForTimeSeriesDimensions(createdVersion, shards, path, useSyntheticId, IndexMode.TIME_SERIES);
-    }
-
-    /**
-     * Same as {@link #indexRoutingForTimeSeriesDimensions(IndexVersion, int, String, boolean)} but lets the
-     * caller pick the index mode, so callers can prove {@link IndexMode#TSDB} routes identically to
-     * {@link IndexMode#TIME_SERIES}.
-     */
-    private TimeSeriesRoutingFixture indexRoutingForTimeSeriesDimensions(
-        IndexVersion createdVersion,
-        int shards,
-        String path,
         boolean useSyntheticId,
         IndexMode indexMode
     ) {
@@ -1277,7 +1264,14 @@ public class IndexRoutingTests extends ESTestCase {
         String setting,
         boolean useSyntheticId
     ) {
-        return getIndexRoutingWithSetting(indexVersion, shards, path, setting, useSyntheticId, IndexMode.TIME_SERIES);
+        return getIndexRoutingWithSetting(
+            indexVersion,
+            shards,
+            path,
+            setting,
+            useSyntheticId,
+            randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB)
+        );
     }
 
     /**

@@ -217,10 +217,8 @@ public class TransportDownsampleActionTests extends ESTestCase {
     }
 
     public void testDownsampling() {
-        // index.mode may be either TIME_SERIES or its preferred alias TSDB; both must be handled identically.
-        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         var projectMetadata = ProjectMetadata.builder(projectId)
-            .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards, mode))
+            .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards))
             .build();
 
         var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -497,15 +495,11 @@ public class TransportDownsampleActionTests extends ESTestCase {
     }
 
     private IndexMetadata.Builder createSourceIndexMetadata(String sourceIndex, int primaryShards, int replicaShards) {
-        return createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards, IndexMode.TIME_SERIES);
-    }
-
-    private IndexMetadata.Builder createSourceIndexMetadata(String sourceIndex, int primaryShards, int replicaShards, IndexMode indexMode) {
         return IndexMetadata.builder(sourceIndex)
             .settings(
                 indexSettings(IndexVersion.current(), randomUUID(), primaryShards, replicaShards).put(
                     IndexSettings.MODE.getKey(),
-                    indexMode.getName()
+                    randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB).getName()
                 )
                     .put("index.routing_path", "dimensions")
                     .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)

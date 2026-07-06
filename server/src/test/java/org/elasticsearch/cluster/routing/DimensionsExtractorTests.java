@@ -226,7 +226,7 @@ public class DimensionsExtractorTests extends ESTestCase {
     }
 
     private static IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions(String dimensionPath) {
-        return forIndexDimensions(dimensionPath, IndexMode.TIME_SERIES);
+        return forIndexDimensions(dimensionPath, randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB));
     }
 
     private static IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions(String dimensionPath, IndexMode indexMode) {

@@ -343,14 +343,13 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
      */
     public void testRoundToInTsEval() {
         assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
-        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         PhysicalPlan plan = tsPlannerOptimizer.plan("""
             TS k8s
             | EVAL r = ROUND_TO(events_received, 100, 200, 300)
             | SORT @timestamp
             | LIMIT 10
             | KEEP r
-            """, tsSearchStats(mode));
+            """, tsSearchStats());
 
         List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
         assertThat(pushed, hasSize(0));
@@ -847,15 +846,16 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
     }
 
     private static SearchStats tsSearchStats() {
-        return tsSearchStats(IndexMode.TIME_SERIES);
-    }
-
-    private static SearchStats tsSearchStats(IndexMode mode) {
         return new EsqlTestUtils.TestSearchStats() {
             @Override
             public Map<ShardId, IndexMetadata> targetShards() {
                 IndexMetadata indexMetadata = IndexMetadata.builder("k8s")
-                    .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), mode.name()))
+                    .settings(
+                        indexSettings(IndexVersion.current(), 1, 1).put(
+                            IndexSettings.MODE.getKey(),
+                            randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB).name()
+                        )
+                    )
                     .build();
                 return Map.of(new ShardId(new Index("k8s", "n/a"), 0), indexMetadata);
             }

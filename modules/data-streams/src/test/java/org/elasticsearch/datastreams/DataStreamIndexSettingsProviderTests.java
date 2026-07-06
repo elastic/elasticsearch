@@ -942,11 +942,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         }
     }
 
-    /**
-     * {@link IndexMode#TSDB} (the {@code tsdb} value) must be handled the same as
-     * {@link IndexMode#TIME_SERIES}, so that the {@code assert IndexMode.isTsdb(...)} sanity check
-     * in {@link DataStreamIndexSettingsProvider#onUpdateMappings} is exercised with the alias too.
-     */
     public void testAddNewDimension() throws Exception {
         String newMapping = """
             {
@@ -964,7 +959,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        Settings result = onUpdateMappings("field1", "field1", newMapping, randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB));
+        Settings result = onUpdateMappings("field1", "field1", newMapping);
         assertThat(result.size(), equalTo(1));
         assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("field1", "field2"));
     }
@@ -1087,15 +1082,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     private Settings onUpdateMappings(String routingPath, String dimensions, String newMapping) throws IOException {
-        return onUpdateMappings(routingPath, dimensions, newMapping, IndexMode.TIME_SERIES);
-    }
-
-    /**
-     * Same as {@link #onUpdateMappings(String, String, String)} but with an explicit {@code indexMode},
-     * so that tests can assert {@link IndexMode#TSDB} satisfies the {@code assert IndexMode.isTsdb(...)}
-     * sanity check in {@link DataStreamIndexSettingsProvider#onUpdateMappings}.
-     */
-    private Settings onUpdateMappings(String routingPath, String dimensions, String newMapping, IndexMode indexMode) throws IOException {
+        IndexMode indexMode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         String dataStreamName = "logs-app1";
         Settings.Builder currentSettings = Settings.builder()
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)

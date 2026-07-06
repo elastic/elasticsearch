@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -394,16 +393,13 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchWithRow() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
             | MV_EXPAND content
             | WHERE content:"dog"
             | SORT content
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
-
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("content"));
             assertColumnTypes(resp.columns(), List.of("text"));
             assertValues(resp.values(), List.of(List.of("This dog is really brown"), List.of("This is a brown dog")));
@@ -411,7 +407,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeExpression() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | EVAL new_content = to_text(concat(content, " and a white cat"))
@@ -420,9 +415,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             | KEEP new_content
             """;
 
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
-
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("new_content"));
             assertColumnTypes(resp.columns(), List.of("text"));
             assertValues(

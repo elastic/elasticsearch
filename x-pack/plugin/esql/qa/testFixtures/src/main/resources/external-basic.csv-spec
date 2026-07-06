@@ -1108,16 +1108,14 @@ distinct_paths:long
 
 
 // ---- runtime match over an external source ----
-// External columns are not Lucene-mapped, so match runs at runtime (runtime_lexical_search). Authored as
-// FROM <dataset> so it runs verbatim on dataset-capable backends and as rebuilt EXTERNAL on the others.
+// External columns are not Lucene-mapped, so match runs at runtime.
+// Authored as FROM <dataset> so it runs verbatim on dataset-capable backends and as rebuilt EXTERNAL on the others.
 
 matchOnExternalKeyword
 required_capability: external_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
-
-pragma: runtime_lexical_search=true
 
 FROM employees_no_mv
 | WHERE match(first_name, "Bezalel")
@@ -1134,8 +1132,6 @@ required_capability: external_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
-
-pragma: runtime_lexical_search=true
 
 // Casting an external keyword column to text makes match analyze it (case-insensitive).
 FROM employees_no_mv
@@ -1155,8 +1151,6 @@ required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
-pragma: runtime_lexical_search=true
-
 FROM employees_no_mv
 | WHERE match(salary, 57305)
 | KEEP emp_no, salary
@@ -1172,8 +1166,6 @@ required_capability: external_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
-
-pragma: runtime_lexical_search=true
 
 FROM employees_no_mv
 | WHERE match(salary, "57305")

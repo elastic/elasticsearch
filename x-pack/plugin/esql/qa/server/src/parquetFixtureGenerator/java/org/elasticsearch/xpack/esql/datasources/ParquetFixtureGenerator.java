@@ -347,6 +347,8 @@ public final class ParquetFixtureGenerator {
             // stays physical INT32 too, but always fits ESQL INTEGER without widening.
             case "uint32" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.intType(32, false));
             case "uint16" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.intType(16, false));
+            // uint64 is physical INT64 (ESQL maps it to UNSIGNED_LONG, stored sign-flip-encoded).
+            case "uint64" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64).as(LogicalTypeAnnotation.intType(64, false));
             case "double", "scaled_float" -> Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE);
             case "float", "half_float" -> Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT);
             case "boolean" -> Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN);
@@ -409,6 +411,9 @@ public final class ParquetFixtureGenerator {
                 // Truncating a uint32 long to int preserves the raw bit pattern the physical
                 // INT32 column stores; uint16 values already fit in int.
                 case "uint32", "uint16" -> g.add(leafName, ((Number) value).intValue());
+                // The CSV parser already produced the raw two's-complement long bit pattern for
+                // uint64 (see CsvFixtureParser#tryParseUnsignedLong), so it's written as-is.
+                case "uint64" -> g.add(leafName, ((Number) value).longValue());
                 case "double", "scaled_float" -> g.add(leafName, ((Number) value).doubleValue());
                 case "float", "half_float" -> g.add(leafName, ((Number) value).floatValue());
                 case "boolean" -> g.add(leafName, Boolean.TRUE.equals(value));

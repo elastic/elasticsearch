@@ -14,13 +14,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
@@ -31,9 +28,9 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -43,7 +40,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -61,7 +57,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * {@code Warning} headers (mirroring {@code ExternalCsvHivePartitionedIT} and {@code WarningsIT}).
  * Follow-up to the record-boundary livelock fix (capped grow loop). See elastic/esql-planning#835.
  */
-public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase {
+public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourceIT {
 
     private static final int LEADING_ROWS = 5;
     /** {@code max_record_size} pragma value; {@code 1mb} == {@link #MAX_RECORD_SIZE_BYTES} bytes. */
@@ -74,36 +70,9 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
      */
     private static final int GIANT_RECORD_BYTES = 4 * 1024 * 1024;
 
-    /**
-     * {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses {@link ExtensiblePlugin#loadExtensions} to keep the
-     * IT base lean (extensions can pull in heavy deps); we need extensions ON so the datasource plugins added in
-     * {@link #nodePlugins()} can register their format readers / storage providers via SPI. This subclass restores the
-     * default behavior — call {@code super} explicitly.
-     */
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        plugins.add(GzipDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class, GzipDataSourcePlugin.class);
     }
 
     /**
@@ -120,7 +89,6 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
             (long) GIANT_RECORD_BYTES,
             greaterThan(2 * MAX_RECORD_SIZE_BYTES)
         );
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
     /**
@@ -128,11 +96,11 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
      * a diagnosable error, as before this change.
      */
     public void testStrictPolicyHardFailsOnOversizedRecord() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         Path file = writeGzipWithOversizedRecord();
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(file) + "\" WITH {\"header_row\": false} | STATS c = COUNT(*)";
+            String dataset = registerDataset("strict_oversized", StoragePath.fileUri(file), Map.of("header_row", false));
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
             // Pin allow_partial_results=false (cluster default is true) so the hard failure is thrown
             // rather than swallowed into a partial response.
             EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas(4, MAX_RECORD_SIZE)).allowPartialResults(false);
@@ -156,13 +124,15 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
      * driver ran the external read (coordinator or data node) through {@code DriverCompletionInfo}.
      */
     public void testSkipRowPolicyReturnsPartialResultsAndWarnsClient() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         Path file = writeGzipWithOversizedRecord();
         try {
-            String query = "EXTERNAL \""
-                + StoragePath.fileUri(file)
-                + "\" WITH {\"header_row\": false, \"error_mode\": \"skip_row\"} | STATS c = COUNT(*)";
+            String dataset = registerDataset(
+                "skip_row_oversized",
+                StoragePath.fileUri(file),
+                Map.of("header_row", false, "error_mode", "skip_row")
+            );
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
             EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas(4, MAX_RECORD_SIZE));
 
             DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());

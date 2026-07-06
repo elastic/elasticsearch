@@ -217,6 +217,62 @@ sample_data_str | 2023-10-23T12:27:28.948Z  |  172.21.2.113     |  2764889      
 sample_data_str | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233              |  Connected to 10.1.0.3
 ;
 
+// gender is mapped as keyword in employees and as text in employees_gender_text (union type).
+// TO_TEXT accepts both legs, so the union resolves without needing an explicit cast.
+multiIndexKeywordTextToText
+required_capability: fn_to_text
+required_capability: union_types
+required_capability: index_metadata_field
+
+FROM employees, employees_gender_text METADATA _index
+| EVAL gender_text = TO_TEXT(gender)
+| KEEP emp_no, _index, gender_text
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | _index:keyword        | gender_text:text
+10001          | employees             | M
+10001          | employees_gender_text | M
+10002          | employees             | F
+10002          | employees_gender_text | F
+10003          | employees             | M
+10003          | employees_gender_text | M
+;
+
+// client_ip is ip in sample_data and keyword in sample_data_str. TO_TEXT only accepts
+// keyword/text, so applying it directly to this union fails to resolve (see
+// AnalyzerTests#testToTextOnNonStringUnionTypeFails for the resulting error); an explicit inner
+// cast to a TO_TEXT-supported type resolves the ambiguity.
+multiIndexIpToTextWithExplicitCast
+required_capability: fn_to_text
+required_capability: union_types
+required_capability: index_metadata_field
+required_capability: casting_operator
+
+FROM sample_data, sample_data_str METADATA _index
+| EVAL client_ip_text = TO_TEXT(client_ip::keyword)
+| KEEP _index, @timestamp, client_ip_text
+| SORT _index ASC, @timestamp DESC
+;
+
+_index:keyword  | @timestamp:date           | client_ip_text:text
+sample_data     | 2023-10-23T13:55:01.543Z  | 172.21.3.15
+sample_data     | 2023-10-23T13:53:55.832Z  | 172.21.3.15
+sample_data     | 2023-10-23T13:52:55.015Z  | 172.21.3.15
+sample_data     | 2023-10-23T13:51:54.732Z  | 172.21.3.15
+sample_data     | 2023-10-23T13:33:34.937Z  | 172.21.0.5
+sample_data     | 2023-10-23T12:27:28.948Z  | 172.21.2.113
+sample_data     | 2023-10-23T12:15:03.360Z  | 172.21.2.162
+sample_data_str | 2023-10-23T13:55:01.543Z  | 172.21.3.15
+sample_data_str | 2023-10-23T13:53:55.832Z  | 172.21.3.15
+sample_data_str | 2023-10-23T13:52:55.015Z  | 172.21.3.15
+sample_data_str | 2023-10-23T13:51:54.732Z  | 172.21.3.15
+sample_data_str | 2023-10-23T13:33:34.937Z  | 172.21.0.5
+sample_data_str | 2023-10-23T12:27:28.948Z  | 172.21.2.113
+sample_data_str | 2023-10-23T12:15:03.360Z  | 172.21.2.162
+;
+
 multiIndexWhereIpString
 required_capability: union_types
 required_capability: index_metadata_field

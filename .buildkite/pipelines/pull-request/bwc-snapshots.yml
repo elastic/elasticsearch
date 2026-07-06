@@ -20,6 +20,7 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
+          diskSizeGb: 250
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 2 / bwc-snapshots"
         key: "bwc-snapshots-part2"
@@ -35,6 +36,7 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
+          diskSizeGb: 250
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 3 / bwc-snapshots"
         key: "bwc-snapshots-part3"
@@ -50,6 +52,7 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
+          diskSizeGb: 250
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 4 / bwc-snapshots"
         key: "bwc-snapshots-part4"
@@ -65,6 +68,7 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
+          diskSizeGb: 250
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 5 / bwc-snapshots"
         key: "bwc-snapshots-part5"
@@ -80,6 +84,7 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
+          diskSizeGb: 250
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 6 / bwc-snapshots"
         key: "bwc-snapshots-part6"
@@ -95,4 +100,5 @@ steps:
           preemptible: true
           spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
+          diskSizeGb: 250
           buildDirectory: /dev/shm/bk

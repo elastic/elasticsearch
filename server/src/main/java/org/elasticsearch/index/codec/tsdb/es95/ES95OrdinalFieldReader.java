@@ -14,40 +14,26 @@ import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.NumericE
 import org.elasticsearch.index.codec.tsdb.OrdinalFieldReader;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesBlockReader;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
-import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 
 import java.io.IOException;
 
 /**
  * {@link OrdinalFieldReader} implementation for the ES95 TSDB format.
  *
- * <p>For segments at {@link TSDBDocValuesFormatConfig#VERSION_ORDINAL_BLOCK_SHIFT} or later,
- * {@link #readFieldEntry} reads the per-field {@code blockShift} byte written by
- * {@link ES95OrdinalFieldWriter} and sets {@link NumericEntry#blockSize} from it.
- * For older segments (written before this version), no extra byte is present in the metadata,
- * so the format-level default {@code numericBlockShift} is used instead — preserving backward
- * compatibility with segments written by earlier binaries.
+ * <p>Ordinal fields use the format-level block size and carry no per-field block metadata. An
+ * in-development version ({@link org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig#VERSION_ORDINAL_BLOCK_SHIFT})
+ * once wrote a per-field {@code blockShift} byte, removed at
+ * {@link org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig#VERSION_REMOVE_ORDINAL_BLOCK_SHIFT}.
+ * Because the ES95 codec was never released, no segment carrying that byte exists, so the read
+ * path is dropped rather than kept for backward compatibility.
  */
 final class ES95OrdinalFieldReader implements OrdinalFieldReader {
 
     private static final TSDBDocValuesBlockReader BLOCK_READER = new TSDBDocValuesBlockReader();
 
-    private final int segmentVersion;
-
-    ES95OrdinalFieldReader(final int segmentVersion) {
-        this.segmentVersion = segmentVersion;
-    }
-
     @Override
     public void readFieldEntry(final IndexInput meta, final NumericEntry entry, int numericBlockShift) throws IOException {
-        if (segmentVersion >= TSDBDocValuesFormatConfig.VERSION_ORDINAL_BLOCK_SHIFT) {
-            BLOCK_READER.readFieldEntry(meta, entry, numericBlockShift, m -> {
-                final int blockShift = m.readByte() & 0xFF;
-                entry.blockSize = 1 << blockShift;
-            });
-        } else {
-            BLOCK_READER.readFieldEntry(meta, entry, numericBlockShift);
-        }
+        BLOCK_READER.readFieldEntry(meta, entry, numericBlockShift);
     }
 
     @Override

@@ -146,7 +146,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 if (version >= TSDBDocValuesFormatConfig.VERSION_NUMERIC_LARGE_BLOCKS) {
                     blockShift = in.readByte();
                 }
-                this.readContext = new NumericReadContext(1 << blockShift, formatConfig, version);
+                this.readContext = new NumericReadContext(1 << blockShift, formatConfig);
                 readFields(in, state.fieldInfos, version, blockShift);
                 if (version < TSDBDocValuesFormatConfig.VERSION_SKIPPER_MAX_VALUE_COUNT) {
                     inferMaxValueCounts(state.fieldInfos);

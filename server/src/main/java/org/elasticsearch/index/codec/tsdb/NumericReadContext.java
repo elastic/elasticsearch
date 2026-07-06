@@ -13,8 +13,7 @@ package org.elasticsearch.index.codec.tsdb;
  * Shared read-path state for numeric field readers. Created once per segment
  * by the producer and passed to {@link NumericBlockCodec#createReader}.
  *
- * @param blockSize      the number of values per numeric block
- * @param formatConfig   the format configuration for this codec version
- * @param segmentVersion the actual format version stored in the segment header
+ * @param blockSize    the number of values per numeric block
+ * @param formatConfig the format configuration for this codec version
  */
-public record NumericReadContext(int blockSize, TSDBDocValuesFormatConfig formatConfig, int segmentVersion) {}
+public record NumericReadContext(int blockSize, TSDBDocValuesFormatConfig formatConfig) {}

@@ -161,7 +161,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             numericCodecFactory,
             fallbackDecoderFactory
         );
-        final OrdinalBlockCodec ordinalBlockCodec = new ES95OrdinalCodec(PIPELINE_CONFIG_RESOLVER, fieldContextResolver);
+        final OrdinalBlockCodec ordinalBlockCodec = new ES95OrdinalCodec();
         return new ES95TSDBDocValuesConsumer(
             state,
             enableOptimizedMerge,
@@ -191,7 +191,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             numericCodecFactory,
             fallbackDecoderFactory
         );
-        final OrdinalBlockCodec ordinalBlockCodec = new ES95OrdinalCodec(PIPELINE_CONFIG_RESOLVER, fieldContextResolver);
+        final OrdinalBlockCodec ordinalBlockCodec = new ES95OrdinalCodec();
         return new ES95TSDBDocValuesProducer(
             state,
             DATA_CODEC,

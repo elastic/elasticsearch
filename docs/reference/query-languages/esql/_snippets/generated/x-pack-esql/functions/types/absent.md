@@ -10,6 +10,7 @@
 | cartesian_shape | boolean |
 | date | boolean |
 | date_nanos | boolean |
+| date_range {applies_to}`stack: preview 9.5.0` | boolean |
 | dense_vector | boolean |
 | double | boolean |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | boolean |

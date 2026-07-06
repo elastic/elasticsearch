@@ -63,8 +63,10 @@ import java.util.function.IntFunction;
  *       (fractional and scientific accepted), the result <b>rounds</b> (not truncates), out-of-range
  *       throws {@link InvalidArgumentException}. {@code unsigned_long} keeps its {@code ::}-faithful
  *       {@link #coerceToUnsignedLong} twin (truncates toward zero, matching {@code ::unsigned_long});
- *       {@code double} keeps the mapper parse (no rounding divergence; finite-value semantics already
- *       match {@code ::double});</li>
+ *       {@code double} parses with {@code Double.parseDouble} and returns the IEEE value as-is
+ *       ({@code NaN}/{@code Infinity} pass through, matching the native columnar double read and CSV —
+ *       an external read preserves the file's value; the mapper's finite-only rule is an index-time
+ *       concern, not a read one);</li>
  *   <li><b>string targets</b> ({@code keyword}/{@code text}): any decodable scalar source —
  *       ingest stringifies the token (temporal sources render in the ISO form the default date
  *       format parses back; ip sources render as address text, never the encoded bytes). The
@@ -339,10 +341,16 @@ public final class DeclaredTypeCoercions {
                 default -> throw new IllegalArgumentException("cannot coerce from [" + from.typeName() + "] blocks");
             };
             case LONG, INTEGER -> numericCoercer(from, to);
-            // double has no truncate-vs-round divergence (the F-NUM fix is whole-number only), and its
-            // string parse matches ::double for every finite value; keep the mapper parse so the CSV
-            // direct-block double fast path stays byte-parity with this path (NaN/Infinity edge only).
-            case DOUBLE -> v -> NumberFieldMapper.NumberType.DOUBLE.parse(v, true);
+            // double returns the IEEE value the token names: NaN / +Infinity / -Infinity pass through as
+            // their double, matching the NATIVE Parquet/ORC double read (raw appendDouble, no finite
+            // check) and the CSV Double.parseDouble path. We deliberately do NOT use
+            // NumberType.DOUBLE.parse / ::double here: their finite-only rule ("[double] supports only
+            // finite values") is an index-time constraint so range/sort behave on an indexed field, not
+            // a read constraint — reading an external data lake preserves the value the file holds, and
+            // the string-coercion arm was the lone path rejecting non-finite doubles. A string source
+            // parses with Double.parseDouble (accepts NaN/Infinity, still rejects garbage via NFE); a
+            // numeric source (declared double over a physical int/long/unsigned_long) widens.
+            case DOUBLE -> fromString ? v -> Double.parseDouble((String) v) : v -> ((Number) v).doubleValue();
             case UNSIGNED_LONG -> DeclaredTypeCoercions::coerceToUnsignedLong;
             case BOOLEAN -> v -> strictParseBoolean((String) v);
             case DATETIME -> fromString
@@ -382,7 +390,8 @@ public final class DeclaredTypeCoercions {
      * routes through {@link #onCoercionFailure} (warn+null or fail-fast). Unlike the former
      * {@code NumberType.parse} path this is not the ingest coercion — it is the query cast, which is
      * what a user comparing a declared read to {@code ::} expects. ({@code double} is not routed here:
-     * it has no rounding divergence and its finite-value parse already matches {@code ::}.)
+     * it has no rounding divergence, and it must return non-finite IEEE values — {@code NaN}/
+     * {@code Infinity} — which {@code ::double} rejects; its arm uses {@code Double.parseDouble}.)
      */
     private static Function<Object, Object> numericCoercer(DataType from, DataType to) {
         if (from == DataType.KEYWORD || from == DataType.TEXT) {

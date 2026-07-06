@@ -351,6 +351,31 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    /**
+     * A declared {@code double} read returns the IEEE value the token names — {@code NaN} /
+     * {@code Infinity} / {@code -Infinity} pass through, matching the native columnar double read and
+     * CSV. The string-coercion arm must NOT apply the double mapper's finite-only rule (that is an
+     * index-time constraint); an external read preserves the file's value. Garbage still fails.
+     */
+    public void testCastStringToDoublePreservesNonFiniteValues() {
+        try (Block src = bytesBlock("NaN"); Block d = castStrict(src, DataType.KEYWORD, DataType.DOUBLE)) {
+            assertTrue("NaN token -> NaN", Double.isNaN(((DoubleBlock) d).getDouble(0)));
+        }
+        try (Block src = bytesBlock("Infinity"); Block d = castStrict(src, DataType.KEYWORD, DataType.DOUBLE)) {
+            assertEquals(Double.POSITIVE_INFINITY, ((DoubleBlock) d).getDouble(0), 0.0);
+        }
+        try (Block src = bytesBlock("-Infinity"); Block d = castStrict(src, DataType.KEYWORD, DataType.DOUBLE)) {
+            assertEquals(Double.NEGATIVE_INFINITY, ((DoubleBlock) d).getDouble(0), 0.0);
+        }
+        // A genuinely unparseable token still fails (fail_fast throws).
+        try (Block src = bytesBlock("notanumber")) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, null, null).close()
+            );
+        }
+    }
+
     private void assertLongCast(String token, long expected) {
         try (Block src = bytesBlock(token); Block longs = castStrict(src, DataType.KEYWORD, DataType.LONG)) {
             assertThat("[" + token + "]::long", ((LongBlock) longs).getLong(0), equalTo(expected));

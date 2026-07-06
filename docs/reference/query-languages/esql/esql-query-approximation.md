@@ -1,7 +1,7 @@
 ---
 applies_to:
-   stack: preview 9.4+
-   serverless: preview
+   stack: preview 9.4, ga 9.5+
+   serverless: ga
 navigation_title: "Approximate STATS queries"
 mapped_pages:
  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-query-approximation.html
@@ -36,7 +36,7 @@ An approximate query returns the same columns as the exact query, plus two addit
 
 Consider a query that counts page hits and computes the average page load time per country over the last week. The exact results might be:
 
-| total_hits | avg_load_time | country_code | 
+| total_hits | avg_load_time | country_code |
 |------------|---------------|--------------|
 | 12483710   | 237.4         | US           |
 | 4271856    | 189.2         | DE           |
@@ -56,7 +56,7 @@ The approximate query returns additional columns for each estimated quantity:
 
 The additional columns are:
 
-- **`_approximation_confidence_interval(<agg>)`**: The central 90% confidence interval for the estimate. This is an interval that has a high probability (0.9) of containing the true value.
+- **`_approximation_confidence_interval(<agg>)`**: The central 90% confidence interval for the estimate. This is an interval that has a high probability (0.9) of containing the true value. The interval can be `null` if no reasonable confidence interval could be computed for the estimate.
 - **`_approximation_certified(<agg>)`**: A boolean indicating whether the statistical properties of the estimate are behaving as expected. When `true`, the confidence interval is trustworthy. When `false`, the estimate may still be accurate, but the distribution of the approximation could not be confirmed to satisfy the assumptions used to compute the interval.
 
 
@@ -94,7 +94,7 @@ FROM web_traffic | WHERE @timestamp >= NOW()-1w
                  | LIMIT 25
 ```
 
-Larger sample sizes improve accuracy at the cost of reduced speedup. As long as the sample size remains well below the total row count, you will still see performance benefits.
+Larger sample sizes improve accuracy at the cost of reduced speedup. As long as the sample size remains well below the total row count, you will still see performance benefits. If the sample size is a large fraction of all source documents, all documents are used instead and exact results are returned. The reason is that the cost of sampling and confidence interval computation outweighs the benefits of approximation. In this case zero-width confidence intervals are returned, indicating exact results.
 
 
 ## Queries that use index summary statistics
@@ -124,9 +124,17 @@ Some of these (such as `MIN` and `MAX`) are intrinsically difficult to estimate 
 
 The following query patterns are not currently supported for approximation and fall back to exact execution:
 
-- Queries using the `TS` source command
-- Queries using the `FORK` or `JOIN` processing commands
+::::{applies-switch}
+:::{applies-item} { "stack": "ga 9.5+", "serverless": "ga" }
+- Queries using the `TS` and `PROMQL` source command
 - Pipelines containing two or more `STATS` commands
+:::
+:::{applies-item} {"stack": "preview =9.4"}
+- Queries using the `TS` and `PROMQL` source command
+- Queries using the `FORK`, `LOOKUP JOIN` and `INLINE STATS` processing commands
+- Pipelines containing two or more `STATS` commands
+:::
+::::
 
 
 ## When approximation is less effective

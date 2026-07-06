@@ -23,7 +23,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportResumeReindexAction extends AbstractResumeBulkByScrollAction<ReindexRequest> {
+public class TransportResumeReindexAction extends AbstractResumeBulkByPaginatedSearchAction<ReindexRequest> {
 
     private final ReindexMetrics reindexMetrics;
 

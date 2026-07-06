@@ -4,6 +4,10 @@
 stack: preview 9.3.0
 ```
 
+
+:::{include} ../briefSummary/clamp_max.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/clamp_max.svg

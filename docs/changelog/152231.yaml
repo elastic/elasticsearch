@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 152231
+summary: Wire columnar index mode through synthetic source test framework
+type: enhancement

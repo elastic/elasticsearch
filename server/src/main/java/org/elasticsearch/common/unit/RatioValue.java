@@ -20,6 +20,8 @@ import java.io.IOException;
  * Utility class to represent ratio and percentage values between 0 and 100
  */
 public class RatioValue implements Writeable {
+    public static final RatioValue ONE_HUNDRED_PERCENT = new RatioValue(100);
+
     private final double percent;
 
     public RatioValue(double percent) {

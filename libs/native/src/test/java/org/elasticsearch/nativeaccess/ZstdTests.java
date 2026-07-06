@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;

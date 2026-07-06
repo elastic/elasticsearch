@@ -48,10 +48,18 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
         .ternary(Rate::createWithImplicitTemporality)
         .name("rate");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeries(Rate::createWithImplicitTemporality)
+        .withinSeries((source, field, window, timestamp) -> {
+            if (field.resolved() && field.dataType().isHistogram()) {
+                throw new IllegalArgumentException("rate() is not supported yet on native histograms; if possible, use increase() instead");
+            }
+            return createWithImplicitTemporality(source, field, window, timestamp);
+        })
         .counterSupport(PromqlFunctionDefinition.CounterSupport.REQUIRED)
         .description("Calculates the per-second average rate of increase of the time series in the range vector.")
+        .extendedDescription(PromqlFunctionDefinition.COUNTER_RATE_BEHAVIOR)
         .example("rate(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.RATE_INCREASE_NOTE)
         .name("rate");
 
     private final Expression timestamp;
@@ -60,6 +68,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
+        briefSummary = "Calculates the per-second average rate of increase of a counter.",
         description = "Calculates the per-second average rate of increase of a"
             + " [counter](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). "
             + "Rate calculations account for breaks in monotonicity, such as counter resets when a service restarts, and extrapolate "

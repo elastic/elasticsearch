@@ -10,6 +10,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -281,5 +284,97 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             e.getMessage(),
             containsString("[time_series_dimension] and [time_series_metric] cannot be set in conjunction with each other [labels.dim]")
         );
+    }
+
+    /**
+     * In columnar/logsdb_columnar mode passthrough objects are auto-flattened: their child fields are
+     * stored as flat dotted names at root level and the passthrough's prefix+priority are captured in
+     * {@code prefix_properties}. {@link FieldTypeLookup} then reconstructs root-level
+     * aliases so that queries can omit the passthrough prefix.
+     */
+    public void testPassThroughAliasesInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // The concrete dotted path must be reachable
+            assertNotNull("attributes.env should be a concrete field [" + indexMode + "]", mapperService.fieldType("attributes.env"));
+
+            // The root-level alias must exist via prefix_properties
+            assertNotNull("root alias 'env' should exist via passthrough [" + indexMode + "]", mapperService.fieldType("env"));
+
+            // The prefixProperties map must be populated on the root
+            Map<String, PrefixProperties> pp = mapperService.mappingLookup().getMapping().getRoot().getPrefixProperties();
+            assertEquals(Integer.valueOf(1), pp.get("attributes").passthrough());
+        }
+    }
+
+    /**
+     * When two passthrough objects in columnar mode share a leaf name the higher-priority passthrough
+     * wins the root-level alias.
+     */
+    public void testPassThroughPriorityWinsInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("region").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("resource").field("type", "passthrough").field("priority", 2).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("region").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            assertNotNull("attributes.region should be a concrete field [" + indexMode + "]", mapperService.fieldType("attributes.region"));
+            assertNotNull("resource.region should be a concrete field [" + indexMode + "]", mapperService.fieldType("resource.region"));
+
+            MappedFieldType rootAlias = mapperService.fieldType("region");
+            assertNotNull("root-level alias 'region' should exist [" + indexMode + "]", rootAlias);
+            assertEquals("higher-priority passthrough should win for root alias [" + indexMode + "]", "resource.region", rootAlias.name());
+        }
+    }
+
+    /**
+     * A passthrough with a dotted name (e.g. {@code "resource.attributes"}) must produce a short-name
+     * alias for each child field: {@code "resource.attributes.env"} → alias {@code "env"}.
+     */
+    public void testPassThroughWithDottedPrefixInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("resource.attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            assertNotNull(
+                "resource.attributes.env should be a concrete field [" + indexMode + "]",
+                mapperService.fieldType("resource.attributes.env")
+            );
+            assertNotNull("root alias 'env' should exist via dotted passthrough [" + indexMode + "]", mapperService.fieldType("env"));
+        }
     }
 }

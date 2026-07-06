@@ -28,8 +28,9 @@ public interface TelemetryProvider {
     MeterRegistry getMeterRegistry();
 
     /**
-     * Attempts to export all buffered telemetry (metrics and traces). Implementations should flush
-     * both signals concurrently where possible and bound the wait to an appropriate timeout.
+     * Forces any buffered telemetry (metrics, traces, and log records) to be exported immediately.
+     * Implementations should flush all signals concurrently where possible and bound the wait to
+     * an appropriate timeout.
      */
     void attemptFlush();
 

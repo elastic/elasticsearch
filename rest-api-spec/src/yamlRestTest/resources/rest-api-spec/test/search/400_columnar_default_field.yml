@@ -1,0 +1,75 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index mode required"
+
+---
+
+multi_match default_field resolves to indexed fields only in columnar mode:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              field1:
+                # index defaults to false:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          field1: foo
+
+  # field1 has index: false, so the auto-resolved default fields list is empty;
+  # the multi_match query should return no hits
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            multi_match:
+              query: foo
+
+  - match: { hits.total.value: 0 }
+
+  # Add an indexed keyword field
+  - do:
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            field2:
+              type: keyword
+              index: true
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        refresh: true
+        body:
+          field2: foo
+          field1: bar
+
+  # field2 is indexed, so it is now included in the auto-resolved default fields;
+  # only doc 2 should match because doc 1 has no indexed fields with value "foo"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            multi_match:
+              query: foo
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }

@@ -4,6 +4,10 @@
 stack: preview 9.3.0
 ```
 
+
+:::{include} ../briefSummary/mv_intersects.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/mv_intersects.svg

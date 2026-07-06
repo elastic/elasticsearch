@@ -39,6 +39,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -50,6 +51,9 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
@@ -86,6 +90,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingParentBlockQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
@@ -94,6 +99,7 @@ import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
@@ -114,6 +120,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -131,7 +138,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
-import static org.elasticsearch.index.IndexVersions.DISK_BBQ_QUANTIZE_BITS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 
@@ -203,6 +209,30 @@ public class DenseVectorFieldMapper extends FieldMapper {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Selectivity threshold above which a filtered knn query is routed through the post-filter
+     * pipeline (HNSW runs unfiltered, the filter is applied to the raw candidate set, retrying
+     * with seeded entry points if {@code k} is not collected). Below this threshold the query
+     * stays on the pre-filter path. The default is {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD}.
+     */
+    public static final Setting<Float> POST_FILTER_SELECTIVITY_THRESHOLD = new Setting<>(
+        "index.dense_vector.post_filter_selectivity_threshold",
+        Float.toString(PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD),
+        s -> {
+            float value = Float.parseFloat(s);
+            if (value < 0.0f || value > 1.0f) {
+                throw new IllegalArgumentException(
+                    "Failed to parse value ["
+                        + s
+                        + "] for setting [index.dense_vector.post_filter_selectivity_threshold] must be in [0.0, 1.0]"
+                );
+            }
+            return value;
+        },
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
+    );
+
     private static boolean hasRescoreIndexVersion(IndexVersion version) {
         return version.onOrAfter(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
             || version.between(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
@@ -245,8 +275,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
     public static final int MAX_DIMS_COUNT_BIT = 4096 * Byte.SIZE; // maximum allowed number of dimensions
 
-    public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to
-    // vector
+    // minimum number of dims for floats to be dynamically mapped to vector
+    public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128;
+    // lower threshold used for vectordb index mode
+    public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB = 32;
     public static final int MAGNITUDE_BYTES = 4;
     public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
     public static final float DEFAULT_OVERSAMPLE = 3.0F; // Default oversample value
@@ -457,7 +489,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexVersionCreated,
                     false,
                     bits,
-                    experimentalFeaturesEnabled
+                    experimentalFeaturesEnabled,
+                    false
                 );
             }
 
@@ -1940,6 +1973,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
 
+                boolean autoCalibrate = false;
+                if (experimentalFeaturesEnabled) {
+                    autoCalibrate = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("auto_calibrate"), false);
+                }
+
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQIVFIndexOptions(
                     clusterSize,
@@ -1950,7 +1988,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexVersion,
                     doPrecondition,
                     quantizeBits,
-                    experimentalFeaturesEnabled
+                    experimentalFeaturesEnabled,
+                    autoCalibrate
                 );
             }
 
@@ -2632,6 +2671,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
+        final boolean autoCalibrate;
 
         public BBQIVFIndexOptions(
             int clusterSize,
@@ -2642,7 +2682,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IndexVersion indexVersionCreated,
             boolean doPrecondition,
             int bits,
-            boolean experimentalFeaturesEnabled
+            boolean experimentalFeaturesEnabled,
+            boolean autoCalibrate
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
@@ -2653,6 +2694,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.bits = bits;
             this.doPrecondition = doPrecondition;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
+            this.autoCalibrate = autoCalibrate;
         }
 
         @Override
@@ -2676,7 +2718,24 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     VectorIndexType.BBQ_DISK.name
                 );
             }
-            if (indexVersionCreated.onOrAfter(DISK_BBQ_QUANTIZE_BITS) && experimentalFeaturesEnabled) {
+            if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_QUANTIZE_BITS) && experimentalFeaturesEnabled) {
+                if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE) && autoCalibrate) {
+                    return new ESNextDiskBBQVectorsFormat(
+                        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
+                        clusterSize,
+                        ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                        elementType,
+                        onDiskRescore,
+                        mergingExecutorService,
+                        numMergeWorkers,
+                        doPrecondition,
+                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                        flatIndexThreshold,
+                        sliceField,
+                        IvfFlushConfigSource.empty(),
+                        IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                    );
+                }
                 return new ESNextDiskBBQVectorsFormat(
                     ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
                     clusterSize,
@@ -2712,7 +2771,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return false;
             }
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
-            return this.doPrecondition == that.doPrecondition;
+            return this.doPrecondition == that.doPrecondition && this.autoCalibrate == that.autoCalibrate;
         }
 
         @Override
@@ -2724,12 +2783,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
                 && doPrecondition == that.doPrecondition
+                && autoCalibrate == that.autoCalibrate
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, flatIndexThreshold, defaultVisitPercentage, onDiskRescore, doPrecondition, rescoreVector);
+            return Objects.hash(
+                clusterSize,
+                flatIndexThreshold,
+                defaultVisitPercentage,
+                onDiskRescore,
+                doPrecondition,
+                autoCalibrate,
+                rescoreVector
+            );
         }
 
         @Override
@@ -2753,6 +2821,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
             }
+            if (autoCalibrate) {
+                builder.field("auto_calibrate", true);
+            }
         }
 
         public int getClusterSize() {
@@ -2773,6 +2844,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public boolean doPrecondition() {
             return doPrecondition;
+        }
+
+        public boolean autoCalibrate() {
+            return autoCalibrate;
         }
 
         public int getBits() {
@@ -2797,6 +2872,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 + doPrecondition
                 + ", bits="
                 + bits
+                + ", auto_calibrate="
+                + autoCalibrate
                 + "}";
         }
     }
@@ -3303,47 +3380,59 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                float overSampleFactor = rescore ? oversample : 1.0f;
-                if (sliceEnabled && parentFilter != null) {
-                    throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] is not supported for nested KNN queries");
+                if (bbqIndexOptions.autoCalibrate) {
+                    // perform rescore internally within AbstractIVFKnnVectorQuery#getAutoRescoreQuery
+                    rescore = false;
                 }
-                final String singleSliceRouting = parentFilter == null ? extractSingleSliceRouting(sliceRouting, sliceEnabled) : null;
-                if (singleSliceRouting != null) {
-                    knnQuery = new IVFKnnFloatSlicedVectorQuery(
-                        name(),
-                        queryVector,
-                        adjustedK,
-                        numCands,
-                        filter,
-                        visitRatio,
-                        bbqIndexOptions.doPrecondition(),
-                        RoutingFieldMapper.NAME,
-                        new BytesRef(singleSliceRouting),
-                        overSampleFactor
-                    );
+                float mappingOversample = bbqIndexOptions.rescoreVector != null
+                    ? bbqIndexOptions.rescoreVector.oversample
+                    : DEFAULT_OVERSAMPLE;
+                var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
+                    bbqIndexOptions.autoCalibrate,
+                    bbqIndexOptions.doPrecondition,
+                    bbqIndexOptions.bits,
+                    mappingOversample,
+                    queryOversample
+                );
+                final BytesRef[] sliceIds = extractSliceRouting(sliceRouting, sliceEnabled);
+                if (sliceIds != null) {
+                    knnQuery = parentFilter != null
+                        ? new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
+                            name(),
+                            queryVector,
+                            k,
+                            numCands,
+                            filter,
+                            parentFilter,
+                            visitRatio,
+                            ivfQueryConfigResolver,
+                            RoutingFieldMapper.NAME,
+                            sliceIds
+                        )
+                        : new IVFKnnFloatSlicedVectorQuery(
+                            name(),
+                            queryVector,
+                            k,
+                            numCands,
+                            filter,
+                            visitRatio,
+                            ivfQueryConfigResolver,
+                            RoutingFieldMapper.NAME,
+                            sliceIds
+                        );
                 } else {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                             name(),
                             queryVector,
-                            adjustedK,
+                            k,
                             numCands,
                             filter,
                             parentFilter,
                             visitRatio,
-                            bbqIndexOptions.doPrecondition(),
-                            overSampleFactor
+                            ivfQueryConfigResolver
                         )
-                        : new IVFKnnFloatVectorQuery(
-                            name(),
-                            queryVector,
-                            adjustedK,
-                            numCands,
-                            filter,
-                            visitRatio,
-                            bbqIndexOptions.doPrecondition(),
-                            overSampleFactor
-                        );
+                        : new IVFKnnFloatVectorQuery(name(), queryVector, k, numCands, filter, visitRatio, ivfQueryConfigResolver);
                 }
             } else {
                 knnQuery = parentFilter != null
@@ -3372,30 +3461,37 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Nullable
-        private static String extractSingleSliceRouting(@Nullable String sliceRouting, boolean sliceEnabled) {
+        private static BytesRef[] extractSliceRouting(@Nullable String sliceRouting, boolean sliceEnabled) {
             if (sliceRouting == null) {
-                if (sliceEnabled) {
-                    throw new IllegalArgumentException(
-                        "[" + SliceIndexing.PARAM_NAME + "] is required for KNN queries when [index.slice.enabled] is true"
-                    );
-                }
-                return null;
+                return sliceEnabled ? new BytesRef[0] : null;
             }
-            final String trimmed = sliceRouting.trim();
-            if (trimmed.isEmpty()) {
+            String[] sliceValues = Strings.splitStringByCommaToArray(sliceRouting.trim());
+            if (sliceValues.length == 0) {
                 throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank for KNN queries");
             }
-            if (SliceIndexing.SLICE_ALL.equals(trimmed)) {
+            final LinkedHashSet<String> uniqueSliceValues = new LinkedHashSet<>();
+            for (String sliceValue : sliceValues) {
+                uniqueSliceValues.add(validateSliceValue(sliceValue));
+            }
+            final BytesRef[] sliceIds = new BytesRef[uniqueSliceValues.size()];
+            int i = 0;
+            for (String sliceValue : uniqueSliceValues) {
+                sliceIds[i++] = new BytesRef(sliceValue);
+            }
+            return sliceIds;
+        }
+
+        private static String validateSliceValue(String sliceValue) {
+            final String value = sliceValue.trim();
+            if (value.isEmpty()) {
+                throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank for KNN queries");
+            }
+            if (SliceIndexing.SLICE_ALL.equals(value)) {
                 throw new IllegalArgumentException(
                     "[" + SliceIndexing.PARAM_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] is not supported for KNN"
                 );
             }
-            if (trimmed.indexOf(',') >= 0) {
-                throw new IllegalArgumentException(
-                    "[" + SliceIndexing.PARAM_NAME + "] must be a single value for KNN queries, but received [" + trimmed + "]"
-                );
-            }
-            return trimmed;
+            return value;
         }
 
         public VectorSimilarity getSimilarity() {

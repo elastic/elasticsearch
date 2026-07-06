@@ -806,10 +806,10 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             .get();
 
         indicesAdmin().prepareRefresh(
-            AnomalyDetectorsIndex.jobStateIndexPatterns()[0],
-            AnomalyDetectorsIndex.jobStateIndexPatterns()[1],
-            AnomalyDetectorsIndex.jobStateIndexPatterns()[2],
-            AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"
+            Strings.concatStringArrays(
+                AnomalyDetectorsIndex.jobStateIndexPatterns(),
+                new String[] { AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*" }
+            )
         ).get();
 
         PlainActionFuture<QueryPage<ModelSnapshot>> future = new PlainActionFuture<>();
@@ -912,11 +912,13 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         indexQuantiles(quantiles);
 
         indicesAdmin().prepareRefresh(
-            MlMetaIndex.indexName(),
-            AnomalyDetectorsIndex.jobStateIndexPatterns()[0],
-            AnomalyDetectorsIndex.jobStateIndexPatterns()[1],
-            AnomalyDetectorsIndex.jobStateIndexPatterns()[2],
-            AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
+            Strings.concatStringArrays(
+                new String[] { MlMetaIndex.indexName() },
+                Strings.concatStringArrays(
+                    AnomalyDetectorsIndex.jobStateIndexPatterns(),
+                    new String[] { AnomalyDetectorsIndex.jobResultsAliasedName(jobId) }
+                )
+            )
         ).get();
 
         AutodetectParams params = getAutodetectParams(job.build(new Date()));

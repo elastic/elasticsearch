@@ -800,6 +800,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             long highWaterMarkSplits = 0;
             long largeOpsRejections = 0;
             long totalLargeRejectedOpsBytes = 0;
+
             for (NodeStats nodeStat : nodeStats) {
                 IndexingPressureStats nodeStatIndexingPressureStats = nodeStat.getIndexingPressureStats();
                 if (nodeStatIndexingPressureStats != null) {

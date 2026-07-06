@@ -14,6 +14,7 @@ import org.elasticsearch.painless.api.ValueIterator;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.lang.invoke.CallSite;
@@ -155,6 +156,30 @@ public final class Def {
     }
 
     /**
+     * Reorders a {@code MethodHandle} so its first two arguments are swapped.  Used by
+     * {@link #lookupMethod} to bridge between {@code @script_aware} augmentation handles
+     * (script-first: {@code (PainlessScript, receiver, ...userArgs)}) and the call-site
+     * descriptor used by def dispatch (receiver-first, so PIC class-keyed caching works).
+     */
+    private static MethodHandle swapFirstTwoArguments(MethodHandle handle) {
+        MethodType type = handle.type();
+        if (type.parameterCount() < 2) {
+            throw new IllegalArgumentException("cannot swap first two args of handle with arity " + type.parameterCount());
+        }
+        Class<?> first = type.parameterType(0);
+        Class<?> second = type.parameterType(1);
+        // New type has the first two parameters swapped; the rest are unchanged.
+        MethodType swapped = type.changeParameterType(0, second).changeParameterType(1, first);
+        int[] reorder = new int[type.parameterCount()];
+        reorder[0] = 1;
+        reorder[1] = 0;
+        for (int i = 2; i < reorder.length; i++) {
+            reorder[i] = i;
+        }
+        return MethodHandles.permuteArguments(handle, swapped, reorder);
+    }
+
+    /**
      * Looks up handle for a dynamic method call, with lambda replacement
      * <p>
      * A dynamic method call for variable {@code x} of type {@code def} looks like:
@@ -189,6 +214,18 @@ public final class Def {
 
         String recipeString = (String) args[0];
         int numArguments = callSiteType.parameterCount();
+
+        // The compiler prefixes the recipe with 'S' at def call sites in cancellation-aware
+        // functions when the method name might resolve to a @script_aware augmentation;
+        // the call site pushed the script receiver as a synthetic slot after the receiver.
+        // Peel it here so the rest of the parsing sees the same recipe shape as before.
+        boolean scriptThisPushed = recipeString.isEmpty() == false && recipeString.charAt(0) == 'S';
+        if (scriptThisPushed) {
+            recipeString = recipeString.substring(1);
+            // The synthetic script-this slot doesn't count toward the user-visible arity.
+            numArguments--;
+        }
+
         // simple case: no lambdas
         if (recipeString.isEmpty()) {
             PainlessMethod painlessMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1);
@@ -210,8 +247,26 @@ public final class Def {
             Object[] injections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
             if (injections.length > 0) {
-                // method handle contains the "this" pointer so start injections at 1
-                handle = MethodHandles.insertArguments(handle, 1, injections);
+                // The method handle's leading parameter is the receiver, so injections start at position 1. For
+                // @script_aware augmentations the handle is (scriptThis, receiver, injections..., userArgs) so they
+                // start at position 2 instead — skipping past both the script slot and the receiver.
+                int injectStart = painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class) ? 2 : 1;
+                handle = MethodHandles.insertArguments(handle, injectStart, injections);
+            }
+
+            // The call-site descriptor has (receiver, scriptThis, ...userArgs) — receiver-first
+            // so the PIC's class dispatch (args[0]) keys on the actual receiver. The resolved
+            // @script_aware handle is script-first: (scriptThis, receiver, ...userArgs).
+            // Swap the handle's first two parameters so its signature matches the call site.
+            // When the resolved method doesn't carry @script_aware (e.g. a user class
+            // shadowing the augmentation name) drop the call site's extra scriptThis slot
+            // instead so the call still proceeds.
+            if (scriptThisPushed) {
+                if (painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class)) {
+                    handle = swapFirstTwoArguments(handle);
+                } else {
+                    handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+                }
             }
 
             return handle;
@@ -223,9 +278,16 @@ public final class Def {
             lambdaArgs.set(recipeString.charAt(i));
         }
 
+        // Recipe positions and the loop indices below are user-visible (post-receiver, post-
+        // scriptThis); both the call-site descriptor (callSiteType) and the adapted handle carry
+        // an extra leading scriptThis slot when scriptThisPushed is true. The two stay aligned by
+        // construction: the swap/dropArguments adaptation above is what makes the handle's shape
+        // match the descriptor, so a single offset applies to both coordinate spaces.
+        int scriptThisOffset = scriptThisPushed ? 1 : 0;
+
         // otherwise: first we have to compute the "real" arity. This is because we have extra arguments:
         // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i).
-        int arity = callSiteType.parameterCount() - 1;
+        int arity = numArguments - 1;
         int upTo = 1;
         for (int i = 1; i < numArguments; i++) {
             if (lambdaArgs.get(i - 1)) {
@@ -250,11 +312,29 @@ public final class Def {
 
         MethodHandle handle = method.methodHandle();
         Object[] injections = PainlessLookupUtility.buildInjections(method, constants);
+        boolean methodTakesScriptThis = method.annotations().containsKey(ScriptAwareAnnotation.class);
 
         if (injections.length > 0) {
-            // method handle contains the "this" pointer so start injections at 1
-            handle = MethodHandles.insertArguments(handle, 1, injections);
+            // The method handle's leading parameter is the receiver, so injections start at position 1. For
+            // @script_aware augmentations the handle is (scriptThis, receiver, injections..., userArgs) so they
+            // start at position 2 instead — skipping past both the script slot and the receiver.
+            int injectStart = methodTakesScriptThis ? 2 : 1;
+            handle = MethodHandles.insertArguments(handle, injectStart, injections);
         }
+
+        // Same script-first → receiver-first swap as the simple case above when the resolved
+        // method carries @script_aware; drop the extra slot when it doesn't.
+        if (scriptThisPushed) {
+            if (methodTakesScriptThis) {
+                handle = swapFirstTwoArguments(handle);
+            } else {
+                handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+            }
+        }
+
+        // The handle's parameter shape is now (receiver, [scriptThis], userArgs...). The
+        // collectArguments calls below position the lambda filters within the userArgs region,
+        // so they account for any leading scriptThis slot via scriptThisOffset (declared above).
 
         int replaced = 0;
         upTo = 1;
@@ -284,7 +364,7 @@ public final class Def {
                     // this cache). It won't blow up since we never nest here (just references)
                     Class<?>[] captures = new Class<?>[defEncoding.numCaptures];
                     for (int capture = 0; capture < captures.length; capture++) {
-                        captures[capture] = callSiteType.parameterType(i + 1 + capture);
+                        captures[capture] = callSiteType.parameterType(i + 1 + capture + scriptThisOffset);
                     }
                     MethodType nestedType = MethodType.methodType(interfaceType, captures);
                     CallSite nested = DefBootstrap.bootstrap(
@@ -302,7 +382,7 @@ public final class Def {
                 }
                 // the filter now ignores the signature (placeholder) on the stack
                 filter = MethodHandles.dropArguments(filter, 0, String.class);
-                handle = MethodHandles.collectArguments(handle, i - (defEncoding.needsInstance ? 1 : 0), filter);
+                handle = MethodHandles.collectArguments(handle, i + scriptThisOffset - (defEncoding.needsInstance ? 1 : 0), filter);
                 i += defEncoding.numCaptures;
                 replaced += defEncoding.numCaptures;
             }

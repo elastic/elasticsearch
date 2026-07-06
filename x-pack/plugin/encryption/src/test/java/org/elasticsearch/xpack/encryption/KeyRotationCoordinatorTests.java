@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -43,8 +45,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -55,19 +57,30 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@SuppressWarnings({ "unchecked", "rawtypes" })
 public class KeyRotationCoordinatorTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("test");
+    private static final String PASSWORD_ID = "v1";
+    // BC FIPS rejects PBKDF2 passwords shorter than 14 chars (112 bits); use a longer literal.
+    private static final String PASSWORD_VALUE = "test-password-fips";
+
+    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = TestPekEncryption.NO_OP;
 
     private static byte[] randomKey() {
-        byte[] keyBytes = new byte[32];
+        byte[] keyBytes = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];
         random().nextBytes(keyBytes);
         return keyBytes;
     }
 
     private static KeyEntry entry(long generatedAt) {
         return new KeyEntry(randomKey(), generatedAt);
+    }
+
+    private static Settings settingsWithActivePassword() {
+        MockSecureSettings secure = new MockSecureSettings();
+        secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, KeyRotationCoordinatorTests.PASSWORD_ID);
+        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + KeyRotationCoordinatorTests.PASSWORD_ID, PASSWORD_VALUE);
+        return Settings.builder().setSecureSettings(secure).build();
     }
 
     private static DiscoveryNodes nodes(boolean isLocalMaster) {
@@ -97,8 +110,45 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     }
 
     private KeyRotationCoordinator coordinator;
-    private MasterServiceTaskQueue taskQueue;
-    private EncryptionService encryptionService;
+    private MasterServiceTaskQueue<KeyRotationCoordinator.KeyRotationTask> taskQueue;
+    private AtomicReference<Settings> settingsRef;
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private void setup(
+        ClusterState state,
+        long now,
+        TimeValue rotationInterval,
+        TimeValue checkInterval,
+        FeatureService featureService,
+        List<EncryptedDataHandler<?>> handlers,
+        Settings extraSettings
+    ) {
+        taskQueue = mock(MasterServiceTaskQueue.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
+        MasterServiceTaskQueue rawQueue = taskQueue;
+        when(clusterService.createTaskQueue(anyString(), any(), any())).thenReturn(rawQueue);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.absoluteTimeInMillis()).thenReturn(now);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        EncryptionService encryptionService = mock(EncryptionService.class);
+        Settings combined = Settings.builder()
+            .put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), rotationInterval)
+            .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), checkInterval)
+            .put(extraSettings)
+            .build();
+        settingsRef = new AtomicReference<>(combined);
+        coordinator = KeyRotationCoordinator.create(
+            clusterService,
+            threadPool,
+            DefaultProjectResolver.INSTANCE,
+            featureService,
+            encryptionService,
+            handlers,
+            settingsRef::get,
+            NO_OP_ENCRYPTION
+        );
+    }
 
     private void setup(
         ClusterState state,
@@ -108,27 +158,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         FeatureService featureService,
         List<EncryptedDataHandler<?>> handlers
     ) {
-        taskQueue = mock(MasterServiceTaskQueue.class);
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(state);
-        when(clusterService.createTaskQueue(anyString(), any(), any())).thenReturn(taskQueue);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.absoluteTimeInMillis()).thenReturn(now);
-        // Run dispatched generic tasks synchronously so tests can assert on submitTask calls without async timing.
-        when(threadPool.generic()).thenReturn((ExecutorService) EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        encryptionService = mock(EncryptionService.class);
-        coordinator = KeyRotationCoordinator.create(
-            clusterService,
-            threadPool,
-            DefaultProjectResolver.INSTANCE,
-            featureService,
-            encryptionService,
-            handlers,
-            org.elasticsearch.common.settings.Settings.builder()
-                .put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), rotationInterval)
-                .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), checkInterval)
-                .build()
-        );
+        setup(state, now, rotationInterval, checkInterval, featureService, handlers, settingsWithActivePassword());
     }
 
     private void setup(ClusterState state, long now, TimeValue rotationInterval, TimeValue checkInterval, FeatureService featureService) {
@@ -159,6 +189,25 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         verify(taskQueue).submitTask(eq("install-project-encryption-key"), isA(KeyRotationCoordinator.InstallKeyTask.class), any());
     }
 
+    public void testInstallNotSubmittedWhenActivePasswordMissing() {
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        // Empty extra-settings: no active password id configured.
+        setup(
+            clusterStateWith(null, true),
+            0L,
+            TimeValue.timeValueDays(30),
+            TimeValue.timeValueMinutes(1),
+            featureService,
+            List.of(),
+            Settings.EMPTY
+        );
+
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", clusterStateWith(null, true), clusterStateWith(null, true)));
+
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+    }
+
     public void testInstallNotSubmittedWhenNotMaster() {
         FeatureService featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
@@ -182,12 +231,134 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     public void testInstallNotSubmittedWhenKeyAlreadyExists() {
         FeatureService featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
-        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(0L)), "k1");
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(0L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
         setup(clusterStateWith(existing, true), 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureService);
 
         coordinator.onClusterStateChanged(new ClusterChangedEvent("test", clusterStateWith(existing, true), clusterStateWith(null, true)));
 
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
+    }
+
+    public void testPasswordRotationSubmittedWhenActivePasswordIdDiffers() {
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        MockSecureSettings secure = new MockSecureSettings();
+        secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v2");
+        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD_VALUE);
+        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2", "new-password-fips");
+
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(0L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        setup(
+            clusterStateWith(existing, true),
+            0L,
+            TimeValue.timeValueDays(30),
+            TimeValue.timeValueMinutes(1),
+            featureService,
+            List.of(),
+            Settings.builder().setSecureSettings(secure).build()
+        );
+
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", clusterStateWith(existing, true), clusterStateWith(null, true)));
+
+        verify(taskQueue).submitTask(
+            eq("update-project-encryption-key-password-id"),
+            isA(KeyRotationCoordinator.UpdatePasswordIdTask.class),
+            any()
+        );
+    }
+
+    public void testReloadImmediatelyTriggersInstallWhenActivePasswordActivated() {
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        // Construct with empty settings: no active password is configured, so the listener path cannot install yet.
+        setup(
+            clusterStateWith(null, true),
+            0L,
+            TimeValue.timeValueDays(30),
+            TimeValue.timeValueMinutes(1),
+            featureService,
+            List.of(),
+            Settings.EMPTY
+        );
+
+        settingsRef.set(settingsWithActivePassword());
+        coordinator.reload();
+
+        verify(taskQueue).submitTask(eq("install-project-encryption-key"), isA(KeyRotationCoordinator.InstallKeyTask.class), any());
+    }
+
+    public void testReloadImmediatelyTriggersPasswordRotationWhenActivePasswordIdChanges() {
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(0L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        setup(clusterStateWith(existing, true), 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureService);
+
+        // Reload with v2 active and both passwords available so the rewrap (unwrap-v1 then wrap-v2) can succeed.
+        MockSecureSettings rotated = new MockSecureSettings();
+        rotated.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v2");
+        rotated.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD_VALUE);
+        rotated.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2", "new-password-fips");
+        settingsRef.set(Settings.builder().setSecureSettings(rotated).build());
+        coordinator.reload();
+
+        verify(taskQueue).submitTask(
+            eq("update-project-encryption-key-password-id"),
+            isA(KeyRotationCoordinator.UpdatePasswordIdTask.class),
+            any()
+        );
+    }
+
+    public void testReloadTriggersRotationAfterOnClusterStateChangedFiredWithStaleSettings() {
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(0L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        ClusterState state = clusterStateWith(existing, true);
+        // Coordinator starts with v1 as active — matching the metadata, so no rotation yet.
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureService);
+
+        // onClusterStateChanged fires first while the settings supplier still reflects the old active password (v1).
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, clusterStateWith(null, true)));
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+
+        // reload() now delivers new settings (v2 active). It must immediately detect the mismatch and submit the rotation.
+        MockSecureSettings rotated = new MockSecureSettings();
+        rotated.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v2");
+        rotated.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD_VALUE);
+        rotated.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2", "new-password-fips");
+        settingsRef.set(Settings.builder().setSecureSettings(rotated).build());
+        coordinator.reload();
+
+        verify(taskQueue).submitTask(
+            eq("update-project-encryption-key-password-id"),
+            isA(KeyRotationCoordinator.UpdatePasswordIdTask.class),
+            any()
+        );
     }
 
     public void testTickIsNoopWhenRotationDisabled() {
@@ -202,8 +373,25 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
     }
 
-    public void testTickIsNoopWhenNoMetadataInstalled() {
+    public void testTickIsNoopWhenNoMetadataAndFeatureUnavailable() {
         setup(clusterStateWith(null, true), 0L, TimeValue.timeValueDays(30));
+        coordinator.tick();
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+    }
+
+    public void testTickIsNoopWhenNoMetadataAndActivePasswordMissing() {
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        // Empty extra-settings: feature is available but no active password is configured, so install must wait.
+        setup(
+            clusterStateWith(null, true),
+            0L,
+            TimeValue.timeValueDays(30),
+            TimeValue.timeValueMinutes(1),
+            featureService,
+            List.of(),
+            Settings.EMPTY
+        );
         coordinator.tick();
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
     }
@@ -211,9 +399,37 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     public void testTickBeginsRotationWhenActiveKeyIsOldEnough() {
         long generatedAt = 1_000_000_000L;
         long now = generatedAt + TimeValue.timeValueDays(30).millis() + 1;
-        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(generatedAt)), "k1");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(generatedAt)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
         setup(clusterStateWith(metadata, true), now, TimeValue.timeValueDays(30));
 
+        coordinator.tick();
+
+        verify(taskQueue).submitTask(
+            eq("begin-project-encryption-key-rotation"),
+            isA(KeyRotationCoordinator.BeginRotationTask.class),
+            any()
+        );
+    }
+
+    public void testTickDoesNotBeginRotationWhenOneIsAlreadyInFlight() {
+        long generatedAt = 1_000_000_000L;
+        long now = generatedAt + TimeValue.timeValueDays(30).millis() + 1;
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(generatedAt)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        setup(clusterStateWith(metadata, true), now, TimeValue.timeValueDays(30));
+
+        coordinator.tick();
         coordinator.tick();
 
         verify(taskQueue).submitTask(
@@ -226,7 +442,13 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     public void testTickDoesNotBeginRotationWhenActiveKeyIsYoung() {
         long generatedAt = 1_000_000_000L;
         long now = generatedAt + 1;
-        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(generatedAt)), "k1");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(generatedAt)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
         setup(clusterStateWith(metadata, true), now, TimeValue.timeValueDays(30));
 
         coordinator.tick();
@@ -239,7 +461,9 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
             Map.of("k1", entry(50L)),
             "k1",
-            Map.of(TestCustom.TYPE, "k1")
+            PASSWORD_ID,
+            Map.of(TestCustom.TYPE, "k1"),
+            NO_OP_ENCRYPTION
         );
         TestCustom seeded = TestCustom.encryptedUnder("k1");
         AtomicInteger calls = new AtomicInteger();
@@ -253,7 +477,13 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
     public void testTickSubmitsReEncryptApplyTaskWhenHandlerLagsActiveKey() {
         long now = 100L;
-        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(50L)), "k1");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(50L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
         TestCustom seeded = TestCustom.encryptedUnder("old-key");
         AtomicInteger calls = new AtomicInteger();
         setup(clusterStateWith(metadata, seeded, true), now, TimeValue.timeValueDays(30), List.of(captureHandler(calls, "k1")));
@@ -266,7 +496,13 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
     public void testHandlerReturningInputSkipsTaskSubmission() {
         long now = 100L;
-        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(50L)), "k1");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(50L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
         TestCustom seeded = TestCustom.encryptedUnder("k1");
         AtomicInteger calls = new AtomicInteger();
         EncryptedDataHandler<TestCustom> identityHandler = new EncryptedDataHandler<>() {
@@ -297,7 +533,10 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         long oldGeneratedAt = now - 30 * 60 * 1000L;
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
             Map.of("old", entry(oldGeneratedAt), "active", entry(activeGeneratedAt)),
-            "active"
+            "active",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
         );
         setup(clusterStateWith(metadata, true), now, TimeValue.timeValueDays(30), checkInterval);
 
@@ -318,7 +557,10 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
             Map.of("old", entry(oldGeneratedAt), "active", entry(activeGeneratedAt)),
-            "active"
+            "active",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
         );
         setup(clusterStateWith(metadata, true), now, TimeValue.timeValueDays(30), checkInterval);
 
@@ -339,7 +581,9 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
             Map.of("old", entry(oldGeneratedAt), "active", entry(activeGeneratedAt)),
             "active",
-            Map.of(TestCustom.TYPE, "old")
+            PASSWORD_ID,
+            Map.of(TestCustom.TYPE, "old"),
+            NO_OP_ENCRYPTION
         );
         setup(clusterStateWith(metadata, true), now, TimeValue.timeValueDays(30), checkInterval);
 
@@ -354,7 +598,13 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
     public void testReEncryptApplyTaskUpdatesCustomAndHandlerKeyIds() throws Exception {
         long now = 100L;
-        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(50L)), "k1");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(50L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
         TestCustom oldCustom = TestCustom.encryptedUnder("old-key");
         TestCustom newCustom = TestCustom.encryptedUnder("k1");
         ClusterState state = clusterStateWith(metadata, oldCustom, true);
@@ -379,7 +629,13 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
     public void testReEncryptApplyTaskDropsOnSliceConflict() throws Exception {
         long now = 100L;
-        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(50L)), "k1");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(50L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
         TestCustom expectedOld = TestCustom.encryptedUnder("old-key");
         TestCustom conflictingCurrent = TestCustom.encryptedUnder("intervening-write");
         TestCustom newCustom = TestCustom.encryptedUnder("k1");
@@ -401,7 +657,13 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
     public void testReEncryptApplyTaskDropsOnActiveKeyDrift() throws Exception {
         long now = 100L;
-        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(50L), "k2", entry(60L)), "k2");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(50L), "k2", entry(60L)),
+            "k2",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
         TestCustom oldCustom = TestCustom.encryptedUnder("old-key");
         TestCustom newCustomForK1 = TestCustom.encryptedUnder("k1");
         ClusterState state = clusterStateWith(metadata, oldCustom, true);
@@ -421,9 +683,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     }
 
     private static SimpleBatchedExecutor<KeyRotationCoordinator.KeyRotationTask, Void> newExecutor(long now) {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.absoluteTimeInMillis()).thenReturn(now);
-        return new KeyRotationCoordinator.KeyRotationExecutor(DefaultProjectResolver.INSTANCE, threadPool);
+        return new KeyRotationCoordinator.KeyRotationExecutor(DefaultProjectResolver.INSTANCE, NO_OP_ENCRYPTION);
     }
 
     private static ActionListener<Void> listenerCapturingResponses(AtomicInteger counter) {

@@ -41,13 +41,33 @@ public interface StorageObject {
 
     // === SYNC API (required) ===
 
-    /** Opens an input stream for sequential reading from the beginning. */
-    InputStream newStream() throws IOException;
+    /**
+     * Sentinel {@code length} for {@link #newStream(long, long)} meaning "read from {@code position} to the end
+     * of the object" — the open-ended form. It exists because the total length is not always knowable up front
+     * (e.g. a compressed object has no addressable length), so the open-ended read must signal "to the end" with
+     * this marker rather than by computing {@code length() - position}.
+     */
+    long READ_TO_END = -1L;
 
     /**
-     * Opens an input stream for reading a specific byte range.
-     * Critical for columnar formats like Parquet that read specific column chunks.
-     * For reading object footers (e.g., Parquet), use: {@code newStream(length() - footerSize, footerSize)}
+     * Opens an input stream for sequential reading of the whole object, from the beginning to the end.
+     * <p>
+     * The default is {@code newStream(0, READ_TO_END)}, so the whole-object read shares the open-ended code path
+     * (and, through the decorator chain, its resilience). A provider may override this for a plain whole-object GET.
+     */
+    default InputStream newStream() throws IOException {
+        return newStream(0, READ_TO_END);
+    }
+
+    /**
+     * Opens an input stream for reading a byte range. A {@code length} of {@link #READ_TO_END} reads from
+     * {@code position} to the end of the object (the open-ended form) — essential for streams whose total length
+     * is not available. Providers MUST translate {@code READ_TO_END} into a native open-ended read (e.g. HTTP
+     * {@code Range: bytes=position-}) and MUST NOT require {@link #length()} to serve it; an empty object (or
+     * {@code position} at/after the end) yields an empty stream.
+     * <p>
+     * Critical for columnar formats like Parquet that read specific column chunks. For reading object footers,
+     * use a bounded length: {@code newStream(length() - footerSize, footerSize)}.
      */
     InputStream newStream(long position, long length) throws IOException;
 
@@ -314,4 +334,13 @@ public interface StorageObject {
     default StorageObjectMetrics metrics() {
         return StorageObjectMetrics.ZERO;
     }
+
+    /**
+     * Attaches the node telemetry sink and the storage {@code scheme} dimension so that this object's
+     * read/retry events are published to {@link ExternalSourceMetrics} (in addition to the profile
+     * counters surfaced by {@link #metrics()}). Called once by the operator wiring when it opens the
+     * object. The default is a no-op for objects that don't track I/O; decorator wrappers must forward
+     * to the wrapped object so the metrics attach to the underlying store, not the wrapper layer.
+     */
+    default void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 }

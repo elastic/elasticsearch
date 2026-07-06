@@ -37,6 +37,7 @@ public final class Trim extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = { "keyword" },
+        briefSummary = "Removes leading and trailing whitespaces from a string.",
         description = "Removes leading and trailing whitespaces from a string.",
         examples = @Example(file = "string", tag = "trim")
     )

@@ -26,7 +26,6 @@ import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -290,37 +289,21 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     private void preferredVariantFromPlatformArchitecture(ActionListener<PreferredModelVariant> preferredVariantListener) {
-        // Find the cluster platform as the service may need that
-        // information when creating the model
-        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
-            preferredVariantListener.delegateFailureAndWrap((delegate, architectures) -> {
-                if (architectures.isEmpty() && isClusterInElasticCloud()) {
-                    // There are no ml nodes to check the current arch.
-                    // However, in Elastic cloud ml nodes run on Linux x86
-                    delegate.onResponse(PreferredModelVariant.LINUX_X86_OPTIMIZED);
-                } else {
-                    boolean homogenous = architectures.size() == 1;
-                    if (homogenous && architectures.iterator().next().equals("linux-x86_64")) {
-                        delegate.onResponse(PreferredModelVariant.LINUX_X86_OPTIMIZED);
-                    } else {
-                        delegate.onResponse(PreferredModelVariant.PLATFORM_AGNOSTIC);
-                    }
-                }
-            }),
+        MlPlatformArchitecturesUtil.resolveEffectiveArchitectures(
+            clusterService.getClusterSettings(),
             client,
-            inferenceExecutor
+            inferenceExecutor,
+            preferredVariantListener.map(architectures -> {
+                var variant = MlPlatformArchitecturesUtil.resolveModelPlatformVariant(architectures, clusterService.getClusterSettings());
+                return MlPlatformArchitecturesUtil.LINUX_X86_64.equals(variant)
+                    ? PreferredModelVariant.LINUX_X86_OPTIMIZED
+                    : PreferredModelVariant.PLATFORM_AGNOSTIC;
+            })
         );
     }
 
     protected ClusterService getClusterService() {
         return clusterService;
-    }
-
-    boolean isClusterInElasticCloud() {
-        // Use the ml lazy node count as a heuristic to determine if in Elastic cloud.
-        // A value > 0 means scaling should be available for ml nodes
-        var maxMlLazyNodes = clusterService.getClusterSettings().get(MachineLearningField.MAX_LAZY_ML_NODES);
-        return maxMlLazyNodes > 0;
     }
 
     public static InferModelAction.Request buildInferenceRequest(

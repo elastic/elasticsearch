@@ -209,7 +209,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
 
     @Before
     public void resetInterceptors() {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
         ActionInterceptorPlugin.clearInterceptors();
     }
 
@@ -716,7 +715,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
             assertThat(
                 "Frozen index should have the DLM-created setting",
-                DLMConvertToFrozen.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
+                DataStreamLifecycleService.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
                 is(true)
             );
 

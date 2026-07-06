@@ -11,28 +11,27 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.MeterProvider;
-import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
-import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporterBuilder;
+import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;
+import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporterBuilder;
 import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
-import io.opentelemetry.sdk.common.export.RetryPolicy;
-import io.opentelemetry.sdk.metrics.Aggregation;
-import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
-import io.opentelemetry.sdk.metrics.View;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
@@ -43,6 +42,10 @@ import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED
  * @see org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier
  */
 public class OtelSdkExportMeterSupplier implements MeterSupplier {
+
+    // Internal JVM system property that enables OTel RuntimeTelemetry JVM metrics.
+    private static final String OTEL_JVM_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.metrics.otel_jvm.enabled";
+
     private final Settings settings;
     private final Path diskBufferPath;
     private volatile OTelMetricsResources resources;
@@ -53,90 +56,85 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         this.diskBufferPath = diskBufferPath;
     }
 
+    /** For testing: pre-initializes resources so tests can inject readable providers. */
+    OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, OTelMetricsResources testResources) {
+        this.settings = settings;
+        this.diskBufferPath = diskBufferPath;
+        this.resources = testResources;
+    }
+
     @Override
     public Meter get() {
         synchronized (mutex) {
             if (resources == null) {
                 resources = createMeteringResources();
             }
-            return resources.systemMeterProvider().get("elasticsearch");
+            return resources.meterProvider().get("elasticsearch");
         }
     }
 
     private OTelMetricsResources createMeteringResources() {
-        var healthProvider = buildHealthMeterProvider();
-        var healthMeter = healthProvider.get("elasticsearch");
-        var systemProvider = buildSystemMeterProvider(healthProvider, healthMeter);
+        var meterProviderRef = new AtomicReference<>(MeterProvider.noop());
+
+        var systemProvider = buildSystemMeterProvider(meterProviderRef::get);
+        meterProviderRef.set(systemProvider);
         var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(systemProvider).build();
 
         // RuntimeTelemetry uses JMX (Java 8+) and JFR (Java 17+) to collect JVM metrics. See https://ela.st/otel-runtime-telemetry
-        var runtimeTelemetry = OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED.get(settings) ? RuntimeTelemetry.create(otelSdk) : null;
-        return new OTelMetricsResources(systemProvider, healthProvider, runtimeTelemetry);
+        var runtimeTelemetry = OTelJvmMetricsEnabled() ? RuntimeTelemetry.create(otelSdk) : null;
+        return new OTelMetricsResources(systemProvider, runtimeTelemetry);
     }
 
-    private SdkMeterProvider buildHealthMeterProvider() {
-        InstrumentSelector sdkSelfMetrics = InstrumentSelector.builder().setMeterName("io.opentelemetry.sdk.metrics").build();
-        return SdkMeterProvider.builder()
-            .setResource(OtelSdkResource.get(settings))
-            .registerMetricReader(buildMetricReader(createOTLPExporter(MeterProvider.noop())))
-            .registerView(sdkSelfMetrics, View.builder().setAggregation(Aggregation.drop()).build())
-            .build();
+    private static boolean OTelJvmMetricsEnabled() {
+        return Booleans.parseBoolean(System.getProperty(OTEL_JVM_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
     }
 
-    private SdkMeterProvider buildSystemMeterProvider(MeterProvider healthProvider, Meter selfMeter) {
-        var exporter = wrapWithBuffering(createOTLPExporter(healthProvider), diskBufferPath, selfMeter);
+    private SdkMeterProvider buildSystemMeterProvider(Supplier<MeterProvider> meterProviderSupplier) {
+        var exporter = wrapWithBuffering(createOTLPExporter(meterProviderSupplier), diskBufferPath, meterProviderSupplier);
         return sdkMeterProvider(buildMetricReader(exporter));
+    }
+
+    private MetricExporter wrapWithBuffering(
+        OtlpGrpcMetricExporter delegate,
+        Path bufferPath,
+        Supplier<MeterProvider> meterProviderSupplier
+    ) {
+        if (OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE.get(settings).getBytes() == 0) {
+            return delegate;
+        }
+        return new BufferingMetricExporter(delegate, settings, bufferPath, meterProviderSupplier);
     }
 
     private PeriodicMetricReader buildMetricReader(MetricExporter exporter) {
         return PeriodicMetricReader.builder(exporter)
-            .setInterval(OtelSdkSettings.TELEMETRY_OTEL_METRICS_INTERVAL.get(settings).toDuration())
+            .setInterval(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.get(settings).toDuration())
             .build();
-    }
-
-    private MetricExporter wrapWithBuffering(OtlpHttpMetricExporter delegate, Path bufferPath, Meter selfMeter) {
-        if (OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE.get(settings).getBytes() == 0) {
-            return delegate;
-        }
-        return new BufferingMetricExporter(delegate, settings, bufferPath, selfMeter);
     }
 
     private SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
         return SdkMeterProvider.builder().setResource(OtelSdkResource.get(settings)).registerMetricReader(reader).build();
     }
 
-    private OtlpHttpMetricExporter createOTLPExporter(MeterProvider healthExportMeterProvider) {
-        String endpoint = OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.get(settings);
+    private OtlpGrpcMetricExporter createOTLPExporter(Supplier<MeterProvider> meterProviderSupplier) {
+        String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
             throw new IllegalStateException(
-                OTEL_METRICS_ENABLED_SYSTEM_PROPERTY + "=true requires telemetry.otel.metrics.endpoint to be configured"
+                OTEL_METRICS_ENABLED_SYSTEM_PROPERTY + "=true requires telemetry.export.endpoint to be configured"
             );
         }
-        OtlpHttpMetricExporterBuilder builder = OtlpHttpMetricExporter.builder()
+        OtlpGrpcMetricExporterBuilder builder = OtlpGrpcMetricExporter.builder()
             .setEndpoint(endpoint)
-            .setMeterProvider(() -> healthExportMeterProvider)
+            .setMeterProvider(meterProviderSupplier)
             .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
-            .setTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings).toDuration())
-            .setConnectTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT.get(settings).toDuration())
-            .setRetryPolicy(buildRetryPolicy());
+            .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
+            .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
+            .setRetryPolicy(OtelSdkSettings.OTLP_RETRY_POLICY);
         String authHeader = buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }
         return builder.build();
-    }
-
-    private RetryPolicy buildRetryPolicy() {
-        int maxAttempts = OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS.get(settings);
-        if (maxAttempts <= 1) {
-            return null;
-        }
-        return RetryPolicy.builder()
-            .setMaxAttempts(maxAttempts)
-            .setInitialBackoff(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF.get(settings).toDuration())
-            .setBackoffMultiplier(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER.get(settings))
-            .build();
     }
 
     static String buildOtlpAuthorizationHeader(Settings settings) {
@@ -153,34 +151,29 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return null;
     }
 
-    /**
-     * Flushes the system provider twice, then the health provider. The double system flush is
-     * required because {@code PeriodicMetricReader} records {@code collection.duration} into its
-     * own provider <i>after</i> each collection completes, so a second cycle is needed to ship the
-     * value produced by the first. The health provider must flush last because
-     * {@code OtlpHttpMetricExporter} records exporter self-telemetry (e.g.
-     * {@code otel.sdk.exporter.metric_data_point.exported}) into the health provider only after
-     * the system HTTP export completes.
-     * Callers must join the result with an appropriate timeout.
-     * <p>
-     * The returned result always succeeds: flush is best-effort and intermediate failures are silently
-     * ignored, consistent with the contract of {@link MeterSupplier#attemptFlushMetrics()}.
-     */
+    /** Flushes the meter provider. Callers must join the result with an appropriate timeout. */
     @Override
     public CompletableResultCode attemptFlushMetrics() {
-        SdkMeterProvider sys, health;
+        OTelMetricsResources resources;
+        synchronized (mutex) {
+            resources = this.resources;
+        }
+        return resources == null ? CompletableResultCode.ofSuccess() : resources.meterProvider.forceFlush();
+    }
+
+    /**
+     * {@code BatchSpanProcessor} registers its queue-metric instruments exactly once on the first span,
+     * so the provider it receives here is permanent. Initializing eagerly ensures that happens against
+     * the real SDK provider even if metrics have not been explicitly enabled yet.
+     */
+    @Override
+    public MeterProvider getMeterProvider() {
         synchronized (mutex) {
             if (resources == null) {
-                return CompletableResultCode.ofSuccess();
+                resources = createMeteringResources();
             }
-            sys = resources.systemMeterProvider;
-            health = resources.meterHealthMeterProvider;
+            return resources.meterProvider();
         }
-        // Lock released before flushing to avoid holding it during async I/O.
-        // close() may race here; SdkMeterProvider.forceFlush() on a stopped provider is a safe no-op.
-        CompletableResultCode result = new CompletableResultCode();
-        sys.forceFlush().whenComplete(() -> sys.forceFlush().whenComplete(() -> health.forceFlush().whenComplete(result::succeed)));
-        return result;
     }
 
     @Override
@@ -193,15 +186,10 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         }
     }
 
-    record OTelMetricsResources(
-        SdkMeterProvider systemMeterProvider,
-        SdkMeterProvider meterHealthMeterProvider,
-        RuntimeTelemetry runtimeTelemetry
-    ) implements AutoCloseable {
+    record OTelMetricsResources(SdkMeterProvider meterProvider, RuntimeTelemetry runtimeTelemetry) implements AutoCloseable {
 
         OTelMetricsResources {
-            Objects.requireNonNull(systemMeterProvider, "systemMeterProvider");
-            Objects.requireNonNull(meterHealthMeterProvider, "meterHealthMeterProvider");
+            Objects.requireNonNull(meterProvider, "meterProvider");
         }
 
         @Override
@@ -209,8 +197,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             if (runtimeTelemetry != null) {
                 runtimeTelemetry.close();
             }
-            systemMeterProvider.close();
-            meterHealthMeterProvider.close();
+            meterProvider.close();
         }
     }
 }

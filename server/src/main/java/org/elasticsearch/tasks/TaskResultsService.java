@@ -10,9 +10,9 @@ package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -150,7 +150,7 @@ public class TaskResultsService {
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Version.CURRENT.toString());
+                builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Build.current().version());
                 builder.field(SystemIndexDescriptor.VERSION_META_KEY, TASK_RESULTS_INDEX_MAPPINGS_VERSION);
                 builder.endObject();
 

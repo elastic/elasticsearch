@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.hamcrest.Matchers;
 
@@ -28,23 +29,20 @@ import java.util.zip.GZIPOutputStream;
  * propagating through the full decorator chain used in production:
  * <pre>
  *     RetryableStorageObject
- *       -> ConcurrencyLimitedStorageObject
- *         -> QueryBudgetedStorageObject
- *           -> DecompressingStorageObject (gzip)
- *             -> S3-like drain-on-close raw stream
+ *       -> DecompressingStorageObject (gzip)
+ *         -> S3-like drain-on-close raw stream
  * </pre>
  * <p>
  * The original bug was a single decorator in the chain silently swallowing the abort signal
  * (falling back to a {@code close()} which on S3 drains the entire response body). With every
- * layer correctly overriding {@code abortStream}, partial reads must (a) not drain the raw
- * stream and (b) release every layer's resource accounting (permits, budget).
+ * layer correctly overriding {@code abortStream}, partial reads must not drain the raw stream.
  */
 public class StorageObjectAbortChainTests extends ESTestCase {
 
     /**
      * Builds the production stack of decorators over a drain-simulating raw storage object,
      * reads a small prefix of a multi-MB gzipped payload, then aborts. Asserts the raw stream
-     * was not drained and that every decorator released its accounting.
+     * was not drained through any layer of the chain.
      */
     public void testAbortPropagatesThroughDecoratorChainWithoutDrain() throws IOException {
         StringBuilder csv = new StringBuilder();
@@ -58,23 +56,15 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject raw = DrainSimulatingStorageObject.create(compressed, tracking);
 
-        // Production order (inner-to-outer): decompressing wraps the S3-like raw, then the
-        // global hard cap, then the per-query budget, then retry. Outer decorators delegate
-        // their abort through to the inner ones; if any layer regresses to a draining
-        // close() the assertions below will trip.
-        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(4, 60_000L, null);
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(4);
+        // Production order (inner-to-outer): decompressing wraps the S3-like raw, then retry. Outer decorators
+        // delegate their abort through to the inner ones; if any layer regresses to a draining close() the
+        // assertions below trip.
         StorageObject chain = new RetryableStorageObject(
-            new ConcurrencyLimitedStorageObject(
-                new QueryBudgetedStorageObject(new DecompressingStorageObject(raw, new GzipDecompressionCodec()), budget),
-                limiter
-            ),
+            new DecompressingStorageObject(raw, new GzipDecompressionCodec()),
             new RetryPolicy(3, 1, 10)
         );
 
         InputStream stream = chain.newStream();
-        assertEquals("query budget permit must be acquired by newStream()", 1, budget.inFlight());
-        assertEquals("global permit must be acquired by newStream()", 3, limiter.availablePermits());
 
         try {
             byte[] prefix = new byte[4096];
@@ -94,8 +84,6 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan((long) compressed.length / 2)
         );
-        assertEquals("query budget permit must be released by abortStream", 0, budget.inFlight());
-        assertEquals("global permit must be released by abortStream", 4, limiter.availablePermits());
     }
 
     /**
@@ -116,18 +104,19 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject raw = DrainSimulatingStorageObject.create(payload, tracking);
 
-        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(4, 60_000L, null);
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(4);
-        StorageObject chain = new RetryableStorageObject(
-            new ConcurrencyLimitedStorageObject(new QueryBudgetedStorageObject(raw, budget), limiter),
-            new RetryPolicy(3, 1, 10)
-        );
+        StorageObject chain = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
 
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
 
         long stride = fileLength / 4;
-        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, chain, fileLength, stride);
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+            csvReader,
+            chain,
+            fileLength,
+            stride,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
 
         assertThat("expected multiple macro-split boundaries", starts.size(), Matchers.greaterThan(1));
         assertTrue("each probe must abort the raw stream", tracking.abortCalls.get() >= starts.size() - 1);
@@ -142,8 +131,6 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan(fileLength / 2)
         );
-        assertEquals("query budget permits must be released after split discovery", 0, budget.inFlight());
-        assertEquals("global permits must be released after split discovery", 4, limiter.availablePermits());
     }
 
     /**
@@ -162,12 +149,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject raw = DrainSimulatingStorageObject.create(payload, tracking);
 
-        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(4, 60_000L, null);
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(4);
-        StorageObject chain = new RetryableStorageObject(
-            new ConcurrencyLimitedStorageObject(new QueryBudgetedStorageObject(raw, budget), limiter),
-            new RetryPolicy(3, 1, 10)
-        );
+        StorageObject chain = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
 
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
@@ -187,8 +169,6 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan(fileLength / 2)
         );
-        assertEquals("query budget permits must be released after segment discovery", 0, budget.inFlight());
-        assertEquals("global permits must be released after segment discovery", 4, limiter.availablePermits());
     }
 
     private static byte[] gzip(byte[] input) throws IOException {

@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.request;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
-import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
-import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -24,15 +20,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DESCRIPTION_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.NAME_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEXT_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CHOICE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_P_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
 
@@ -51,10 +43,8 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
 
     private static final String STREAM_FIELD = "stream";
     private static final String SYSTEM_FIELD = "system";
-    private static final String INPUT_SCHEMA_FIELD = "input_schema";
     private static final String STOP_SEQUENCES_FIELD = "stop_sequences";
     private static final String TOP_K_FIELD = "top_k";
-    private static final String TOOL_CHOICE_TOOL_TYPE = "tool";
     private static final String TEXT_TYPE = "text";
     private static final String SYSTEM_ROLE = "system";
 
@@ -141,55 +131,8 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
             builder.field(TOP_K_FIELD, taskSettings.topK());
         }
 
-        var toolChoice = unifiedRequest.toolChoice();
-        if (toolChoice != null) {
-            if (toolChoice instanceof ToolChoiceObject toolChoiceObject) {
-                // Translate OpenAI's {"type":"function","function":{"name":"..."}} to Anthropic's {"type":"tool","name":"..."}.
-                builder.startObject(TOOL_CHOICE_FIELD);
-                builder.field(TYPE_FIELD, TOOL_CHOICE_TOOL_TYPE);
-                if (toolChoiceObject.function() != null) {
-                    builder.field(NAME_FIELD, toolChoiceObject.function().name());
-                }
-                builder.endObject();
-            } else if (toolChoice instanceof ToolChoiceString toolChoiceString) {
-                // Translate OpenAI string values to Anthropic's object format.
-                String anthropicType = switch (toolChoiceString.value()) {
-                    case "none" -> "none";
-                    case "auto" -> "auto";
-                    case "required" -> "any";
-                    default -> throw new ElasticsearchStatusException(
-                        "Unsupported tool_choice value [" + toolChoiceString.value() + "] for the Anthropic chat completion API.",
-                        RestStatus.BAD_REQUEST
-                    );
-                };
-                builder.startObject(TOOL_CHOICE_FIELD);
-                builder.field(TYPE_FIELD, anthropicType);
-                builder.endObject();
-            }
-        }
-
-        var tools = unifiedRequest.tools();
-        if (tools != null && tools.isEmpty() == false) {
-            builder.startArray(TOOL_FIELD);
-            for (var tool : tools) {
-                var function = tool.function();
-                if (function.strict() != null) {
-                    throw new ElasticsearchStatusException(
-                        "The [strict] field in tool function definitions is not supported by the Anthropic chat completion API.",
-                        RestStatus.BAD_REQUEST
-                    );
-                }
-                builder.startObject();
-                builder.field(NAME_FIELD, function.name());
-                builder.field(DESCRIPTION_FIELD, function.description());
-                var parameters = function.parameters();
-                if (parameters != null && parameters.isEmpty() == false) {
-                    builder.field(INPUT_SCHEMA_FIELD, parameters);
-                }
-                builder.endObject();
-            }
-            builder.endArray();
-        }
+        AnthropicToolUtils.writeToolChoice(builder, unifiedRequest.toolChoice());
+        AnthropicToolUtils.writeTools(builder, unifiedRequest.tools());
 
         builder.field(STREAM_FIELD, stream);
 

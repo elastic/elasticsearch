@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SingleValuedLongField;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -88,6 +87,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
         true,
         FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+        true,
         true
     );
 
@@ -146,7 +146,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                     return false;
                 }
-                if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+                if (indexSettings.getMode().isTsdb()) {
                     var metricType = getMetric().getValue();
                     return metricType != MetricType.COUNTER && metricType != MetricType.GAUGE;
                 } else {
@@ -400,15 +400,16 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
+            if (IndexMode.isTsdb(indexMode) && metricType == TimeSeriesParams.MetricType.COUNTER) {
                 // Counters are not supported by ESQL so we load them in null
                 return ConstantNull.INSTANCE;
             }
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new LongsBlockLoader(name(), readInArrayOrder);
             }
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSource && blContext.parentField(name()) == null) {
+            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
@@ -508,7 +509,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 failIfNoDocValues();
             }
 
-            ValuesSourceType valuesSourceType = indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER
+            ValuesSourceType valuesSourceType = IndexMode.isTsdb(indexMode) && metricType == TimeSeriesParams.MetricType.COUNTER
                 ? TimeSeriesValuesSourceType.COUNTER
                 : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
 
@@ -775,6 +776,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean isNullable() {
+        return docValuesParameters.nullability() || nullValue != null;
+    }
+
+    @Override
     public UnsignedLongFieldType fieldType() {
         return (UnsignedLongFieldType) super.fieldType();
     }
@@ -844,12 +850,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         if (numericValue != null) {
             if (indexed && docValuesParameters.enabled()) {
-                context.doc()
-                    .add(
-                        docValuesParameters.multiValue()
-                            ? new LongField(fieldType().name(), numericValue, Field.Store.NO)
-                            : new SingleValuedLongField(fieldType().name(), numericValue)
-                    );
+                context.doc().add(new LongField(fieldType().name(), numericValue, Field.Store.NO));
             } else if (docValuesParameters.enabled()) {
                 dvFactory.addNumericField(context.doc(), fieldType().name(), numericValue);
             } else if (indexed) {

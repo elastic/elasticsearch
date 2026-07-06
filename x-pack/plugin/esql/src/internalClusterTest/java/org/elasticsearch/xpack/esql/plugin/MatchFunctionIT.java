@@ -485,7 +485,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchRuntimeEvalWithIncompatibleLongValueThrowsError() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             FROM test
             | EVAL new_id = to_long(id)
@@ -503,7 +502,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchRuntimeRowWithIncompatibleIpValueThrowsError() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             ROW my_ip = to_ip("192.168.1.1")
             | WHERE match(my_ip, "not_an_ip")
@@ -520,7 +518,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchRuntimeEvalWithIncompatibleIntegerValueThrowsError() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             FROM test
             | EVAL new_id = to_integer(id)
@@ -539,7 +536,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchRuntimeEvalWithIncompatibleDoubleValueThrowsError() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             FROM test
             | EVAL new_id = to_double(id)
@@ -557,7 +553,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchRuntimeEvalWithIncompatibleUnsignedLongValueThrowsError() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             FROM test
             | EVAL new_id = to_unsigned_long(id)
@@ -576,7 +571,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchRuntimeRowWithIncompatibleDatetimeValueThrowsError() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             ROW my_date = to_datetime("2024-01-01")
             | WHERE match(my_date, "not_a_date")
@@ -594,7 +588,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchRuntimeRowWithIncompatibleDateNanosValueThrowsError() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             ROW my_date = to_date_nanos("2024-01-01")
             | WHERE match(my_date, "not_a_date")

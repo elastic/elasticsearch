@@ -1817,6 +1817,36 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource(mapper, example), equalTo("{\"field\":{\"sub1\":{\"sub2\":[\"foo\",\"bar\",\"baz\",\"bat\"]}}}"));
     }
 
+    /**
+     * With {@code preserve_leaf_arrays: exact}, array-order offsets for a key are encoded relative to the
+     * values seen by a single {@code parseCreateField} call. When the flattened field's top-level value is an
+     * array of objects (field multiplicity), {@code parseCreateField} runs once per array element, each time
+     * with a fresh offsets-tracking context, while the keyed values across all elements are merged into one
+     * document-wide sorted-unique set. The offsets from one element are then decoded against a value set they
+     * were never computed against, silently dropping values from other elements. See
+     * <a href="https://github.com/elastic/elasticsearch/issues/153014">#153014</a>.
+     */
+    public void testPreserveLeafArraysExactWithFieldMultiplicity() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> example = b -> {
+            b.startArray("field");
+            {
+                b.startObject();
+                b.array("key", "b", "a");
+                b.endObject();
+                b.startObject();
+                b.field("key", "c");
+                b.endObject();
+            }
+            b.endArray();
+        };
+
+        assertThat(syntheticSource(mapper, example), equalTo("{\"field\":{\"key\":[\"b\",\"a\",\"c\"]}}"));
+    }
+
     public void testPreserveLeafArraysExactWithAllNulls() throws IOException {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();

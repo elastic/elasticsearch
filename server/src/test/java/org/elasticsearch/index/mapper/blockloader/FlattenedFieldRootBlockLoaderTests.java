@@ -261,6 +261,35 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         runner.run(new BytesRef("{\"a\":[\"1\",\"4\"],\"b\":\"2\",\"c\":\"3\"}"));
     }
 
+    /**
+     * With {@code preserve_leaf_arrays: exact}, array-order offsets for a key are encoded relative to the
+     * values seen by a single {@code parseCreateField} call. When the flattened field's top-level value is an
+     * array of objects (field multiplicity), {@code parseCreateField} runs once per array element, each time
+     * with a fresh offsets-tracking context, while the keyed values across all elements are merged into one
+     * document-wide sorted-unique set. The offsets from one element are then decoded against a value set they
+     * were never computed against, silently dropping values from other elements. The block loader shares the
+     * same reconstruction path ({@link org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper})
+     * as synthetic source, so it is affected identically. See
+     * <a href="https://github.com/elastic/elasticsearch/issues/153014">#153014</a>.
+     */
+    public void testBlockLoaderPreserveLeafArraysExactWithFieldMultiplicity() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        runner.document(Map.of("field", List.of(Map.of("key", List.of("b", "a")), Map.of("key", "c"))));
+        runner.fieldName("field");
+
+        Map<String, Object> flattenedMapping = Map.of("type", "flattened", "preserve_leaf_arrays", "exact");
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
+            Map.of("field", flattenedMapping)
+        );
+
+        String expected = "{\"key\":[\"b\",\"a\",\"c\"]}";
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef(expected));
+    }
+
     public void testBlockLoaderDottedKeyAndNestedObject() throws IOException {
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
         // "a.b" as a dotted key and "a":{"b":...} as a nested object both flatten to the same key.

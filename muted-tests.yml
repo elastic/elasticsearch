@@ -313,9 +313,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/150045
-- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
-  method: testEstimatedHeapAllocationDecider
-  issue: https://github.com/elastic/elasticsearch/issues/150046
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:stats.weightedAvgWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/150051
@@ -719,9 +716,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.HollowIndexShardsMergesIT
   method: testQueuedOrOnGoingMergesPreventHollowing
   issue: https://github.com/elastic/elasticsearch/issues/152723
-- class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
-  method: testSymmetric1BitDotProductMatchesNativeWhenSupported
-  issue: https://github.com/elastic/elasticsearch/issues/150155
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testUnreferencedCommitsAreReleasedAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/152730

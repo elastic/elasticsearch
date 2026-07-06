@@ -148,6 +148,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
@@ -1889,6 +1890,14 @@ public class LocalExecutionPlanner {
                 virtualColumnNames.addAll(pm.partitionColumns().keySet());
             }
         }
+        // On a data node the resolved FileList is not serialized (see the slice-queue note above), so the
+        // partition columns above are absent there. Their names ARE serialized via the PARTITION_COLUMNS_KEY
+        // stamp in sourceMetadata — the same stamp the aggregate fold reads
+        // (ExternalSourceAggregatePushdown.partitionColumnNames). Union them in so VirtualColumnIterator
+        // materialises the partition column as a constant block even when ONLY a partition column is projected
+        // (e.g. COUNT(p) that safe-missed to a scan): otherwise the operator treats it as a data column, the
+        // reader emits a 0-block page, and the downstream aggregator reads a non-existent block.
+        virtualColumnNames.addAll(ExternalSourceAggregatePushdown.partitionColumnNames(externalSource.sourceMetadata()));
         for (Attribute attr : externalSource.output()) {
             if (FileMetadataColumns.isFileMetadataColumn(attr.name())) {
                 virtualColumnNames.add(attr.name());

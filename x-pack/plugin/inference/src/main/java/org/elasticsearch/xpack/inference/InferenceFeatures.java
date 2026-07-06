@@ -155,12 +155,10 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS,
                 SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES,
                 SEMANTIC_TEXT_EMBEDDING_TASK,
-                SemanticTextFieldMapper.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES
+                SemanticTextFieldMapper.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES,
+                SemanticFieldMapper.SEMANTIC_FIELD_MAPPER
             )
         );
-        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
-            testFeatures.add(SemanticFieldMapper.SEMANTIC_FIELD_MAPPER);
-        }
         testFeatures.addAll(getFeatures());
         return testFeatures;
     }

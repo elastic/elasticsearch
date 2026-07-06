@@ -1899,8 +1899,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testMultimodalChunksNotSupported() throws Exception {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         // Exclude dot product because the randomly generated embedding may not have unit length
         Model model = TestModel.createRandomInstance(TaskType.EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
         MapperService mapperService = createMapperService(

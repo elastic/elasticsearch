@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.ingest.geoip.Database;
+import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -53,6 +56,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -61,12 +65,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -1244,10 +1250,120 @@ public abstract class DocsV3Support {
                 if (observabilityTier != null && observabilityTier != ObservabilityTier.LOGS_ESSENTIALS) {
                     builder.field("observability_tier", observabilityTier.toString());
                 }
+                renderOutputBlock(builder, command);
                 String rendered = Strings.toString(builder.endObject());
                 logger.info("Writing kibana command definition for [{}]", name);
                 logger.debug("{}", rendered);
                 writeToTempKibanaDir("definition", "json", rendered);
+            }
+        }
+
+        /**
+         * Glob patterns for known ip location database file names, in the order they should be rendered.
+         * MaxMind databases are matched by filename suffix (reliable); ipinfo databases are matched heuristically
+         * by substring, since ipinfo file names are not standardized.
+         */
+        private static final LinkedHashMap<String, Database> IP_LOCATION_DATABASE_GLOBS = new LinkedHashMap<>();
+        static {
+            IP_LOCATION_DATABASE_GLOBS.put("*-City.mmdb", Database.City);
+            IP_LOCATION_DATABASE_GLOBS.put("*-Country.mmdb", Database.Country);
+            IP_LOCATION_DATABASE_GLOBS.put("*-ASN.mmdb", Database.Asn);
+            IP_LOCATION_DATABASE_GLOBS.put("*-Anonymous-IP.mmdb", Database.AnonymousIp);
+            IP_LOCATION_DATABASE_GLOBS.put("*-Connection-Type.mmdb", Database.ConnectionType);
+            IP_LOCATION_DATABASE_GLOBS.put("*-Domain.mmdb", Database.Domain);
+            IP_LOCATION_DATABASE_GLOBS.put("*-Enterprise.mmdb", Database.Enterprise);
+            IP_LOCATION_DATABASE_GLOBS.put("*-ISP.mmdb", Database.Isp);
+            IP_LOCATION_DATABASE_GLOBS.put("ipinfo*plus*.mmdb", Database.IpinfoPlus);
+            IP_LOCATION_DATABASE_GLOBS.put("ipinfo*asn*.mmdb", Database.AsnV2);
+            IP_LOCATION_DATABASE_GLOBS.put("ipinfo*country*.mmdb", Database.CountryV2);
+            IP_LOCATION_DATABASE_GLOBS.put("ipinfo*location*.mmdb", Database.CityV2);
+            IP_LOCATION_DATABASE_GLOBS.put("ipinfo*privacy*.mmdb", Database.PrivacyDetection);
+        }
+
+        /**
+         * Renders the "output" block describing the columns produced by commands with known, fixed output
+         * schemas ({@code vary_by: "none"}) or output schemas that depend on the ip location database file used
+         * ({@code vary_by: "database_file"}). Commands without a known output schema render nothing.
+         */
+        private static void renderOutputBlock(XContentBuilder builder, LogicalPlan command) throws IOException {
+            if (command instanceof IpLocation) {
+                renderIpLocationOutputBlock(builder);
+                return;
+            }
+            SortedMap<String, DataType> outputFieldTypes = simpleOutputFieldTypes(command);
+            if (outputFieldTypes == null) {
+                return;
+            }
+            builder.startObject("output");
+            builder.field("vary_by", "none");
+            builder.startObject("variants");
+            builder.startObject("all");
+            for (Map.Entry<String, DataType> entry : outputFieldTypes.entrySet()) {
+                builder.startObject(entry.getKey());
+                builder.field("type", entry.getValue().esNameIfPossible());
+                builder.endObject();
+            }
+            builder.endObject();
+            builder.endObject();
+            builder.endObject();
+        }
+
+        /**
+         * Reflectively looks for a static {@code allOutputFieldTypes()} method on the command's class, avoiding
+         * the need to import each concrete command class here. Returns {@code null} if the command has no such
+         * method, meaning it has no known fixed output schema.
+         */
+        @SuppressWarnings("unchecked")
+        private static SortedMap<String, DataType> simpleOutputFieldTypes(LogicalPlan cmd) {
+            try {
+                Method m = cmd.getClass().getMethod("allOutputFieldTypes");
+                if (Modifier.isStatic(m.getModifiers())) {
+                    return (SortedMap<String, DataType>) m.invoke(null);
+                }
+            } catch (NoSuchMethodException ignored) {} catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+            return null;
+        }
+
+        /**
+         * Renders the IP_LOCATION command's output block, which varies by the ip location database file used.
+         * Matching is filename-based on known glob patterns; a custom database registered under a standard name
+         * would get incorrect autocomplete hints in Kibana, but ES itself resolves fields from the actual
+         * database metadata, so queries are unaffected.
+         */
+        private static void renderIpLocationOutputBlock(XContentBuilder builder) throws IOException {
+            builder.startObject("output");
+            builder.field("vary_by", "database_file");
+            builder.field("selected_by", "properties");
+            builder.startObject("variants");
+            for (Map.Entry<String, Database> entry : IP_LOCATION_DATABASE_GLOBS.entrySet()) {
+                builder.startObject(entry.getKey());
+                renderIpLocationVariantFields(builder, entry.getValue());
+                builder.endObject();
+            }
+            builder.endObject();
+            builder.endObject();
+        }
+
+        private static void renderIpLocationVariantFields(XContentBuilder builder, Database database) throws IOException {
+            Set<DatabaseProperty> defaultProperties = database.defaultProperties();
+            SortedMap<String, DatabaseProperty> sortedProperties = new TreeMap<>();
+            for (DatabaseProperty property : database.properties()) {
+                sortedProperties.put(property.fieldName(), property);
+            }
+            for (Map.Entry<String, DatabaseProperty> entry : sortedProperties.entrySet()) {
+                DatabaseProperty property = entry.getValue();
+                DataType dataType = DataType.fromJavaType(property.fieldType());
+                if (dataType == null && DatabaseProperty.LOCATION.fieldName().equals(entry.getKey())) {
+                    dataType = DataType.GEO_POINT;
+                }
+                builder.startObject(entry.getKey());
+                builder.field("type", dataType.esNameIfPossible());
+                if (defaultProperties.contains(property) == false) {
+                    builder.field("default", false);
+                }
+                builder.endObject();
             }
         }
 

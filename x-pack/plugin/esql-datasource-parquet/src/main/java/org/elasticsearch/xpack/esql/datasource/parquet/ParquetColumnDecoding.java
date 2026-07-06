@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.ColumnReader;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.io.api.Converter;
 import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.io.api.PrimitiveConverter;
@@ -21,6 +22,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
@@ -116,6 +119,52 @@ final class ParquetColumnDecoding {
      */
     static long timeNanoMultiplier(LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
         return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
+    }
+
+    /**
+     * Decodes a Binary-backed FLOAT16 or DECIMAL footer stat value into the same {@code double} the
+     * scan path produces (mirrors {@code readFloat16Column} / {@code readDecimalAsDoubleColumn}), so
+     * pushed-down MIN/MAX match a scan. Only BINARY/FIXED_LEN_BYTE_ARRAY physical columns reach this
+     * path: their footer stat is a Parquet {@link Binary}, but the resolved ESQL type is DOUBLE, so
+     * leaving the stat as raw bytes/text would break the DOUBLE aggregate. Returns {@code null} when
+     * the value is not a {@link Binary} or the type is not FLOAT16/DECIMAL (caller falls through to
+     * other normalization).
+     */
+    static Double decodeBinaryNumericStat(Object value, PrimitiveType type) {
+        if (value instanceof Binary == false) {
+            return null;
+        }
+        byte[] bytes = ((Binary) value).getBytes();
+        LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
+        if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
+            short float16Bits = (short) ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
+            return (double) Float.float16ToFloat(float16Bits);
+        }
+        if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal) {
+            BigInteger unscaled = new BigInteger(bytes);
+            return new BigDecimal(unscaled, decimal.getScale()).doubleValue();
+        }
+        return null;
+    }
+
+    /**
+     * Sign-flip-encodes an {@code unsigned_long} (INT64, {@code intType(64, false)}) footer stat
+     * value via {@link #encodeUnsignedLong(long)}, matching the encoded representation the scan path
+     * stores in the block (see {@link #encodeUnsignedLong}'s javadoc: every INT64 read producer of an
+     * {@code unsigned_long} block must route through it). Without this, the footer MIN/MAX are left in
+     * raw signed space while the aggregate compares them as sign-flip-encoded values, silently
+     * producing a wrong (even inverted) MIN/MAX. Returns {@code null} when the type is not an
+     * unsigned 64-bit INT64 (caller falls through to other normalization).
+     */
+    static Long decodeUnsignedLongStat(Object value, PrimitiveType type) {
+        LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
+        if (type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT64
+            && logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
+            && intLogical.isSigned() == false
+            && intLogical.getBitWidth() == 64) {
+            return encodeUnsignedLong(((Number) value).longValue());
+        }
+        return null;
     }
 
     // ---- Unsigned long encoding ----

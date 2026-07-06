@@ -61,6 +61,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -3862,6 +3863,153 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals("scan tms min == stats tms min", scanTmsMin, ((Number) tmsStats.minValue().get()).longValue());
             assertEquals("scan tms max == stats tms max", scanTmsMax, ((Number) tmsStats.maxValue().get()).longValue());
             page.releaseBlocks();
+        }
+    }
+
+    /**
+     * Verifies that Parquet footer statistics for Binary-backed FLOAT16 and DECIMAL columns (logical
+     * types over BINARY/FIXED_LEN_BYTE_ARRAY) are decoded to {@code double}, matching the scan-path
+     * decode. Before the fix, {@code normalizeStatValue} stringified these via
+     * {@code Binary#toStringUsingUTF8}, and the DOUBLE-typed MIN/MAX aggregate would throw
+     * {@code ClassCastException} trying to read the stat as a Double.
+     */
+    public void testBinaryBackedFloat16AndDecimalStatsDecodeToDouble() throws Exception {
+        float f16Lo = -1.0f;
+        float f16Hi = 3.14f;
+        double f16LoExpected = Float.float16ToFloat(Float.floatToFloat16(f16Lo));
+        double f16HiExpected = Float.float16ToFloat(Float.floatToFloat16(f16Hi));
+
+        int decimalScale = 2;
+        long decimalLoUnscaled = -100; // -1.00
+        long decimalHiUnscaled = 1234567; // 12345.67
+        double decimalLoExpected = new BigDecimal(BigInteger.valueOf(decimalLoUnscaled), decimalScale).doubleValue();
+        double decimalHiExpected = new BigDecimal(BigInteger.valueOf(decimalHiUnscaled), decimalScale).doubleValue();
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(2)
+            .as(LogicalTypeAnnotation.float16Type())
+            .named("f16")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.decimalType(decimalScale, 10))
+            .named("dec")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("f16", Binary.fromConstantByteArray(toFloat16Bytes(f16Lo)));
+            g1.add("dec", Binary.fromConstantByteArray(BigInteger.valueOf(decimalLoUnscaled).toByteArray()));
+            Group g2 = factory.newGroup();
+            g2.add("f16", Binary.fromConstantByteArray(toFloat16Bytes(f16Hi)));
+            g2.add("dec", Binary.fromConstantByteArray(BigInteger.valueOf(decimalHiUnscaled).toByteArray()));
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // --- extractStatistics path (metadata) ---
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        var colStats = metadata.statistics().get().columnStatistics().get();
+
+        var f16Stats = colStats.get("f16");
+        assertEquals(Optional.of(f16LoExpected), f16Stats.minValue());
+        assertEquals(Optional.of(f16HiExpected), f16Stats.maxValue());
+        assertThat(f16Stats.minValue().get(), instanceOf(Double.class));
+
+        var decStats = colStats.get("dec");
+        assertEquals(Optional.of(decimalLoExpected), decStats.minValue());
+        assertEquals(Optional.of(decimalHiExpected), decStats.maxValue());
+        assertThat(decStats.minValue().get(), instanceOf(Double.class));
+
+        // --- buildRowGroupStats path (discoverSplitRanges) ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            Object f16Min = stats.get("_stats.columns.f16.min");
+            if (f16Min != null) {
+                assertThat(f16Min, instanceOf(Double.class));
+            }
+            Object decMin = stats.get("_stats.columns.dec.min");
+            if (decMin != null) {
+                assertThat(decMin, instanceOf(Double.class));
+            }
+        }
+    }
+
+    /**
+     * Verifies that Parquet footer statistics for an {@code unsigned_long} column (INT64,
+     * {@code intType(64, false)}) are sign-flip-encoded to match the scan path, so pushed-down
+     * MIN/MAX agree with a scan. Before the fix, {@code normalizeStatValue} returned the raw INT64
+     * stat, which is in the wrong representation for the encoded {@code LongBlock} the aggregate
+     * expects — causing MIN/MAX to come back silently wrong (even inverted, min &gt; max), with no
+     * error. Reproduces the exact values from the issue: {@code u64 = {0, 5, 2^63}}.
+     */
+    public void testUnsignedLongStatsSignFlipEncoded() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned, bit-width 64
+            .named("u64")
+            .named("test_schema");
+
+        // Raw signed INT64 bits: unsigned 0 -> 0L, unsigned 5 -> 5L, unsigned 2^63 -> Long.MIN_VALUE.
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("u64", 0L);
+            Group g2 = factory.newGroup();
+            g2.add("u64", 5L);
+            Group g3 = factory.newGroup();
+            g3.add("u64", Long.MIN_VALUE);
+            return List.of(g1, g2, g3);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.UNSIGNED_LONG, metadata.schema().get(0).dataType());
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        var u64Stats = metadata.statistics().get().columnStatistics().get().get("u64");
+
+        // --- scan path: the ground truth encoding, independently verified correct by the issue ---
+        long scanMinEncoded;
+        long scanMaxEncoded;
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            scanMinEncoded = Long.MAX_VALUE;
+            scanMaxEncoded = Long.MIN_VALUE;
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                long encoded = block.getLong(i);
+                scanMinEncoded = Math.min(scanMinEncoded, encoded);
+                scanMaxEncoded = Math.max(scanMaxEncoded, encoded);
+            }
+            page.releaseBlocks();
+        }
+
+        // --- extractStatistics path (metadata) must match the scan's encoded representation ---
+        assertEquals("stats min must match scan's sign-flip-encoded min", Optional.of(scanMinEncoded), u64Stats.minValue());
+        assertEquals("stats max must match scan's sign-flip-encoded max", Optional.of(scanMaxEncoded), u64Stats.maxValue());
+        // Signed compareTo on the encoded values must order like unsigned compareTo on the raw values,
+        // i.e. min <= max even though unsigned 2^63 > 5 encodes to a value that sorts before it.
+        assertTrue("encoded min must sort <= encoded max", scanMinEncoded <= scanMaxEncoded);
+
+        // --- buildRowGroupStats path (discoverSplitRanges) ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            Object min = stats.get("_stats.columns.u64.min");
+            Object max = stats.get("_stats.columns.u64.max");
+            if (min != null) {
+                assertEquals(scanMinEncoded, ((Number) min).longValue());
+            }
+            if (max != null) {
+                assertEquals(scanMaxEncoded, ((Number) max).longValue());
+            }
         }
     }
 

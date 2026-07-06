@@ -843,14 +843,26 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Normalizes Parquet-specific stat values to types that Elasticsearch can serialize.
-     * Temporal types (date32, timestamp, INT96) are decoded to epoch-millis.
-     * Parquet {@link Binary} (used for BYTE_ARRAY / string columns) is converted to String.
+     * Normalizes Parquet-specific stat values to the same representation the scan path produces for
+     * the column's resolved ESQL type, so a pushed-down MIN/MAX agrees with a scan. Temporal types
+     * (date32, timestamp, INT96) are decoded to epoch-millis. Binary-backed FLOAT16 and DECIMAL
+     * (logical types over BINARY/FIXED_LEN_BYTE_ARRAY) are decoded to the same {@code double} the
+     * scan path produces, matching their resolved ESQL DOUBLE type. {@code unsigned_long} (INT64,
+     * {@code intType(64, false)}) is sign-flip-encoded to match the block's encoded representation.
+     * Any other Parquet {@link Binary} (used for BYTE_ARRAY / string columns) is converted to String.
      */
     private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
         Long temporal = ParquetColumnDecoding.decodeTemporalStat(value, primitiveType);
         if (temporal != null) {
             return temporal;
+        }
+        Double binaryNumeric = ParquetColumnDecoding.decodeBinaryNumericStat(value, primitiveType);
+        if (binaryNumeric != null) {
+            return binaryNumeric;
+        }
+        Long unsignedLong = ParquetColumnDecoding.decodeUnsignedLongStat(value, primitiveType);
+        if (unsignedLong != null) {
+            return unsignedLong;
         }
         if (value instanceof Binary binary) {
             return binary.toStringUsingUTF8();

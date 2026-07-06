@@ -134,7 +134,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ match_runtime_search ]
+          capabilities: [ fn_match_runtime_filter ]
       reason: "Support for match with non-mapped argument"
   - do:
       allowed_warnings_regex:
@@ -156,7 +156,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ match_runtime_search ]
+          capabilities: [ fn_match_runtime_filter ]
       reason: "Support for match with non-mapped argument"
   - do:
       allowed_warnings_regex:

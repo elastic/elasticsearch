@@ -1114,7 +1114,7 @@ distinct_paths:long
 matchOnExternalKeyword
 required_capability: external_command
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 pragma: runtime_lexical_search=true
@@ -1132,7 +1132,7 @@ emp_no:integer | first_name:keyword
 matchOnExternalKeywordAsText
 required_capability: external_command
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 pragma: runtime_lexical_search=true
@@ -1152,7 +1152,7 @@ emp_no:integer | first_name:keyword
 matchOnExternalInteger
 required_capability: external_command
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 pragma: runtime_lexical_search=true
@@ -1170,7 +1170,7 @@ emp_no:integer | salary:integer
 matchOnExternalIntegerWithStringQuery
 required_capability: external_command
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 pragma: runtime_lexical_search=true

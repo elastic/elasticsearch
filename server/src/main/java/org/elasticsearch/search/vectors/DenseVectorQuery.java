@@ -279,7 +279,7 @@ public abstract class DenseVectorQuery extends Query {
             if (fieldInfo != null && fieldInfo.getVectorSimilarityFunction() == function) {
                 return vectorValues.rescorer(query);
             }
-            return new RawFloatVectorScorer(vectorValues, query, function);
+            return new RawVectorScorer<>(vectorValues, vectorValues::vectorValue, query, function::compare);
         }
 
         @Override
@@ -383,7 +383,7 @@ public abstract class DenseVectorQuery extends Query {
             if (fieldInfo != null && fieldInfo.getVectorSimilarityFunction() == function) {
                 return vectorValues.rescorer(query);
             }
-            return new RawByteVectorScorer(vectorValues, query, function);
+            return new RawVectorScorer<>(vectorValues, vectorValues::vectorValue, query, function::compare);
         }
 
         @Override
@@ -398,29 +398,39 @@ public abstract class DenseVectorQuery extends Query {
         public int hashCode() {
             return Objects.hash(field, Arrays.hashCode(query), function);
         }
+    }
 
-        private static final class RawByteVectorScorer implements VectorScorer {
-            private final ByteVectorValues values;
-            private final byte[] target;
-            private final VectorSimilarityFunction function;
-            private final KnnVectorValues.DocIndexIterator iterator;
+    private static final class RawVectorScorer<T> implements VectorScorer {
+        @FunctionalInterface
+        interface VectorLookup<T> {
+            T vectorValue(int ord) throws IOException;
+        }
 
-            RawByteVectorScorer(ByteVectorValues values, byte[] target, VectorSimilarityFunction function) {
-                this.values = values;
-                this.target = target;
-                this.function = function;
-                this.iterator = values.iterator();
-            }
+        @FunctionalInterface
+        interface Compare<T> {
+            float apply(T a, T b);
+        }
 
-            @Override
-            public float score() throws IOException {
-                return function.compare(target, values.vectorValue(iterator.index()));
-            }
+        private final VectorLookup<T> lookup;
+        private final T target;
+        private final Compare<T> compare;
+        private final KnnVectorValues.DocIndexIterator iterator;
 
-            @Override
-            public DocIdSetIterator iterator() {
-                return iterator;
-            }
+        RawVectorScorer(KnnVectorValues values, VectorLookup<T> lookup, T target, Compare<T> compare) {
+            this.lookup = lookup;
+            this.target = target;
+            this.compare = compare;
+            this.iterator = values.iterator();
+        }
+
+        @Override
+        public float score() throws IOException {
+            return compare.apply(target, lookup.vectorValue(iterator.index()));
+        }
+
+        @Override
+        public DocIdSetIterator iterator() {
+            return iterator;
         }
     }
 

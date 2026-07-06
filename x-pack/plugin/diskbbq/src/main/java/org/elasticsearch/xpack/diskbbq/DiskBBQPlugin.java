@@ -18,6 +18,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -84,39 +85,10 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         ? RoutingFieldMapper.NAME
                         : null;
                     IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
-                    if (indexVersionCreated.onOrAfter(IndexVersions.UPGRADE_DISK_BBQ_ES950)) {
-                        if (diskbbq.isAutoCalibrate()) {
-                            return new ES950DiskBBQVectorsFormat(
-                                ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
-                                clusterSize,
-                                ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                                elementType,
-                                onDiskRescore,
-                                mergingExecutorService,
-                                maxMergingWorkers,
-                                doPrecondition,
-                                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                                flatIndexThreshold,
-                                IvfFlushConfigSource.empty(),
-                                IvfAutoCalibration.mergeConfigResolver(clusterSize)
-                            );
-                        }
-                        return new ES950DiskBBQVectorsFormat(
-                            ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
-                            clusterSize,
-                            ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                            elementType,
-                            onDiskRescore,
-                            mergingExecutorService,
-                            maxMergingWorkers,
-                            doPrecondition,
-                            ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                            flatIndexThreshold
-                        );
-                    } else if (Build.current().isSnapshot()) {
+                    if (Build.current().isSnapshot()) {
                         if (diskbbq.isAutoCalibrate()) {
                             return new ESNextDiskBBQVectorsFormat(
-                                ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
+                                QuantEncoding.fromBits((byte) diskbbq.getBits()),
                                 clusterSize,
                                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                                 elementType,
@@ -132,7 +104,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             );
                         }
                         return new ESNextDiskBBQVectorsFormat(
-                            ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
+                            QuantEncoding.fromBits((byte) diskbbq.getBits()),
                             clusterSize,
                             ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                             elementType,
@@ -143,6 +115,35 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                             flatIndexThreshold,
                             sliceField
+                        );
+                    } else if (indexVersionCreated.onOrAfter(IndexVersions.UPGRADE_DISK_BBQ_ES950)) {
+                        if (diskbbq.isAutoCalibrate()) {
+                            return new ES950DiskBBQVectorsFormat(
+                                QuantEncoding.fromBits((byte) diskbbq.getBits()),
+                                clusterSize,
+                                ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                                elementType,
+                                onDiskRescore,
+                                mergingExecutorService,
+                                maxMergingWorkers,
+                                doPrecondition,
+                                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                                flatIndexThreshold,
+                                IvfFlushConfigSource.empty(),
+                                IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                            );
+                        }
+                        return new ES950DiskBBQVectorsFormat(
+                            QuantEncoding.fromBits((byte) diskbbq.getBits()),
+                            clusterSize,
+                            ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                            elementType,
+                            onDiskRescore,
+                            mergingExecutorService,
+                            maxMergingWorkers,
+                            doPrecondition,
+                            ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                            flatIndexThreshold
                         );
                     }
                     return new ES940DiskBBQVectorsFormat(

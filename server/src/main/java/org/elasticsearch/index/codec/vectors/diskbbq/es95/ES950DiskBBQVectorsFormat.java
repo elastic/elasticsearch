@@ -16,9 +16,10 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
@@ -98,8 +99,8 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;
     public static final int MAX_DIMENSIONS = 4096;
 
-    private final ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat = ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT;
-    private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+    private final CentroidIndexFormat centroidIndexFormat = CentroidIndexFormat.FLAT;
+    private final QuantEncoding quantEncoding;
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
@@ -113,14 +114,10 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
 
     public ES950DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
-        this(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
+        this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
     }
 
-    public ES950DiskBBQVectorsFormat(
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
-        int vectorPerCluster,
-        int centroidsPerParentCluster
-    ) {
+    public ES950DiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
         this(
             quantEncoding,
             vectorPerCluster,
@@ -138,7 +135,7 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
     }
 
     public ES950DiskBBQVectorsFormat(
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+        QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
         DenseVectorFieldMapper.ElementType elementType,
@@ -165,7 +162,7 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
     }
 
     public ES950DiskBBQVectorsFormat(
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+        QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
         DenseVectorFieldMapper.ElementType elementType,
@@ -197,7 +194,7 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
      * @param ivfMergeConfigResolver optional merged config on merge ({@code null} uses writer default)
      */
     public ES950DiskBBQVectorsFormat(
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+        QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
         DenseVectorFieldMapper.ElementType elementType,

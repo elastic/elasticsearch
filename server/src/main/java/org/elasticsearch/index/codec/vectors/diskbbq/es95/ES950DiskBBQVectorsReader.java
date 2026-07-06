@@ -27,6 +27,7 @@ import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidIndex;
@@ -35,8 +36,8 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
@@ -121,7 +122,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
     }
 
     @Override
-    public ESNextDiskBBQVectorsFormat.QuantEncoding getQuantEncoding(FieldInfo fieldInfo) {
+    public QuantEncoding getQuantEncoding(FieldInfo fieldInfo) {
         final NextFieldEntry e = fields.get(fieldInfo.number);
         return e == null ? null : e.quantEncoding();
     }
@@ -171,10 +172,8 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         float globalCentroidDp
     ) throws IOException {
         int bulkSize = input.readInt();
-        ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat = ESNextDiskBBQVectorsFormat.CentroidIndexFormat.fromId(
-            input.readInt()
-        );
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
+        CentroidIndexFormat centroidIndexFormat = CentroidIndexFormat.fromId(input.readInt());
+        QuantEncoding quantEncoding = QuantEncoding.fromId(input.readInt());
         long preconditionerLength = input.readLong();
         long preconditionerOffset = -1;
         if (preconditionerLength > 0) {
@@ -295,8 +294,8 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
     }
 
     public static class NextFieldEntry extends FieldEntry {
-        private final ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat;
-        private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+        private final CentroidIndexFormat centroidIndexFormat;
+        private final QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;
         // -1 "not sliced".
@@ -318,8 +317,8 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             long postingListLength,
             float[] globalCentroid,
             float globalCentroidDp,
-            ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat,
-            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+            CentroidIndexFormat centroidIndexFormat,
+            QuantEncoding quantEncoding,
             int bulkSize,
             long preconditionerOffset,
             long preconditionerLength,
@@ -350,11 +349,11 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             this.rescoreOversample = rescoreOversample;
         }
 
-        public ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat() {
+        public CentroidIndexFormat centroidIndexFormat() {
             return centroidIndexFormat;
         }
 
-        public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {
+        public QuantEncoding quantEncoding() {
             return quantEncoding;
         }
 
@@ -402,7 +401,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         final int bitsRequired = DirectWriter.bitsRequired(entry.numCentroids());
         final long sizeLookup = DirectWriter.bytesRequired(values.size(), bitsRequired);
         centroidSlice.skipBytes(sizeLookup);
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = entry.quantEncoding();
+        QuantEncoding quantEncoding = entry.quantEncoding();
         int numParents = centroidSlice.readVInt();
         if (entry.numSlices > 0) {
             // skip slice offsets
@@ -457,7 +456,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
 
     private static class QueryQuantizer {
         private final LinkedHashMap<Integer, QueryQuantizerResult> cache;
-        private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+        private final QuantEncoding quantEncoding;
         private final float[] target;
         private final float[] scratch;
         private final int[] quantizationScratch;
@@ -470,13 +469,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         private byte[] evictedQuantizedQuery = null;
         private QueryQuantizerResult result = null;
 
-        QueryQuantizer(
-            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
-            FieldInfo fieldInfo,
-            float[] target,
-            IndexInput parentsSlice,
-            float[] globalCentroid
-        ) {
+        QueryQuantizer(QuantEncoding quantEncoding, FieldInfo fieldInfo, float[] target, IndexInput parentsSlice, float[] globalCentroid) {
             this.quantEncoding = quantEncoding;
             this.target = target;
             this.scratch = new float[fieldInfo.getVectorDimension()];
@@ -560,7 +553,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
 
         SlicedMemorySegmentPostingsVisitor(
             QueryQuantizer queryQuantizer,
-            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+            QuantEncoding quantEncoding,
             IndexInput indexInput,
             FieldEntry entry,
             FieldInfo fieldInfo,
@@ -661,7 +654,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
 
         MemorySegmentPostingsVisitor(
             QueryQuantizer queryQuantizer,
-            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+            QuantEncoding quantEncoding,
             IndexInput indexInput,
             FieldEntry entry,
             FieldInfo fieldInfo,

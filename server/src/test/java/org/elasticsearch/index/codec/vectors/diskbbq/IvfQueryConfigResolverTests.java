@@ -13,7 +13,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -50,7 +49,7 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, true, 4, mappingOversample, null);
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
-                assertThat(resolved.quantEncoding(), equalTo(ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) 4)));
+                assertThat(resolved.quantEncoding(), equalTo(QuantEncoding.fromBits((byte) 4)));
                 assertTrue(resolved.usePrecondition());
                 assertThat(resolved.rescoreOversample(), equalTo(mappingOversample));
             }

@@ -26,7 +26,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.test.ESTestCase;
 
@@ -52,8 +51,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     private static final int VPC = 128;
 
     private static final IvfSegmentConfig CODEC_DEFAULT = IvfSegmentConfig.fromCodecDefaults(
-        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+        CentroidIndexFormat.FLAT,
+        QuantEncoding.ONE_BIT_4BIT_QUERY,
         false
     );
 
@@ -65,7 +64,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
             IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
 
-            assertThat(config.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
+            assertThat(config.quantEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
             assertFalse(config.usePrecondition());
             assertThat(config.rescoreOversample(), equalTo(CODEC_DEFAULT.rescoreOversample()));
         }
@@ -75,8 +74,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         IvfAutoCalibration selector = new IvfAutoCalibration();
         FieldInfo fieldInfo = vectorFieldInfo("f");
         IvfSegmentConfig codecDefault = IvfSegmentConfig.fromCodecDefaults(
-            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-            ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
+            CentroidIndexFormat.FLAT,
+            QuantEncoding.TWO_BIT_4BIT_QUERY,
             true
         );
         try (Directory dir = newDirectory()) {
@@ -115,7 +114,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                     reader.leaves().getFirst().reader()
                 );
                 assertNotNull(persisted);
-                assertThat(persisted.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
+                assertThat(persisted.quantEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
                 assertFalse(persisted.usePrecondition());
                 assertThat(persisted.rescoreOversample(), equalTo(NO_CALIBRATED_OVERSAMPLE));
             }
@@ -140,7 +139,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                     reader.leaves().getFirst().reader()
                 );
                 assertNotNull(persisted);
-                assertThat(persisted.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
+                assertThat(persisted.quantEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
                 assertThat(persisted.rescoreOversample(), equalTo(NO_CALIBRATED_OVERSAMPLE));
             }
         }

@@ -54,6 +54,7 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -2723,7 +2724,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (indexVersionCreated.onOrAfter(IndexVersions.UPGRADE_DISK_BBQ_ES950)) {
                 if (autoCalibrate) {
                     return new ES950DiskBBQVectorsFormat(
-                        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
+                        QuantEncoding.fromBits((byte) bits),
                         clusterSize,
                         ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
@@ -2738,7 +2739,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     );
                 }
                 return new ES950DiskBBQVectorsFormat(
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
+                    QuantEncoding.fromBits((byte) bits),
                     clusterSize,
                     ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
@@ -2752,7 +2753,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexVersionCreated.onOrAfter(DISK_BBQ_QUANTIZE_BITS) && experimentalFeaturesEnabled) {
                 if (autoCalibrate) {
                     return new ESNextDiskBBQVectorsFormat(
-                        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
+                        QuantEncoding.fromBits((byte) bits),
                         clusterSize,
                         ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
@@ -2768,7 +2769,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     );
                 }
                 return new ESNextDiskBBQVectorsFormat(
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
+                    QuantEncoding.fromBits((byte) bits),
                     clusterSize,
                     ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,

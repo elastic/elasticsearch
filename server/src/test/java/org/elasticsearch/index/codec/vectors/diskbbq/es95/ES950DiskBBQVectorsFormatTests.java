@@ -43,7 +43,7 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import org.junit.Before;
@@ -90,7 +90,7 @@ public class ES950DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     @Before
     @Override
     public void setUp() throws Exception {
-        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = randomFrom(ESNextDiskBBQVectorsFormat.QuantEncoding.values());
+        QuantEncoding encoding = randomFrom(QuantEncoding.values());
         boolean disableFlatOnFlush = random().nextBoolean();
         if (rarely()) {
             int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);

@@ -2535,7 +2535,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return limit;
             }
 
-            boolean hasTimeSeries = child.collect(EsRelation.class, r -> r.indexMode() == IndexMode.TIME_SERIES).isEmpty() == false;
+            boolean hasTimeSeries = child.collect(EsRelation.class, r -> r.indexMode().isTsdb()).isEmpty() == false;
             if (hasTimeSeries == false) {
                 return limit;
             }
@@ -2544,7 +2544,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return limit.transformDown(Limit.class, l -> {
                 if (l.child().collect(Limit.class).isEmpty()) {
                     var localChild = l.child();
-                    var localTimestampAttr = localChild.collect(EsRelation.class, r -> r.indexMode() == IndexMode.TIME_SERIES)
+                    var localTimestampAttr = localChild.collect(EsRelation.class, r -> r.indexMode().isTsdb())
                         .stream()
                         .findFirst()
                         .flatMap(r -> r.output().stream().filter(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())).findFirst())
@@ -3455,7 +3455,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
-            isTimeSeries = indexMode.get() == IndexMode.TIME_SERIES;
+            isTimeSeries = indexMode.get().isTsdb();
             return plan.transformUp(LogicalPlan.class, p -> doRule(p, context));
         }
 
@@ -3711,7 +3711,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan doRule(Aggregate plan) {
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
-            final boolean isTimeSeries = indexMode.get() == IndexMode.TIME_SERIES;
+            final boolean isTimeSeries = indexMode.get().isTsdb();
             return plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
                 if (ImplicitCastAggregateMetricDoubles.hasNativeSupport(aggFunc, isTimeSeries)) {
                     return aggFunc;

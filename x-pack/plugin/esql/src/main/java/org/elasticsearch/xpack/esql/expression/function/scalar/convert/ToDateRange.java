@@ -57,7 +57,7 @@ public class ToDateRange extends AbstractConvertFunction implements Configuratio
     @FunctionInfo(
         returnType = "date_range",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Converts a value to a date_range.",
         description = """
             Converts an input value to a `date_range` value.

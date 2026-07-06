@@ -55,7 +55,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
  * the integTest classpath, so a filesystem scan is the simplest self-contained way to index it.
  * No extra build wiring is required: everything needed lives under {@code src/integTest}.
  */
-class TestCoverageArchUnitSpec extends Specification {
+class IntegTestCoverageArchUnitSpec extends Specification {
 
     /** Test class name suffixes accepted as coverage for a task. */
     private static final List<String> TEST_SUFFIXES = ["Tests", "Test", "Spec", "FuncTest", "IT"]

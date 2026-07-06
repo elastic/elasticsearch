@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -430,7 +431,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     @Override
     protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
         super.fieldVerifier(plan, function, field, failures);
-        if (isRuntimeSearch() && options() != null) {
+        if (isRuntimeSearch() == false) {
+            return;
+        }
+        if (options() != null) {
             failures.add(
                 Failure.fail(
                     field,
@@ -438,6 +442,36 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                 )
             );
         }
+        // The query value can only be converted to the field's runtime type once it has been folded down to a
+        // Literal; if it hasn't yet (e.g. pre-optimization), this check is skipped here and retried once
+        // postOptimizationPlanVerification runs.
+        if (query() instanceof Literal) {
+            try {
+                verifyRuntimeQueryValue();
+            } catch (InvalidArgumentException | IllegalArgumentException e) {
+                failures.add(
+                    Failure.fail(
+                        query(),
+                        "[MATCH] query value [{}] does not match the type ([{}]) of non-index-mapped field [{}]",
+                        query().sourceText(),
+                        field.dataType().typeName(),
+                        field.sourceText()
+                    )
+                );
+            }
+        }
+    }
+
+    /**
+     * Verifies that the (foldable) query value can be converted to the runtime field's type, throwing if not.
+     * Only used for {@link #isRuntimeSearch()}. The converted value itself is discarded here; it's recomputed
+     * (cheaply, since the query value is a constant) by {@link #queryAsRuntimeSearchValue} when building the evaluator.
+     */
+    private void verifyRuntimeQueryValue() {
+        if (field.dataType() == TEXT) {
+            return;
+        }
+        queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));
     }
 
     @Override

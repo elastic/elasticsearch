@@ -31,7 +31,6 @@ import org.elasticsearch.compute.operator.ScoreOperator.ExpressionScorer;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -421,10 +420,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     protected boolean isRuntimeSearch() {
-        if (false == EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled()) {
-            // Runtime search is disabled.
-            return false;
-        }
         if (false == configuration.pragmas().runtimeLexicalSearch()) {
             // Runtime search is disabled.
             return false;
@@ -447,15 +442,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return Translatable.NO;
         }
         return super.translatable(pushdownPredicates);
-    }
-
-    @Override
-    public ExpressionScorer.Factory toScorer(ExpressionScoreMapper.ToScorer toScorer) {
-        if (false == isRuntimeSearch()) {
-            return super.toScorer(toScorer);
-        }
-
-        throw new InvalidArgumentException("MATCH does not support scoring when evaluated as a runtime search", source());
     }
 
     @Override

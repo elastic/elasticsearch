@@ -146,7 +146,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 if (version >= TSDBDocValuesFormatConfig.VERSION_NUMERIC_LARGE_BLOCKS) {
                     blockShift = in.readByte();
                 }
-                this.readContext = new NumericReadContext(1 << blockShift, formatConfig);
+                this.readContext = new NumericReadContext(1 << blockShift, formatConfig, version);
                 readFields(in, state.fieldInfos, version, blockShift);
                 if (version < TSDBDocValuesFormatConfig.VERSION_SKIPPER_MAX_VALUE_COUNT) {
                     inferMaxValueCounts(state.fieldInfos);
@@ -2322,7 +2322,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         if (maxOrd != AbstractTSDBDocValuesConsumer.NO_MAX_ORD) {
             final int bitsPerOrd = PackedInts.bitsRequired(maxOrd - 1);
             var ordinalFieldReader = ordinalCodec.createReader(readContext);
-            final OrdinalFieldReader.Decoder decoder = ordinalFieldReader.decoder();
+            final OrdinalFieldReader.Decoder decoder = ordinalFieldReader.decoder(entry.blockSize);
             return (input, values) -> decoder.decodeOrdinals(input, values, bitsPerOrd);
         } else {
             var numericFieldReader = numericCodec.createReader(readContext);

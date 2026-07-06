@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 
@@ -57,7 +56,6 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
     private final Sender sender;
     private final InferenceFeatureService inferenceFeatureService;
     private final Client client;
-    private final ElasticInferenceServiceSettings elasticInferenceServiceSettings;
 
     @Inject
     public TransportRefreshAuthorizedEndpointsAction(
@@ -67,8 +65,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler,
         Sender sender,
         InferenceFeatureService inferenceFeatureService,
-        Client client,
-        ElasticInferenceServiceSettings elasticInferenceServiceSettings
+        Client client
     ) {
         super(
             RefreshAuthorizedEndpointsAction.NAME,
@@ -82,17 +79,10 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         this.sender = Objects.requireNonNull(sender);
         this.inferenceFeatureService = Objects.requireNonNull(inferenceFeatureService);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ClientHelper.INFERENCE_ORIGIN);
-        this.elasticInferenceServiceSettings = Objects.requireNonNull(elasticInferenceServiceSettings);
     }
 
     @Override
     protected void doExecute(Task task, RefreshAuthorizedEndpointsAction.Request request, ActionListener<ActionResponse.Empty> listener) {
-        if (Strings.isNullOrEmpty(elasticInferenceServiceSettings.getElasticInferenceServiceUrl())) {
-            logger.debug("Skipping sending authorization request, because the Elastic Inference Service URL is not configured");
-            listener.onResponse(ActionResponse.Empty.INSTANCE);
-            return;
-        }
-
         if (modelRegistry.isReady() == false) {
             logger.info("Skipping sending authorization request, because the model registry is not ready");
             listener.onResponse(ActionResponse.Empty.INSTANCE);

@@ -183,12 +183,25 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         }).generation() == newCommit.generation();
     }
 
+    /**
+     * Builds a map of file names to {@link BlobFileRanges} for the given commit.
+     *
+     * If {@code commitFilesRangesOverride} is provided, its ranges take precedence over the
+     * default ranges derived from the commit; otherwise, default ranges (with timestamp metadata
+     * for internal files) are used.
+     *
+     * @param commit the commit whose files should be mapped to their blob storage locations and byte ranges
+     * @param commitFilesRangesOverride optional custom byte ranges for specific files;
+     *                                  if provided, these override the commit's default ranges
+     * @return a map of file name to {@link BlobFileRanges}, containing blob location and optional
+     *         timestamp range for efficient filtering and remote reading
+     */
     private static Map<String, BlobFileRanges> buildBlobFileRanges(
-        final StatelessCompoundCommit newCommit,
+        final StatelessCompoundCommit commit,
         final Map<String, BlobFileRanges> commitFilesRangesOverride
     ) {
         final Map<String, BlobFileRanges> commitFileRanges = new HashMap<>();
-        for (final var entry : newCommit.commitFiles().entrySet()) {
+        for (final var entry : commit.commitFiles().entrySet()) {
             final String fileName = entry.getKey();
             final BlobLocation blobLocation = entry.getValue();
             final BlobFileRanges override = commitFilesRangesOverride.get(fileName);
@@ -203,7 +216,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                         + blobLocation;
                 commitFileRanges.put(fileName, override);
             } else {
-                final var ts = newCommit.internalFiles().contains(fileName) ? newCommit.getTimestampFieldValueRange() : null;
+                final var ts = commit.internalFiles().contains(fileName) ? commit.getTimestampFieldValueRange() : null;
                 commitFileRanges.put(fileName, new BlobFileRanges(blobLocation, ts));
             }
         }
@@ -549,6 +562,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     private static BlobFileRanges updatedFileRanges(String fileName, BlobFileRanges existingRanges, BlobFileRanges newRanges) {
+        if (newRanges.hasReplicatedRanges()) {
+            // newRanges came from the override path with replicated ranges - use it directly
+            return newRanges;
+        }
         if (existingRanges != null && existingRanges.blobLocation().equals(newRanges.blobLocation())) {
             // File already tracked at the same location - preserve its existing entry so the timestamp originally
             // stamped from the file's originating CC is retained.

@@ -1004,15 +1004,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         poisonedTemporalStats.add(colName);
                     } else {
                         mins.merge(colName, new Comparable[] { (Comparable) minVal }, (a, b) -> {
-                            @SuppressWarnings("unchecked")
-                            int cmp = a[0].compareTo(b[0]);
-                            if (cmp > 0) a[0] = b[0];
+                            if (compareStatExtremum(a[0], b[0]) > 0) a[0] = b[0];
                             return a;
                         });
                         maxs.merge(colName, new Comparable[] { (Comparable) maxVal }, (a, b) -> {
-                            @SuppressWarnings("unchecked")
-                            int cmp = a[0].compareTo(b[0]);
-                            if (cmp < 0) a[0] = b[0];
+                            if (compareStatExtremum(a[0], b[0]) < 0) a[0] = b[0];
                             return a;
                         });
                     }
@@ -1323,6 +1319,23 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * it reads, so stats must match or MIN/MAX pushdown and split-skip classification would
      * compare against the wrong domain.
      */
+    /**
+     * Compares two cross-row-group extremum candidates. BINARY/keyword extrema arrive here as {@code String}
+     * (from {@link #normalizeStatValue}) and must order by UTF-8 bytes — the SAME order the runtime keyword
+     * MIN/MAX and the cross-file stat fold ({@code SplitStats.mergedMin}) use (BytesRef unsigned-byte order) —
+     * NOT {@link String#compareTo}'s UTF-16 code units, which disagree whenever the divergence point pairs a
+     * supplementary (astral) char against a BMP char in {@code [U+E000..U+FFFF]}. Other stat types compare
+     * naturally.
+     */
+    // Package-private for a direct unit test of the UTF-8 ordering (ParquetFormatReaderTests).
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static int compareStatExtremum(Comparable a, Comparable b) {
+        if (a instanceof String sa && b instanceof String sb) {
+            return new BytesRef(sa).compareTo(new BytesRef(sb));
+        }
+        return a.compareTo(b);
+    }
+
     private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
         if (ParquetColumnDecoding.hasTemporalStatEncoding(primitiveType)) {
             return ParquetColumnDecoding.decodeTemporalStat(value, primitiveType);

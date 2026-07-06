@@ -1,0 +1,6 @@
+area: Distributed
+issues:
+ - 131603
+pr: 152121
+summary: Improve allocation explain API for `canRemain`
+type: enhancement

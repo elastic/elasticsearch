@@ -1,0 +1,90 @@
+---
+"vectordb_document usage":
+  - requires:
+      cluster_features: ["vectordb_document.usage"]
+      reason: "vectordb_document usage tracking requires the vectordb_document.usage feature"
+
+  - do: {xpack.usage: {}}
+  - match: { vectordb_document.available: true }
+  - match: { vectordb_document.enabled: true }
+  - match: { vectordb_document.indices_count: 0 }
+  - match: { vectordb_document.num_docs: 0 }
+
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            index:
+              mode: vectordb_document
+          mappings:
+            properties:
+              embedding:
+                type: dense_vector
+                dims: 8
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "embedding": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] }
+          - { "index": { } }
+          - { "embedding": [0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1] }
+
+  - do: {xpack.usage: {}}
+  - match: { vectordb_document.available: true }
+  - match: { vectordb_document.enabled: true }
+  - match: { vectordb_document.indices_count: 1 }
+  - match: { vectordb_document.num_docs: 2 }
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              embedding:
+                type: dense_vector
+                dims: 8
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "embedding": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] }
+
+  - do: {xpack.usage: {}}
+  - match: { vectordb_document.available: true }
+  - match: { vectordb_document.enabled: true }
+  - match: { vectordb_document.indices_count: 1 }
+  - match: { vectordb_document.num_docs: 2 }
+
+  - do:
+      indices.create:
+        index: test3
+        body:
+          settings:
+            index:
+              mode: vectordb_document
+          mappings:
+            properties:
+              embedding:
+                type: dense_vector
+                dims: 8
+
+  - do:
+      bulk:
+        index: test3
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "embedding": [0.2, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4] }
+
+  - do: {xpack.usage: {}}
+  - match: { vectordb_document.available: true }
+  - match: { vectordb_document.enabled: true }
+  - match: { vectordb_document.indices_count: 2 }
+  - match: { vectordb_document.num_docs: 3 }

@@ -174,7 +174,7 @@ When searching expressions:
 * [Function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
   (match query options) are not supported.
 * `MATCH` on an expression does not contribute to the relevance score when
-  using `METADATA _score`. This may change in a future release.
+  using `METADATA _score`.
 
 For example, this query is valid:
 

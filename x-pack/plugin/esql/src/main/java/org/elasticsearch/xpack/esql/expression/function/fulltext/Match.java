@@ -169,7 +169,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             When searching expressions, <<esql-function-named-params,function named parameters>>
             (match query options) are not supported.
             Additionally, `MATCH` on an expression does not contribute to the relevance score
-            when using `METADATA _score`. This may change in a future release.
+            when using `METADATA _score`.
 
             Match can use <<esql-function-named-params,function named parameters>> to specify additional options
             for the match query.

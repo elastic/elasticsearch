@@ -355,7 +355,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     public final void testFetchAllEnrich() throws IOException {
         assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
-        assumeFalse("Test currently not working on snapshot because of range fields", Build.current().isSnapshot());
         // The ENRICH is a no-op because it overwrites columns with the same identical data (except that it messes with
         // the order of the columns, but we don't assert that).
         doTestFetchAll(fromAllQuery(LoggerMessageFormat.format(null, """
@@ -452,7 +451,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (excludedInColumnar(type, indexMode)) {
                 continue;
             }
-            if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
+            if (expectNonEnrichableFields == false && supportedInEnrich(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
             expectedColumns = expectedColumns.entry(
@@ -492,7 +491,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (excludedInColumnar(type, indexMode)) {
                 continue;
             }
-            if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
+            if (expectNonEnrichableFields == false && supportedInEnrich(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
             expectedValues = expectedValues.entry(
@@ -740,7 +739,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testRowEnrich() throws IOException {
         assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
-        assumeFalse("Test currently not working on snapshot because of range fields", Build.current().isSnapshot());
         String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | ENRICH " + ENRICH_POLICY_NAME + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
         var responseAndCoordinatorVersion = runQuery(query);
         Map<String, Object> response = responseAndCoordinatorVersion.v1();
@@ -886,7 +884,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             config.startObject("settings");
             config.startObject("index");
             config.field("mode", mode);
-            if (mode == IndexMode.TIME_SERIES) {
+            if (mode.isTsdb()) {
                 config.field("routing_path", "f_keyword");
             }
             if (nodeId != null) {
@@ -945,7 +943,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case NULL -> config.field("type", "keyword");
             case KEYWORD -> {
                 config.field("type", type.esType());
-                if (indexMode == IndexMode.TIME_SERIES) {
+                if (indexMode.isTsdb()) {
                     config.field("time_series_dimension", true);
                 }
             }
@@ -1071,7 +1069,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             policyConfig.field("match_field", LOOKUP_ID_FIELD);
             List<String> enrichFields = new ArrayList<>();
             for (DataType type : DataType.values()) {
-                if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false || supportedInEnrich(type) == false) {
+                if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false
+                    || supportedInEnrich(type, minimumVersionAcrossAllNodes) == false) {
                     continue;
                 }
                 enrichFields.add(fieldName(type));
@@ -1156,12 +1155,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             case DATE_RANGE -> {
                 if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
-                    // Older nodes in snapshot-to-snapshot BWC
-                    // had a bug: they leaked the doc-value upper bound (last millisecond before
-                    // `to` in `from..to`)
-                    // into the output instead of `to` itself. Accept the buggy form too while the
-                    // feature is still under construction.
                     if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false) == false) {
+                        // Old snapshot nodes (before tech preview) returned inclusive upper bounds
+                        // without the +1 conversion added in DateRangeDocValuesLoader.
                         yield anyOf(
                             equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
                             equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z")
@@ -1272,13 +1268,19 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     /**
      * Is the type supported in enrich policies?
      */
-    private static boolean supportedInEnrich(DataType t) {
+    private static boolean supportedInEnrich(DataType t, TransportVersion minimumVersion) {
         return switch (t) {
             // Enrich policies don't work with types that have mandatory fields in the mapping.
             // https://github.com/elastic/elasticsearch/issues/127350
             case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
                 // https://github.com/elastic/elasticsearch/issues/139255
                 EXPONENTIAL_HISTOGRAM, TDIGEST -> false;
+            // EnrichResultBuilderForLongRange was added with tech preview; old nodes throw on execution.
+            case DATE_RANGE -> DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false);
+            // EnrichResultBuilderForFloat was added to 9.x (PR #139774); DENSE_VECTOR maps to ElementType.FLOAT
+            // which old 8.x nodes can't handle. Use the production version check (ESQL_DENSE_VECTOR_CREATED_VERSION
+            // = 9183000) which correctly excludes 8.x nodes (max transport version 8841090).
+            case DENSE_VECTOR -> DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false);
             default -> true;
         };
     }
@@ -1331,7 +1333,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     ) {
         return switch (type) {
             case COUNTER_DOUBLE, COUNTER_LONG, COUNTER_INTEGER -> {
-                if (indexMode == IndexMode.TIME_SERIES) {
+                if (indexMode.isTsdb()) {
                     yield equalTo(type.esType());
                 }
                 yield equalTo(type.esType().replace("counter_", ""));
@@ -1518,7 +1520,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
         expected = expected.entry(
             "_id",
-            indexMode == IndexMode.TIME_SERIES ? matchesList().item("column_at_a_time:TsIdFieldReader")
+            indexMode.isTsdb() ? matchesList().item("column_at_a_time:TsIdFieldReader")
                 : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:IdDocValuesReader")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockStoredFieldsReader.Id")
         )

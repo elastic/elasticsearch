@@ -224,6 +224,75 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         }
     }
 
+    public void testMergeES819IntoES95Sorted() throws IOException {
+        final int numDocs = ESTestCase.randomIntBetween(1024, 4096);
+        final String[] terms = new String[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            terms[i] = String.format(Locale.ROOT, "term-%05d", i);
+        }
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(new ES819Version3TSDBDocValuesFormat()))) {
+                for (int i = 0; i < numDocs / 2; i++) {
+                    final Document doc = new Document();
+                    doc.add(new SortedDocValuesField(ORDINAL_FIELD, new BytesRef(terms[i])));
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(new ES95TSDBDocValuesFormat()))) {
+                for (int i = numDocs / 2; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    doc.add(new SortedDocValuesField(ORDINAL_FIELD, new BytesRef(terms[i])));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(1, reader.leaves().size());
+                assertSortedSequence(reader.leaves().get(0), ORDINAL_FIELD, d -> terms[d]);
+            }
+        }
+    }
+
+    public void testMergeES819IntoES95SortedSet() throws IOException {
+        final int numDocs = ESTestCase.randomIntBetween(1024, 4096);
+        final int termsPerDoc = 3;
+        final String[][] terms = new String[numDocs][termsPerDoc];
+        for (int i = 0; i < numDocs; i++) {
+            for (int j = 0; j < termsPerDoc; j++) {
+                terms[i][j] = String.format(Locale.ROOT, "term-%05d-%d", i, j);
+            }
+        }
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(new ES819Version3TSDBDocValuesFormat()))) {
+                for (int i = 0; i < numDocs / 2; i++) {
+                    final Document doc = new Document();
+                    for (int j = 0; j < termsPerDoc; j++) {
+                        doc.add(new SortedSetDocValuesField(ORDINAL_FIELD, new BytesRef(terms[i][j])));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(new ES95TSDBDocValuesFormat()))) {
+                for (int i = numDocs / 2; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    for (int j = 0; j < termsPerDoc; j++) {
+                        doc.add(new SortedSetDocValuesField(ORDINAL_FIELD, new BytesRef(terms[i][j])));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(1, reader.leaves().size());
+                assertSortedSetSequence(reader.leaves().get(0), ORDINAL_FIELD, termsPerDoc, (d, j) -> terms[d][j]);
+            }
+        }
+    }
+
     public void testBothBlockSizes() throws IOException {
         final int numDocs = 1024;
         final long[] values = new long[numDocs];
@@ -399,6 +468,70 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    public void testSparseSortedRoundTrip() throws IOException {
+        final int blockShift = randomBlockShift();
+        final int numDocs = (1 << blockShift) * 2 + ESTestCase.randomIntBetween(0, 1 << blockShift);
+        final String[] terms = new String[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            // NOTE: leave every third doc without a value to exercise the sparse presence path.
+            if (i % 3 != 0) {
+                terms[i] = String.format(Locale.ROOT, "term-%05d", i);
+            }
+        }
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(buildOrdinalFormat(blockShift)))) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    if (terms[i] != null) {
+                        doc.add(new SortedDocValuesField(ORDINAL_FIELD, new BytesRef(terms[i])));
+                    }
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    assertSparseSorted(leaf, ORDINAL_FIELD, g -> g % 3 != 0, d -> terms[d]);
+                }
+            }
+        }
+    }
+
+    public void testSparseSortedSetRoundTrip() throws IOException {
+        final int blockShift = randomBlockShift();
+        final int numDocs = (1 << blockShift) * 2 + ESTestCase.randomIntBetween(0, 1 << blockShift);
+        final int termsPerDoc = 3;
+        final String[][] terms = new String[numDocs][];
+        for (int i = 0; i < numDocs; i++) {
+            // NOTE: leave every third doc without a value to exercise the sparse presence path.
+            if (i % 3 != 0) {
+                terms[i] = new String[termsPerDoc];
+                for (int j = 0; j < termsPerDoc; j++) {
+                    terms[i][j] = String.format(Locale.ROOT, "term-%05d-%d", i, j);
+                }
+            }
+        }
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(buildOrdinalFormat(blockShift)))) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    if (terms[i] != null) {
+                        for (int j = 0; j < termsPerDoc; j++) {
+                            doc.add(new SortedSetDocValuesField(ORDINAL_FIELD, new BytesRef(terms[i][j])));
+                        }
+                    }
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    assertSparseSortedSet(leaf, ORDINAL_FIELD, g -> g % 3 != 0, termsPerDoc, (d, j) -> terms[d][j]);
                 }
             }
         }
@@ -958,6 +1091,132 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         }
     }
 
+    public void testPerFieldBlockSizeSortedWithMixedDensity() throws IOException {
+        // Three sorted fields at three block sizes in one segment, with three densities: CUSTOM_BS_SORTED_FIELD
+        // dense, DEMOTED_BS_SORTED_FIELD (128) one third missing, DEFAULT_BS_SORTED_FIELD (512) half missing,
+        // each spanning multiple blocks.
+        // NOTE: random promoted block size (1024-4096), distinct from the 512 default and 128 demoted.
+        final int promotedBlockSize = 1 << ESTestCase.randomIntBetween(10, 12);
+        final int numDocs = promotedBlockSize * 2 + ESTestCase.randomIntBetween(0, promotedBlockSize);
+        try (Directory dir = newDirectory()) {
+            try (
+                IndexWriter writer = new IndexWriter(
+                    dir,
+                    writerConfig(buildPerFieldBlockSizeFormat(NUMERIC_LARGE_BLOCK_SHIFT, promotedBlockSize))
+                )
+            ) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    doc.add(new SortedDocValuesField(CUSTOM_BS_SORTED_FIELD, new BytesRef(String.format(Locale.ROOT, "c-%05d", i))));
+                    if (i % 3 != 0) {
+                        doc.add(new SortedDocValuesField(DEMOTED_BS_SORTED_FIELD, new BytesRef(String.format(Locale.ROOT, "d-%05d", i))));
+                    }
+                    if (i % 2 != 0) {
+                        doc.add(new SortedDocValuesField(DEFAULT_BS_SORTED_FIELD, new BytesRef(String.format(Locale.ROOT, "f-%05d", i))));
+                    }
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    assertSortedSequence(leaf, CUSTOM_BS_SORTED_FIELD, d -> String.format(Locale.ROOT, "c-%05d", d));
+                    assertSparseSorted(leaf, DEMOTED_BS_SORTED_FIELD, g -> g % 3 != 0, d -> String.format(Locale.ROOT, "d-%05d", d));
+                    assertSparseSorted(leaf, DEFAULT_BS_SORTED_FIELD, g -> g % 2 != 0, d -> String.format(Locale.ROOT, "f-%05d", d));
+                }
+            }
+        }
+    }
+
+    public void testPerFieldBlockSizeSortedSetWithMixedDensity() throws IOException {
+        // Three sorted-set fields at three block sizes in one segment, with three densities, each spanning
+        // multiple blocks.
+        // NOTE: random promoted block size (1024-4096), distinct from the 512 default and 128 demoted.
+        final int promotedBlockSize = 1 << ESTestCase.randomIntBetween(10, 12);
+        final int numDocs = promotedBlockSize * 2 + ESTestCase.randomIntBetween(0, promotedBlockSize);
+        final int termsPerDoc = 3;
+        try (Directory dir = newDirectory()) {
+            try (
+                IndexWriter writer = new IndexWriter(
+                    dir,
+                    writerConfig(buildPerFieldBlockSizeFormat(NUMERIC_LARGE_BLOCK_SHIFT, promotedBlockSize))
+                )
+            ) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    addSortedSetTerms(doc, CUSTOM_BS_SORTED_FIELD, "c", i, termsPerDoc);
+                    if (i % 3 != 0) {
+                        addSortedSetTerms(doc, DEMOTED_BS_SORTED_FIELD, "d", i, termsPerDoc);
+                    }
+                    if (i % 2 != 0) {
+                        addSortedSetTerms(doc, DEFAULT_BS_SORTED_FIELD, "f", i, termsPerDoc);
+                    }
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    assertSortedSetSequence(leaf, CUSTOM_BS_SORTED_FIELD, termsPerDoc, (d, j) -> sortedSetTerm("c", d, j));
+                    assertSparseSortedSet(leaf, DEMOTED_BS_SORTED_FIELD, g -> g % 3 != 0, termsPerDoc, (d, j) -> sortedSetTerm("d", d, j));
+                    assertSparseSortedSet(leaf, DEFAULT_BS_SORTED_FIELD, g -> g % 2 != 0, termsPerDoc, (d, j) -> sortedSetTerm("f", d, j));
+                }
+            }
+        }
+    }
+
+    public void testMixedDocValuesTypesPerFieldBlockSizeAndDensity() throws IOException {
+        // One segment carrying all four doc-values types at per-field block sizes and mixed density across
+        // multiple blocks, so the per-field dispatch between ES95NumericCodec (numeric, sorted numeric) and
+        // ES95OrdinalCodec (sorted, sorted set) is exercised together.
+        // NOTE: random promoted block size (1024-4096), distinct from the 512 default and 128 demoted.
+        final int promotedBlockSize = 1 << ESTestCase.randomIntBetween(10, 12);
+        final int numDocs = promotedBlockSize * 2 + ESTestCase.randomIntBetween(0, promotedBlockSize);
+        final int termsPerDoc = 3;
+        final long[] numericValues = new long[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            numericValues[i] = random().nextLong();
+        }
+        try (Directory dir = newDirectory()) {
+            try (
+                IndexWriter writer = new IndexWriter(
+                    dir,
+                    writerConfig(buildPerFieldBlockSizeFormat(NUMERIC_LARGE_BLOCK_SHIFT, promotedBlockSize))
+                )
+            ) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    doc.add(new NumericDocValuesField(CUSTOM_BS_FIELD, numericValues[i]));
+                    if (i % 3 != 0) {
+                        doc.add(new SortedNumericDocValuesField(DEFAULT_BS_FIELD, (long) i * 10L));
+                        doc.add(new SortedNumericDocValuesField(DEFAULT_BS_FIELD, (long) i * 10L + 1L));
+                    }
+                    if (i % 2 != 0) {
+                        doc.add(new SortedDocValuesField(CUSTOM_BS_SORTED_FIELD, new BytesRef(String.format(Locale.ROOT, "s-%05d", i))));
+                    }
+                    addSortedSetTerms(doc, DEFAULT_BS_SORTED_FIELD, "t", i, termsPerDoc);
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    assertNumericSequence(leaf, CUSTOM_BS_FIELD, d -> numericValues[d]);
+                    assertSparseSortedNumeric(leaf, DEFAULT_BS_FIELD, g -> g % 3 != 0, 2, (d, j) -> (long) d * 10L + j);
+                    assertSparseSorted(leaf, CUSTOM_BS_SORTED_FIELD, g -> g % 2 != 0, d -> String.format(Locale.ROOT, "s-%05d", d));
+                    assertSortedSetSequence(leaf, DEFAULT_BS_SORTED_FIELD, termsPerDoc, (d, j) -> sortedSetTerm("t", d, j));
+                }
+            }
+        }
+    }
+
+    private static void addSortedSetTerms(Document doc, String field, String prefix, int docIndex, int termsPerDoc) {
+        for (int j = 0; j < termsPerDoc; j++) {
+            doc.add(new SortedSetDocValuesField(field, new BytesRef(sortedSetTerm(prefix, docIndex, j))));
+        }
+    }
+
+    private static String sortedSetTerm(String prefix, int docIndex, int termIndex) {
+        return String.format(Locale.ROOT, "%s-%05d-%d", prefix, docIndex, termIndex);
+    }
+
     private void doTestPerFieldBlockSizeRoundTrip(int formatShift, int customBlockSize, int numDocs) throws IOException {
         try (Directory dir = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(dir, writerConfig(buildPerFieldBlockSizeFormat(formatShift, customBlockSize)))) {
@@ -1075,6 +1334,46 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             docCount++;
         }
         assertEquals(leaf.reader().maxDoc(), docCount);
+    }
+
+    private static void assertSparseSorted(LeafReaderContext leaf, String field, DocPresence present, ExpectedTermAtDoc expected)
+        throws IOException {
+        final SortedDocValues sdv = leaf.reader().getSortedDocValues(field);
+        assertNotNull("missing sorted doc values for " + field, sdv);
+        for (int docId = 0; docId < leaf.reader().maxDoc(); docId++) {
+            final int globalDoc = leaf.docBase + docId;
+            if (present.at(globalDoc)) {
+                assertTrue(sdv.advanceExact(docId));
+                final BytesRef actual = BytesRef.deepCopyOf(sdv.lookupOrd(sdv.ordValue()));
+                assertEquals("field " + field + " doc " + globalDoc, new BytesRef(expected.at(globalDoc)), actual);
+            } else {
+                assertFalse("field " + field + " should be missing at doc " + globalDoc, sdv.advanceExact(docId));
+            }
+        }
+    }
+
+    private static void assertSparseSortedSet(
+        LeafReaderContext leaf,
+        String field,
+        DocPresence present,
+        int termsPerDoc,
+        ExpectedTerm expected
+    ) throws IOException {
+        final SortedSetDocValues ssdv = leaf.reader().getSortedSetDocValues(field);
+        assertNotNull("missing sorted-set doc values for " + field, ssdv);
+        for (int docId = 0; docId < leaf.reader().maxDoc(); docId++) {
+            final int globalDoc = leaf.docBase + docId;
+            if (present.at(globalDoc)) {
+                assertTrue(ssdv.advanceExact(docId));
+                assertEquals("doc value count for " + field + " doc " + globalDoc, termsPerDoc, ssdv.docValueCount());
+                for (int j = 0; j < termsPerDoc; j++) {
+                    final BytesRef actual = BytesRef.deepCopyOf(ssdv.lookupOrd(ssdv.nextOrd()));
+                    assertEquals("field " + field + " doc " + globalDoc + " term " + j, new BytesRef(expected.at(globalDoc, j)), actual);
+                }
+            } else {
+                assertFalse("field " + field + " should be missing at doc " + globalDoc, ssdv.advanceExact(docId));
+            }
+        }
     }
 
     private static void assertSortedSequence(LeafReaderContext leaf, String field, ExpectedTermAtDoc expected) throws IOException {

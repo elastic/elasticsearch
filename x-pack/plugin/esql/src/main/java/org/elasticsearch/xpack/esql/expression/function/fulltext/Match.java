@@ -29,7 +29,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -417,9 +416,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     protected boolean isRuntimeSearch() {
-        return EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled()
-            && configuration.pragmas().runtimeLexicalSearch()
-            && fieldAsFieldAttribute() == null;
+        return configuration.pragmas().runtimeLexicalSearch() && fieldAsFieldAttribute() == null;
     }
 
     @Override

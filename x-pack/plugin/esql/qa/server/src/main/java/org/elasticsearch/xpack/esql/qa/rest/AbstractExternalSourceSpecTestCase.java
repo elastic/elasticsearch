@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.elasticsearch.Version;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -37,7 +38,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.ACCOUNT;
@@ -111,7 +111,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
             for (StorageBackend backend : BACKENDS) {
@@ -160,7 +160,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
             for (String extra : extraParams) {
@@ -360,6 +360,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             runDatasetMode();
             return;
         }
+
+        // A multi-source FROM <dataset> has no single-EXTERNAL equivalent, so a suite that rebuilds specs
+        // into an EXTERNAL query cannot express it. Skip such specs here rather than failing in the rebuild.
+        assumeFalse(
+            "multi-source FROM <dataset> has no single-EXTERNAL equivalent; skipped on EXTERNAL-rebuild backends",
+            testCase.datasetSources.size() > 1
+        );
 
         // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
         useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
@@ -670,6 +677,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * warning; under STRICT it still throws.
      */
     private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = "_multifile_type_drift";
+    /**
+     * Suffix that triggers a multi-file UBN glob with a mixed-temporal column ({@code date} in one file,
+     * {@code date_nanos} in the other) that union_by_name widens LOSSLESSLY to {@code date_nanos} -- no
+     * warning. Used to lock warm MIN/MAX over a cross-file mixed-temporal column without perturbing the
+     * shared multifile_ubn fixture, whose FFW and widened-column tests depend on its exact schema.
+     */
+    private static final String MULTIFILE_TEMPORAL_SUFFIX = "_multifile_temporal";
     /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
     private static final String HIVE_SUFFIX = "_hive";
 
@@ -683,6 +697,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         String relativePath;
         if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
             relativePath = "multifile_type_drift/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_TEMPORAL_SUFFIX)) {
+            relativePath = "multifile_temporal/*." + format;
         } else if (templateName.endsWith(MULTIFILE_PERM_SUFFIX)) {
             // Column-permutation multi-file template: x_multifile_perm -> multifile_perm/*.<format>
             relativePath = "multifile_perm/*." + format;

@@ -72,9 +72,10 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
         }
         Environment environment = services.environment();
         ExecutorService executor = services.executor();
-        // Size the connection pool from the single node setting. services.settings() is the node Settings threaded
-        // through the SPI — the construction path that reaches the client-build site.
-        int maxConnections = ExternalSourceSettings.MAX_CONNECTIONS.get(services.settings());
+        // Size the connection pool from the single external-read concurrency knob
+        // (esql.external.max_concurrent_requests), so the SDK pool matches the per-scheme permit ceiling.
+        // services.settings() is the node Settings threaded through the SPI — the path that reaches the client build.
+        int maxConnections = ExternalSourceSettings.blobStoreConcurrency(services.settings());
         StorageProviderFactory azureFactory = StorageProviderFactory.of(
             () -> new AzureStorageProvider(null, environment, executor, maxConnections),
             AzureConfiguration::fromQueryConfig,

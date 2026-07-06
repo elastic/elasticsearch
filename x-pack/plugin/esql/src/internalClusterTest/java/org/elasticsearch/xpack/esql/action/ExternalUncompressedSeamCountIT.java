@@ -9,27 +9,22 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.BufferedWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -53,38 +48,11 @@ import static org.hamcrest.Matchers.equalTo;
  * Column {@code col0} is globally unique per row (0..total-1), so {@code COUNT/MIN/MAX} together prove
  * every record was seen exactly once across every seam.
  */
-public class ExternalUncompressedSeamCountIT extends AbstractEsqlIntegTestCase {
-
-    /** Re-enables datasource extension loading that {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses. */
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
+public class ExternalUncompressedSeamCountIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        plugins.add(NdJsonDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesEnabled() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class, NdJsonDataSourcePlugin.class);
     }
 
     @Override
@@ -99,55 +67,53 @@ public class ExternalUncompressedSeamCountIT extends AbstractEsqlIntegTestCase {
      * the seam off-by-one — a record whose first byte is exactly a macro-split offset.
      */
     public void testCsvHeaderlessMultiMacroSplitRecordOnSeam() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         // Fixed 32-byte rows: "col0,<padded-b>\n". target_split_size 1mb is an exact multiple of 32,
         // so every stride boundary lands on a record start. CSV's minimum segment is 1 MiB, so a 1 MiB
         // stride yields macro-splits at the segmenting floor (one read each) and isolates the macro seam.
         long rows = writeFixedWidthCsv(dir.resolve("part-0.csv"), 0, 4 * 1024 * 1024, true);
-        assertExactCount(globUri(dir, "*.csv"), "\"header_row\":false,\"error_mode\":\"null_field\",\"target_split_size\":\"1mb\"", rows);
+        assertExactCount("seam_record_on_seam", globUri(dir, "*.csv"), headerlessOptions("1mb"), rows);
     }
 
     /** Headerless multi-file glob, several macro-splits per file, trailing newline present. */
     public void testCsvHeaderlessMultiFileMultiMacroSplit() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         long total = 0;
         for (int f = 0; f < 3; f++) {
             total += writeVarWidthCsv(dir.resolve("part-" + f + ".csv"), total, 5 * 1024 * 1024, true);
         }
-        assertExactCount(globUri(dir, "*.csv"), "\"header_row\":false,\"error_mode\":\"null_field\",\"target_split_size\":\"1mb\"", total);
+        assertExactCount("seam_multi_file_multi_macro_split", globUri(dir, "*.csv"), headerlessOptions("1mb"), total);
     }
 
     /** The file's final record carries NO trailing newline, across multiple macro-splits. */
     public void testCsvHeaderlessMultiMacroSplitNoTrailingNewline() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         long rows = writeVarWidthCsv(dir.resolve("part-0.csv"), 0, 5 * 1024 * 1024, false);
-        assertExactCount(globUri(dir, "*.csv"), "\"header_row\":false,\"error_mode\":\"null_field\",\"target_split_size\":\"1mb\"", rows);
+        assertExactCount("seam_no_trailing_newline", globUri(dir, "*.csv"), headerlessOptions("1mb"), rows);
     }
 
     /** Headerless, single macro-split per file (large target_split_size) but intra-file segmented. */
     public void testCsvHeaderlessIntraFileSegmented() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         long total = 0;
         for (int f = 0; f < 3; f++) {
             total += writeVarWidthCsv(dir.resolve("part-" + f + ".csv"), total, 3_500_000, true);
         }
-        assertExactCount(
-            globUri(dir, "*.csv"),
-            "\"header_row\":false,\"error_mode\":\"null_field\",\"target_split_size\":\"256mb\"",
-            total
-        );
+        assertExactCount("seam_intra_file_segmented", globUri(dir, "*.csv"), headerlessOptions("256mb"), total);
     }
 
-    private void assertExactCount(String globUri, String withOptions, long total) throws Exception {
-        String query = "EXTERNAL \""
-            + globUri
-            + "\" WITH {"
-            + withOptions
-            + "} | RENAME col0 AS a | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
+    /** The {@code header_row}/{@code error_mode} pair every test in this suite shares; only {@code target_split_size} varies. */
+    private static Map<String, Object> headerlessOptions(String targetSplitSize) {
+        return Map.of("header_row", false, "error_mode", "null_field", "target_split_size", targetSplitSize);
+    }
+
+    /**
+     * Registers {@code globUri} as a dataset with the given settings — the {@code FROM <dataset>} equivalent
+     * of the legacy {@code EXTERNAL ... WITH {...}} clause — and asserts the exact row count/bounds.
+     */
+    private void assertExactCount(String datasetName, String globUri, Map<String, Object> settings, long total) throws Exception {
+        String dataset = registerDataset(datasetName, globUri, settings);
+        String query = "FROM " + dataset + " | RENAME col0 AS a | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
 
         var request = syncEsqlQueryRequest(query);
         try (var response = run(request, TimeValue.timeValueMinutes(5))) {

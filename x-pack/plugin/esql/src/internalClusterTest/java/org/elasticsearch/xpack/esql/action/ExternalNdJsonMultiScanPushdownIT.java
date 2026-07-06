@@ -10,29 +10,21 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.zip.GZIPOutputStream;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,7 +37,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * <p>
  * The aggregate-metadata cache captures per-chunk row-count stats during a cold scan and serves
  * later {@code COUNT(*)} queries from them. A query that scans one file more than once — each branch
- * of a {@code FORK} is an independent subplan that re-scans the {@code EXTERNAL} source — ships two
+ * of a {@code FORK} is an independent subplan that re-scans the external source — ships two
  * complete covers of the same path. Each per-chunk contribution carries the byte range it observed,
  * and the coordinator reconciler unions them by range: the two scans observe the same deterministic
  * chunk ranges, so those ranges are counted once. Before the fix the reconciler summed every partial
@@ -61,37 +53,11 @@ import static org.hamcrest.Matchers.greaterThan;
  * file in a single query. The whole sequence is deterministic — it does not depend on test ordering
  * the way the spec-suite flakes did.
  */
-public class ExternalNdJsonMultiScanPushdownIT extends AbstractEsqlIntegTestCase {
-
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
+public class ExternalNdJsonMultiScanPushdownIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(NdJsonDataSourcePlugin.class);
-        plugins.add(GzipDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesEnabled() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(NdJsonDataSourcePlugin.class, GzipDataSourcePlugin.class);
     }
 
     @Override
@@ -118,20 +84,19 @@ public class ExternalNdJsonMultiScanPushdownIT extends AbstractEsqlIntegTestCase
     }
 
     public void testMultiScanColdDoesNotDoubleCountWarmCountStar() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         assumeTrue("requires FORK", FORK_V9.isEnabled());
 
         int totalRows = 500;
         Path gzFile = writeGzippedNdJsonFile(totalRows);
         try {
-            String uri = StoragePath.fileUri(gzFile);
+            String dataset = registerDataset("ndjson_multiscan", StoragePath.fileUri(gzFile), Map.of());
 
             // COLD: scan the same compressed file twice in one query. Each FORK branch re-scans the
-            // EXTERNAL source, so two finalized partial-chunk sets are captured under one path. The
+            // external source, so two finalized partial-chunk sets are captured under one path. The
             // COUNT after the merge sees both branches' rows; documentsFound proves both full scans
             // ran (this also guards the test itself — if FORK ever shared a single scan, this drops to
             // totalRows and we would know the test no longer exercises the double-scan path).
-            String forkQuery = "EXTERNAL \"" + uri + "\" | FORK (WHERE id >= 0) (WHERE id >= 0) | STATS rows = COUNT(*)";
+            String forkQuery = "FROM " + dataset + " | FORK (WHERE id >= 0) (WHERE id >= 0) | STATS rows = COUNT(*)";
             try (var response = run(syncEsqlQueryRequest(forkQuery).profile(true))) {
                 assertSingleLong(response, "rows", 2L * totalRows);
                 assertThat(
@@ -144,7 +109,7 @@ public class ExternalNdJsonMultiScanPushdownIT extends AbstractEsqlIntegTestCase
             // WARM: a pushdown-eligible COUNT(*) on the same file. It short-circuits to the cached
             // row count. Before the fix the cache held 2 * totalRows (the two finalized sets summed),
             // so this returned 1000 instead of 500 — the exact CI signature.
-            String countQuery = "EXTERNAL \"" + uri + "\" | STATS c = COUNT(*)";
+            String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
             try (var response = run(syncEsqlQueryRequest(countQuery).profile(true))) {
                 assertCount(response, totalRows);
                 assertNoPushdownBypass(response);
@@ -154,7 +119,7 @@ public class ExternalNdJsonMultiScanPushdownIT extends AbstractEsqlIntegTestCase
             // WARM, filtered: the fileMetadataWildcard family. A data-column filter that matches every
             // row is classified back to the full row count, so this is pushdown-eligible too and reads
             // the same cached entry. Same root cause, same fix — assert it is not doubled.
-            String filteredCountQuery = "EXTERNAL \"" + uri + "\" | WHERE value >= 0 | STATS c = COUNT(*)";
+            String filteredCountQuery = "FROM " + dataset + " | WHERE value >= 0 | STATS c = COUNT(*)";
             try (var response = run(syncEsqlQueryRequest(filteredCountQuery).profile(true))) {
                 assertCount(response, totalRows);
             }
@@ -194,10 +159,6 @@ public class ExternalNdJsonMultiScanPushdownIT extends AbstractEsqlIntegTestCase
         for (int i = 0; i < rowCount; i++) {
             sb.append("{\"id\":").append(i).append(",\"name\":\"row_").append(i).append("\",\"value\":").append(i * 10).append("}\n");
         }
-        Path tempFile = createTempDir().resolve("multiscan_count_pushdown_test.ndjson.gz");
-        try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(tempFile))) {
-            out.write(sb.toString().getBytes(StandardCharsets.UTF_8));
-        }
-        return tempFile;
+        return writeGzipped(createTempDir().resolve("multiscan_count_pushdown_test.ndjson.gz"), sb.toString());
     }
 }

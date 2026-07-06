@@ -22,7 +22,6 @@ import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
-import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.index.IndexMode;
@@ -184,30 +183,9 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
                 // Randomly attach a string multi-field (text<->keyword) to string fields, exercising columnar source
                 // equivalence with multi-fields present. Only TEXT/KEYWORD are used since the other string types are
                 // filtered out above.
-                new MultifieldAddonHandler(Map.of(FieldType.TEXT, List.of(FieldType.KEYWORD), FieldType.KEYWORD, List.of(FieldType.TEXT))),
-                new DefaultMappingParametersHandler() {
-                    @Override
-                    public DataSourceResponse.LeafMappingParametersGenerator handle(
-                        DataSourceRequest.LeafMappingParametersGenerator request
-                    ) {
-                        var delegated = super.handle(request);
-                        if (delegated == null) {
-                            return null;
-                        }
-                        return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
-                            var mapping = new HashMap<>(delegated.mappingGenerator().get());
-                            // synthetic_source_keep is not allowed in columnar index mode
-                            mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
-                            mapping.remove("store");
-                            mapping.remove("copy_to");
-                            // doc_values cannot be disabled in columnar modes: a field must be reconstructable from its
-                            // doc values, so let it fall back to the (enabled) default.
-                            mapping.remove("doc_values");
-                            return mapping;
-                        });
-                    }
-                }
+                new MultifieldAddonHandler(Map.of(FieldType.TEXT, List.of(FieldType.KEYWORD), FieldType.KEYWORD, List.of(FieldType.TEXT)))
             ))
+            .withIndexMode(IndexMode.COLUMNAR)
             .build();
     }
 }

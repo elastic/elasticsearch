@@ -433,7 +433,7 @@ public final class DateFieldMapper extends FieldMapper {
                     return IndexType.skippers();
                 }
                 // Otherwise if field name @timestamp and it is part of index sorting and index mode is either logsdb and tsdb use skippers:
-                if ((indexSettings.getMode() == IndexMode.TIME_SERIES || indexSettings.getMode() == IndexMode.LOGSDB)
+                if ((indexSettings.getMode().isTsdb() || indexSettings.getMode() == IndexMode.LOGSDB)
                     && indexSettings.getIndexSortConfig() != null
                     && indexSettings.getIndexSortConfig().hasSortOnField(fullFieldName)
                     && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName)) {

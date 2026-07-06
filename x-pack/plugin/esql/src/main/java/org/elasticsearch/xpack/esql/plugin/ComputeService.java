@@ -33,7 +33,9 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -78,11 +80,13 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME;
 
 /**
  * Once query is parsed and validated it is scheduled for execution by {@code org.elasticsearch.xpack.esql.plugin.ComputeService#execute}
@@ -150,6 +154,9 @@ public class ComputeService {
     private final ExchangeService exchangeService;
     private final PlannerSettings plannerSettings;
     private final Executor searchExecutor;
+    // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
+    // re-resolving it from ClusterSettings for every query.
+    private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -172,6 +179,22 @@ public class ComputeService {
         this.inferenceService = transportActionServices.inferenceService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
+        // 9.3 backport note: unlike main/9.4, this branch doesn't have the joni Matcher#setTimeout-based
+        // MatcherWatchdog (elastic/elasticsearch#139405), only the older thread-polling implementation.
+        // We reuse the configured max execution time as the poll interval too, so a stuck matcher is
+        // interrupted roughly once per max-execution-time window rather than needing a second setting.
+        this.clusterService.getClusterSettings()
+            .initializeAndWatch(
+                GROK_WATCHDOG_MAX_EXECUTION_TIME,
+                timeValue -> grokMatcherWatchdog.set(
+                    MatcherWatchdog.newInstance(
+                        timeValue.millis(),
+                        timeValue.millis(),
+                        threadPool.relativeTimeInMillisSupplier(),
+                        (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic())
+                    )
+                )
+            );
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
             this,
             clusterService,
@@ -677,7 +700,8 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceService,
-                physicalOperationProviders
+                physicalOperationProviders,
+                grokMatcherWatchdog.get()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

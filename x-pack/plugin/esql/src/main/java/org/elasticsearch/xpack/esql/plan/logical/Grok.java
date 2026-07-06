@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.GrokCaptureConfig;
 import org.elasticsearch.grok.GrokCaptureType;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -72,9 +73,19 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
     }
 
     public static Parser pattern(Source source, String pattern) {
+        return pattern(source, pattern, MatcherWatchdog.noop());
+    }
+
+    /**
+     * Builds a parser using the given watchdog to interrupt expensive matches. Used by the local execution
+     * planner to bind the node-local {@code esql.grok.watchdog.max_execution_time} setting to the matcher
+     * that will actually run against real data; parsing/deserialization use the no-op watchdog above since
+     * they never execute the pattern against untrusted input.
+     */
+    public static Parser pattern(Source source, String pattern, MatcherWatchdog matcherWatchdog) {
         try {
             var builtinPatterns = GrokBuiltinPatterns.get(true);
-            org.elasticsearch.grok.Grok grok = new org.elasticsearch.grok.Grok(builtinPatterns, pattern, logger::warn);
+            org.elasticsearch.grok.Grok grok = new org.elasticsearch.grok.Grok(builtinPatterns, pattern, matcherWatchdog, logger::warn);
             return new Parser(pattern, grok);
         } catch (IllegalArgumentException e) {
             throw new ParsingException(source, "Invalid pattern [{}] for grok: {}", pattern, e.getMessage());

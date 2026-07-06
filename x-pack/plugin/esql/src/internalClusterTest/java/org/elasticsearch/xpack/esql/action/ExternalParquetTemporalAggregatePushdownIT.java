@@ -14,32 +14,26 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
-import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,29 +41,12 @@ import static org.hamcrest.Matchers.equalTo;
  * Verifies that ungrouped MIN/MAX over temporal columns in Parquet files return
  * epoch-millis values that match the scan-path decode, not raw physical units
  * (days, microseconds). Covers date32, timestamp[us], and timestamp[ms].
- * <p>
- * The {@code EsqlEnterpriseWithDatasourceExtensions}/{@code nodePlugins()}/{@code createOutputFile}
- * boilerplate mirrors the other {@code ExternalParquet*IT} suites (e.g. {@link ExternalParquetCountPushdownIT});
- * there is no shared base for these {@code EXTERNAL "file://..."} tests, so the pattern is duplicated for
- * consistency rather than extracted here.
  */
-public class ExternalParquetTemporalAggregatePushdownIT extends AbstractEsqlIntegTestCase {
-
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
+public class ExternalParquetTemporalAggregatePushdownIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(ParquetDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(ParquetDataSourcePlugin.class);
     }
 
     @Override
@@ -77,22 +54,7 @@ public class ExternalParquetTemporalAggregatePushdownIT extends AbstractEsqlInte
         return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesEnabled() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
-    }
-
     public void testMinMaxTemporalColumns() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         long millis2000 = Instant.parse("2000-01-01T00:00:00Z").toEpochMilli();
         long millis2020 = Instant.parse("2020-01-01T00:00:00Z").toEpochMilli();
         int days2000 = (int) (millis2000 / 86_400_000L);
@@ -103,14 +65,15 @@ public class ExternalParquetTemporalAggregatePushdownIT extends AbstractEsqlInte
         Path parquetFile = writeTemporalParquetFile(days2000, days2020, micros2000, micros2020, millis2000, millis2020);
         try {
             String fileUri = StoragePath.fileUri(parquetFile);
+            String dataset = registerDataset("temporal_pushdown", fileUri, Map.of());
 
             // STATS MIN/MAX is served from the Parquet footer stats via PushStatsToExternalSource.
             // This is the path that returned raw days/micros before the decode fix; profile=true +
             // the no-Async assertion below ensure the values come from pushdown, not a scan fallback
             // (the scan path was always correct, so without this a regression could hide).
-            String statsQuery = "EXTERNAL \""
-                + fileUri
-                + "\" | STATS lo_d32=MIN(d32), hi_d32=MAX(d32), lo_tus=MIN(tus), hi_tus=MAX(tus), lo_tms=MIN(tms), hi_tms=MAX(tms)";
+            String statsQuery = "FROM "
+                + dataset
+                + " | STATS lo_d32=MIN(d32), hi_d32=MAX(d32), lo_tus=MIN(tus), hi_tus=MAX(tus), lo_tms=MIN(tms), hi_tms=MAX(tms)";
 
             try (var response = run(syncEsqlQueryRequest(statsQuery).profile(true))) {
                 List<List<Object>> rows = getValuesList(response);
@@ -196,48 +159,5 @@ public class ExternalParquetTemporalAggregatePushdownIT extends AbstractEsqlInte
             return Instant.parse(s).toEpochMilli();
         }
         return ((Number) value).longValue();
-    }
-
-    private static OutputFile createOutputFile(ByteArrayOutputStream baos) {
-        return new OutputFile() {
-            @Override
-            public PositionOutputStream create(long blockSizeHint) {
-                return new PositionOutputStream() {
-                    private long position = 0;
-
-                    @Override
-                    public long getPos() {
-                        return position;
-                    }
-
-                    @Override
-                    public void write(int b) throws IOException {
-                        baos.write(b);
-                        position++;
-                    }
-
-                    @Override
-                    public void write(byte[] b, int off, int len) throws IOException {
-                        baos.write(b, off, len);
-                        position += len;
-                    }
-                };
-            }
-
-            @Override
-            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
-                return create(blockSizeHint);
-            }
-
-            @Override
-            public boolean supportsBlockSize() {
-                return false;
-            }
-
-            @Override
-            public long defaultBlockSize() {
-                return 0;
-            }
-        };
     }
 }

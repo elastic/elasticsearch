@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -140,18 +141,38 @@ public class DateExtract extends EsqlConfigurationFunction {
             }
 
             if (isNanos) {
-                return new DateExtractConstantNanosEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+                return new DateExtractConstantNanosEvaluator.Factory(
+                    source(),
+                    fieldEvaluator,
+                    chrono,
+                    QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+                );
             } else {
-                return new DateExtractConstantMillisEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+                return new DateExtractConstantMillisEvaluator.Factory(
+                    source(),
+                    fieldEvaluator,
+                    chrono,
+                    QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+                );
             }
         }
 
         var chronoEvaluator = toEvaluator.apply(children().get(0));
 
         if (isNanos) {
-            return new DateExtractNanosEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+            return new DateExtractNanosEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                chronoEvaluator,
+                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+            );
         } else {
-            return new DateExtractMillisEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+            return new DateExtractMillisEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                chronoEvaluator,
+                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+            );
         }
 
     }

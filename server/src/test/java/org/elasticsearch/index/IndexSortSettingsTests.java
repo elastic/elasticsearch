@@ -348,9 +348,10 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testTimeSeriesMode() {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         IndexSettings indexSettings = indexSettings(
             Settings.builder()
-                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexSettings.MODE.getKey(), mode.getName())
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
@@ -363,44 +364,17 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testTimeSeriesModeNoTimestamp() {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         IndexSettings indexSettings = indexSettings(
             Settings.builder()
-                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexSettings.MODE.getKey(), mode.getName())
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build()
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE));
-        assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=time_series]"));
-    }
-
-    public void testTimeSeriesModeWithTsdb() {
-        IndexSettings indexSettings = indexSettings(
-            Settings.builder()
-                .put(IndexSettings.MODE.getKey(), "tsdb")
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
-                .build()
-        );
-        Sort sort = buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"));
-        assertThat(sort.getSort(), arrayWithSize(2));
-        assertThat(sort.getSort()[0].getField(), equalTo("_tsid"));
-        assertThat(sort.getSort()[1].getField(), equalTo("@timestamp"));
-    }
-
-    public void testTimeSeriesModeNoTimestampWithTsdb() {
-        IndexSettings indexSettings = indexSettings(
-            Settings.builder()
-                .put(IndexSettings.MODE.getKey(), "tsdb")
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
-                .build()
-        );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE));
-        assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=tsdb]"));
+        assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=" + mode.getName() + "]"));
     }
 
     public void testLogsdbIndexSortWithArrays() {

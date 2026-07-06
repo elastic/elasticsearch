@@ -88,83 +88,14 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         return count;
     }
 
-    public void testGetAdditionalIndexSettings() throws Exception {
-        ProjectMetadata projectMetadata = emptyProject();
-        String dataStreamName = "logs-app1";
-
-        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        Settings settings = Settings.builder()
-            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
-            .build();
-        String mapping = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field1": {
-                            "type": "long"
-                        },
-                        "field2": {
-                            "type": "keyword"
-                        },
-                        "field3": {
-                            "type": "keyword",
-                            "time_series_dimension": true
-                        },
-                        "field4": {
-                            "type": "long",
-                            "time_series_dimension": true
-                        },
-                        "field5": {
-                            "type": "ip",
-                            "time_series_dimension": true
-                        },
-                        "field6": {
-                            "type": "boolean",
-                            "time_series_dimension": true
-                        }
-                    }
-                }
-            }
-            """;
-        Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.TIME_SERIES,
-            projectMetadata,
-            now,
-            settings,
-            List.of(new CompressedXContent(mapping)),
-            indexVersion,
-            additionalSettings
-        );
-        Settings result = additionalSettings.build();
-        // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
-        // (in production the index.mode setting is usually provided in an index or component template)
-        result = builder().put(result).put("index.mode", "time_series").build();
-        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(4)));
-        assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
-        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
-        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        if (expectedIndexDimensionsTsidOptimizationEnabled) {
-            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("field3", "field4", "field5", "field6"));
-            assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), empty());
-        } else {
-            assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("field3", "field4", "field5", "field6"));
-            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
-        }
-        if (expectedDisabledSequenceNumbers) {
-            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
-        }
-    }
-
     /**
      * {@link IndexMode#TSDB} resolves {@link IndexMode#isTsdb()} to {@code true} just like
      * {@link IndexMode#TIME_SERIES}, so creating a backing index with a template index mode of
      * {@link IndexMode#TSDB} must inject the same start/end time, sequence-number, synthetic id
      * and dimension settings as {@link IndexMode#TIME_SERIES} does.
      */
-    public void testGetAdditionalIndexSettingsWithTsdb() throws Exception {
+    public void testGetAdditionalIndexSettings() throws Exception {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
 
@@ -206,7 +137,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TSDB,
+            mode,
             projectMetadata,
             now,
             settings,
@@ -215,11 +146,11 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             additionalSettings
         );
         Settings result = additionalSettings.build();
-        // The index.time_series.end_time setting requires index.mode to be set to tsdb adding it here so that we read this setting:
+        // The index.time_series.end_time setting requires index.mode to be set adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
-        result = builder().put(result).put("index.mode", "tsdb").build();
+        result = builder().put(result).put("index.mode", mode.getName()).build();
         assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(4)));
-        assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TSDB));
+        assertThat(IndexSettings.MODE.get(result), equalTo(mode));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         if (expectedIndexDimensionsTsidOptimizationEnabled) {
@@ -567,48 +498,14 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(result.size(), equalTo(0));
     }
 
-    public void testGetAdditionalIndexSettingsMigrateToTsdb() {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        String dataStreamName = "logs-app1";
-        IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
-        DataStream existingDataStream = newInstance(dataStreamName, List.of(idx.getIndex()));
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .dataStreams(Map.of(dataStreamName, existingDataStream), Map.of())
-            .build();
-
-        Settings settings = Settings.EMPTY;
-        Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
-            dataStreamName,
-            IndexMode.TIME_SERIES,
-            projectMetadata,
-            now,
-            settings,
-            List.of(),
-            indexVersion,
-            additionalSettings
-        );
-        Settings result = additionalSettings.build();
-        // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
-        // (in production the index.mode setting is usually provided in an index or component template)
-        result = builder().put(result).put("index.mode", "time_series").build();
-        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(3)));
-        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("time_series"));
-        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
-        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        if (expectedDisabledSequenceNumbers) {
-            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
-        }
-    }
-
     /**
      * The migration check at index-creation time relies on {@link IndexMode#isTsdb(IndexMode)}, so
      * a data stream currently in {@code standard} mode must also migrate into time series mode when
      * the matching index template specifies {@link IndexMode#TSDB} directly, not just
      * {@link IndexMode#TIME_SERIES}.
      */
-    public void testGetAdditionalIndexSettingsMigrateToTsdbMode() {
+    public void testGetAdditionalIndexSettingsMigrateToTsdb() {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-app1";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
@@ -622,7 +519,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
-            IndexMode.TSDB,
+            mode,
             projectMetadata,
             now,
             settings,
@@ -631,12 +528,11 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             additionalSettings
         );
         Settings result = additionalSettings.build();
-        // The index.time_series.end_time setting requires index.mode to be set to tsdb adding it here so that we read this
-        // setting:
+        // The index.time_series.end_time setting requires index.mode to be set adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
-        result = builder().put(result).put("index.mode", "tsdb").build();
+        result = builder().put(result).put("index.mode", mode.getName()).build();
         assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(3)));
-        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("tsdb"));
+        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(mode.getName()));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         if (expectedDisabledSequenceNumbers) {
@@ -1046,6 +942,11 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@link IndexMode#TSDB} (the {@code tsdb} value) must be handled the same as
+     * {@link IndexMode#TIME_SERIES}, so that the {@code assert IndexMode.isTsdb(...)} sanity check
+     * in {@link DataStreamIndexSettingsProvider#onUpdateMappings} is exercised with the alias too.
+     */
     public void testAddNewDimension() throws Exception {
         String newMapping = """
             {
@@ -1063,35 +964,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        Settings result = onUpdateMappings("field1", "field1", newMapping);
-        assertThat(result.size(), equalTo(1));
-        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("field1", "field2"));
-    }
-
-    /**
-     * Same scenario as {@link #testAddNewDimension()}, but with an index in {@link IndexMode#TSDB}
-     * (the {@code tsdb} value) rather than {@link IndexMode#TIME_SERIES}, so that the
-     * {@code assert IndexMode.isTsdb(...)} sanity check in
-     * {@link DataStreamIndexSettingsProvider#onUpdateMappings} is exercised with the alias too.
-     */
-    public void testAddNewDimensionWithTsdb() throws Exception {
-        String newMapping = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field1": {
-                            "type": "keyword",
-                            "time_series_dimension": true
-                        },
-                        "field2": {
-                            "type": "keyword",
-                            "time_series_dimension": true
-                        }
-                    }
-                }
-            }
-            """;
-        Settings result = onUpdateMappings("field1", "field1", newMapping, IndexMode.TSDB);
+        Settings result = onUpdateMappings("field1", "field1", newMapping, randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB));
         assertThat(result.size(), equalTo(1));
         assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("field1", "field2"));
     }
@@ -1257,7 +1130,12 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         return additionalSettings.build();
     }
 
+    /**
+     * The sequence-number-disabling gate is keyed off {@link IndexMode#isTsdb()}, so it must behave
+     * identically for a template index mode of {@link IndexMode#TIME_SERIES} and {@link IndexMode#TSDB}.
+     */
     public void testClusterSettingsDefineSeqNoDisabledDefault() throws Exception {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
@@ -1274,7 +1152,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         providerWithSeqNoEnabled.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            mode,
             emptyProject(),
             now,
             Settings.EMPTY,
@@ -1293,7 +1171,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         providerWithSeqNoDisabled.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            mode,
             emptyProject(),
             now,
             Settings.EMPTY,
@@ -1308,7 +1186,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         providerWithSeqNoDisabled.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            mode,
             emptyProject(),
             now,
             Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false).build(),
@@ -1320,74 +1198,11 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     /**
-     * Same scenario as {@link #testClusterSettingsDefineSeqNoDisabledDefault()}, but with a
-     * template index mode of {@link IndexMode#TSDB} (the {@code tsdb} value) rather than
-     * {@link IndexMode#TIME_SERIES}, since the sequence-number-disabling gate is keyed off
-     * {@link IndexMode#isTsdb()}.
+     * The synthetic {@code _id} gate is keyed off {@link IndexMode#isTsdb()}, so it must behave
+     * identically for a template index mode of {@link IndexMode#TIME_SERIES} and {@link IndexMode#TSDB}.
      */
-    public void testClusterSettingsDefineSeqNoDisabledDefaultWithTsdb() throws Exception {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
-            IndexVersion.current()
-        );
-        String dataStreamName = "metrics-app1";
-
-        // With seq_no_disabled=false, the provider must NOT set index.disable_sequence_numbers
-        DataStreamIndexSettingsProvider providerWithSeqNoEnabled = new DataStreamIndexSettingsProvider(
-            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED.getKey(), false).build()
-        );
-        Settings.Builder additionalSettings = builder();
-        providerWithSeqNoEnabled.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.TSDB,
-            emptyProject(),
-            now,
-            Settings.EMPTY,
-            List.of(),
-            version,
-            additionalSettings
-        );
-        assertFalse(additionalSettings.build().hasValue(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()));
-
-        // With seq_no_disabled=true (default), the provider must set index.disable_sequence_numbers=true
-        DataStreamIndexSettingsProvider providerWithSeqNoDisabled = new DataStreamIndexSettingsProvider(
-            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED.getKey(), true).build()
-        );
-        additionalSettings = builder();
-        providerWithSeqNoDisabled.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.TSDB,
-            emptyProject(),
-            now,
-            Settings.EMPTY,
-            List.of(),
-            version,
-            additionalSettings
-        );
-        assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(additionalSettings.build()), equalTo(true));
-
-        // When index.disable_sequence_numbers is explicitly set in the template, the cluster setting must not override it
-        additionalSettings = builder();
-        providerWithSeqNoDisabled.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.TSDB,
-            emptyProject(),
-            now,
-            Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false).build(),
-            List.of(),
-            version,
-            additionalSettings
-        );
-        assertFalse(additionalSettings.build().hasValue(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()));
-    }
-
     public void testClusterSettingsDefineSyntheticIdEnabledDefault() throws Exception {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
@@ -1404,7 +1219,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         providerWithSyntheticIdDisabled.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            mode,
             emptyProject(),
             now,
             Settings.EMPTY,
@@ -1423,7 +1238,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         providerWithSyntheticIdEnabled.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            mode,
             emptyProject(),
             now,
             Settings.EMPTY,
@@ -1438,75 +1253,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         providerWithSyntheticIdEnabled.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
-            emptyProject(),
-            now,
-            Settings.builder().put(IndexSettings.SYNTHETIC_ID.getKey(), false).build(),
-            List.of(),
-            version,
-            additionalSettings
-        );
-        assertFalse(additionalSettings.build().hasValue(IndexSettings.SYNTHETIC_ID.getKey()));
-    }
-
-    /**
-     * Same scenario as {@link #testClusterSettingsDefineSyntheticIdEnabledDefault()}, but with a
-     * template index mode of {@link IndexMode#TSDB} (the {@code tsdb} value) rather than
-     * {@link IndexMode#TIME_SERIES}, since the synthetic {@code _id} gate is keyed off
-     * {@link IndexMode#isTsdb()}.
-     */
-    public void testClusterSettingsDefineSyntheticIdEnabledDefaultWithTsdb() throws Exception {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
-            IndexVersion.current()
-        );
-        String dataStreamName = "metrics-app1";
-
-        // With synthetic_id_enabled=false, the provider must set index.mapping.synthetic_id=false
-        DataStreamIndexSettingsProvider providerWithSyntheticIdDisabled = new DataStreamIndexSettingsProvider(
-            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID.getKey(), false).build()
-        );
-        Settings.Builder additionalSettings = builder();
-        providerWithSyntheticIdDisabled.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.TSDB,
-            emptyProject(),
-            now,
-            Settings.EMPTY,
-            List.of(),
-            version,
-            additionalSettings
-        );
-        assertThat(additionalSettings.build().getAsBoolean(IndexSettings.SYNTHETIC_ID.getKey(), true), equalTo(false));
-
-        // With synthetic_id_enabled=true (default), the provider must set index.mapping.synthetic_id=true
-        DataStreamIndexSettingsProvider providerWithSyntheticIdEnabled = new DataStreamIndexSettingsProvider(
-            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID.getKey(), true).build()
-        );
-        additionalSettings = builder();
-        providerWithSyntheticIdEnabled.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.TSDB,
-            emptyProject(),
-            now,
-            Settings.EMPTY,
-            List.of(),
-            version,
-            additionalSettings
-        );
-        assertThat(additionalSettings.build().getAsBoolean(IndexSettings.SYNTHETIC_ID.getKey(), false), equalTo(true));
-
-        // When index.mapping.synthetic_id is explicitly set in the template, the cluster setting must not override it
-        additionalSettings = builder();
-        providerWithSyntheticIdEnabled.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.TSDB,
+            mode,
             emptyProject(),
             now,
             Settings.builder().put(IndexSettings.SYNTHETIC_ID.getKey(), false).build(),

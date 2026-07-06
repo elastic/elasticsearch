@@ -1184,6 +1184,11 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         assertThat(failureStoreConditions.getMaxAge(), equalTo(TimeValue.timeValueHours(1))); // 12h retention -> 1h max_age
     }
 
+    /**
+     * Covers both {@link IndexMode#TIME_SERIES} and {@link IndexMode#TSDB}, the latter sharing the
+     * former's {@code isTsdb()}-gated behaviour, so {@link DataStreamLifecycleService#timeSeriesIndicesStillWithinTimeBounds}
+     * must treat both identically.
+     */
     public void testTimeSeriesIndicesStillWithinTimeBounds() {
         Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         // These ranges are on the edge of each other temporal boundaries.
@@ -1242,51 +1247,43 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
             );
             assertThat(indices.size(), is(0));
         }
-    }
 
-    /**
-     * Same coverage as {@link #testTimeSeriesIndicesStillWithinTimeBounds()} but using {@link IndexMode#TSDB}
-     * instead of {@link IndexMode#TIME_SERIES}, to ensure {@code isTsdb()} gates this behaviour identically for both.
-     */
-    public void testTimeSeriesIndicesStillWithinTimeBoundsWithTsdbIndexMode() {
-        Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        // These ranges are on the edge of each other's temporal boundaries.
-        Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
-        Instant end1 = currentTime.minus(4, ChronoUnit.HOURS);
-        Instant start2 = currentTime.minus(4, ChronoUnit.HOURS);
-        Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+        {
+            // same coverage as above, but building the indices directly with an explicitly configured
+            // index mode, randomized between IndexMode.TIME_SERIES and IndexMode.TSDB
+            IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
+            IndexMetadata outOfBoundsIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
+                .settings(
+                    indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                        .put(IndexSettings.MODE.getKey(), mode.getName())
+                        .put("index.routing_path", "uid")
+                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start1.toEpochMilli())
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end1.toEpochMilli())
+                )
+                .build();
+            IndexMetadata withinBoundsIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
+                .settings(
+                    indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                        .put(IndexSettings.MODE.getKey(), mode.getName())
+                        .put("index.routing_path", "uid")
+                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start2.toEpochMilli())
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end2.toEpochMilli())
+                )
+                .build();
 
-        IndexMetadata outOfBoundsIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
-            .settings(
-                indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-                    .put(IndexSettings.MODE.getKey(), IndexMode.TSDB)
-                    .put("index.routing_path", "uid")
-                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start1.toEpochMilli())
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end1.toEpochMilli())
-            )
-            .build();
-        IndexMetadata withinBoundsIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
-            .settings(
-                indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-                    .put(IndexSettings.MODE.getKey(), IndexMode.TSDB)
-                    .put("index.routing_path", "uid")
-                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start2.toEpochMilli())
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end2.toEpochMilli())
-            )
-            .build();
+            ProjectMetadata modeProject = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(outOfBoundsIndex, true)
+                .put(withinBoundsIndex, true)
+                .build();
 
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .put(outOfBoundsIndex, true)
-            .put(withinBoundsIndex, true)
-            .build();
+            Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
+                modeProject,
+                List.of(outOfBoundsIndex.getIndex(), withinBoundsIndex.getIndex()),
+                currentTime::toEpochMilli
+            );
 
-        Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
-            project,
-            List.of(outOfBoundsIndex.getIndex(), withinBoundsIndex.getIndex()),
-            currentTime::toEpochMilli
-        );
-
-        assertThat(indices, containsInAnyOrder(withinBoundsIndex.getIndex()));
+            assertThat(indices, containsInAnyOrder(withinBoundsIndex.getIndex()));
+        }
     }
 
     public void testTrackingTimeStats() {

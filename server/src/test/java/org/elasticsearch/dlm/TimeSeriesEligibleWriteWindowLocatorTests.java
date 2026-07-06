@@ -51,12 +51,17 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
         assertThat(DLM_ONLY.getEligibleWriteWindowStart(dataStream, project, null, randomNonNegativeLong()), equalTo(-1L));
     }
 
+    /**
+     * IndexMode.TSDB is a preferred alternative to IndexMode.TIME_SERIES, so a data stream configured
+     * with either mode must be treated identically by the eligible write window logic.
+     */
     public void testWriteWindowDefinedByRetention() {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         // Configured retention
         {
             TimeValue retention = TimeValue.timeValueDays(30);
             DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(retention).build();
-            DataStream dataStream = dataStream("metrics-test", lifecycle);
+            DataStream dataStream = dataStream("metrics-test", lifecycle, mode);
             ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
             long requestTimestamp = randomNonNegativeLong();
             assertThat(
@@ -73,7 +78,7 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
                 lifecycleBuilder.dataRetention(retention);
             }
             DataStreamLifecycle lifecycle = lifecycleBuilder.build();
-            DataStream dataStream = dataStream("metrics-test", lifecycle);
+            DataStream dataStream = dataStream("metrics-test", lifecycle, mode);
             ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
             DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(null, globalMax);
             long requestTimestamp = randomNonNegativeLong();
@@ -82,20 +87,6 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
                 equalTo(requestTimestamp - globalMax.getMillis())
             );
         }
-    }
-
-    public void testWriteWindowDefinedByRetentionWithTsdb() {
-        // IndexMode.TSDB is a preferred alternative to IndexMode.TIME_SERIES, so a data stream configured
-        // with index.mode: tsdb must be treated identically by the eligible write window logic.
-        TimeValue retention = TimeValue.timeValueDays(30);
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(retention).build();
-        DataStream dataStream = dataStream("metrics-test", lifecycle, IndexMode.TSDB);
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-        long requestTimestamp = randomNonNegativeLong();
-        assertThat(
-            DLM_ONLY.getEligibleWriteWindowStart(dataStream, project, null, requestTimestamp),
-            equalTo(requestTimestamp - retention.getMillis())
-        );
     }
 
     public void testWriteWindowDefinedByFrozenAfter() {

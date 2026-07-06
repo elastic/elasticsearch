@@ -731,40 +731,18 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(fixture, Map.of("dim.a", "true"), 6);
     }
 
+    /**
+     * {@link IndexMode#TSDB} must select the same {@link IndexRouting.ExtractFromSource.ForIndexDimensions}
+     * strategy, track the routing hash the same way, and produce identical shard assignments as
+     * {@link IndexMode#TIME_SERIES}.
+     */
     public void testRoutingPathWithSingleBytePrefixTsid() throws IOException {
         TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
             IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
             8,
             "dim.*,other.*,top",
-            randomBoolean()
-        );
-        assumeTrue("require single-byte-prefix tsid", TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
-        assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);
-        assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 3);
-        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 7);
-        assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 1);
-        assertIndexShard(fixture, Map.of("top", "a"), 6);
-        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
-        assertIndexShard(fixture, Map.of("dim.a", "a"), 5);
-        assertIndexShard(fixture, Map.of("dim.a", 1), 2);
-        assertIndexShard(fixture, Map.of("dim.a", "1"), 0);
-        assertIndexShard(fixture, Map.of("dim.a", true), 3);
-        assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
-    }
-
-    /**
-     * Same scenario as {@link #testRoutingPathWithSingleBytePrefixTsid()} but with {@code index.mode: tsdb},
-     * the preferred alternative to {@code time_series}. {@link IndexMode#TSDB} must select the same
-     * {@link IndexRouting.ExtractFromSource.ForIndexDimensions} strategy, track the routing hash the same
-     * way, and produce identical shard assignments as {@link IndexMode#TIME_SERIES}.
-     */
-    public void testRoutingPathWithSingleBytePrefixTsidUsingTsdb() throws IOException {
-        TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
-            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
-            8,
-            "dim.*,other.*,top",
             randomBoolean(),
-            IndexMode.TSDB
+            randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB)
         );
         assumeTrue("require single-byte-prefix tsid", TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
         assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);

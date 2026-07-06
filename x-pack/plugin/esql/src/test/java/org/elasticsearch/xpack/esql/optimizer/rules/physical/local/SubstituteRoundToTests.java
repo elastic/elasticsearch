@@ -1010,6 +1010,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
      * {@link PushExpressionsToFieldLoadTests#testRoundToInTsEval} and friends.
      */
     public void testRoundToWithTimeSeriesIndices() {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         Map<String, Object> minValue = Map.of(
             "@timestamp",
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T12:15:03.360Z")
@@ -1023,13 +1024,13 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
             public Map<ShardId, IndexMetadata> targetShards() {
                 var indexMetadata = IndexMetadata.builder("test_index")
                     .settings(
-                        ESTestCase.indexSettings(IndexVersion.current(), 1, 1)
-                            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                        ESTestCase.indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), mode.getName())
                     )
                     .build();
                 return Map.of(new ShardId(new Index("id", "n/a"), 1), indexMetadata);
             }
         };
+        TestPlannerOptimizer optimizer = plannerOptimizerForMode(mode);
         // enable filter-by-filter for rate aggregations
         {
             String q = """
@@ -1037,7 +1038,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                 | STATS max(rate(network.total_bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
                 | LIMIT 10
                 """;
-            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+            PhysicalPlan plan = optimizer.plan(q, searchStats);
             int queryAndTags = plainQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(4));
         }
@@ -1048,60 +1049,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                 | STATS max(avg_over_time(network.bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
                 | LIMIT 10
                 """;
-            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
-            int queryAndTags = plainQueryAndTags(plan);
-            assertThat(queryAndTags, equalTo(1));
-        }
-    }
-
-    /**
-     * {@link org.elasticsearch.index.IndexMode#TSDB} is a preferred alternative to
-     * {@link IndexMode#TIME_SERIES}: it behaves identically everywhere, including in the
-     * {@link ReplaceRoundToWithQueryAndTags} rule. This mirrors
-     * {@link #testRoundToWithTimeSeriesIndices} but resolves the source index (and the target
-     * shards reported by {@link SearchStats}) with {@link IndexMode#TSDB} instead, verifying the
-     * filter-by-filter rewrite still applies identically.
-     */
-    public void testRoundToWithTimeSeriesIndicesUsingTsdb() {
-        Map<String, Object> minValue = Map.of(
-            "@timestamp",
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T12:15:03.360Z")
-        );
-        Map<String, Object> maxValue = Map.of(
-            "@timestamp",
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T14:55:01.543Z")
-        );
-        SearchStats searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue) {
-            @Override
-            public Map<ShardId, IndexMetadata> targetShards() {
-                var indexMetadata = IndexMetadata.builder("test_index")
-                    .settings(
-                        ESTestCase.indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.TSDB.name())
-                    )
-                    .build();
-                return Map.of(new ShardId(new Index("id", "n/a"), 1), indexMetadata);
-            }
-        };
-        TestPlannerOptimizer tsdbPlannerOptimizer = tsdbPlannerOptimizer();
-        // enable filter-by-filter for rate aggregations
-        {
-            String q = """
-                TS k8s
-                | STATS max(rate(network.total_bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
-                | LIMIT 10
-                """;
-            PhysicalPlan plan = tsdbPlannerOptimizer.plan(q, searchStats);
-            int queryAndTags = plainQueryAndTags(plan);
-            assertThat(queryAndTags, equalTo(4));
-        }
-        // disable filter-by-filter for non-rate aggregations
-        {
-            String q = """
-                TS k8s
-                | STATS max(avg_over_time(network.bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
-                | LIMIT 10
-                """;
-            PhysicalPlan plan = tsdbPlannerOptimizer.plan(q, searchStats);
+            PhysicalPlan plan = optimizer.plan(q, searchStats);
             int queryAndTags = plainQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(1));
         }
@@ -1112,30 +1060,24 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
      * {@link IndexMode#TSDB} is a preferred alternative to {@link IndexMode#TIME_SERIES}, both must double the
      * rounding points threshold identically.
      */
-    public void testAdjustedRoundingPointsThresholdForTsdb() {
+    public void testAdjustedRoundingPointsThreshold() {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         int threshold = between(1, 1000);
-        int timeSeriesThreshold = ReplaceRoundToWithQueryAndTags.adjustedRoundingPointsThreshold(
-            searchStats,
-            threshold,
-            null,
-            IndexMode.TIME_SERIES
-        );
-        int tsdbThreshold = ReplaceRoundToWithQueryAndTags.adjustedRoundingPointsThreshold(searchStats, threshold, null, IndexMode.TSDB);
-        assertThat(tsdbThreshold, equalTo(timeSeriesThreshold));
-        assertThat(tsdbThreshold, equalTo(threshold * 2));
+        int adjustedThreshold = ReplaceRoundToWithQueryAndTags.adjustedRoundingPointsThreshold(searchStats, threshold, null, mode);
+        assertThat(adjustedThreshold, equalTo(threshold * 2));
     }
 
     // Builds an analyzer/planner pair mirroring AbstractLocalPhysicalPlanOptimizerTests#init's
-    // plannerOptimizerTimeSeries/timeSeriesAnalyzer, but resolving the "k8s" index with IndexMode.TSDB
-    // instead of TIME_SERIES, to verify IndexMode.TSDB is handled identically.
-    private TestPlannerOptimizer tsdbPlannerOptimizer() {
+    // plannerOptimizerTimeSeries/timeSeriesAnalyzer, but resolving the "k8s" index with the given
+    // IndexMode, so tests can verify IndexMode.TSDB is handled identically to IndexMode.TIME_SERIES.
+    private TestPlannerOptimizer plannerOptimizerForMode(IndexMode mode) {
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
-        var tsdbIndex = IndexResolution.valid(EsIndexGenerator.esIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TSDB)));
-        Analyzer tsdbAnalyzer = new Analyzer(
+        var timeSeriesIndex = IndexResolution.valid(EsIndexGenerator.esIndex("k8s", timeSeriesMapping, Map.of("k8s", mode)));
+        Analyzer analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 TEST_FUNCTION_REGISTRY,
-                indexResolutions(tsdbIndex),
+                indexResolutions(timeSeriesIndex),
                 new EnrichResolution(),
                 emptyInferenceResolution()
             ),
@@ -1143,7 +1085,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         );
         return new TestPlannerOptimizer(
             config,
-            tsdbAnalyzer,
+            analyzer,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
         );
     }

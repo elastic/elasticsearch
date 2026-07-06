@@ -8302,13 +8302,9 @@ public class InternalEngineTests extends EngineTestCase {
     public void testIndexBatchTimeSeriesPhase2() throws IOException {
         // planPrimarySubBatch Phase 2 uses timeSeriesBatchLoadDocIdAndVersion for TIME_SERIES
         // indices, which does a single sorted segment scan with timestamp-based segment skipping.
-        runIndexBatchTimeSeriesPhase2(IndexMode.TIME_SERIES);
-    }
-
-    public void testIndexBatchTimeSeriesPhase2WithTsdb() throws IOException {
         // IndexMode.TSDB is a preferred alternative to TIME_SERIES (delegates isTsdb() etc. to
         // TIME_SERIES), so it must exercise the exact same batch phase 2 behavior.
-        runIndexBatchTimeSeriesPhase2(IndexMode.TSDB);
+        runIndexBatchTimeSeriesPhase2(randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB));
     }
 
     private void runIndexBatchTimeSeriesPhase2(IndexMode mode) throws IOException {

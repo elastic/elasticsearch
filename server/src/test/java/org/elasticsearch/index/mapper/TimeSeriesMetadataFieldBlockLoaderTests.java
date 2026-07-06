@@ -58,31 +58,29 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      * Plain TSDB index. {@link IndexMode#TIME_SERIES} defaults {@code _source.mode} to
      * {@link SourceFieldMapper.Mode#SYNTHETIC}, so synthetic source reconstructs {@code _source} as JSON.
      */
-    private static final Settings TSDB_SYNTHETIC_SETTINGS = tsdbSettings(null, "host");
-
-    /**
-     * Same as {@link #TSDB_SYNTHETIC_SETTINGS} but using {@link IndexMode#TSDB} directly instead of
-     * {@link IndexMode#TIME_SERIES}; {@link IndexMode#isTsdb()} treats both identically.
-     */
-    private static final Settings TSDB_MODE_SYNTHETIC_SETTINGS = tsdbModeSettings(null, "host");
+    private static final Settings TSDB_SYNTHETIC_SETTINGS = tsdbSettings(IndexMode.TIME_SERIES, null, "host");
 
     /**
      * TSDB index with {@code index.mapping.source.mode: stored}. Stored source preserves the raw
      * indexed bytes (e.g. CBOR for Prometheus remote-write documents), so the {@code _timeseries} loader must explicitly normalize to JSON.
      */
-    private static final Settings TSDB_STORED_SETTINGS = tsdbSettings(SourceFieldMapper.Mode.STORED, "host");
+    private static final Settings TSDB_STORED_SETTINGS = tsdbSettings(IndexMode.TIME_SERIES, SourceFieldMapper.Mode.STORED, "host");
 
     /**
      * TSDB index that mirrors the Prometheus mapping: a {@code labels} {@code passthrough} object marked as
      * {@code time_series_dimension: true}. Dimension fields show up under {@code labels.*} and the index uses stored source.
      */
-    private static final Settings TSDB_PROMETHEUS_LIKE_SETTINGS = tsdbSettings(SourceFieldMapper.Mode.STORED, "labels.*");
+    private static final Settings TSDB_PROMETHEUS_LIKE_SETTINGS = tsdbSettings(
+        IndexMode.TIME_SERIES,
+        SourceFieldMapper.Mode.STORED,
+        "labels.*"
+    );
 
     /**
      * OTel-like TSDB index: an {@code attributes} passthrough object. Dimension fields show up under
      * {@code attributes.*} and also as root-level aliases. Synthetic source (JSON) is used.
      */
-    private static final Settings TSDB_OTEL_LIKE_SETTINGS = tsdbSettings(null, "attributes.*");
+    private static final Settings TSDB_OTEL_LIKE_SETTINGS = tsdbSettings(IndexMode.TIME_SERIES, null, "attributes.*");
 
     private static final String MAPPING = """
         {
@@ -159,9 +157,9 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         }
         """;
 
-    private static Settings tsdbSettings(SourceFieldMapper.Mode sourceMode, String routingPath) {
+    private static Settings tsdbSettings(IndexMode mode, SourceFieldMapper.Mode sourceMode, String routingPath) {
         Settings.Builder builder = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexSettings.MODE.getKey(), mode.getName())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z");
@@ -169,37 +167,17 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
             builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), sourceMode);
         }
         return builder.build();
-    }
-
-    private static Settings tsdbModeSettings(SourceFieldMapper.Mode sourceMode, String routingPath) {
-        Settings.Builder builder = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.TSDB.getName())
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z");
-        if (sourceMode != null) {
-            builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), sourceMode);
-        }
-        return builder.build();
-    }
-
-    public void testDimensionsOnly() throws IOException {
-        BlockLoader loader = createBlockLoader(
-            TSDB_SYNTHETIC_SETTINGS,
-            MAPPING,
-            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())
-        );
-        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
-        assertThat(sourcePaths(loader), equalTo(Set.of("host", "env", "region")));
     }
 
     /**
      * The {@code tsdb} index mode is equivalent to {@code time_series} (see {@link IndexMode#isTsdb()})
-     * so {@link TimeSeriesMetadataFieldBlockLoader} must be selected and behave identically.
+     * so {@link TimeSeriesMetadataFieldBlockLoader} must be selected and behave identically regardless of
+     * which of the two mode names configured the index.
      */
-    public void testDimensionsOnlyTsdb() throws IOException {
+    public void testDimensionsOnly() throws IOException {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         BlockLoader loader = createBlockLoader(
-            TSDB_MODE_SYNTHETIC_SETTINGS,
+            tsdbSettings(mode, null, "host"),
             MAPPING,
             new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())
         );

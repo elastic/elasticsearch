@@ -255,6 +255,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testOnExplicitTimeSeriesIndex() throws IOException {
+        // Randomly exercise both IndexMode.TIME_SERIES and IndexMode.TSDB to make sure they behave identically.
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
             logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
@@ -267,31 +269,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             null,
             emptyProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName()).build(),
-            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
-            IndexVersion.current(),
-            settingsBuilder
-        );
-        final Settings additionalIndexSettings = settingsBuilder.build();
-
-        assertTrue(additionalIndexSettings.isEmpty());
-    }
-
-    public void testOnExplicitTsdbIndex() throws IOException {
-        // Same scenario as testOnExplicitTimeSeriesIndex, but using the "tsdb" value for index.mode.
-        final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            logsdbLicenseService,
-            Settings.builder().put("cluster.logsdb.enabled", true).build()
-        );
-
-        Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalSettings(
-            null,
-            "logs-apache-production",
-            null,
-            emptyProject(),
-            Instant.now().truncatedTo(ChronoUnit.SECONDS),
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TSDB.getName()).build(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build(),
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
             settingsBuilder
@@ -658,6 +636,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testNewIndexHasSyntheticSourceUsageTimeSeries() throws IOException {
+        // Randomly exercise both IndexMode.TIME_SERIES and IndexMode.TSDB to make sure they behave identically.
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         String dataStreamName = DATA_STREAM_NAME;
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         String mapping = """
@@ -672,51 +652,13 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             """;
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
         {
-            Settings settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "my_field").build();
+            Settings settings = Settings.builder().put("index.mode", mode.getName()).put("index.routing_path", "my_field").build();
             boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(getMapping(mapping))))
                 .hasSyntheticSourceUsage();
             assertTrue(result);
         }
         {
-            Settings settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "my_field").build();
-            boolean result = provider.getMappingHints(indexName, null, settings, List.of()).hasSyntheticSourceUsage();
-            assertTrue(result);
-        }
-        {
-            boolean result = provider.getMappingHints(indexName, null, Settings.EMPTY, List.of()).hasSyntheticSourceUsage();
-            assertFalse(result);
-        }
-        {
-            boolean result = provider.getMappingHints(indexName, null, Settings.EMPTY, List.of(new CompressedXContent(getMapping(mapping))))
-                .hasSyntheticSourceUsage();
-            assertFalse(result);
-        }
-    }
-
-    public void testNewIndexHasSyntheticSourceUsageTsdb() throws IOException {
-        // Same scenario as testNewIndexHasSyntheticSourceUsageTimeSeries, but exercised through the "tsdb" index.mode
-        // value to make sure IndexMode.isTsdb(...) treats it identically to "time_series".
-        String dataStreamName = DATA_STREAM_NAME;
-        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
-        String mapping = """
-            {
-                "properties": {
-                    "my_field": {
-                        "type": "keyword",
-                        "time_series_dimension": true
-                    }
-                }
-            }
-            """;
-        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
-        {
-            Settings settings = Settings.builder().put("index.mode", "tsdb").put("index.routing_path", "my_field").build();
-            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(getMapping(mapping))))
-                .hasSyntheticSourceUsage();
-            assertTrue(result);
-        }
-        {
-            Settings settings = Settings.builder().put("index.mode", "tsdb").put("index.routing_path", "my_field").build();
+            Settings settings = Settings.builder().put("index.mode", mode.getName()).put("index.routing_path", "my_field").build();
             boolean result = provider.getMappingHints(indexName, null, settings, List.of()).hasSyntheticSourceUsage();
             assertTrue(result);
         }
@@ -772,6 +714,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSource() {
+        // Randomly exercise both IndexMode.TIME_SERIES and IndexMode.TSDB to make sure they behave identically.
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         String dataStreamName = DATA_STREAM_NAME;
         ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(Tuple.tuple(dataStreamName, 1)),
@@ -822,7 +766,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            mode,
             project,
             Instant.ofEpochMilli(1L),
             settings,
@@ -853,41 +797,6 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertThat(newMapperServiceCounter.get(), equalTo(4));
-    }
-
-    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceTsdb() {
-        // Same scenario as the IndexMode.TIME_SERIES case in testGetAdditionalIndexSettingsDowngradeFromSyntheticSource,
-        // but using IndexMode.TSDB directly to make sure the template mode injection in
-        // LogsdbIndexModeSettingsProvider#buildIndexMetadataForMapperService treats it identically.
-        String dataStreamName = DATA_STREAM_NAME;
-        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
-            List.of(Tuple.tuple(dataStreamName, 1)),
-            List.of(),
-            Instant.now().toEpochMilli(),
-            builder().build(),
-            1
-        );
-        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
-        Settings settings = builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
-            .build();
-        logsdbLicenseService.setSyntheticSourceFallback(true);
-
-        Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
-            dataStreamName,
-            IndexMode.TSDB,
-            project,
-            Instant.ofEpochMilli(1L),
-            settings,
-            List.of(),
-            IndexVersion.current(),
-            settingsBuilder
-        );
-        Settings result = settingsBuilder.build();
-        assertThat(result.size(), equalTo(1));
-        assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
-        assertThat(newMapperServiceCounter.get(), equalTo(1));
     }
 
     public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceOldNode() {

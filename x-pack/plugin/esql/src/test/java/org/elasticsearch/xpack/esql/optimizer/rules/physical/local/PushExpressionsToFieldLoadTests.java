@@ -343,34 +343,14 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
      */
     public void testRoundToInTsEval() {
         assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         PhysicalPlan plan = tsPlannerOptimizer.plan("""
             TS k8s
             | EVAL r = ROUND_TO(events_received, 100, 200, 300)
             | SORT @timestamp
             | LIMIT 10
             | KEEP r
-            """, tsSearchStats());
-
-        List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
-        assertThat(pushed, hasSize(0));
-    }
-
-    /**
-     * Verifies ROUND_TO on a long field is NOT pushed to the block loader when
-     * the shard's index metadata reports {@link IndexMode#TSDB}
-     * rather than {@link IndexMode#TIME_SERIES}. {@code TSDB} behaves
-     * identically to {@code TIME_SERIES} for {@code hasTimeSeriesShards()},
-     * so this mirrors {@link #testRoundToInTsEval()}.
-     */
-    public void testRoundToInTsEvalWithTsdbIndexMode() {
-        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
-        PhysicalPlan plan = tsPlannerOptimizer.plan("""
-            TS k8s
-            | EVAL r = ROUND_TO(events_received, 100, 200, 300)
-            | SORT @timestamp
-            | LIMIT 10
-            | KEEP r
-            """, tsdbSearchStats());
+            """, tsSearchStats(mode));
 
         List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
         assertThat(pushed, hasSize(0));
@@ -867,27 +847,15 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
     }
 
     private static SearchStats tsSearchStats() {
-        return new EsqlTestUtils.TestSearchStats() {
-            @Override
-            public Map<ShardId, IndexMetadata> targetShards() {
-                IndexMetadata indexMetadata = IndexMetadata.builder("k8s")
-                    .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name()))
-                    .build();
-                return Map.of(new ShardId(new Index("k8s", "n/a"), 0), indexMetadata);
-            }
-        };
+        return tsSearchStats(IndexMode.TIME_SERIES);
     }
 
-    /**
-     * Same as {@link #tsSearchStats()} but reports the shard's index metadata
-     * using {@link IndexMode#TSDB} instead of {@link IndexMode#TIME_SERIES}.
-     */
-    private static SearchStats tsdbSearchStats() {
+    private static SearchStats tsSearchStats(IndexMode mode) {
         return new EsqlTestUtils.TestSearchStats() {
             @Override
             public Map<ShardId, IndexMetadata> targetShards() {
                 IndexMetadata indexMetadata = IndexMetadata.builder("k8s")
-                    .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.TSDB.name()))
+                    .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), mode.name()))
                     .build();
                 return Map.of(new ShardId(new Index("k8s", "n/a"), 0), indexMetadata);
             }

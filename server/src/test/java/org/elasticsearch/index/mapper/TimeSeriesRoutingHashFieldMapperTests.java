@@ -91,25 +91,14 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
         return TimeSeriesRoutingHashFieldMapper.decode(Uid.decodeId(value.bytes));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testEnabledInTimeSeriesMode() throws Exception {
-        DocumentMapper docMapper = createMapper(mapping(b -> {
-            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
-        }));
-
-        int hash = randomInt();
-        ParsedDocument doc = parseDocument(hash, docMapper, b -> b.field("a", "value"));
-        assertThat(doc.rootDoc().getField("a").binaryValue(), equalTo(new BytesRef("value")));
-        assertEquals(hash, getRoutingHash(doc));
-    }
-
     /**
      * The {@code tsdb} index mode is equivalent to {@code time_series} (see {@link IndexMode#isTsdb()})
-     * so {@link TimeSeriesRoutingHashFieldMapper} must be enabled identically.
+     * so {@link TimeSeriesRoutingHashFieldMapper} must be enabled identically for both.
      */
     @SuppressWarnings("unchecked")
-    public void testEnabledInTsdbMode() throws Exception {
-        Settings.Builder settingsBuilder = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TSDB.name())
+    public void testEnabledInTimeSeriesMode() throws Exception {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
+        Settings.Builder settingsBuilder = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), mode.name())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing path is required")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z");

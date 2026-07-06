@@ -68,44 +68,16 @@ import static org.hamcrest.Matchers.sameInstance;
 public class EsqlSessionTests extends ESTestCase {
 
     public void testShouldRetryConcreteTimeSeriesResolution() {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         assertTrue(
-            EsqlSession.shouldRetryConcreteTimeSeriesResolution(
-                IndexMode.TIME_SERIES,
-                IndexResolution.empty("logs"),
-                new IndexPattern(EMPTY, "logs")
-            )
+            EsqlSession.shouldRetryConcreteTimeSeriesResolution(mode, IndexResolution.empty("logs"), new IndexPattern(EMPTY, "logs"))
         );
     }
 
     public void testShouldNotRetryWildcardTimeSeriesResolution() {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         assertFalse(
-            EsqlSession.shouldRetryConcreteTimeSeriesResolution(
-                IndexMode.TIME_SERIES,
-                IndexResolution.empty("logs*"),
-                new IndexPattern(EMPTY, "logs*")
-            )
-        );
-    }
-
-    // IndexMode.TSDB is a preferred alternative to IndexMode.TIME_SERIES (isTsdb() is true for both); this pins
-    // that shouldRetryConcreteTimeSeriesResolution treats it identically to the canonical constant.
-    public void testShouldRetryConcreteTsdbResolution() {
-        assertTrue(
-            EsqlSession.shouldRetryConcreteTimeSeriesResolution(
-                IndexMode.TSDB,
-                IndexResolution.empty("logs"),
-                new IndexPattern(EMPTY, "logs")
-            )
-        );
-    }
-
-    public void testShouldNotRetryWildcardTsdbResolution() {
-        assertFalse(
-            EsqlSession.shouldRetryConcreteTimeSeriesResolution(
-                IndexMode.TSDB,
-                IndexResolution.empty("logs*"),
-                new IndexPattern(EMPTY, "logs*")
-            )
+            EsqlSession.shouldRetryConcreteTimeSeriesResolution(mode, IndexResolution.empty("logs*"), new IndexPattern(EMPTY, "logs*"))
         );
     }
 
@@ -113,15 +85,9 @@ public class EsqlSessionTests extends ESTestCase {
     // source. The requested indexMode is a fixed sentinel (TS always declares IndexMode.TIME_SERIES) but the
     // concrete backing indices may be configured with either [index.mode=time_series] or [index.mode=tsdb],
     // so the filter must match both terms regardless of which indexMode triggered it.
-    public void testCreateQueryFilterForTimeSeriesMatchesBothIndexModeValues() {
-        QueryBuilder filter = EsqlSession.createQueryFilter(IndexMode.TIME_SERIES, null);
-        TermsQueryBuilder termsFilter = as(filter, TermsQueryBuilder.class);
-        assertThat(termsFilter.fieldName(), equalTo(IndexModeFieldMapper.NAME));
-        assertThat(termsFilter.values(), containsInAnyOrder(IndexMode.TIME_SERIES.getName(), IndexMode.TSDB.getName()));
-    }
-
-    public void testCreateQueryFilterForTsdbMatchesBothIndexModeValues() {
-        QueryBuilder filter = EsqlSession.createQueryFilter(IndexMode.TSDB, null);
+    public void testCreateQueryFilterMatchesBothIndexModeValues() {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
+        QueryBuilder filter = EsqlSession.createQueryFilter(mode, null);
         TermsQueryBuilder termsFilter = as(filter, TermsQueryBuilder.class);
         assertThat(termsFilter.fieldName(), equalTo(IndexModeFieldMapper.NAME));
         assertThat(termsFilter.values(), containsInAnyOrder(IndexMode.TIME_SERIES.getName(), IndexMode.TSDB.getName()));

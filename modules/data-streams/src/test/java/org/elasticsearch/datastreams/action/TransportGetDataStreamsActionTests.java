@@ -275,60 +275,15 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         );
     }
 
+    /**
+     * {@link IndexMode#TSDB} must be handled identically to {@link IndexMode#TIME_SERIES} at both
+     * {@code IndexMode.isTsdb(...)} call sites in {@link TransportGetDataStreamsAction#innerOperation}.
+     * {@link org.elasticsearch.cluster.metadata.DataStreamTestHelper#getClusterStateWithDataStream}
+     * hardcodes {@link IndexMode#TIME_SERIES}, so the data stream and backing indices are built by
+     * hand here so the mode can be randomized.
+     */
     public void testGetTimeSeriesDataStreamWithOutOfOrderIndices() {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        String dataStream = "ds-1";
-        Instant sixHoursAgo = now.minus(6, ChronoUnit.HOURS);
-        Instant fourHoursAgo = now.minus(4, ChronoUnit.HOURS);
-        Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
-        Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
-
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state;
-        {
-            var mBuilder = ProjectMetadata.builder(projectId);
-            DataStreamTestHelper.getClusterStateWithDataStream(
-                mBuilder,
-                dataStream,
-                List.of(
-                    new Tuple<>(fourHoursAgo, twoHoursAgo),
-                    new Tuple<>(sixHoursAgo, fourHoursAgo),
-                    new Tuple<>(twoHoursAgo, twoHoursAhead)
-                )
-            );
-            state = ClusterState.builder(new ClusterName("_name")).putProjectMetadata(mBuilder.build()).build();
-        }
-
-        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
-        var response = TransportGetDataStreamsAction.innerOperation(
-            state.projectState(projectId),
-            req,
-            resolver,
-            systemIndices,
-            ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
-            emptyDataStreamFailureStoreSettings,
-            new IndexSettingProviders(Set.of()),
-            null,
-            metadataDataStreamsService
-        );
-        assertThat(
-            response.getDataStreams(),
-            contains(
-                allOf(
-                    transformedMatch(d -> d.getDataStream().getName(), equalTo(dataStream)),
-                    transformedMatch(d -> d.getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)))
-                )
-            )
-        );
-    }
-
-    public void testGetTimeSeriesDataStreamUsingTsdb() {
-        // Same scenario as testGetTimeSeriesDataStreamWithOutOfOrderIndices, but using the "tsdb" value for
-        // index.mode instead of "time_series". DataStreamTestHelper#getClusterStateWithDataStream hardcodes
-        // IndexMode.TIME_SERIES, so the data stream and backing indices are built by hand here to exercise
-        // IndexMode.isTsdb(...) with IndexMode.TSDB at both call sites in
-        // TransportGetDataStreamsAction#innerOperation.
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "ds-1";
         Instant sixHoursAgo = now.minus(6, ChronoUnit.HOURS);
@@ -349,7 +304,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             Instant start = tuple.v1();
             Instant end = tuple.v2();
             Settings settings = Settings.builder()
-                .put("index.mode", "tsdb")
+                .put("index.mode", mode.getName())
                 .put("index.routing_path", "uid")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
@@ -362,7 +317,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         DataStream dataStream = DataStream.builder(
             dataStreamName,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
-        ).setGeneration(generation).setIndexMode(IndexMode.TSDB).build();
+        ).setGeneration(generation).setIndexMode(mode).build();
         mBuilder.put(dataStream);
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});

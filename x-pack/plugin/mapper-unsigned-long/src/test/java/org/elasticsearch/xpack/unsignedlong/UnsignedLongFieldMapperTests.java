@@ -339,26 +339,14 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         );
     }
 
-    public void testTimeSeriesIndexDefault() throws Exception {
-        var randomMetricType = randomFrom(TimeSeriesParams.MetricType.scalar());
-        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
-        var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("time_series_metric", randomMetricType.toString());
-        }));
-        var ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
-        assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertTrue(ft.indexType().hasOnlyDocValues());
-    }
-
     /**
      * The {@code tsdb} index mode is equivalent to {@code time_series} (see {@link IndexMode#isTsdb()})
      * so it must produce the same doc-values-only defaulting for metric fields.
      */
-    public void testTimeSeriesIndexDefaultTsdb() throws Exception {
+    public void testTimeSeriesIndexDefault() throws Exception {
         var randomMetricType = randomFrom(TimeSeriesParams.MetricType.scalar());
-        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TSDB.getName())
+        var mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), mode.getName())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
         var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
             minimalMapping(b);

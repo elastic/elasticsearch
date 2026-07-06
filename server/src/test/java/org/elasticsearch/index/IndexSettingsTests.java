@@ -260,41 +260,21 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("unknown setting [index.slice.enabled]"));
     }
 
-    public void testSliceEnabledSettingRejectedForTimeSeriesMode() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new IndexSettings(
-                newIndexMeta(
-                    "index",
-                    Settings.builder()
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
-                        .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-                        .build()
-                ),
-                Settings.EMPTY
-            )
-        );
-        assertThat(exception.getMessage(), containsString("index.slice.enabled"));
-        assertThat(exception.getMessage(), containsString("index.mode"));
-        assertThat(exception.getMessage(), containsString("time_series"));
-    }
-
     /**
      * {@code index.mode: tsdb} must be rejected exactly like {@code time_series}, and the rejection
-     * message must name the mode that was actually configured ({@code tsdb}), not the canonical
+     * message must name the mode that was actually configured, not always the canonical
      * {@code time_series} name.
      */
-    public void testSliceEnabledSettingRejectedForTsdb() {
+    public void testSliceEnabledSettingRejectedForTimeSeriesMode() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new IndexSettings(
                 newIndexMeta(
                     "index",
                     Settings.builder()
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TSDB.getName())
+                        .put(IndexSettings.MODE.getKey(), mode.getName())
                         .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
                         .put(IndexSettings.SLICE_ENABLED.getKey(), true)
                         .build()
@@ -304,7 +284,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString("index.slice.enabled"));
         assertThat(exception.getMessage(), containsString("index.mode"));
-        assertThat(exception.getMessage(), containsString("tsdb"));
+        assertThat(exception.getMessage(), containsString(mode.getName()));
     }
 
     @TestLogging(reason = "testing warning logging", value = "org.elasticsearch.index.IndexSettings:WARN")
@@ -1024,30 +1004,7 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
         );
-        IndexMode mode = IndexMode.TIME_SERIES;
-        String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
-            ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
-            : CodecService.DEFAULT_CODEC;
-
-        Settings settings = Settings.builder()
-            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
-            .put(IndexSettings.MODE.getKey(), mode)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
-            .build();
-        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
-
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        assertTrue(indexSettings.useTimeSeriesSyntheticId());
-        assertTrue(indexMetadata.useTimeSeriesSyntheticId());
-    }
-
-    public void testSyntheticIdCorrectSettingsWithTsdb() {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
-            IndexVersion.current()
-        );
-        IndexMode mode = IndexMode.TSDB;
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
             ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
             : CodecService.DEFAULT_CODEC;
@@ -1070,29 +1027,7 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
             IndexVersion.current()
         );
-        IndexMode mode = IndexMode.TIME_SERIES;
-        String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
-            ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
-            : CodecService.DEFAULT_CODEC;
-
-        Settings settings = Settings.builder()
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
-            .put(IndexSettings.MODE.getKey(), mode)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
-            .build();
-        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
-
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        assertTrue(indexSettings.useTimeSeriesSyntheticId());
-        assertTrue(indexMetadata.useTimeSeriesSyntheticId());
-    }
-
-    public void testSyntheticIdDefaultValueTrueWithTsdb() {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
-            IndexVersion.current()
-        );
-        IndexMode mode = IndexMode.TSDB;
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
             ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
             : CodecService.DEFAULT_CODEC;
@@ -1111,24 +1046,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testSyntheticIdDefaultValueFalse() {
         IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
-        IndexMode mode = IndexMode.TIME_SERIES;
-        String codec = CodecService.DEFAULT_CODEC;
-
-        Settings settings = Settings.builder()
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
-            .put(IndexSettings.MODE.getKey(), mode)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
-            .build();
-        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
-
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        assertFalse(indexSettings.useTimeSeriesSyntheticId());
-        assertFalse(indexMetadata.useTimeSeriesSyntheticId());
-    }
-
-    public void testSyntheticIdDefaultValueFalseWithTsdb() {
-        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
-        IndexMode mode = IndexMode.TSDB;
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         String codec = CodecService.DEFAULT_CODEC;
 
         Settings settings = Settings.builder()

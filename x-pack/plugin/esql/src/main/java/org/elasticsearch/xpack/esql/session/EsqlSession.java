@@ -2007,20 +2007,18 @@ public class EsqlSession {
 
     // visible for testing
     static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
-        return switch (indexMode) {
-            case IndexMode.TIME_SERIES, IndexMode.TSDB -> {
-                // Match both values: the requested indexMode is a fixed sentinel (e.g. the TS command always
-                // declares IndexMode.TIME_SERIES), but the concrete backing indices may be configured with
-                // either [index.mode=time_series] or [index.mode=tsdb].
-                var indexModeFilter = new TermsQueryBuilder(
-                    IndexModeFieldMapper.NAME,
-                    IndexMode.TIME_SERIES.getName(),
-                    IndexMode.TSDB.getName()
-                );
-                yield requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
-            }
-            default -> requestFilter;
-        };
+        if (IndexMode.isTsdb(indexMode)) {
+            // Match both values: the requested indexMode is a fixed sentinel (e.g. the TS command always
+            // declares IndexMode.TIME_SERIES), but the concrete backing indices may be configured with
+            // either [index.mode=time_series] or [index.mode=tsdb].
+            var indexModeFilter = new TermsQueryBuilder(
+                IndexModeFieldMapper.NAME,
+                IndexMode.TIME_SERIES.getName(),
+                IndexMode.TSDB.getName()
+            );
+            return requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
+        }
+        return requestFilter;
     }
 
     // visible for testing

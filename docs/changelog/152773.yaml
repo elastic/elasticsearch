@@ -2,5 +2,5 @@ area: Aggregations
 issues:
  - 150290
 pr: 152773
-summary: "Aggs: Avoid OOMs by account memory on cardinality agg reduction phase"
+summary: "Aggs: Avoid OOMs by accounting memory on cardinality agg reduction phase"
 type: bug

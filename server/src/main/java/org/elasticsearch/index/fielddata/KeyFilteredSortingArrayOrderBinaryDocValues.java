@@ -11,8 +11,8 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -52,9 +52,7 @@ public final class KeyFilteredSortingArrayOrderBinaryDocValues extends SortingBi
         int deduped = 1;
         for (int i = 1; i < count; i++) {
             if (values[i].get().bytesEquals(values[deduped - 1].get()) == false) {
-                BytesRefBuilder tmp = values[deduped];
-                values[deduped] = values[i];
-                values[i] = tmp;
+                ArrayUtil.swap(values, i, deduped);
                 deduped++;
             }
         }

@@ -1372,6 +1372,50 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertHitCount(prepareSearchAll(indexName), indexedDocs);
     }
 
+    public void testReshardVectordbDocumentIndex() {
+        String indexNode = startMasterAndIndexNode();
+        startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_DOCUMENT.getName()).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        // index documents before resharding so the split has data to copy
+        final int preReshardDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, preReshardDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs);
+
+        final int multiple = 2;
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        waitForReshardCompletion(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, multiple);
+
+        // documents indexed before resharding must survive the split
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs);
+
+        // All shards should be usable
+        var shards = IntStream.range(0, multiple).boxed().collect(Collectors.toSet());
+        int docsPerRequest = randomIntBetween(10, 100);
+        int postReshardDocs = 0;
+        do {
+            for (var item : indexDocs(indexName, docsPerRequest).getItems()) {
+                postReshardDocs += 1;
+                shards.remove(item.getResponse().getShardId().getId());
+            }
+        } while (shards.isEmpty() == false);
+
+        refresh(indexName);
+
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs + postReshardDocs);
+    }
+
     public void testReshardSearchShardWillNotBeAllocatedUntilIndexingShard() throws Exception {
         String indexNode = startMasterAndIndexNode();
         startSearchNode();

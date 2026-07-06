@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.ES95CodecClusterSettingProvider;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -79,6 +80,43 @@ public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
         final Settings settings = indexSettingsFor(backingIndex);
 
         assertThat(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.get(settings), equalTo(false));
+    }
+
+    public void testClusterSettingDisablesCodecForNewIndices() throws Exception {
+        final String clusterKey = ES95CodecClusterSettingProvider.TIME_SERIES_ES95_CODEC_CLUSTER_ENABLED_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(clusterKey, false));
+        try {
+            final String dataStreamName = randomDataStreamName();
+            putTsdbTemplate(dataStreamName, Settings.EMPTY);
+            triggerBackingIndexCreation(dataStreamName);
+
+            final String backingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
+            final Settings settings = indexSettingsFor(backingIndex);
+
+            assertThat(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.get(settings), equalTo(false));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(clusterKey));
+        }
+    }
+
+    public void testClusterSettingOverridesExplicitOptIn() throws Exception {
+        final String clusterKey = ES95CodecClusterSettingProvider.TIME_SERIES_ES95_CODEC_CLUSTER_ENABLED_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(clusterKey, false));
+        try {
+            final String dataStreamName = randomDataStreamName();
+            putTsdbTemplate(
+                dataStreamName,
+                Settings.builder().put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), true).build()
+            );
+            triggerBackingIndexCreation(dataStreamName);
+
+            final String backingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
+            final Settings settings = indexSettingsFor(backingIndex);
+
+            assertThat(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.get(settings), equalTo(false));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(clusterKey));
+        }
     }
 
     public void testSettingIsFinal() throws Exception {

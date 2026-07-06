@@ -1406,7 +1406,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean useDirectBlockPlain = directEligible && options.quoting() == false;
         boolean useDirectBlockQuoted = directEligible && options.quoting();
         boolean useDirectBlock = useDirectBlockPlain || useDirectBlockQuoted;
-        // The quoted walk performs C-style escape decoding, so the record reader must carry escaped
+        // The quoted walk decodes escapes (Jackson's quoted-escape rule), so the record reader must carry escaped
         // terminators/quotes verbatim to match Jackson's record boundaries (see CsvLogicalRecordReader).
         // This is needed on every recordReader-backed data path for a QUOTED + escaping dialect — the
         // direct quoted walk, the _rowPosition per-record read, and the no-trim reroute onto the house
@@ -2168,7 +2168,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * QUOTED (RFC 4180, optional backslash escapes) split — the string-domain twin of
      * {@link CsvBatchIterator#splitAndConvertQuoted}. A field-leading quote (after optional outer
      * whitespace, never the delimiter itself even when it is a whitespace byte such as TAB) opens a quoted
-     * region where {@code ""} is a literal quote and, when escaping is on, {@code \}+char is C-style decoded;
+     * region where {@code ""} is a literal quote and, when escaping is on, {@code \}+char is decoded with Jackson's quoted-escape rule;
      * quoted content (including inner whitespace) is kept verbatim, an empty quoted field is {@code ""}
      * (downstream null), and only whitespace may follow a closing quote before the delimiter. Unquoted
      * fields are extracted by {@link #emitPlainSplitField} (no escape) or {@link #emitUnquotedEscapedSplitField}
@@ -4609,14 +4609,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /**
          * Direct-to-block field splitting and typed conversion for the quoted (RFC 4180) path,
          * including optional backslash escapes. Matches Jackson's {@code TRIM_SPACES} <em>whitespace and
-         * quote</em> grammar (field boundaries, outer-whitespace trimming, {@code ""} quote doubling) — but
-         * NOT its escape decoding: this walker C-style-decodes an escape sequence ({@code \t} → a TAB byte),
-         * whereas Jackson's escape is next-char-literal ({@code \t} → {@code t}). Under no-trim this walker
+         * quote</em> grammar (field boundaries, outer-whitespace trimming, {@code ""} quote doubling)
+         * <em>and</em> its escape decoding: {@link #decodeQuotedEscapeChar} reproduces Jackson's quoted-escape
+         * rule ({@code \t \n \r \0} control, every other {@code \c} literal). Under no-trim this walker
          * (and its string-domain twin {@link #splitRecordFields}) IS the grammar and Jackson is not used,
          * because Jackson's no-trim tokenization diverges (padded quotes mis-split, first-column leading
          * whitespace is eaten). A field-leading quote (after optional outer whitespace)
          * opens a quoted region where {@code ""} is a literal quote and, when escaping is on, {@code \}+char
-         * is C-style decoded; quoted content (including inner whitespace and embedded newlines) is preserved
+         * is decoded with Jackson's quoted-escape rule; quoted content (including inner whitespace and embedded newlines) is preserved
          * verbatim, while unquoted fields are trimmed only for typed columns (a keyword keeps its bytes
          * unless trim_spaces). Non-whitespace after a closing quote is a row error, and an empty quoted field
          * ({@code ""}) is null. Simple unquoted fields (no escape) take the same char-range fast path as
@@ -4781,18 +4781,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Converts an unquoted field that contains the escape character: trims leading raw whitespace
-         * (matching Jackson's skip-leading-whitespace pass before the decode loop), applies C-style
-         * escape decoding into the reused buffer, then trims trailing whitespace from the <em>decoded</em>
-         * result (matching Jackson's {@code TRIM_SPACES} pass over the collected decoded chars). A
-         * trailing lone escape (no following char) is dropped, matching Jackson.
+         * Converts an unquoted field that contains the escape character: decodes {@code \}-escapes via
+         * {@link #decodeQuotedEscapeChar} (Jackson's quoted-escape semantics) into the reused buffer.
+         * Whitespace trimming is gated on {@code trim_spaces} only (leading raw, then decoded-trailing),
+         * mirroring the house peer {@link #emitUnquotedEscapedSplitField}; the typed trim is deferred to
+         * {@code tryConvertValue}. Under the no-trim default this method trims nothing and IS the house
+         * grammar (Jackson is not used). A trailing lone escape (no following char) is dropped.
          *
-         * <p>The trim order (raw-leading, decode, decoded-trailing) matches Jackson exactly: Jackson
-         * skips raw leading whitespace before entering its escape decode loop, then trims trailing
-         * whitespace from the collected (already-decoded) value. Trimming raw trailing whitespace before
-         * decoding (the naive order) would differ when the raw span ends with {@code \ }+whitespace,
-         * because Jackson decodes that pair to whitespace and then removes it, while a raw trim stops at
-         * {@code \} and leaves it as a lone escape (dropped), producing a different boundary value.
+         * <p>When trimming (i.e. {@code trim_spaces}), the order raw-leading, decode, decoded-trailing
+         * matches Jackson's: it skips raw leading whitespace before its escape-decode loop, then trims
+         * trailing whitespace from the collected (already-decoded) value. Trimming raw trailing whitespace
+         * before decoding would differ when the raw span ends with {@code \ }+whitespace, since the escape
+         * decodes that pair to whitespace which is then removed, whereas a raw trim stops at {@code \} and
+         * leaves a lone escape (dropped).
          */
         private boolean emitUnquotedEscapedField(char[] buf, int start, int end, int bufIdx, DataType dt) {
             // Only trim_spaces trims here (mirrors the house peer emitUnquotedEscapedSplitField); the typed
@@ -4843,9 +4844,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /**
          * Enforces the field-size cap for a non-projected unquoted field that contains escapes. Escapes
          * only shrink the value, so the raw span is an upper bound on the trimmed decoded length; the
-         * decode walk is only paid when the raw span already exceeds the cap. Mirrors
-         * {@link #emitUnquotedEscapedField}'s trim order (raw-leading trim, decode, decoded-trailing trim)
-         * so the counted length matches the value Jackson would have produced.
+         * decode walk is only paid when the raw span already exceeds the cap. The cap governs the
+         * tokenized value — trimmed only under {@code trim_spaces} (raw-leading, decode, decoded-trailing),
+         * matching {@link #emitUnquotedEscapedField} — so projection cannot change whether a row survives.
          *
          * @return {@code true} if within the cap, {@code false} if it was rejected (and the row dropped)
          */

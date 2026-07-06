@@ -265,6 +265,11 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             List.of(row(br("y"))),
             read(false, Map.of("multi_value_syntax", "brackets"), null, List.of("b"), "a:keyword,b:keyword\nx,\"y\"  \n")
         );
+        // Trailing whitespace then a delimiter (not EOL) — the other disjunct of the skip.
+        assertEquals(
+            List.of(row(br("x"), br("y"), br("z"))),
+            read(false, Map.of("multi_value_syntax", "brackets"), "a:keyword,b:keyword,c:keyword\nx,\"y\" ,z\n")
+        );
     }
 
     // ---------------------------------------------------------------------------------------------

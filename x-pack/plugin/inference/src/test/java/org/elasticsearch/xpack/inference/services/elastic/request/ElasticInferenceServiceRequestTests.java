@@ -88,7 +88,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithAllowedRegionsHeader() {
-        var regionPolicy = new RegionPolicy(null, List.of(new CspRegion("aws", "eu-west-1"), new CspRegion("aws", "us-east-1")), null);
+        var regionPolicy = new RegionPolicy(null, List.of(new CspRegion("aws", "eu-west-1"), new CspRegion("aws", "us-east-1")));
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
             new ElasticInferenceServiceRequestMetadata(InferenceProductContext.EMPTY, null),
             new InferencePreferences(regionPolicy),
@@ -103,7 +103,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithAllowedGeosHeader() {
-        var regionPolicy = new RegionPolicy(List.of("eu", "us"), null, null);
+        var regionPolicy = new RegionPolicy(List.of("eu", "us"), null);
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
             new ElasticInferenceServiceRequestMetadata(InferenceProductContext.EMPTY, null),
             new InferencePreferences(regionPolicy),

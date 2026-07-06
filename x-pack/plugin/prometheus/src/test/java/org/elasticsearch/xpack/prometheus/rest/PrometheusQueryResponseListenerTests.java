@@ -608,10 +608,6 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         assertThat(PrometheusQueryResponseListener.formatSampleValue(Double.NEGATIVE_INFINITY), equalTo("-Inf"));
     }
 
-    public void testFormatSampleValueNull() {
-        assertThat(PrometheusQueryResponseListener.formatSampleValue((Object) null), equalTo("NaN"));
-    }
-
     public void testBuildErrorJson() throws IOException {
         try (XContentBuilder builder = PrometheusErrorResponse.build(RestStatus.BAD_REQUEST, "test error")) {
             ObjectPath path = toObjectPath(builder);

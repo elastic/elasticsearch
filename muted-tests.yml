@@ -266,9 +266,6 @@ tests:
 - class: org.elasticsearch.index.rankeval.RankEvalRequestIT
   method: testIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/152936
-- class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
-  method: test {p0=search/110_field_collapsing/field collapsing on a field alias}
-  issue: https://github.com/elastic/elasticsearch/issues/152937
 
 # Examples:
 #

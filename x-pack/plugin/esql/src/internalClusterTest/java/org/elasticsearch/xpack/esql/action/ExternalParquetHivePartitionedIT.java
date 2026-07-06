@@ -13,28 +13,21 @@ import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
-import org.apache.parquet.io.OutputFile;
-import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
@@ -52,27 +45,11 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
  * coordinator-only guard would still fold {@code COUNT(p)} to 0 here. A single-node local-transport short-circuit
  * hides that — hence the {@code ensureAtLeastNumDataNodes(2)} below.
  */
-public class ExternalParquetHivePartitionedIT extends AbstractEsqlIntegTestCase {
+public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(ParquetDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesEnabled() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(ParquetDataSourcePlugin.class);
     }
 
     /**
@@ -83,7 +60,6 @@ public class ExternalParquetHivePartitionedIT extends AbstractEsqlIntegTestCase 
      * (a {@code LocalSourceExec} with no scan operator).
      */
     public void testCountOfPartitionColumnSafeMissesToScanAcrossNodes() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         Path root = createTempDir().resolve("hive_parquet_count");
@@ -91,13 +67,14 @@ public class ExternalParquetHivePartitionedIT extends AbstractEsqlIntegTestCase 
         writeIdParquet(root.resolve("p=b"), 2); // ids 0,1
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.parquet";
+        String dataset = registerDataset("hive_parquet_count", glob, Map.of("hive_partitioning", true));
 
         // COUNT(p) must SAFE-MISS to a scan on the data node (ExternalDataSourceOperator present), NOT warm-fold to
         // 0. Without the serialized partition-column stamp the data-node fold sees an empty partition set (fileList
         // is UNRESOLVED there) and folds COUNT(p) to a constant 0 -> a LocalSourceExec with no ExternalDataSource
         // operator. NOTE: the exact COUNT(p) VALUE is deliberately not asserted here — parquet hive-partition-column
         // value attachment (separate from this fold fix) is broken for multi-file reads and tracked separately.
-        String query = "EXTERNAL \"" + glob + "\" WITH {\"hive_partitioning\": true} | STATS c = COUNT(p)";
+        String query = "FROM " + dataset + " | STATS c = COUNT(p)";
         var request = syncEsqlQueryRequest(query);
         request.profile(true);
         try (var response = run(request)) {
@@ -134,48 +111,5 @@ public class ExternalParquetHivePartitionedIT extends AbstractEsqlIntegTestCase 
             }
         }
         Files.write(dir.resolve("data.parquet"), baos.toByteArray());
-    }
-
-    private static OutputFile createOutputFile(ByteArrayOutputStream baos) {
-        return new OutputFile() {
-            @Override
-            public PositionOutputStream create(long blockSizeHint) {
-                return new PositionOutputStream() {
-                    private long position = 0;
-
-                    @Override
-                    public long getPos() {
-                        return position;
-                    }
-
-                    @Override
-                    public void write(int b) throws IOException {
-                        baos.write(b);
-                        position++;
-                    }
-
-                    @Override
-                    public void write(byte[] b, int off, int len) throws IOException {
-                        baos.write(b, off, len);
-                        position += len;
-                    }
-                };
-            }
-
-            @Override
-            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
-                return create(blockSizeHint);
-            }
-
-            @Override
-            public boolean supportsBlockSize() {
-                return false;
-            }
-
-            @Override
-            public long defaultBlockSize() {
-                return 0;
-            }
-        };
     }
 }

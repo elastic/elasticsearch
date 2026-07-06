@@ -10,15 +10,11 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,9 +24,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -43,36 +39,11 @@ import static org.hamcrest.Matchers.equalTo;
  * {@code ExternalStatsCaptureTests} (parallel-harvest sink) by exercising the real coordinator cache
  * end to end, including a randomized soak that fuzzes the cold/warm/commit interleavings.
  */
-public class ExternalConcurrentWarmAggregateIT extends AbstractEsqlIntegTestCase {
-
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
+public class ExternalConcurrentWarmAggregateIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesystemFeatureFlag() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class);
     }
 
     @Override
@@ -95,12 +66,11 @@ public class ExternalConcurrentWarmAggregateIT extends AbstractEsqlIntegTestCase
     }
 
     public void testConcurrentWarmCountStarAllShortCircuit() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 200;
         Path csvFile = writeCsvFile(totalRows);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS c = COUNT(*)";
+            String dataset = registerDataset("concurrent_warm", StoragePath.fileUri(csvFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
             // Cold once to populate the coordinator cache.
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);
@@ -119,12 +89,11 @@ public class ExternalConcurrentWarmAggregateIT extends AbstractEsqlIntegTestCase
     }
 
     public void testConcurrentColdScansSameFileConverge() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 200;
         Path csvFile = writeCsvFile(totalRows);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS c = COUNT(*)";
+            String dataset = registerDataset("concurrent_warm", StoragePath.fileUri(csvFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
             // N queries cold-scan the SAME uncached file at once: each contributes stripe stats to the
             // coordinator cache concurrently (the commit race the KeyedLock guards). Every response must
             // be the correct count regardless of how the commits interleave.
@@ -144,8 +113,6 @@ public class ExternalConcurrentWarmAggregateIT extends AbstractEsqlIntegTestCase
     }
 
     public void testRandomizedConcurrentQuerySoak() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         // A handful of files of different sizes, a mix of warm-short-circuitable and full-scan queries,
         // fired in random order across several rounds and many threads — fuzzing the cold/warm/commit
         // interleavings for a wrong answer (a 0, a subset extremum, a torn count). Every result must
@@ -153,10 +120,13 @@ public class ExternalConcurrentWarmAggregateIT extends AbstractEsqlIntegTestCase
         int fileCount = 4;
         List<Path> files = new ArrayList<>(fileCount);
         long[] rows = new long[fileCount];
+        List<String> datasets = new ArrayList<>(fileCount);
         try {
             for (int f = 0; f < fileCount; f++) {
                 rows[f] = 50 + between(0, 150);
-                files.add(writeCsvFile((int) rows[f]));
+                Path file = writeCsvFile((int) rows[f]);
+                files.add(file);
+                datasets.add(registerDataset("concurrent_soak_" + f, StoragePath.fileUri(file), Map.of()));
             }
 
             int rounds = 4;
@@ -172,26 +142,26 @@ public class ExternalConcurrentWarmAggregateIT extends AbstractEsqlIntegTestCase
 
                 runInParallel(tasks.size(), i -> {
                     int[] t = tasks.get(i);
-                    String uri = StoragePath.fileUri(files.get(t[0]));
+                    String dataset = datasets.get(t[0]);
                     long n = rows[t[0]];
                     switch (t[1]) {
                         case 0 -> {
-                            try (var r = run(syncEsqlQueryRequest("EXTERNAL \"" + uri + "\" | STATS c = COUNT(*)"))) {
+                            try (var r = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)"))) {
                                 assertSingleLong(r, n);
                             }
                         }
                         case 1 -> {
-                            try (var r = run(syncEsqlQueryRequest("EXTERNAL \"" + uri + "\" | STATS c = COUNT(value)"))) {
+                            try (var r = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(value)"))) {
                                 assertSingleLong(r, n);
                             }
                         }
                         case 2 -> {
-                            try (var r = run(syncEsqlQueryRequest("EXTERNAL \"" + uri + "\" | STATS c = MIN(value)"))) {
+                            try (var r = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = MIN(value)"))) {
                                 assertSingleLong(r, 0L);
                             }
                         }
                         case 3 -> {
-                            try (var r = run(syncEsqlQueryRequest("EXTERNAL \"" + uri + "\" | STATS c = MAX(value)"))) {
+                            try (var r = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = MAX(value)"))) {
                                 assertSingleLong(r, (n - 1) * 10);
                             }
                         }

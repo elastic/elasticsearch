@@ -8,25 +8,20 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -64,13 +59,11 @@ import static org.hamcrest.Matchers.equalTo;
  * single-coordinator case.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3)
-public class ExternalCsvUnionByNameNarrowProjectionIT extends AbstractEsqlIntegTestCase {
+public class ExternalCsvUnionByNameNarrowProjectionIT extends AbstractExternalDataSourceIT {
 
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
+    @Override
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class);
     }
 
     /**
@@ -86,31 +79,10 @@ public class ExternalCsvUnionByNameNarrowProjectionIT extends AbstractEsqlIntegT
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("esql.source.cache.stripe.size", "64kb")
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesystemFeatureFlag() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        return plugins;
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("esql.source.cache.stripe.size", "64kb").build();
     }
 
     public void testUnionByNameNarrowMinProjection() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         Path dir = createTempDir().resolve("ubn_narrow_min");
         Files.createDirectories(dir);
         // col: integer in a.csv, non-numeric string in b.csv -> reconciles to KEYWORD under union_by_name.
@@ -118,7 +90,8 @@ public class ExternalCsvUnionByNameNarrowProjectionIT extends AbstractEsqlIntegT
         Files.writeString(dir.resolve("b.csv"), "id,col,note\n4,abc,beta\n5,def,epsilon\n", StandardCharsets.UTF_8);
 
         String glob = StoragePath.fileUri(dir) + "/*.csv";
-        String query = "EXTERNAL \"" + glob + "\" WITH {\"schema_resolution\": \"union_by_name\"} | STATS lo = MIN(col)";
+        String dataset = registerDataset("ubn_narrow", glob, Map.of("schema_resolution", "union_by_name"));
+        String query = "FROM " + dataset + " | STATS lo = MIN(col)";
 
         try (var response = run(syncEsqlQueryRequest(query))) {
             List<List<Object>> rows = getValuesList(response);

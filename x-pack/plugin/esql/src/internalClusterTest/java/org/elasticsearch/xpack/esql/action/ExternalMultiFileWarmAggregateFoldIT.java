@@ -10,26 +10,21 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -56,27 +51,14 @@ import static org.hamcrest.Matchers.equalTo;
  * extremum to the dataset-wide {@code MIN}/{@code MAX} instead of poisoning it. This end-to-end IT is the
  * multi-FILE coverage the single-file fold ITs lacked.
  */
-public class ExternalMultiFileWarmAggregateFoldIT extends AbstractEsqlIntegTestCase {
+public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSourceIT {
 
     private static final int FILE_COUNT = 25;
     private static final int ROWS_PER_FILE = 60_000;
 
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        plugins.add(NdJsonDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class, NdJsonDataSourcePlugin.class);
     }
 
     @Override
@@ -86,13 +68,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractEsqlIntegTestC
             // Tiny stripe grid so each file spans several canonical stripes -> the per-stripe emit + the
             // coordinator's 0..K + EOF fold runs per file, producing each file's whole-file column stats.
             .put("esql.source.cache.stripe.size", "64kb")
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
             .build();
-    }
-
-    @Before
-    public void requireLocalFilesystemFeatureFlag() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
     @Override
@@ -117,23 +93,23 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractEsqlIntegTestC
     }
 
     public void testCsvMultiFileWarmCountAndMinMaxShortCircuit() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         long total = 0;
         for (int f = 0; f < FILE_COUNT; f++) {
             total += writeCsvFile(dir.resolve("part-" + f + ".csv"), total);
         }
-        assertWarmAggregatesShortCircuit(globUri(dir, "*.csv"), total);
+        String dataset = registerDataset("multifile_csv", globUri(dir, "*.csv"), Map.of());
+        assertWarmAggregatesShortCircuit(dataset, total);
     }
 
     public void testNdjsonMultiFileWarmCountAndMinMaxShortCircuit() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         long total = 0;
         for (int f = 0; f < FILE_COUNT; f++) {
             total += writeNdjsonFile(dir.resolve("part-" + f + ".ndjson"), total);
         }
-        assertWarmAggregatesShortCircuit(globUri(dir, "*.ndjson"), total);
+        String dataset = registerDataset("multifile_ndjson", globUri(dir, "*.ndjson"), Map.of());
+        assertWarmAggregatesShortCircuit(dataset, total);
     }
 
     /**
@@ -142,9 +118,9 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractEsqlIntegTestC
      * both short-circuit to {@code LocalSourceExec} (0 documents scanned), proving the cross-file column
      * min/max merge served the answer.
      */
-    private void assertWarmAggregatesShortCircuit(String globUri, long total) {
+    private void assertWarmAggregatesShortCircuit(String dataset, long total) {
         // COUNT(*): cold scans, warm must short-circuit (this already worked; it is the control).
-        String countQuery = "EXTERNAL \"" + globUri + "\" | STATS c = COUNT(*)";
+        String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
         try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
             assertSingleLong(response, total);
             assertThat("cold COUNT(*) reads every row", response.documentsFound(), equalTo(total));
@@ -155,7 +131,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractEsqlIntegTestC
         }
 
         // MIN/MAX: cold scans, warm must short-circuit using the merged dataset-wide column min/max.
-        String minMaxQuery = "EXTERNAL \"" + globUri + "\" | STATS lo = MIN(value), hi = MAX(value)";
+        String minMaxQuery = "FROM " + dataset + " | STATS lo = MIN(value), hi = MAX(value)";
         try (var response = run(syncEsqlQueryRequest(minMaxQuery).profile(true), TimeValue.timeValueMinutes(5))) {
             assertMinMax(response, 0L, total - 1);
             assertThat("cold MIN/MAX reads every row", response.documentsFound(), equalTo(total));
@@ -184,7 +160,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractEsqlIntegTestC
     }
 
     private static String globUri(Path dir, String pattern) {
-        String dirUri = StoragePath.fileUri(dir).toString();
+        String dirUri = StoragePath.fileUri(dir);
         if (dirUri.endsWith("/") == false) {
             dirUri += "/";
         }

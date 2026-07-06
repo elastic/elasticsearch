@@ -10,26 +10,21 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -61,29 +56,16 @@ import static org.hamcrest.Matchers.equalTo;
  * The test asserts the dataset-wide correct answer, so it FAILS on the buggy path (warm {@code MIN} returns
  * a.csv's min) and PASSES once {@code MIN}/{@code MAX} safe-miss the unharvested file like {@code COUNT(col)}.
  */
-public class ExternalMultiFileWarmMinMaxPartialHarvestIT extends AbstractEsqlIntegTestCase {
+public class ExternalMultiFileWarmMinMaxPartialHarvestIT extends AbstractExternalDataSourceIT {
 
     private static final int ROWS_PER_FILE = 20_000;
     // a.csv values are [A_BASE, A_BASE + ROWS_PER_FILE); b.csv values are [0, ROWS_PER_FILE). The true
     // dataset-wide MIN is 0 (in b.csv), which the buggy warm path drops because b.csv never harvested value.
     private static final long A_BASE = 1_000_000L;
 
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        plugins.add(NdJsonDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class, NdJsonDataSourcePlugin.class);
     }
 
     @Override
@@ -94,13 +76,7 @@ public class ExternalMultiFileWarmMinMaxPartialHarvestIT extends AbstractEsqlInt
             // coordinator's 0..K + EOF fold runs per file, producing each file's whole-file column stats by
             // the same path as production.
             .put("esql.source.cache.stripe.size", "64kb")
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
             .build();
-    }
-
-    @Before
-    public void requireLocalFilesystemFeatureFlag() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
     @Override
@@ -124,44 +100,48 @@ public class ExternalMultiFileWarmMinMaxPartialHarvestIT extends AbstractEsqlInt
     }
 
     public void testCsvWarmMinDoesNotDropUnharvestedFile() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         Path a = dir.resolve("a.csv");
         Path b = dir.resolve("b.csv");
         writeCsvFile(a, A_BASE);
         writeCsvFile(b, 0L);
-        assertWarmMinKeepsUnharvestedFile(fileUri(a), fileUri(b), globUri(dir, "*.csv"));
+        String aDataset = registerDataset("partial_a_csv", StoragePath.fileUri(a), Map.of());
+        String bDataset = registerDataset("partial_b_csv", StoragePath.fileUri(b), Map.of());
+        String globDataset = registerDataset("partial_glob_csv", globUri(dir, "*.csv"), Map.of());
+        assertWarmMinKeepsUnharvestedFile(aDataset, bDataset, globDataset);
     }
 
     public void testNdjsonWarmMinDoesNotDropUnharvestedFile() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         Path a = dir.resolve("a.ndjson");
         Path b = dir.resolve("b.ndjson");
         writeNdjsonFile(a, A_BASE);
         writeNdjsonFile(b, 0L);
-        assertWarmMinKeepsUnharvestedFile(fileUri(a), fileUri(b), globUri(dir, "*.ndjson"));
+        String aDataset = registerDataset("partial_a_ndjson", StoragePath.fileUri(a), Map.of());
+        String bDataset = registerDataset("partial_b_ndjson", StoragePath.fileUri(b), Map.of());
+        String globDataset = registerDataset("partial_glob_ndjson", globUri(dir, "*.ndjson"), Map.of());
+        assertWarmMinKeepsUnharvestedFile(aDataset, bDataset, globDataset);
     }
 
-    private void assertWarmMinKeepsUnharvestedFile(String aUri, String bUri, String globUri) {
+    private void assertWarmMinKeepsUnharvestedFile(String aDataset, String bDataset, String globDataset) {
         long trueMin = 0L;                               // smallest value lives in b.csv
         long trueMax = A_BASE + ROWS_PER_FILE - 1;       // largest value lives in a.csv
 
         // 1) Warm b.csv with COUNT(*) only -> caches count-only, NO `value` column stats.
-        String countB = "EXTERNAL \"" + bUri + "\" | STATS c = COUNT(*)";
+        String countB = "FROM " + bDataset + " | STATS c = COUNT(*)";
         try (var response = run(syncEsqlQueryRequest(countB).profile(true), TimeValue.timeValueMinutes(5))) {
             assertSingleLong(response, ROWS_PER_FILE);
         }
 
         // 2) Warm a.csv with MIN(value) -> caches `value`'s min/max for a.csv.
-        String minA = "EXTERNAL \"" + aUri + "\" | STATS m = MIN(value)";
+        String minA = "FROM " + aDataset + " | STATS m = MIN(value)";
         try (var response = run(syncEsqlQueryRequest(minA).profile(true), TimeValue.timeValueMinutes(5))) {
             assertSingleLong(response, A_BASE);
         }
 
         // 3) Warm glob MIN(value)/MAX(value): both files are warm, so the rule may short-circuit. It must NOT
         // drop b.csv (unharvested `value`) and serve a.csv's min -- the dataset-wide MIN is b.csv's 0.
-        String minMaxGlob = "EXTERNAL \"" + globUri + "\" | STATS lo = MIN(value), hi = MAX(value)";
+        String minMaxGlob = "FROM " + globDataset + " | STATS lo = MIN(value), hi = MAX(value)";
         try (var response = run(syncEsqlQueryRequest(minMaxGlob).profile(true), TimeValue.timeValueMinutes(5))) {
             assertMinMax(response, trueMin, trueMax);
         }
@@ -181,15 +161,11 @@ public class ExternalMultiFileWarmMinMaxPartialHarvestIT extends AbstractEsqlInt
     }
 
     private static String globUri(Path dir, String pattern) {
-        String dirUri = StoragePath.fileUri(dir).toString();
+        String dirUri = StoragePath.fileUri(dir);
         if (dirUri.endsWith("/") == false) {
             dirUri += "/";
         }
         return dirUri + pattern;
-    }
-
-    private static String fileUri(Path file) {
-        return StoragePath.fileUri(file).toString();
     }
 
     /** Writes a CSV file with {@code value} starting at {@code base}; returns rows written. */

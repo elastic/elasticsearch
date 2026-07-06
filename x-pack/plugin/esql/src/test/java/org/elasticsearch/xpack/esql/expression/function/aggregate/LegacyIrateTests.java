@@ -34,7 +34,7 @@ public class LegacyIrateTests extends AbstractIrateTests {
                 }
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.KEEPS_TYPE);
     }
 
     @Override

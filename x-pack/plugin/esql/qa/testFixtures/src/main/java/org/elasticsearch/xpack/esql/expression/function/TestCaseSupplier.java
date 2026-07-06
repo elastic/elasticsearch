@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * This class exists to give a human-readable string representation of the test case.
  */
-public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier)
+public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier, boolean allowNullNarrowing)
     implements
         Supplier<TestCaseSupplier.TestCase> {
 
@@ -85,11 +85,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
 
+    public TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier) {
+        this(name, types, supplier, false);
+    }
+
     /**
      * Build a test case named after the types it takes.
      */
     public TestCaseSupplier(List<DataType> types, Supplier<TestCase> supplier) {
         this(nameFromTypes(types), types, supplier);
+    }
+
+    /**
+     * Like the canonical constructor, but the supplied data may narrow any declared type to {@code NULL} at runtime —
+     * the shape a nullified unmapped field has, where the declared signature stays that of the mapped case.
+     */
+    public static TestCaseSupplier nullNarrowing(String name, List<DataType> types, Supplier<TestCase> supplier) {
+        return new TestCaseSupplier(name, types, supplier, true);
     }
 
     public static String nameFromTypes(List<DataType> types) {
@@ -144,6 +156,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             throw new IllegalStateException(name + ": type/data size mismatch " + types.size() + "/" + supplied.getData().size());
         }
         for (int i = 0; i < types.size(); i++) {
+            if (allowNullNarrowing && supplied.getData().get(i).type() == DataType.NULL) {
+                continue;
+            }
             if (supplied.getData().get(i).type() != types.get(i)) {
                 throw new IllegalStateException(
                     name + ": supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i)

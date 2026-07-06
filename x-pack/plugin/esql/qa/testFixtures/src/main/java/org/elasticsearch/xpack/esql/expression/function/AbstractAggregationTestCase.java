@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.junit.AssumptionViolatedException;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -84,11 +85,30 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         List<TestCaseSupplier> suppliers,
         PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
-        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.COVARIANT_NULL);
     }
 
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
-        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.COVARIANT_NULL);
+    }
+
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
+        List<TestCaseSupplier> suppliers,
+        NullTypeExpectation nullTypeExpectation
+    ) {
+        List<TestCaseSupplier> randomized = randomizeBytesRefsOffset(suppliers);
+        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(withNullRowsExpectingNull(randomized, nullTypeExpectation)));
+    }
+
+    /**
+     * How an aggregation's output type reacts to a {@code NULL}-typed input column, as injected by
+     * {@code SET unmapped_fields="nullify"} for fields missing from all indices.
+     */
+    public enum NullTypeExpectation {
+        /** Output type follows the input, so a NULL-typed input yields a NULL-typed output. The common case. */
+        COVARIANT_NULL,
+        /** Output type is fixed by the function regardless of input type, e.g. PERCENTILE is always DOUBLE. */
+        KEEPS_TYPE
     }
 
     /**
@@ -129,6 +149,82 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
 
         return newSuppliers;
+    }
+
+    /**
+     * Adds two variants per unique signature, covering the {@code unmapped_fields="nullify"} scenarios:
+     * all input rows null (types unchanged), and the input columns typed {@code NULL} outright — the shape
+     * a nullified missing field has. Expected output type for the latter follows {@code nullTypeExpectation}.
+     */
+    protected static List<TestCaseSupplier> withNullRowsExpectingNull(
+        List<TestCaseSupplier> suppliers,
+        NullTypeExpectation nullTypeExpectation
+    ) {
+        List<TestCaseSupplier> newSuppliers = new ArrayList<>(suppliers);
+        Set<List<DataType>> uniqueSignatures = new HashSet<>();
+
+        for (TestCaseSupplier original : suppliers) {
+            if (uniqueSignatures.add(original.types()) == false) {
+                continue;
+            }
+            newSuppliers.add(new TestCaseSupplier(original.name() + " with null rows", original.types(), () -> {
+                var testCase = original.get();
+                assertMultiRowPresent(testCase);
+
+                var newData = testCase.getData()
+                    .stream()
+                    .map(td -> td.isMultiRow() ? td.withData(Collections.nCopies(td.multiRowData().size(), null)) : td)
+                    .toList();
+
+                return nullInputTestCase(testCase, newData, testCase.expectedType());
+            }));
+
+            newSuppliers.add(TestCaseSupplier.nullNarrowing(original.name() + " with NULL-typed input", original.types(), () -> {
+                var testCase = original.get();
+                assertMultiRowPresent(testCase);
+
+                var newData = testCase.getData()
+                    .stream()
+                    .map(
+                        td -> td.isMultiRow()
+                            ? TestCaseSupplier.TypedData.multiRow(Collections.singletonList(null), DataType.NULL, td.name())
+                            : td
+                    )
+                    .toList();
+
+                var expectedType = nullTypeExpectation == NullTypeExpectation.COVARIANT_NULL ? DataType.NULL : testCase.expectedType();
+                return nullInputTestCase(testCase, newData, expectedType);
+            }));
+        }
+
+        return newSuppliers;
+    }
+
+    private static void assertMultiRowPresent(TestCaseSupplier.TestCase testCase) {
+        if (testCase.getData().stream().noneMatch(TestCaseSupplier.TypedData::isMultiRow)) {
+            fail("No multi-row data found in test case: " + testCase);
+        }
+    }
+
+    private static TestCaseSupplier.TestCase nullInputTestCase(
+        TestCaseSupplier.TestCase testCase,
+        List<TestCaseSupplier.TypedData> newData,
+        DataType expectedType
+    ) {
+        return new TestCaseSupplier.TestCase(
+            testCase.getSource(),
+            testCase.getConfiguration(),
+            newData,
+            testCase.evaluatorToString(),
+            expectedType,
+            nullValue(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            testCase.canBuildEvaluator()
+        );
     }
 
     /**

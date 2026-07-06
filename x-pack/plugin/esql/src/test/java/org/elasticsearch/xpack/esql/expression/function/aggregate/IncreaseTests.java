@@ -52,7 +52,7 @@ public class IncreaseTests extends AbstractAggregationTestCase {
                 }
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.KEEPS_TYPE);
     }
 
     @Override

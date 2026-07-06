@@ -65,6 +65,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Assertions;
@@ -161,6 +162,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -4174,6 +4176,139 @@ public class IndexShardTests extends IndexShardTestCase {
         assertBusy(() -> assertThat(primary.refreshStats().getExternalTotal(), equalTo(externalRefreshesBefore + 1)));
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
+        }
+        closeShards(primary);
+    }
+
+    public void testEnsureShardSearchActiveDispatchesListenerOffRefreshThread() throws Exception {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+
+        Settings searchIdleSettings = Settings.builder()
+            .put(primary.indexSettings().getSettings())
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+        indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+        primary.scheduledRefresh(deferred);
+        assertFalse(deferred.actionGet());
+        assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+
+        final String executorName = "ensure-search-active-test";
+        final ExecutorService responseExecutor = Executors.newSingleThreadExecutor(
+            EsExecutors.daemonThreadFactory("test-node", executorName)
+        );
+        try {
+            final AtomicReference<String> listenerThreadName = new AtomicReference<>();
+            final AtomicBoolean registered = new AtomicBoolean();
+            final CountDownLatch latch = new CountDownLatch(1);
+            primary.ensureShardSearchActive(responseExecutor, wasRegistered -> {
+                registered.set(wasRegistered);
+                listenerThreadName.set(Thread.currentThread().getName());
+                latch.countDown();
+            });
+            safeAwait(latch);
+            assertTrue("a refresh was pending so the listener must have been registered as a refresh listener", registered.get());
+            assertThat(
+                "listener must be dispatched to the provided executor",
+                listenerThreadName.get(),
+                containsString("[" + executorName + "]")
+            );
+            assertThat(
+                "listener must not run on a refresh thread",
+                listenerThreadName.get(),
+                not(containsString("[" + ThreadPool.Names.REFRESH + "]"))
+            );
+        } finally {
+            ThreadPool.terminate(responseExecutor, 10, TimeUnit.SECONDS);
+        }
+        closeShards(primary);
+    }
+
+    public void testEnsureShardSearchActiveRunsInlineWhenNoRefreshPending() throws Exception {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+        assertFalse(primary.hasRefreshPending());
+
+        final ExecutorService responseExecutor = Executors.newSingleThreadExecutor(
+            EsExecutors.daemonThreadFactory("test-node", "ensure-search-active-test")
+        );
+        try {
+            final String callingThreadName = Thread.currentThread().getName();
+            final AtomicReference<String> listenerThreadName = new AtomicReference<>();
+            final AtomicBoolean registered = new AtomicBoolean(true);
+            primary.ensureShardSearchActive(responseExecutor, wasRegistered -> {
+                registered.set(wasRegistered);
+                listenerThreadName.set(Thread.currentThread().getName());
+            });
+            assertFalse("no refresh was pending so the listener must not have been registered", registered.get());
+            assertEquals("listener must run inline on the calling thread", callingThreadName, listenerThreadName.get());
+        } finally {
+            ThreadPool.terminate(responseExecutor, 10, TimeUnit.SECONDS);
+        }
+        closeShards(primary);
+    }
+
+    public void testEnsureShardSearchActiveRunsInlineWhenDispatchRejected() throws Exception {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+
+        Settings searchIdleSettings = Settings.builder()
+            .put(primary.indexSettings().getSettings())
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+        indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+        primary.scheduledRefresh(deferred);
+        assertFalse(deferred.actionGet());
+        assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+
+        final Executor rejectingExecutor = command -> { throw new EsRejectedExecutionException("rejected for test"); };
+        try (var mockLog = MockLog.capture(IndexShard.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "dispatch failure warning",
+                    IndexShard.class.getCanonicalName(),
+                    Level.WARN,
+                    "ensureShardSearchActive could not dispatch to [*], running inline"
+                )
+            );
+
+            final AtomicInteger invocations = new AtomicInteger();
+            final AtomicBoolean registered = new AtomicBoolean();
+            final CountDownLatch latch = new CountDownLatch(1);
+            primary.ensureShardSearchActive(rejectingExecutor, wasRegistered -> {
+                registered.set(wasRegistered);
+                invocations.incrementAndGet();
+                latch.countDown();
+            });
+            safeAwait(latch);
+            assertTrue("a refresh was pending so the listener must have been registered as a refresh listener", registered.get());
+            assertEquals("listener must be invoked exactly once when dispatch is rejected", 1, invocations.get());
+            mockLog.assertAllExpectationsMatched();
         }
         closeShards(primary);
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -8549,7 +8550,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, TEST_PLANNER_SETTINGS)
+            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, TEST_PLANNER_SETTINGS),
+            MatcherWatchdog.noop()
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance());

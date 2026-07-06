@@ -163,6 +163,22 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     /**
+     * Maximum time (in milliseconds) that a GROK matcher is allowed to run before being interrupted.
+     * Limits how long a GROK matcher can run to protect against expensive regex patterns. Read directly
+     * from each node's own {@link org.elasticsearch.common.settings.ClusterSettings} wherever the matcher
+     * is built for execution (see {@code LocalExecutionPlanner#planGrok}) rather than being carried in the
+     * ES|QL {@code Configuration} wire format, since every node can resolve this node-scoped setting on
+     * its own — including live updates, since it is also dynamic.
+     */
+    public static final Setting<TimeValue> GROK_WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
+        "esql.grok.watchdog.max_execution_time",
+        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Tuning parameter for deciding when to use the "merge" stored field loader.
      * Think of it as "how similar to a sequential block of documents do I have to
      * be before I'll use the merge reader?" So a value of {@code 1} means I have to
@@ -260,7 +276,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
                 STORED_FIELDS_SEQUENTIAL_PROPORTION,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
-                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
+                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
+                GROK_WATCHDOG_MAX_EXECUTION_TIME
             )
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {

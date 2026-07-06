@@ -69,7 +69,9 @@ public class JsonExtract extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5.0") },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5.0") },
         briefSummary = "Extracts a value from a JSON string using JSONPath syntax.",
         description = """
             Extracts a value from a JSON string using a subset of

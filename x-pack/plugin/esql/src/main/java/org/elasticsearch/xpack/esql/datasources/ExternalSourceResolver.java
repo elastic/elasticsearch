@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -1237,17 +1238,43 @@ public class ExternalSourceResolver {
         return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
     }
 
-    /** FFW / uniform-schema path: every file shares the anchor's types, so no per-file normalization is needed. */
+    /**
+     * FFW path. FIRST_FILE_WINS reads every file with the anchor's schema and assumes the others match, but does
+     * NOT enforce it. A column whose physical type DIVERGES across files (e.g. DATETIME/epoch-millis in the anchor
+     * and DATE_NANOS/epoch-nanos in another) would fold its extrema unit-blind here; worse, the divergent file's
+     * data is itself misread under the anchor schema, so no warm extremum can match a scan. We cannot normalize to
+     * a common unit (the cold path is already wrong), so we POISON such columns' extrema — safe-miss to a scan.
+     */
     static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
+        Map<String, DataType> anchorTypes = null;
+        Set<String> divergentColumns = new HashSet<>();
         for (SourceMetadata meta : allMetadata) {
             Map<String, Object> flat = flatStatsOf(meta);
             if (flat == null) {
                 return null;
             }
             perFileFlatStats.add(flat);
+            Map<String, DataType> fileTypes = attributesToTypeMap(meta.schema());
+            if (anchorTypes == null) {
+                anchorTypes = fileTypes;
+            } else {
+                for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
+                    DataType anchorType = anchorTypes.get(entry.getKey());
+                    if (anchorType != null && anchorType != entry.getValue()) {
+                        divergentColumns.add(entry.getKey());
+                    }
+                }
+            }
         }
-        return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
+        if (merged != null && divergentColumns.isEmpty() == false) {
+            merged = new HashMap<>(merged); // mergeStatistics may hand back an unmodifiable/shared map
+            for (String column : divergentColumns) {
+                SourceStatisticsSerializer.poisonColumnExtrema(merged, column);
+            }
+        }
+        return merged;
     }
 
     /** A file's flat stat map — cached in sourceMetadata(), or embedded from typed statistics() — or null if absent. */

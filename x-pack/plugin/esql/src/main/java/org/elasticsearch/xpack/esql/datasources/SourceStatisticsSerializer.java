@@ -216,6 +216,20 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
+     * Poisons a column's {@code min}/{@code max} in-place: drops the extremum values and writes the unservable
+     * markers so the column safe-misses to a scan. Count stats (row/null/value counts) are left intact. Used when
+     * the extremum cannot be trusted — e.g. the FIRST_FILE_WINS fold detects a column whose physical type diverges
+     * across files, so both the unit-blind fold AND the anchor-schema misread of the divergent file make a warm
+     * extremum unable to match a scan.
+     */
+    public static void poisonColumnExtrema(Map<String, Object> statsMap, String columnName) {
+        statsMap.remove(columnMinKey(columnName));
+        statsMap.remove(columnMaxKey(columnName));
+        statsMap.put(columnMinUnservableKey(columnName), Boolean.TRUE);
+        statsMap.put(columnMaxUnservableKey(columnName), Boolean.TRUE);
+    }
+
+    /**
      * Normalizes a per-file stat map's {@code min}/{@code max} to the RECONCILED column type, at the boundary
      * where BOTH the file's own type and the multi-file reconciled type are known (multi-file discovery /
      * split construction). Per-file stats are stored in the file's LOCAL unit/representation, but every warm

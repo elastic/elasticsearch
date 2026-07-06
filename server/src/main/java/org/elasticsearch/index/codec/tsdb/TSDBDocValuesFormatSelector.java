@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -42,7 +41,7 @@ public final class TSDBDocValuesFormatSelector {
         final IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         final boolean useLargeNumericBlockSize = indexSettings.isUseTimeSeriesDocValuesFormatLargeNumericBlockSize();
         final boolean useLargeBinaryBlockSize = indexSettings.isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize();
-        final boolean writePartitions = indexSettings.getMode() == IndexMode.TIME_SERIES
+        final boolean writePartitions = indexSettings.getMode().isTsdb()
             && TsidBuilder.useSingleBytePrefixLayout(indexCreatedVersion)
             && indexCreatedVersion.onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION);
 
@@ -63,7 +62,7 @@ public final class TSDBDocValuesFormatSelector {
     }
 
     static boolean useES95(final IndexSettings indexSettings) {
-        return indexSettings.getMode() == IndexMode.TIME_SERIES
+        return indexSettings.getMode().isTsdb()
             && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG)
             && indexSettings.isTimeSeriesEs95CodecEnabled();
     }

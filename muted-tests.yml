@@ -257,9 +257,6 @@ tests:
 - class: org.elasticsearch.packaging.test.PackageUpgradeTests
   method: test12SetupBwcVersion
   issue: https://github.com/elastic/elasticsearch/issues/152819
-- class: org.elasticsearch.index.rankeval.RankEvalRequestIT
-  method: testIndicesOptions
-  issue: https://github.com/elastic/elasticsearch/issues/152936
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/149663

@@ -388,6 +388,29 @@
   - match:    { columns.1.name: b }
   - is_false: columns.1._meta
 
+  # A JSON string "true" is accepted like the JSON boolean true (general XContent leniency for a
+  # VALUE_STRING token spelling "true"/"false", not something column_metadata opts into specifically).
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+          settings:
+            column_metadata: "true"
+
+  - match:    { columns.1.name: b }
+  - match:    { columns.1._meta.bucket.interval: 10.0 }
+
+  # Unlike a string, a JSON number isn't coerced to boolean — it's rejected outright.
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+          settings:
+            column_metadata: 1
+
   # Sanity: without column_metadata in either surface, the response has no _meta.
   - do:
       allowed_warnings_regex:

@@ -188,7 +188,7 @@ public class AnalyzerContext {
 
     /**
      * Header warnings collected during analysis but emitted only once the {@code Verifier} has passed, so a query that fails
-     * verification produces no warnings. Deduplicated and ordered via {@link LinkedHashSet}.
+     * verification produces no warnings.
      */
     public Set<String> deferredHeaderWarnings() {
         return deferredHeaderWarnings;

@@ -3191,17 +3191,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * {@code dense_vector} has a {@link DataType#KEYWORD} converter, but it reads hexadecimal strings whereas an unmapped
-     * {@code dense_vector} loads from {@code _source} as an array of numbers (#152184). Implicitly casting a partially unmapped
-     * {@code dense_vector} from KEYWORD would therefore produce garbage, so we exclude it from auto-casting; it then falls back to
-     * {@code null} where unmapped and warns like any other non-loadable PUNK.
-     */
-    // Visible for testing.
-    static boolean castsCleanlyFromKeyword(DataType mappedType) {
-        return mappedType != DENSE_VECTOR;
-    }
-
-    /**
      * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
      * If there was no {@code AbstractConvertFunction} that resolved multi-type fields in the {@link ResolveUnionTypes} rule,
      * then there could still be some {@code FieldAttribute}s that contain unresolved {@link UnionTypeEsField}s.
@@ -3408,13 +3397,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk) {
                         DataType mappedType = punk.mappedField().getDataType();
 
-                        if (castsCleanlyFromKeyword(mappedType) == false) {
+                        // DENSE_VECTOR has a KEYWORD converter, but it reads hexadecimal strings whereas an unmapped DENSE_VECTOR loads
+                        // from _source as an array of numbers (#152184). Implicitly casting a partially unmapped DENSE_VECTOR from KEYWORD
+                        // would therefore produce garbage, so we exclude it from auto-casting.
+                        if (mappedType != DataType.DENSE_VECTOR == false) {
                             return fa;
                         }
 
-                        // FIXME(gal, nocommit): Add issue number. Small numerics (e.g. SHORT) never auto-cast because the converter is
-                        // looked up for the raw mapped type before widening to INTEGER, so there is no KEYWORD->SHORT converter; the PUNK
-                        // survives to UnionTypesCleanup and warns as non-loadable even though it could be loaded via the widened type.
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         ConvertFunction convert = convertFactory == null
                             ? null

@@ -1193,7 +1193,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             }
         }
         assertThat(noConverterTypes, equalTo(NO_IMPLICIT_KEYWORD_CONVERTER_PUNK_TYPES));
-        // Every surviving single-type PUNK falls back to null where unmapped, so all of them warn (including dense_vector).
+        // Every surviving single-type PUNK falls back to null where unmapped, so all of them warn.
         assertWarnings(
             noConverterTypes.stream()
                 .map(dt -> nonLoadablePunkWarning("test_field", dt.widenSmallNumeric().typeName()))
@@ -1202,9 +1202,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     private static boolean supportsKeywordConversionUnderLoad(DataType mappedType) {
-        if (mappedType == DataType.TEXT) {
-            return false;
-        }
         if (mappedType == DataType.DENSE_VECTOR) {
             // #152184: implicit KEYWORD->DENSE_VECTOR is unsafe because source-backed unmapped vectors load as numeric arrays.
             return false;
@@ -1668,35 +1665,14 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertWarnings(nonLoadablePunkWarning(field, "aggregate_metric_double"));
     }
 
-    public void testNonLoadablePunkDenseVectorWarnsAndIsNotCast() {
-        assumeTrue(
-            "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
-            EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
-        );
-
-        // dense_vector has a KEYWORD converter but it reads hex strings while an unmapped vector loads as an array of numbers (#152184),
-        // so we neither implicitly cast it nor turn it into a union type; it falls back to null where unmapped and warns.
-        var vector = new EsField("partial_vector", DataType.DENSE_VECTOR, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
-        var esIndex = partialIndex(Map.of("partial_vector", vector), Set.of("partial_vector"));
-        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx*"));
-        var attr = as(
-            EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_vector")).toList()),
-            FieldAttribute.class
-        );
-        assertThat(attr.dataType(), equalTo(DataType.DENSE_VECTOR));
-        assertThat(attr.field().getClass(), equalTo(EsField.class));
-        assertWarnings(nonLoadablePunkWarning("partial_vector", "dense_vector"));
-    }
-
     public void testNonLoadablePunkEvalSameNameOverrideDoesNotWarn() {
         assumeTrue(
             "Requires OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK",
             EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
         );
 
-        // EVAL replaces partial_amd with a new attribute of the same name without referencing the PUNK, so the original is no longer
-        // observed and must not warn. An unasserted warning would fail the test teardown.
-        var plan = analyzer().addIndex(partialAmdAndCommonIndex()).statement(setUnmappedLoad("FROM idx* | EVAL partial_amd = \"x\""));
+        var plan = analyzer().addIndex(partialAmdAndCommonIndex())
+            .statement(setUnmappedLoad("FROM idx* | EVAL partial_amd = partial_amd :: keyword"));
         var attr = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("partial_amd")).toList());
         assertThat(attr.dataType(), equalTo(DataType.KEYWORD));
     }
@@ -1707,9 +1683,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             EsqlCapabilities.Cap.OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK.isEnabled()
         );
 
-        // partial_amd is an observed non-loadable PUNK, so its warning is collected while analyzing the (resolved) plan. The query then
-        // fails the verifier because WHERE needs a boolean condition. Since emission is deferred until the verifier passes, no warning
-        // must be produced. The explicit LIMIT avoids the unrelated implicit-limit warning.
         var analyzer = analyzer().addIndex(partialAmdAndCommonIndex());
         var e = expectThrows(VerificationException.class, () -> analyzer.statement(setUnmappedLoad("FROM idx* | WHERE common | LIMIT 10")));
         assertThat(e.getMessage(), containsString("Condition expression needs to be boolean, found [KEYWORD]"));

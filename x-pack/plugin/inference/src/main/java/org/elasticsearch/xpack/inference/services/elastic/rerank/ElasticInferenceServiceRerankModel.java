@@ -26,7 +26,7 @@ import java.util.Map;
 
 public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceModel {
 
-    public static final String RERANK_PATH = "/api/v1/rerank/text/text-similarity";
+    public static final String RERANK_PATH = "/api/v1/rerank";
     private final URI uri;
 
     public ElasticInferenceServiceRerankModel(

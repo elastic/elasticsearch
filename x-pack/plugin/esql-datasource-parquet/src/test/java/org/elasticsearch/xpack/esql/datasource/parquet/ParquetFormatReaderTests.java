@@ -5586,4 +5586,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("the out-of-range value must be nulled on scan", 1, nullsSeen);
     }
 
+    public void testCompareStatExtremumUsesUtf8OrderForStrings() {
+        // The cross-row-group keyword MIN/MAX fold must order string extrema by UTF-8 bytes (matching the runtime
+        // keyword aggregators and the cross-file fold), not String.compareTo's UTF-16 code units. U+FFFD (BMP)
+        // vs U+1F600 (astral): UTF-16 would rank the emoji first (surrogate 0xD83D < 0xFFFD), but UTF-8 orders the
+        // replacement char first (0xEF < 0xF0). A regression to String.compareTo would flip both assertions.
+        String bmp = "�";
+        String astral = "😀";
+        assertTrue("string extrema compare in UTF-8 byte order", ParquetFormatReader.compareStatExtremum(bmp, astral) < 0);
+        assertTrue(ParquetFormatReader.compareStatExtremum(astral, bmp) > 0);
+        // Non-string extrema compare naturally.
+        assertTrue("numeric extrema compare naturally", ParquetFormatReader.compareStatExtremum(5L, 10L) < 0);
+    }
+
 }

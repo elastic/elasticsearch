@@ -1604,6 +1604,60 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
     }
 
+    public void testColumnarSettingIsPickedUpDynamically() {
+        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // Start with the setting enabled (the default), same instance is reused throughout,
+        // mirroring how LogsDBPlugin wires updateColumnarEnabled(...) as a cluster settings update consumer.
+        LogsdbIndexModeSettingsProvider provider = withColumnarEnabled(true);
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+
+        // Should not throw while the setting is enabled.
+        provider.provideAdditionalSettings(
+            "my-index",
+            null,
+            null,
+            emptyProject(),
+            Instant.now(),
+            settings,
+            List.of(),
+            IndexVersion.current(),
+            builder()
+        );
+
+        // Flip the setting at runtime, as ClusterSettings would via the update consumer.
+        provider.updateColumnarEnabled(false);
+
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> provider.provideAdditionalSettings(
+                "my-index",
+                null,
+                null,
+                emptyProject(),
+                Instant.now(),
+                settings,
+                List.of(),
+                IndexVersion.current(),
+                builder()
+            )
+        );
+        assertThat(e.getMessage(), containsString("creation of indices with a columnar index mode [columnar] is disabled"));
+
+        // Flip it back on and confirm creation is allowed again.
+        provider.updateColumnarEnabled(true);
+        provider.provideAdditionalSettings(
+            "my-index",
+            null,
+            null,
+            emptyProject(),
+            Instant.now(),
+            settings,
+            List.of(),
+            IndexVersion.current(),
+            builder()
+        );
+    }
+
     public void testColumnarDisabledSkipsTemplateValidation() {
         assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         LogsdbIndexModeSettingsProvider provider = withColumnarEnabled(false);

@@ -83,6 +83,19 @@ public class PhysicalNamesTests extends ESTestCase {
         assertTrue(PhysicalNames.noLogicalNamesRemain(List.of("id"), Map.of())); // no renames -> always holds
     }
 
+    public void testNoLogicalNamesRemainSwapAndChainAreNotFalsePositives() {
+        // Swap: logical a<-b, b<-a. The correctly-translated physical names {a, b} are BOTH rename keys, but each is also
+        // a rename VALUE, so the invariant must still hold — the logical/physical name spaces legitimately overlap here.
+        Map<String, String> swap = Map.of("a", "b", "b", "a");
+        assertTrue(PhysicalNames.noLogicalNamesRemain(List.of("a", "b"), swap));
+        // Chain: a<-b, b<-c. Translated physical names {b, c}; b is a key (b->c) but also a value (a->b), so it is not a
+        // leaked logical name.
+        Map<String, String> chain = Map.of("a", "b", "b", "c");
+        assertTrue(PhysicalNames.noLogicalNamesRemain(List.of("b", "c"), chain));
+        // But a genuinely untranslated logical name that is NOT also a rename target still trips it.
+        assertFalse(PhysicalNames.noLogicalNamesRemain(List.of("a", "c"), chain)); // logical `a` leaked (not a value)
+    }
+
     private static ReferenceAttribute ref(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, name, type);
     }

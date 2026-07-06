@@ -522,16 +522,25 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * column's declared date {@code format} via
      * {@link ParquetFormatReader#declaredDateFormatterFor}), and policy-aware failure behavior
      * ({@link #castBlockWarnings}) as the eager decode paths, so a deferred column reads exactly
-     * like an eagerly scanned one. A pair
-     * {@link DeclaredTypeCoercions#supports} rejects means this file drifted from the anchor
-     * footer the resolver validated; mirror the eager per-file validation
-     * ({@code validatePlannerTypesAgainstFile}): warn once and read the column as all-null rather
-     * than emitting a block downstream operators would misinterpret. Always consumes
-     * {@code physical} and returns a fresh caller-owned block.
+     * like an eagerly scanned one — including the declared-vs-inferred null-fill decision: the lossy
+     * {@link DeclaredTypeCoercions#supports} escape (which admits narrowing) is honored only for a
+     * DECLARED column, mirroring {@code validatePlannerTypesAgainstFile}. An inferred target may only
+     * widen ({@link ParquetFormatReader#plannerTypeCompatibleWithFileDerivedType}); a narrowing or a
+     * drifted-glob pair reads the column as all-null rather than downcasting (which would disagree
+     * with the eager scan of the same file). Always consumes {@code physical} and returns a fresh
+     * caller-owned block.
      */
     private Block coerceToTarget(Block physical, DataType fileType, DataType target, String columnName, int count, BlockFactory factory) {
         try {
-            if (DeclaredTypeCoercions.supports(fileType, target)) {
+            // Same gate as the eager reader (validatePlannerTypesAgainstFile). castBlock only functions on a supports()
+            // pair, so that stays the precondition; on top of it the lossy narrowing it admits is licensed only for a
+            // DECLARED column — an inferred target may coerce only when the pair also widens. So an inferred narrowing
+            // (supports true, not widening, not declared) null-fills instead of downcasting, agreeing with the eager
+            // scan of the same file. columnName is physical here (the extractor projects physical names), matching the set.
+            boolean coercible = DeclaredTypeCoercions.supports(fileType, target)
+                && (ParquetFormatReader.plannerTypeCompatibleWithFileDerivedType(target, fileType)
+                    || reader.isDeclaredTypeColumn(columnName));
+            if (coercible) {
                 return DeclaredTypeCoercions.castBlock(
                     physical,
                     fileType,

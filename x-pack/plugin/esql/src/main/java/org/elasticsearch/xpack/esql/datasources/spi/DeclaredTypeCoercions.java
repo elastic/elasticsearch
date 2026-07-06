@@ -98,8 +98,9 @@ import java.util.function.IntFunction;
  *       {@code Warning} header, {@code ignore_malformed}-style, while {@code fail_fast} fails
  *       the read on the first bad value. Fused arms and {@link #castBlock} route the failure
  *       through the one {@link #onCoercionFailure} chokepoint so the two paths cannot disagree.
- *       Readers also re-check {@link #supports} per file, since a multi-file glob can drift from
- *       the anchor footer.</li>
+ *       Readers also re-check {@link #supports} per file for a <b>declared</b> column, since a
+ *       multi-file glob can drift from the anchor footer; an <b>inferred</b> column may only widen,
+ *       so a drifted inferred type null-fills rather than taking this lossy escape (never narrows).</li>
  *   <li><b>Text formats</b> (CSV/TSV, NDJSON) have no physical schema — every value is a string,
  *       so the parse into the declared type <i>is</i> the coercion and a bad token follows the
  *       reader's own per-value error policy. Their declared date {@code format} parse goes
@@ -122,9 +123,11 @@ public final class DeclaredTypeCoercions {
      * declared type {@code to} at read time: exactly the pairs the field mappers coerce at
      * ingest (see the class Javadoc for the set). Equal types trivially return {@code true};
      * {@code NULL} and {@code UNSUPPORTED} always return {@code false} (the readers cannot
-     * decode such a column, so there is no value to coerce). This is THE castability predicate —
-     * resolution-time rejects and reader-side per-file validation must both consult it so they
-     * cannot drift.
+     * decode such a column, so there is no value to coerce). This is THE castability predicate:
+     * resolution-time rejects consult it directly; the reader-side per-file null-fill validation
+     * consults it only for a <b>declared</b> column (an inferred cross-file clash widens-or-nulls,
+     * never narrows — see {@code ParquetFormatReader.validatePlannerTypesAgainstFile}), so a lossy
+     * narrowing is admitted exactly where a declaration licenses it.
      */
     public static boolean supports(DataType from, DataType to) {
         if (from == to) {

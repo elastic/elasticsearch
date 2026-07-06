@@ -25,6 +25,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -33,12 +34,14 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -48,6 +51,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -73,6 +77,25 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         super.setUp();
         ParquetStorageObjectAdapter.clearFooterCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    }
+
+    /**
+     * A schema-vs-planner incompatibility on the deferred path emits a response Warning header (mirroring the eager
+     * scan). Drain any accumulated warnings so the parent {@code ensureNoWarnings} post-check passes; a test that asserts
+     * on them calls {@link #drainWarnings()} from inside the method first.
+     */
+    @After
+    public void clearWarningHeaders() {
+        if (threadContext != null) {
+            threadContext.stashContext();
+        }
+    }
+
+    private List<String> drainWarnings() {
+        List<String> raw = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+        List<String> messages = raw.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false)).toList();
+        threadContext.stashContext();
+        return messages;
     }
 
     /**
@@ -234,6 +257,65 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testDeferredInferredIntegerOverInt64NullFillsWholeColumn() throws IOException {
+        // The deferred-extraction twin of ParquetFormatReaderTests.testInt64InferredIntegerNullFillsWholeColumn. After a
+        // TopN, an INFERRED INTEGER target over an int64 column must null-fill via coerceToTarget — never downcast —
+        // otherwise the column reads differently depending on whether extraction was deferred. supports(LONG, INTEGER) is
+        // true, so a plain (non-declared) reader here pins the deferred branch of the gate split: dropping the
+        // isDeclaredTypeColumn guard in coerceToTarget coerces here and this fails.
+        byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
+        StorageObject so = createStorageObject(data);
+        try (ColumnExtractor extractor = newFullFileExtractor(so)) { // plain reader => "v" is inferred
+            long[] positions = { 0, 1, 2 };
+            Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, positions, blockFactory);
+            try (Block block = blocks[0]) {
+                assertEquals(3, block.getPositionCount());
+                for (int i = 0; i < positions.length; i++) {
+                    assertTrue("inferred int64->integer must null-fill on the deferred path, never downcast", block.isNull(i));
+                }
+            }
+        }
+        List<String> warnings = drainWarnings();
+        assertFalse("deferred inferred incompatibility must emit a response Warning", warnings.isEmpty());
+        assertTrue(
+            "warning must name the incompatibility, got: " + warnings,
+            warnings.toString().contains("incompatible with planner type")
+        );
+    }
+
+    public void testDeferredDeclaredIntegerOverInt64Coerces() throws IOException {
+        // The declared contrast to the above on the SAME deferred path: when "v"'s INTEGER target is declared, the escape
+        // is licensed and coerceToTarget narrows per value (values in range => Integer results, not null) — proving the
+        // deferred gate distinguishes declared from inferred, exactly like the eager pair.
+        byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.PERMISSIVE)) {
+            long[] positions = { 0, 1, 2 };
+            Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, positions, blockFactory);
+            try (Block block = blocks[0]) {
+                IntBlock ints = (IntBlock) block;
+                assertEquals(3, ints.getPositionCount());
+                assertEquals(5, ints.getInt(0));
+                assertEquals(7, ints.getInt(1));
+                assertEquals(9, ints.getInt(2));
+            }
+        }
+    }
+
+    private byte[] writeSingleInt64File(long[] values) throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("longs");
+        return writeFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(values.length);
+            for (long v : values) {
+                Group g = factory.newGroup();
+                g.add("v", v);
+                groups.add(g);
+            }
+            return groups;
+        }, /* rowGroupBytes = */ 1024L);
     }
 
     public void testExtractEmptyPositionsReturnsEmptyBlock() throws IOException {

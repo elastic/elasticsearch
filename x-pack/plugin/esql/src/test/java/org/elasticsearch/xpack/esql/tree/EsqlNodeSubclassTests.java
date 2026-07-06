@@ -506,10 +506,13 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == ExternalSchema.class) {
             return new ExternalSchema(List.of());
         } else if (argClass == DeclaredReadSpec.class) {
-            // Typed carrier record; build a non-trivial instance so transform/mutation tests see a real value.
+            // Typed carrier record; populate every component (renames, idPath, dateFormats, declaredTypeColumns) so
+            // transform/mutation tests exercise a fully-loaded value rather than an all-but-renames empty one.
             return DeclaredReadSpec.of(
                 Map.of(randomAlphaOfLength(4), randomAlphaOfLength(5)),
-                randomBoolean() ? randomAlphaOfLength(4) : null
+                randomBoolean() ? randomAlphaOfLength(4) : null,
+                Map.of(randomAlphaOfLength(4), "yyyy-MM-dd"),
+                Set.of(randomAlphaOfLength(4), randomAlphaOfLength(5))
             );
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked

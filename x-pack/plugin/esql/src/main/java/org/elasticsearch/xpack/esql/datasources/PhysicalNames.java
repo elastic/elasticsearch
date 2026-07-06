@@ -116,7 +116,11 @@ public final class PhysicalNames {
             return true;
         }
         for (String name : readerFacingNames) {
-            if (renames.containsKey(name)) {
+            // A name that is a rename KEY but NOT also a rename VALUE is an untranslated logical name — translation was
+            // skipped. A name that is BOTH a key and a value is a swap/chain physical target (e.g. {a->b, b->a}: the
+            // correctly-translated physical `b` is also logical `b`'s key): the logical and physical name spaces overlap
+            // there, so a key that is also a value is legitimately reader-facing, not a translation miss.
+            if (renames.containsKey(name) && renames.containsValue(name) == false) {
                 return false;
             }
         }

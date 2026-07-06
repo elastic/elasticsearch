@@ -2090,7 +2090,8 @@ public class ExternalSourceResolver {
                 // loudly rather than ignore a mapping the user declared.
                 if (declaredReadSpec.isEmpty() == false) {
                     throw new IllegalArgumentException(
-                        "declared mappings with [path] renames, [_id.path], or a column [format] are not supported for this source type"
+                        "declared mappings with column types, [path] renames, [_id.path], or a column [format] "
+                            + "are not supported for this source type"
                     );
                 }
                 return extMetadata;

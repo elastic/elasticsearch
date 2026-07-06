@@ -199,6 +199,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
+     * Whether one physical column's target type came from an explicit declaration (vs inference) — the licence for a
+     * lossy read-coercion toward it. Package-private for {@link ParquetColumnExtractor}, whose deferred-extraction
+     * coercion must make the same declared-vs-inferred null-fill decision as {@link #validatePlannerTypesAgainstFile}:
+     * a declared column keeps the {@link DeclaredTypeCoercions#supports} escape, an inferred one may only widen.
+     */
+    boolean isDeclaredTypeColumn(String physicalColumnName) {
+        return declaredTypeColumns.contains(physicalColumnName);
+    }
+
+    /**
      * Resolves the {@link ColumnInfo} for a column by name within a parquet {@link MessageType},
      * applying the same primitive-type mapping that the iterator uses (see
      * {@link #convertParquetTypeToEsql}). Returns {@code null} when the column is absent or maps
@@ -2555,9 +2565,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Whether values from a column whose Parquet schema maps to {@code fileDerived} can be read using
-     * the planner's {@code planner} type (same widening notion as globbed external sources).
+     * the planner's {@code planner} type (same widening notion as globbed external sources). Package-private so the
+     * deferred-extraction path ({@link ParquetColumnExtractor#coerceToTarget}) makes the identical widening decision as
+     * the eager gate — the two must agree or a column reads differently depending on whether extraction was deferred.
      */
-    private static boolean plannerTypeCompatibleWithFileDerivedType(DataType planner, DataType fileDerived) {
+    static boolean plannerTypeCompatibleWithFileDerivedType(DataType planner, DataType fileDerived) {
         DataType unified = EsqlDataTypeConverter.commonType(planner, fileDerived);
         return unified != null && unified.equals(planner);
     }

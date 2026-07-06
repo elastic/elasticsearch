@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -745,6 +746,28 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
             }
         } finally {
             deleteViews("red_ids");
+        }
+    }
+
+    public void testTwoViewsUnionedInInSubqueryRetryDoesNotDrainUnionAll() {
+        // Guard for #152867: a query that forces an analyzer retry (the bogus column triggers a re-resolve) over an
+        // IN-subquery whose body unions two views must not throw NoSuchElementException while the union-all body is
+        // re-walked. It fails cleanly with a VerificationException for the bogus column instead.
+        assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+        try {
+            installView("red_ids", "FROM test | WHERE color == \"red\" | KEEP id");
+            installView("blue_ids", "FROM test | WHERE color == \"blue\" | KEEP id");
+
+            var request = syncEsqlQueryRequest("""
+                FROM test
+                | EVAL bogus = totally_bogus_column_xyz + 1
+                | WHERE id IN (FROM red_ids, blue_ids | KEEP id)
+                | KEEP id
+                """).filter(new RangeQueryBuilder("id").gte(0));
+            expectThrows(VerificationException.class, () -> run(request).close());
+        } finally {
+            deleteViews("red_ids", "blue_ids");
         }
     }
 

@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.CartesianValidator;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -85,6 +86,11 @@ public enum SpatialCoordinateTypes {
             final long xi = XYEncodingUtils.encode((float) x);
             final long yi = XYEncodingUtils.encode((float) y);
             return (yi & 0xFFFFFFFFL) | xi << 32;
+        }
+
+        @Override
+        public GeometryValidator validator() {
+            return CartesianValidator.INSTANCE;
         }
     },
     UNSPECIFIED {

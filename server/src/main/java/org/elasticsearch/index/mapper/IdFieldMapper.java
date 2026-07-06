@@ -16,7 +16,6 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -36,7 +35,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(mappingParserContext -> {
         var indexMode = mappingParserContext.getIndexSettings().getMode();
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
         } else {
             boolean useColumnarIdByDefault = mappingParserContext.getIndexSettings().isUseColumnarIdByDefault();
@@ -47,7 +46,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             var indexMode = parserContext.getIndexSettings().getMode();
-            if (indexMode == IndexMode.TIME_SERIES) {
+            if (indexMode.isTsdb()) {
                 throw new MapperParsingException(name + " is not configurable if index mode is time_series");
             }
             Builder builder = super.parse(name, node, parserContext);

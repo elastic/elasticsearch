@@ -291,8 +291,8 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             );
         } else {
             // Without COLUMN_METADATA_BUCKET_DATE_BOUNDS the metadata may be absent entirely (node
-            // predates COLUMN_METADATA_BUCKET) or present with only interval/unit (node supports
-            // COLUMN_METADATA_BUCKET but not the start/end extension). In a mixed cluster the query
+            // predates COLUMN_METADATA_BUCKET_V2) or present with only interval/unit (node supports
+            // COLUMN_METADATA_BUCKET_V2 but not the start/end extension). In a mixed cluster the query
             // may land on a node at either capability level, so treat _meta and its bounds as optional.
             assertQueryResult(
                 result,

@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle
 
 import spock.lang.IgnoreIf
+import spock.lang.TempDir
 import spock.lang.Unroll
 import spock.util.environment.RestoreSystemProperties
 
@@ -25,6 +26,14 @@ import static org.elasticsearch.gradle.fixtures.JdkToolchainTestFixture.withMock
  * */
 @IgnoreIf({ os.isWindows() })
 class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
+
+    @TempDir
+    File gradleUserHome
+
+    @Override
+    protected File customGradleUserHome() {
+        return gradleUserHome
+    }
 
     def setup() {
         // TestClusterPlugin with adding task listeners is not cc compatible

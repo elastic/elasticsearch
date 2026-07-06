@@ -13,9 +13,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
@@ -393,7 +394,7 @@ public abstract class DocumentParserContext {
     }
 
     public final String routing() {
-        return mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? null : sourceToParse.routing();
+        return mappingParserContext.getIndexSettings().getMode().isTsdb() ? null : sourceToParse.routing();
     }
 
     /**
@@ -407,6 +408,41 @@ public abstract class DocumentParserContext {
                 "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
             );
         }
+    }
+
+    /**
+     * Record that a {@code [nullability=false]} field received a non-null value in the current Lucene doc. The tally lives on the Lucene
+     * doc (not the context) so copy_to (which targets another doc) and each nested instance are counted against the right document.
+     */
+    public final void markRequiredSatisfied(String fieldName) {
+        doc().markRequiredSatisfied(fieldName);
+    }
+
+    /**
+     * Enforce that the current Lucene doc carries a non-null value for every {@code [nullability=false]} field scoped to it. Called once
+     * per Lucene doc: the root doc against the root scope, each nested instance against its own nested path. Throws when any are missing.
+     */
+    public final void enforceRequiredFields() {
+        if (mappingLookup.hasRequiredFields() == false) {
+            return;
+        }
+        Set<String> required = mappingLookup.requiredFields(parent().isNested() ? parent().fullPath() : "");
+        if (required.isEmpty()) {
+            return;
+        }
+        Set<String> satisfied = doc().satisfiedRequiredFields();
+        // Fast path: when this parse created no dynamic mapper, every marked field is a statically-required field, so satisfied is a subset
+        // of required and an O(1) size check is sound. A dynamically-created field can mark itself without appearing in the static-required
+        // set, so once any dynamic mapper exists this parse, we fall back to a containment check which stays correct despite a stray entry.
+        boolean satisfiedIsSubset = hasDynamicMappers() == false;
+        assert satisfiedIsSubset == false || required.containsAll(satisfied)
+            : "without dynamic mappers satisfied " + satisfied + " must be a subset of required " + required;
+        if (satisfiedIsSubset ? satisfied.size() == required.size() : satisfied.containsAll(required)) {
+            return;
+        }
+        // sortedDifference gives a deterministic message regardless of iteration order; only allocated on the (cold) failure path.
+        SortedSet<String> missing = Sets.sortedDifference(required, satisfied);
+        throw new IllegalArgumentException("Field(s) " + missing + " are configured with [nullability=false] but no value was provided");
     }
 
     /**
@@ -972,7 +1008,7 @@ public abstract class DocumentParserContext {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
             doc.add(standardIdField(idField.binaryValue(), Field.Store.NO));
-        } else if (indexSettings().getMode() == IndexMode.TIME_SERIES) {
+        } else if (indexSettings().getMode().isTsdb()) {
             // For time series indices, the _id is generated from the _tsid, which in turn is generated from the values of the configured
             // routing fields. At this point in document parsing, we can't guarantee that we've parsed all the routing fields yet, so the
             // parent document's _id is not yet available.

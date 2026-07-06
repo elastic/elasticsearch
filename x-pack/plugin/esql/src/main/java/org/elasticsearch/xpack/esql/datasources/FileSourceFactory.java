@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -310,6 +313,72 @@ final class FileSourceFactory implements ExternalSourceFactory {
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
         }
+    }
+
+    /**
+     * Async metadata resolution. When {@code hint} is non-null the length/mtime came from a directory
+     * listing: the storage object is built with those values (so {@code length()} serves the cached
+     * value without I/O) and the existence probe is skipped, so no synchronous HEAD/range round-trip
+     * runs on the executor before the async footer read. When {@code hint} is null the object is
+     * created bare and its existence is verified up front, matching the synchronous path.
+     */
+    @Override
+    public void resolveMetadataAsync(
+        String location,
+        @Nullable ListingHint hint,
+        Map<String, Object> config,
+        Executor executor,
+        ActionListener<SourceMetadata> listener
+    ) {
+        final StorageObject storageObject;
+        final FormatReader reader;
+        try {
+            // Reject unknown configuration keys before any provider/reader work — same single source
+            // of truth as the synchronous resolveMetadata path.
+            validateConfig(location, config);
+            StoragePath storagePath = StoragePath.of(location);
+            String scheme = storagePath.scheme();
+
+            StorageProvider provider;
+            if (config != null && config.isEmpty() == false) {
+                provider = storageRegistry.createProviderTrackingConsumedKeys(
+                    scheme,
+                    settings,
+                    ExternalSourceResolver.storageConfig(config)
+                ).value();
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(config).value();
+            } else {
+                provider = storageRegistry.provider(storagePath);
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+            }
+
+            if (hint != null) {
+                storageObject = provider.newObject(storagePath, hint.length(), Instant.ofEpochMilli(hint.lastModifiedMillis()));
+            } else {
+                storageObject = provider.newObject(storagePath);
+                if (storageObject.exists() == false) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "Failed to resolve metadata for [" + location + "]",
+                            new IOException("File does not exist: " + location)
+                        )
+                    );
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        // Map an I/O failure from the async metadata read to the same IllegalArgumentException shape
+        // the synchronous path produces, so callers see identical exceptions regardless of path.
+        reader.metadataAsync(storageObject, executor, listener.delegateResponse((l, e) -> {
+            if (e instanceof IOException) {
+                l.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e));
+            } else {
+                l.onFailure(e);
+            }
+        }));
     }
 
     @Override

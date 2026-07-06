@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 import java.util.List;
 
@@ -25,6 +27,44 @@ import java.util.List;
 public final class ExternalSourceSettings {
 
     private ExternalSourceSettings() {}
+
+    /** Blob-store access concurrency per allocated processor — the {@code snapshot_meta} thread pool's slope. */
+    static final int BLOB_STORE_CONCURRENCY_PER_PROCESSOR = 3;
+
+    /**
+     * Ceiling for the CPU-derived blob-store access concurrency. Mirrors the {@code snapshot_meta} thread pool's
+     * {@code min(processors * 3, 50)} shape but lifts the cap to 100: external metadata discovery and data reads
+     * fan out over many small blobs (footers, byte ranges), so they benefit from more in-flight requests than
+     * snapshot metadata does, while still bounding the total against a single store's tolerance.
+     */
+    static final int BLOB_STORE_CONCURRENCY_CEILING = 100;
+
+    /**
+     * The default per-node concurrency for accessing an external blob store, derived from the node's allocated
+     * processors using the {@code snapshot_meta} thread pool's sizing shape ({@code processors * 3}) with a 100
+     * ceiling. This is the single source of truth for blob-store access concurrency so metadata discovery and
+     * data retrieval stay consistent: both are latency-bound I/O against object stores and should scale the same
+     * way with node size rather than each picking an ad-hoc constant.
+     */
+    public static int defaultBlobStoreConcurrency(int allocatedProcessors) {
+        return Math.min(allocatedProcessors * BLOB_STORE_CONCURRENCY_PER_PROCESSOR, BLOB_STORE_CONCURRENCY_CEILING);
+    }
+
+    /** Convenience overload resolving allocated processors from the given settings. */
+    public static int defaultBlobStoreConcurrency(Settings settings) {
+        return defaultBlobStoreConcurrency(EsExecutors.allocatedProcessors(settings));
+    }
+
+    /**
+     * The effective per-node blob-store access concurrency that every external access path should read, so one knob
+     * governs metadata discovery and data reads alike. On this branch it resolves to the CPU-bound
+     * {@link #defaultBlobStoreConcurrency(Settings)} default; once the per-query concurrency work (PR B) lands its
+     * operator setting on top, this accessor becomes the override-aware value and both paths pick that up unchanged
+     * — the call sites do not move, only this body does.
+     */
+    public static int blobStoreConcurrency(Settings settings) {
+        return defaultBlobStoreConcurrency(settings);
+    }
 
     /**
      * Maximum concurrent in-flight external-storage reads per backend, per node. Sizes the S3/Azure SDK connection

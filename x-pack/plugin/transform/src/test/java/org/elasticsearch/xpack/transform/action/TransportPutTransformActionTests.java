@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -64,6 +65,7 @@ public class TransportPutTransformActionTests extends ESTestCase {
         TransformInternalIndex.createLatestVersionedIndexIfRequired(
             clusterService,
             client,
+            ProjectId.DEFAULT,
             Settings.EMPTY,
             listener.delegateResponse((l, e) -> {
                 l.onFailure(

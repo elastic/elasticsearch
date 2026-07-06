@@ -244,8 +244,13 @@ record OrcPushedExpressions(List<Expression> expressions) {
     /**
      * Whether the file's physical ORC category at {@code columnName} can back a pruning predicate
      * for the declared ESQL {@code dataType} without the stat-stringification mis-prune described on
-     * {@link #allLeavesPhysicallyCompatible}. A column absent from this file's schema (glob drift)
-     * has no stats to prune on, so it is incompatible too.
+     * {@link #allLeavesPhysicallyCompatible}. A column absent from this file's schema (an unconvertible
+     * leaf, or glob drift) has no stats, so the mis-prune this guard prevents cannot occur — ORC
+     * evaluates a leaf on an unknown column as {@code YES_NO} (no pruning). Treat it as compatible so a
+     * partial {@code AND} still pushes its convertible, in-schema leaves (the unconvertible side is
+     * dropped by {@code canConvert}/{@code buildPredicate}); declining here would drop the whole
+     * conjunction. The mis-prune guard only bites an <b>in-schema</b> column whose physical category
+     * disagrees with the declared type.
      */
     private static boolean leafPhysicallyCompatible(
         DataType dataType,
@@ -254,7 +259,7 @@ record OrcPushedExpressions(List<Expression> expressions) {
     ) {
         TypeDescription.Category cat = columnTypes.get(columnName);
         if (cat == null) {
-            return false;
+            return true;
         }
         return switch (dataType) {
             case BOOLEAN -> cat == TypeDescription.Category.BOOLEAN;

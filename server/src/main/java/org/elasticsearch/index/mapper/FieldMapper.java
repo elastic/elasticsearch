@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -88,6 +87,19 @@ public abstract class FieldMapper extends Mapper {
      */
     public static final Setting<Boolean> DOC_VALUES_MULTI_VALUE_SETTING = Setting.boolSetting(
         "index.mapping.doc_values.multi_value",
+        true,
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
+    /**
+     * Index-level default for the {@code doc_values.nullability} field mapping parameter. When {@code false}, all fields in the index
+     * default to requiring a non-null value in every document (rejecting documents that omit the field or supply null), unless a field
+     * explicitly sets its own {@code doc_values.nullability}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled.
+     */
+    public static final Setting<Boolean> DOC_VALUES_NULLABILITY_SETTING = Setting.boolSetting(
+        "index.mapping.doc_values.nullability",
         true,
         Property.IndexScope,
         Property.Final,
@@ -225,6 +237,10 @@ public abstract class FieldMapper extends Mapper {
             if (isSingleValueEnforced()) {
                 context.enforceSingleValue(fullPath());
             }
+            if (isNullable() == false && context.parser().currentToken().isValue()) {
+                // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
+                context.markRequiredSatisfied(fullPath());
+            }
 
             parseCreateField(context);
         } catch (Exception e) {
@@ -301,6 +317,15 @@ public abstract class FieldMapper extends Mapper {
      */
     protected boolean isSingleValueEnforced() {
         return false;
+    }
+
+    /**
+     * Whether this field accepts documents that omit it or supply null (ie. {@code nullability=true}). When {@code false}, every Lucene
+     * doc must carry a non-null value or parsing fails. A configured {@code null_value} always exempts the field (it is never required),
+     * so mappers exposing {@code nullability} override this to {@code return docValuesParameters.nullability() || <hasNullValue>}.
+     */
+    public boolean isNullable() {
+        return true;
     }
 
     /**
@@ -1506,7 +1531,7 @@ public abstract class FieldMapper extends Mapper {
     public static final class DocValuesParameter extends Parameter<DocValuesParameter.Values> {
         public static final String PARAMETER_NAME = "doc_values";
 
-        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue) {
+        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue, boolean nullability) {
             public enum Cardinality {
                 LOW,
                 HIGH;
@@ -1517,10 +1542,11 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
-            public static Values DISABLED = new Values(false, Cardinality.LOW, true);
+            public static Values DISABLED = new Values(false, Cardinality.LOW, true, true);
         }
 
         public final Parameter<Boolean> multiValueParameter;
+        public final Parameter<Boolean> nullabilityParameter;
 
         /**
          * Factory for field types whose default doc_values configuration is known eagerly at construction time (numerics, dates, booleans,
@@ -1559,6 +1585,13 @@ public abstract class FieldMapper extends Mapper {
                 m -> initializer.apply(m).multiValue,
                 subParameterDefaults.multiValue
             );
+            // nullability is not updateable in order to maintain density guarantees inside segments
+            nullabilityParameter = Parameter.boolParam(
+                "nullability",
+                false,
+                m -> initializer.apply(m).nullability,
+                subParameterDefaults.nullability
+            );
         }
 
         /**
@@ -1570,10 +1603,12 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
          *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default)</li>
          *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the field</li>
+         *   <li>{@code "doc_values": { "nullability": true }} - allow documents to omit the field or supply null (default)</li>
+         *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null (sealed)</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * the multi_value setting. Cardinality is decided internally and is not user-configurable.
+         * the multi_value and nullability settings. Cardinality is decided internally and is not user-configurable.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
@@ -1581,11 +1616,18 @@ public abstract class FieldMapper extends Mapper {
                 if (valueMap.containsKey(multiValueParameter.name)) {
                     multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
                 }
+                if (valueMap.containsKey(nullabilityParameter.name)) {
+                    nullabilityParameter.parse(field, context, valueMap.get(nullabilityParameter.name));
+                }
 
-                setValue(new Values(true, getDefaultValue().cardinality(), multiValueParameter.getValue()));
+                setValue(
+                    new Values(true, getDefaultValue().cardinality(), multiValueParameter.getValue(), nullabilityParameter.getValue())
+                );
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
-                    setValue(new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue()));
+                    setValue(
+                        new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue(), getDefaultValue().nullability())
+                    );
                 } else {
                     setValue(Values.DISABLED);
                 }
@@ -1596,6 +1638,7 @@ public abstract class FieldMapper extends Mapper {
         public void setValue(Values value) {
             super.setValue(value);
             multiValueParameter.setValue(value.multiValue);
+            nullabilityParameter.setValue(value.nullability);
         }
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
@@ -1607,12 +1650,14 @@ public abstract class FieldMapper extends Mapper {
                     builder.field(name, true);
                 } else {
                     boolean multiValueConfigured = multiValueParameter.isConfigured();
-                    if (includeDefaults == false && multiValueConfigured == false) {
+                    boolean nullabilityConfigured = nullabilityParameter.isConfigured();
+                    if (includeDefaults == false && multiValueConfigured == false && nullabilityConfigured == false) {
                         // no sub-parameters were explicitly set; use the boolean shorthand to match the original source
                         builder.field(name, true);
                     } else {
                         builder.startObject(name);
                         builder.field(multiValueParameter.name, value.multiValue);
+                        builder.field(nullabilityParameter.name, value.nullability);
                         builder.endObject();
                     }
                 }
@@ -1968,34 +2013,6 @@ public abstract class FieldMapper extends Mapper {
             return DEPRECATED_PARAMS.contains(propName);
         }
 
-        /**
-         * Ensures that index sort fields don't use binary (non-sortable) doc values. If the default for a columnar index is HIGH
-         * cardinality, it is silently overridden to LOW since sort fields require sortable doc values.
-         */
-        protected static void enforceIndexSortDocValuesCompatibility(
-            String fullFieldName,
-            IndexSortConfig sortConfig,
-            DocValuesParameter docValuesParameters
-        ) {
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-                return;
-            }
-            if (sortConfig == null || sortConfig.hasIndexSort() == false || sortConfig.hasSortOnField(fullFieldName) == false) {
-                return;
-            }
-            DocValuesParameter.Values currentValues = docValuesParameters.getValue();
-            if (currentValues.cardinality() != DocValuesParameter.Values.Cardinality.HIGH) {
-                return;
-            }
-            // Default was HIGH (columnar mode) — override to LOW since sort fields require sortable doc values.
-            docValuesParameters.setValue(
-                new DocValuesParameter.Values(
-                    currentValues.enabled(),
-                    DocValuesParameter.Values.Cardinality.LOW,
-                    currentValues.multiValue()
-                )
-            );
-        }
     }
 
     /**

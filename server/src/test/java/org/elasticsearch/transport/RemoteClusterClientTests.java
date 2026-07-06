@@ -42,6 +42,7 @@ import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.elasticsearch.transport.RemoteClusterConnectionTests.startTransport;
 import static org.elasticsearch.transport.RemoteClusterServiceTests.isRemoteNodeConnected;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -134,6 +135,85 @@ public class RemoteClusterClientTests extends ESTestCase {
                     listener -> client.execute(TransportSearchScrollAction.REMOTE_TYPE, new SearchScrollRequest(""), listener)
                 );
                 assertEquals("No handler for action [indices:data/read/scroll]", ex.getMessage());
+            }
+        }
+    }
+
+    /**
+     * If the remote connection needs to be re-established (e.g. because it dropped) and the reconnect attempt
+     * fails, {@link RemoteClusterAwareClient#getConnection} completes its listener on whatever thread the
+     * connect attempt failed on, not on the caller-supplied response executor. Regression test for a case where
+     * that failure used to skip the executor guarantee entirely.
+     */
+    public void testGetConnectionFailureCompletesOnResponseExecutor() {
+        Settings remoteSettings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster").build();
+        try (
+            MockTransportService remoteTransport = startTransport(
+                "remote_node",
+                Collections.emptyList(),
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                remoteSettings
+            )
+        ) {
+            DiscoveryNode remoteNode = remoteTransport.getLocalNode();
+            Settings localSettings = Settings.builder()
+                .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
+                .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
+                .build();
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    localSettings,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
+                    threadPool,
+                    null
+                )
+            ) {
+                service.start();
+                service.acceptIncomingRequests();
+                RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+                assertTrue(isRemoteNodeConnected(remoteClusterService, "test", remoteNode));
+
+                // force the connection manager to lose its connection so the next getConnection() call
+                // must go through ensureConnected()'s reconnect path
+                safeAwait(l -> {
+                    ConnectionManager connectionManager = remoteClusterService.getRemoteClusterConnection("test").getConnectionManager();
+                    Transport.Connection connection = connectionManager.getConnection(remoteNode);
+                    connection.addCloseListener(l.map(v -> v));
+                    connectionManager.disconnectFromNode(remoteNode);
+                });
+
+                // make the reconnect attempt fail on a background thread. It must be a genuinely async
+                // completion (not inline) or SubscribableListener#addListener(listener, executor, threadContext)
+                // wouldn't fork at all, since it only forks when the upstream doesn't complete synchronously -
+                // and then the test would pass trivially regardless of whether the fix exists.
+                service.addConnectBehavior(
+                    remoteTransport,
+                    (transport, discoveryNode, profile, listener) -> threadPool.generic()
+                        .execute(() -> listener.onFailure(new ConnectTransportException(discoveryNode, "simulated")))
+                );
+
+                var client = remoteClusterService.getRemoteClusterClient(
+                    "test",
+                    threadPool.executor(TEST_THREAD_POOL_NAME),
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                );
+
+                // call getConnection() directly: it's the choke point both #execute(action, request, listener)
+                // and callers that manage the connection themselves go through.
+                safeAwaitFailure(
+                    ConnectTransportException.class,
+                    Transport.Connection.class,
+                    listener -> client.getConnection(
+                        null,
+                        ActionListener.runBefore(
+                            listener,
+                            () -> assertThat(Thread.currentThread().getName(), containsString('[' + TEST_THREAD_POOL_NAME + ']'))
+                        )
+                    )
+                );
             }
         }
     }

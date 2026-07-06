@@ -29,9 +29,11 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -51,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
@@ -414,9 +417,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     protected boolean isRuntimeSearch() {
-        return EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled()
-            && configuration.pragmas().runtimeLexicalSearch()
-            && fieldAsFieldAttribute() == null;
+        return configuration.pragmas().runtimeLexicalSearch() && fieldAsFieldAttribute() == null;
     }
 
     @Override
@@ -425,6 +426,52 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return Translatable.NO;
         }
         return super.translatable(pushdownPredicates);
+    }
+
+    @Override
+    protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+        super.fieldVerifier(plan, function, field, failures);
+        if (isRuntimeSearch() == false) {
+            return;
+        }
+        if (options() != null) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "Options are not supported for [MATCH] function call on non-index-mapped field [" + field.sourceText() + "]"
+                )
+            );
+        }
+        // The query value can only be converted to the field's runtime type once it has been folded down to a
+        // Literal; if it hasn't yet (e.g. pre-optimization), this check is skipped here and retried once
+        // postOptimizationPlanVerification runs.
+        if (query() instanceof Literal) {
+            try {
+                verifyRuntimeQueryValue();
+            } catch (InvalidArgumentException | IllegalArgumentException e) {
+                failures.add(
+                    Failure.fail(
+                        query(),
+                        "[MATCH] query value [{}] does not match the type ([{}]) of non-index-mapped field [{}]",
+                        query().sourceText(),
+                        field.dataType().typeName(),
+                        field.sourceText()
+                    )
+                );
+            }
+        }
+    }
+
+    /**
+     * Verifies that the (foldable) query value can be converted to the runtime field's type, throwing if not.
+     * Only used for {@link #isRuntimeSearch()}. The converted value itself is discarded here; it's recomputed
+     * (cheaply, since the query value is a constant) by {@link #queryAsRuntimeSearchValue} when building the evaluator.
+     */
+    private void verifyRuntimeQueryValue() {
+        if (field.dataType() == TEXT) {
+            return;
+        }
+        queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));
     }
 
     @Override

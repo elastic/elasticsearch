@@ -202,6 +202,15 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
         return findRandomNode(nodeVersionSpec -> versionPredicate.test(Version.fromString(nodeVersionSpec.version())));
     }
 
+    /**
+     * Try and get a random upgraded node from the cluster.
+     * <p>
+     * Note that these tests sometimes run a no-op upgrade where the old version and new version are the same. In
+     * this scenario, all nodes match the predicate {@link #isOldClusterVersion(String, String)}. This method will
+     * return any random node in that scenario.
+     *
+     * @return A random upgraded node, or any random node if all nodes are running the same verison
+     */
     private NodeVersionSpec tryGetUpgradedNode() throws IOException {
         var matchingNodeSpec = findRandomNode(
             nodeVersionSpec -> isOldClusterVersion(nodeVersionSpec.version(), nodeVersionSpec.buildHash()) == false

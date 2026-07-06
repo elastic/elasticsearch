@@ -2,7 +2,7 @@ area: TSDB
 highlight:
   body: |-
     Introduce `IndexMode.TSDB` as a new, first-class index mode for metrics.
-    It currently behaves identically to `TIME_SERIES`, so `index.mode: tsdb` 
+    It behaves identically to `TIME_SERIES`, so `index.mode: tsdb` 
     is now accepted anywhere `index.mode: time_series` is — without renaming 
     or changing anything about existing `time_series` indices. The querying 
     experience and downsampling support remains seamless, regardless of the 

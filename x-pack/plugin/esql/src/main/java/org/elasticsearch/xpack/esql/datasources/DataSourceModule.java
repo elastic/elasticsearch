@@ -73,7 +73,7 @@ public final class DataSourceModule implements Closeable {
         BlockFactory blockFactory,
         ExecutorService executor,
         DataSourceCredentials credentials,
-        BooleanSupplier workloadIdentityEnabled
+        BooleanSupplier managedIdentityEnabled
     ) {
         this(
             dataSourcePlugins,
@@ -82,11 +82,12 @@ public final class DataSourceModule implements Closeable {
             blockFactory,
             executor,
             credentials,
-            workloadIdentityEnabled,
+            managedIdentityEnabled,
             null,
             null,
             null,
-            null
+            null,
+            LocalFileAccess.UNRESTRICTED
         );
     }
 
@@ -97,21 +98,58 @@ public final class DataSourceModule implements Closeable {
         BlockFactory blockFactory,
         ExecutorService executor,
         DataSourceCredentials credentials,
-        BooleanSupplier workloadIdentityEnabled,
+        BooleanSupplier managedIdentityEnabled,
         @Nullable ThreadPool threadPool,
         @Nullable Environment environment,
         @Nullable ResourceWatcherService resourceWatcherService,
         @Nullable MeterRegistry meterRegistry
     ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            threadPool,
+            environment,
+            resourceWatcherService,
+            meterRegistry,
+            LocalFileAccess.UNRESTRICTED
+        );
+    }
+
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry,
+        LocalFileAccess localFileAccess
+    ) {
         this.capabilities = capabilities;
         // Node telemetry sink for external-source read metrics; NOOP when no registry is supplied (tests).
         this.externalSourceMetrics = meterRegistry == null ? ExternalSourceMetrics.NOOP : new ExternalSourceMetrics(meterRegistry);
+        LocalFileAccess effectiveLocalFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         // Off-timer scheduler for the async read-retry backoff, so a retry does not park a GENERIC-pool thread on
         // Thread.sleep while it waits; DIRECT (run promptly on the executor) when no ThreadPool is supplied (tests).
         RetryScheduler retryScheduler = threadPool == null
             ? RetryScheduler.DIRECT
             : (command, delayMillis, exec) -> threadPool.schedule(command, TimeValue.timeValueMillis(Math.max(0L, delayMillis)), exec);
-        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials, workloadIdentityEnabled, retryScheduler);
+        this.storageProviderRegistry = new StorageProviderRegistry(
+            settings,
+            credentials,
+            managedIdentityEnabled,
+            retryScheduler,
+            effectiveLocalFileAccess
+        );
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
@@ -250,6 +288,7 @@ public final class DataSourceModule implements Closeable {
             settings,
             executor,
             blockFactory,
+            effectiveLocalFileAccess,
             externalSourceMetrics
         );
         sourceFactoryMap.put("file", fileFallback);

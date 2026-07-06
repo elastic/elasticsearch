@@ -39,13 +39,13 @@ import java.util.function.BooleanSupplier;
  * so heavy dependencies (S3 client, HTTP client, etc.) are only loaded when
  * an EXTERNAL query actually targets that backend.
  *
- * <p>All providers are automatically wrapped with retry logic for transient storage
- * failures (503, 429, connection resets, timeouts). Wrap order:
- * {@code caller → Retryable(with adaptive backoff) → raw provider}
+ * <p>All non-file providers are automatically wrapped with per-scheme concurrency limiting and retry logic for
+ * transient storage failures (503, 429, connection resets, timeouts). Wrap order:
+ * {@code caller → Retryable(with adaptive backoff) → ConcurrencyLimited → raw provider}
  *
- * <p>Adaptive backoff state is shared per-throttle-scope across all providers
- * (including per-query config providers), because cloud API rate limits are per
- * account/IP, not per client instance.
+ * <p>Concurrency limiters are shared per-scheme and adaptive backoff state is shared per-throttle-scope across all
+ * providers (including per-query config providers), because cloud API rate limits are per account/IP, not per client
+ * instance.
  *
  * <p>Registration methods are intended for single-threaded initialization only
  * (called from the {@link DataSourceModule} constructor).
@@ -59,50 +59,76 @@ public class StorageProviderRegistry implements Closeable {
     private final List<StorageProvider> createdProviders = new ArrayList<>();
 
     private final Map<String, RetryPolicy> scopedPolicies = new ConcurrentHashMap<>();
+    // Per-scheme in-flight-read permit semaphores and their per-query budget allocators. Shared per-scheme across
+    // all providers (including per-query config providers): cloud API rate limits are per account/IP, not per client.
+    private final Map<String, ConcurrencyLimiter> limiters = new ConcurrentHashMap<>();
+    private final Map<String, ConcurrencyBudgetAllocator> allocators = new ConcurrentHashMap<>();
 
     // Cache for providers created with a non-empty per-query configuration map.
     // Avoids reconstructing cloud clients (S3, GCS, Azure) for repeated calls with the same config.
     private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
-    private final BooleanSupplier workloadIdentityEnabled;
+    private final BooleanSupplier managedIdentityEnabled;
     /** Decrypts data-source secrets at the single provider-build chokepoint; {@code null} in tests with no encryption. */
     @Nullable
     private final DataSourceCredentials credentials;
     private final int throttleMaxRetryDurationSeconds;
+    /** Per-node in-flight-read permit count sizing each per-scheme {@link ConcurrencyLimiter}; 0 disables limiting. */
+    private final int maxConcurrentRequests;
     /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
     private final RetryScheduler retryScheduler;
+    /**
+     * Gate for {@code file://} local-disk reads. Defaults to {@link LocalFileAccess#UNRESTRICTED} in
+     * test-only constructors; production always goes through the five-argument constructor via {@code DataSourceModule}.
+     */
+    private final LocalFileAccess localFileAccess;
 
     public StorageProviderRegistry(Settings settings) {
         this(settings, null);
     }
 
     /**
-     * Test-only convenience constructor. The default {@code workloadIdentityEnabled} supplier reads the cluster
+     * Test-only convenience constructor. The default {@code managedIdentityEnabled} supplier reads the cluster
      * setting directly and does <b>not</b> apply the stateless gate that production wiring enforces in
      * {@code EsqlPlugin} (where the boolean is forced to {@code false} when {@code DiscoveryNode.isStateless}).
-     * Production always goes through the four-argument constructor via {@code DataSourceModule}.
+     * Similarly, {@code localFileAccess} defaults to {@link LocalFileAccess#UNRESTRICTED} and does <b>not</b>
+     * apply the stateless gate or the allowlist from {@code ExternalSourceSettings#LOCAL_ALLOWED_PATHS}.
+     * Production always goes through the five-argument constructor via {@code DataSourceModule}.
      */
     public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials) {
         this(
             settings,
             credentials,
-            () -> ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings != null ? settings : Settings.EMPTY),
-            RetryScheduler.DIRECT
+            () -> ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings != null ? settings : Settings.EMPTY),
+            RetryScheduler.DIRECT,
+            LocalFileAccess.UNRESTRICTED
         );
     }
 
     public StorageProviderRegistry(
         Settings settings,
         @Nullable DataSourceCredentials credentials,
-        BooleanSupplier workloadIdentityEnabled,
+        BooleanSupplier managedIdentityEnabled,
         RetryScheduler retryScheduler
+    ) {
+        this(settings, credentials, managedIdentityEnabled, retryScheduler, LocalFileAccess.UNRESTRICTED);
+    }
+
+    public StorageProviderRegistry(
+        Settings settings,
+        @Nullable DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        RetryScheduler retryScheduler,
+        LocalFileAccess localFileAccess
     ) {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.credentials = credentials;
-        this.workloadIdentityEnabled = workloadIdentityEnabled;
+        this.managedIdentityEnabled = managedIdentityEnabled;
         this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
+        this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
+        this.maxConcurrentRequests = ExternalSourceSettings.blobStoreConcurrency(this.settings);
     }
 
     public void registerFactory(String scheme, StorageProviderFactory factory) {
@@ -119,6 +145,11 @@ public class StorageProviderRegistry implements Closeable {
         if (path == null) {
             throw new IllegalArgumentException("Path cannot be null");
         }
+
+        // Defense-in-depth: validate file:// access (disabled gate or path outside allowlist) before
+        // returning the provider. This covers the bare-read data-node path and coordinator resolveMetadata
+        // with an empty config map, both of which bypass createProviderTrackingConsumedKeys.
+        localFileAccess.check(path);
 
         String scheme = path.scheme().toLowerCase(Locale.ROOT);
         StorageProvider provider = providers.get(scheme);
@@ -160,6 +191,13 @@ public class StorageProviderRegistry implements Closeable {
     public Configured<StorageProvider> createProviderTrackingConsumedKeys(String scheme, Settings settings, Map<String, Object> config) {
         String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
 
+        // Gate file:// on the local-disk allowlist before any config work. This covers the inline-WITH path
+        // on data nodes where no coordinator-side validateConfig runs. The path-aware check already fired at
+        // planning time in FileSourceFactory.validateConfig; this is defense-in-depth for the scheme.
+        if (normalizedScheme.equals("file") && localFileAccess.enabled() == false) {
+            throw new IllegalArgumentException(LocalFileAccess.LOCAL_DISK_DISABLED_MESSAGE);
+        }
+
         // Flatten the _datasource sub-map and decrypt any encrypted secrets here, so every provider
         // construction path gets plaintext credentials regardless of how it assembled its config.
         config = ExternalSourceResolver.storageConfig(config);
@@ -180,11 +218,11 @@ public class StorageProviderRegistry implements Closeable {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
 
-        // Gate auth=workload_identity on the cluster setting before constructing the provider. This covers the
+        // Gate auth=managed_identity on the cluster setting before constructing the provider. This covers the
         // inline-WITH path where no PUT-datasource validation runs.
-        if (FileDataSourceConfiguration.isWorkloadIdentityAuth(storageConfig.get("auth"))
-            && workloadIdentityEnabled.getAsBoolean() == false) {
-            throw new IllegalArgumentException(FileDataSourceConfiguration.WORKLOAD_IDENTITY_DISABLED_MESSAGE);
+        if (FileDataSourceConfiguration.isManagedIdentityAuth(storageConfig.get("auth"))
+            && managedIdentityEnabled.getAsBoolean() == false) {
+            throw new IllegalArgumentException(FileDataSourceConfiguration.MANAGED_IDENTITY_DISABLED_MESSAGE);
         }
 
         // Cache providers by (scheme, storageConfig) so queries with the same configuration map
@@ -195,7 +233,7 @@ public class StorageProviderRegistry implements Closeable {
         try {
             return configuredProviderCache.getOrCreate(cacheKey, () -> {
                 Configured<StorageProvider> raw = factory.createTrackingConsumedKeys(settings, storageConfig);
-                return new Configured<>(wrapProvider(raw.value()), raw.consumedKeys());
+                return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys());
             });
         } catch (RuntimeException e) {
             throw e;
@@ -227,18 +265,41 @@ public class StorageProviderRegistry implements Closeable {
         if (factory == null) {
             throw new IllegalArgumentException("No storage provider registered for scheme: " + normalizedScheme);
         }
-        provider = wrapProvider(factory.create(settings));
+        provider = wrapProvider(factory.create(settings), normalizedScheme);
         providers.put(normalizedScheme, provider);
         createdProviders.add(provider);
         return provider;
     }
 
-    private StorageProvider wrapProvider(StorageProvider provider) {
-        // The adaptive backoff is selected per throttle scope (per-bucket/account) at read time, not baked in here:
-        // a hot bucket backs off only its own traffic, not every read on the same store. The retry/backoff layer is
-        // inert for file:// (local reads raise plain IOExceptions, never the throttling-typed
-        // ExternalUnavailableException it retries on).
-        return new RetryableStorageProvider(provider, retryScheduler, this::retryPolicyForScope);
+    private StorageProvider wrapProvider(StorageProvider provider, String scheme) {
+        // Wrap order: caller -> Retryable(per-scope adaptive backoff) -> ConcurrencyLimited(per-scheme permits) -> raw.
+        // The permit semaphore bounds in-flight reads per scheme; file:// is exempt (local reads are not rate-limited
+        // and raise plain IOExceptions, never the throttling-typed ExternalUnavailableException the retry layer acts
+        // on). The adaptive backoff is selected per throttle scope (per-bucket/account) at read time, so a hot bucket
+        // backs off only its own traffic, not every read on the same store.
+        StorageProvider bounded = "file".equals(scheme)
+            ? provider
+            : new ConcurrencyLimitedStorageProvider(provider, limiterForScheme(scheme));
+        return new RetryableStorageProvider(bounded, retryScheduler, this::retryPolicyForScope);
+    }
+
+    /**
+     * Per-query concurrency budget allocator for the given scheme, or {@code null} when per-query budgeting does not
+     * apply (file scheme, or permit limiting disabled via {@code max_concurrent_requests=0}). Shared per-scheme so a
+     * single query cannot starve others on the same backend.
+     */
+    public ConcurrencyBudgetAllocator allocatorForScheme(String scheme) {
+        if ("file".equals(scheme) || maxConcurrentRequests <= 0) {
+            return null;
+        }
+        return allocators.computeIfAbsent(scheme, k -> new ConcurrencyBudgetAllocator(maxConcurrentRequests));
+    }
+
+    private ConcurrencyLimiter limiterForScheme(String scheme) {
+        return limiters.computeIfAbsent(
+            scheme,
+            k -> maxConcurrentRequests <= 0 ? ConcurrencyLimiter.UNLIMITED : new ConcurrencyLimiter(maxConcurrentRequests)
+        );
     }
 
     private RetryPolicy retryPolicyForScope(StoragePath path) {

@@ -78,6 +78,6 @@ final class RemoteClusterAwareClient implements RemoteClusterClient {
                 }
             })
 
-            .addListener(listener);
+            .addListener(listener, responseExecutor, service.getThreadPool().getThreadContext());
     }
 }

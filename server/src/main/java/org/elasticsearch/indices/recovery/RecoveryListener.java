@@ -10,10 +10,12 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 public interface RecoveryListener {
     RecoveryListener NOOP = new RecoveryListener() {
@@ -43,6 +45,35 @@ public interface RecoveryListener {
 
     /// Called when recovery has been internally aborted, usually due to shard closure or shard relocation
     void onRecoveryAborted();
+
+    static RecoveryListener wrapPreservingContext(RecoveryListener listener, Supplier<ThreadContext.StoredContext> context) {
+        return new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                try (ThreadContext.StoredContext ignore = context.get()) {
+                    listener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+                }
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                try (ThreadContext.StoredContext ignore = context.get()) {
+                    listener.onRecoveryFailure(e, sendShardFailure);
+                }
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                try (ThreadContext.StoredContext ignore = context.get()) {
+                    listener.onRecoveryAborted();
+                }
+            }
+        };
+    }
 
     static RecoveryListener runAfter(RecoveryListener listener, Runnable runAfter) {
         return new RecoveryListener() {

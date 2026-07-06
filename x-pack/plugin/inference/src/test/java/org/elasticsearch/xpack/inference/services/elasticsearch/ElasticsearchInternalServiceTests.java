@@ -26,13 +26,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -2052,7 +2052,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             cs,
             Settings.builder().put("xpack.ml.enabled", false).build(),
             inferenceStats,
-            mock(InferenceFeatureService.class)
+            mock(FeatureService.class)
         );
         try (var service = new ElasticsearchInternalService(context)) {
             var models = List.of(mock(Model.class));
@@ -2099,7 +2099,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             cs,
             Settings.builder().put("xpack.ml.enabled", true).build(),
             inferenceStats,
-            mock(InferenceFeatureService.class)
+            mock(FeatureService.class)
         );
         try (var service = new ElasticsearchInternalService(context)) {
             List<Model> models = List.of(model);
@@ -2244,7 +2244,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             clusterService,
             Settings.EMPTY,
             inferenceStats,
-            mock(InferenceFeatureService.class)
+            mock(FeatureService.class)
         );
         var service = new ElasticsearchInternalService(context);
 
@@ -2289,7 +2289,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             clusterService,
             Settings.EMPTY,
             inferenceStats,
-            mock(InferenceFeatureService.class)
+            mock(FeatureService.class)
         );
         var service = new ElasticsearchInternalService(context);
 
@@ -2341,7 +2341,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             cs,
             Settings.EMPTY,
             inferenceStats,
-            mock(InferenceFeatureService.class)
+            mock(FeatureService.class)
         );
         return new ElasticsearchInternalService(context);
     }
@@ -2397,7 +2397,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             mock(ClusterService.class),
             Settings.EMPTY,
             inferenceStats,
-            mock(InferenceFeatureService.class)
+            mock(FeatureService.class)
         );
         return new ElasticsearchInternalService(context, l -> l.onResponse(modelVariant));
     }

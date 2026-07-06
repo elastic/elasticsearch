@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.test.ESTestCase;
@@ -132,10 +131,9 @@ public class ElasticInferenceServiceCompletionModelCreatorTests extends ESTestCa
     private static ElasticInferenceServiceCompletionModelCreator createCreator(boolean hasReasoningFeature) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState(hasReasoningFeature));
-        var inferenceFeatureService = new InferenceFeatureService(clusterService, FEATURE_SERVICE);
         return new ElasticInferenceServiceCompletionModelCreator(
             ElasticInferenceServiceComponents.of(URL),
-            new CompletionCompatibilityService(inferenceFeatureService)
+            new CompletionCompatibilityService(clusterService, FEATURE_SERVICE)
         );
     }
 

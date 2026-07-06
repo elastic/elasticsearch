@@ -13,10 +13,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceFeatureService;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -70,7 +71,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         AuthenticationFactory authFactory,
         CCMFeature ccmFeature,
         CCMService ccmService,
-        InferenceFeatureService inferenceFeatureService
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         this(
             baseUrl,
@@ -79,7 +81,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             authFactory,
             ccmFeature,
             ccmService,
-            inferenceFeatureService
+            clusterService,
+            featureService
         );
     }
 
@@ -91,7 +94,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         AuthenticationFactory authFactory,
         CCMFeature ccmFeature,
         CCMService ccmService,
-        InferenceFeatureService inferenceFeatureService
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         this.baseUrl = baseUrl;
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -99,7 +103,10 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         this.authFactory = Objects.requireNonNull(authFactory);
         this.ccmFeature = Objects.requireNonNull(ccmFeature);
         this.ccmService = Objects.requireNonNull(ccmService);
-        this.completionCompatibilityService = new CompletionCompatibilityService(Objects.requireNonNull(inferenceFeatureService));
+        this.completionCompatibilityService = new CompletionCompatibilityService(
+            Objects.requireNonNull(clusterService),
+            Objects.requireNonNull(featureService)
+        );
     }
 
     /**

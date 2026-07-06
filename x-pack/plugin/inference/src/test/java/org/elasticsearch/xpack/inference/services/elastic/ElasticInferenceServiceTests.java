@@ -26,7 +26,6 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -2011,7 +2010,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             clusterService,
             Settings.EMPTY,
             mock(),
-            new InferenceFeatureService(clusterService, FEATURE_SERVICE)
+            FEATURE_SERVICE
         );
     }
 

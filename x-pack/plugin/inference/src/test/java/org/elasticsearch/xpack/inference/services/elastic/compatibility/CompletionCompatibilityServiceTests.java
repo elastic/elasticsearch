@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.Reasoning;
@@ -262,7 +261,7 @@ public class CompletionCompatibilityServiceTests extends ESTestCase {
     private static CompletionCompatibilityService createCompatibilityService(boolean hasReasoningFeature) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState(hasReasoningFeature));
-        return new CompletionCompatibilityService(new InferenceFeatureService(clusterService, FEATURE_SERVICE));
+        return new CompletionCompatibilityService(clusterService, FEATURE_SERVICE);
     }
 
     private static ClusterState clusterState(boolean hasReasoningFeature) {

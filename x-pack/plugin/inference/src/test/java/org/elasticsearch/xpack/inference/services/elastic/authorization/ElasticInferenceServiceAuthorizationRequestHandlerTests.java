@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceFeatureService;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -94,6 +94,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
             createFeatureService()
         );
 
@@ -124,6 +125,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
             createFeatureService()
         );
 
@@ -155,6 +157,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
             createFeatureService()
         );
 
@@ -216,6 +219,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
             createFeatureService()
         );
 
@@ -285,6 +289,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
             createFeatureService()
         );
 
@@ -328,6 +333,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
             createFeatureService()
         );
 
@@ -396,6 +402,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
             createFeatureService()
         );
 
@@ -435,6 +442,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
             createFeatureService()
         );
 
@@ -473,6 +481,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createApplierFactory(secret),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
             createFeatureService()
         );
 
@@ -516,6 +525,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
             createFeatureService()
         );
 
@@ -563,6 +573,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
             createFeatureService()
         );
 
@@ -583,9 +594,9 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
 
     // The tests in this class exercise auth retrieval, not the reasoning task settings, so a fully-upgraded
     // feature service is used throughout to match the expected endpoints built with ImmutableEmptyTaskSettings.
-    private static InferenceFeatureService createFeatureService() {
-        var featureService = mock(InferenceFeatureService.class);
-        when(featureService.hasFeature(any())).thenReturn(true);
+    private static FeatureService createFeatureService() {
+        var featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
         return featureService;
     }
 

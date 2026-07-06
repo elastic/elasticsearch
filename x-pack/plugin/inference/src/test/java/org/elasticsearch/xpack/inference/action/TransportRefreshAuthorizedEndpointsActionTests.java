@@ -12,9 +12,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
@@ -354,7 +356,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
                 ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(endpoints, removedEndpoints),
                     url,
-                    new CompletionCompatibilityService(inferenceFeatureServiceMock)
+                    new CompletionCompatibilityService(mock(ClusterService.class), mock(FeatureService.class))
                 )
             );
             return Void.TYPE;

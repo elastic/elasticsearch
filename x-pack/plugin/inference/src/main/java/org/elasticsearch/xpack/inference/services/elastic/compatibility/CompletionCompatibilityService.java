@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.inference.services.elastic.compatibility;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
@@ -32,9 +33,11 @@ public class CompletionCompatibilityService {
         The reasoning field in task_settings is not supported by all nodes in the cluster; \
         please finish upgrading before using the reasoning field""";
 
-    private final InferenceFeatureService featureService;
+    private final ClusterService clusterService;
+    private final FeatureService featureService;
 
-    public CompletionCompatibilityService(InferenceFeatureService featureService) {
+    public CompletionCompatibilityService(ClusterService clusterService, FeatureService featureService) {
+        this.clusterService = Objects.requireNonNull(clusterService);
         this.featureService = Objects.requireNonNull(featureService);
     }
 
@@ -44,7 +47,7 @@ public class CompletionCompatibilityService {
     public InferenceService.ClusterCompatibility clusterCompatibility(ClusterState state, ElasticInferenceServiceModel model) {
         if (model.getTaskSettings() instanceof ElasticInferenceServiceChatCompletionTaskSettings ts
             && ts.isEmpty() == false
-            && featureService.hasFeature(state, InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS) == false) {
+            && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS) == false) {
             return InferenceService.ClusterCompatibility.unsupported(REASONING_FIELD_UNSUPPORTED_MESSAGE);
         }
 
@@ -74,7 +77,7 @@ public class CompletionCompatibilityService {
      * fully upgraded we can emit {@link ImmutableEmptyTaskSettings}.
      */
     public TaskSettings emptyCompletionTaskSettings() {
-        return featureService.hasFeature(InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS)
+        return featureService.clusterHasFeature(clusterService.state(), InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS)
             ? ImmutableEmptyTaskSettings.INSTANCE
             : EnforcingEmptyTaskSettings.INSTANCE;
     }
@@ -90,7 +93,10 @@ public class CompletionCompatibilityService {
         // solves this: it serializes exactly like EmptyTaskSettings (old nodes read it back as such) but still rejects unknown
         // settings when updated, unlike EmptyTaskSettings itself.
         // Once the cluster is updated, we can begin returning ImmutableEmptyTaskSettings for Completion
-        if (featureService.hasFeature(InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS) == false) {
+        if (featureService.clusterHasFeature(
+            clusterService.state(),
+            InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS
+        ) == false) {
             return new EnforceEmptyTaskSettingsStrategy(taskType);
         }
 

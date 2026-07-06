@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
@@ -80,9 +81,10 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
     private static final CompletionCompatibilityService MIXED_CLUSTER_COMPAT_SERVICE = createCompatibilityService(false);
 
     private static CompletionCompatibilityService createCompatibilityService(boolean hasReasoningFeature) {
-        var inferenceFeatureService = mock(InferenceFeatureService.class);
-        when(inferenceFeatureService.hasFeature(any())).thenReturn(hasReasoningFeature);
-        return new CompletionCompatibilityService(inferenceFeatureService);
+        var clusterService = mock(ClusterService.class);
+        var featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(hasReasoningFeature);
+        return new CompletionCompatibilityService(clusterService, featureService);
     }
 
     public void testOf_ChatCompletionEndpoint_FullyUpgraded_UsesImmutableEmptyTaskSettings() {

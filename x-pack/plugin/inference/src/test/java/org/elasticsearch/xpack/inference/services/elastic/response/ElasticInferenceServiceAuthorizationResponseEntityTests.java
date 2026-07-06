@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
@@ -1060,8 +1061,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
     // The expected endpoints in this class are built with ImmutableEmptyTaskSettings, so a fully-upgraded
     // feature service is used to match that when building an authorization model from a parsed response.
     private static CompletionCompatibilityService createFullyUpgradedCompletionCompatibilityService() {
-        var inferenceFeatureService = mock(InferenceFeatureService.class);
-        when(inferenceFeatureService.hasFeature(any())).thenReturn(true);
-        return new CompletionCompatibilityService(inferenceFeatureService);
+        var clusterService = mock(ClusterService.class);
+        var featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        return new CompletionCompatibilityService(clusterService, featureService);
     }
 }

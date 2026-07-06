@@ -457,7 +457,7 @@ public class InferencePlugin extends Plugin
             services.clusterService(),
             settings,
             inferenceStats,
-            inferenceFeatureService
+            services.featureService()
         );
 
         // Both oauth2TokenCache and projectResolver must be set before InferenceServiceRegistry is
@@ -554,7 +554,8 @@ public class InferencePlugin extends Plugin
             ccmAuthApplierFactory,
             ccmFeature,
             ccmService,
-            inferenceFeatureService
+            services.clusterService(),
+            services.featureService()
         );
 
         var authTaskExecutor = AuthorizationTaskExecutor.create(

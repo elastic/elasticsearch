@@ -124,7 +124,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             elasticInferenceServiceSettings,
             context,
             ccmAuthApplierFactory,
-            new CompletionCompatibilityService(context.inferenceFeatureService())
+            new CompletionCompatibilityService(context.clusterService(), context.featureService())
         );
     }
 

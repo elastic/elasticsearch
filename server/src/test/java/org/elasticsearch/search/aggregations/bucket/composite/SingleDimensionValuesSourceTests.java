@@ -27,8 +27,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -95,28 +93,69 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
-    public void testOrdinalsNeverProduceSortedDocs() {
-        // The ordinal source orders on per-segment ordinals and never drives collection through a SortedDocsProducer.
-        final IndexReader reader = mockIndexReader(1, 1);
-        for (MappedFieldType fieldType : List.of(new KeywordFieldMapper.KeywordFieldType("keyword"), new IpFieldMapper.IpFieldType("ip"))) {
-            try (
-                SegmentOrdinalValuesSource source = new SegmentOrdinalValuesSource(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    bytes -> {},
-                    fieldType,
-                    context -> null,
-                    DocValueFormat.RAW,
-                    randomBoolean(),
-                    MissingOrder.DEFAULT,
-                    1,
-                    randomFrom(1, -1)
-                )
-            ) {
-                assertNull(source.createSortedDocsProducerOrNull(reader, Queries.ALL_DOCS_INSTANCE));
-                assertNull(source.createSortedDocsProducerOrNull(reader, null));
-                assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term(fieldType.name(), "toto"))));
-            }
-        }
+    public void testGlobalOrdinalsSorted() {
+        final MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
+        GlobalOrdinalValuesSource source = new GlobalOrdinalValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            keyword,
+            0L,
+            context -> null,
+            DocValueFormat.RAW,
+            false,
+            MissingOrder.DEFAULT,
+            1,
+            1
+        );
+        assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
+        IndexReader reader = mockIndexReader(1, 1);
+        assertNotNull(source.createSortedDocsProducerOrNull(reader, Queries.ALL_DOCS_INSTANCE));
+        assertNotNull(source.createSortedDocsProducerOrNull(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
+
+        source = new GlobalOrdinalValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            keyword,
+            0L,
+            context -> null,
+            DocValueFormat.RAW,
+            true,
+            MissingOrder.DEFAULT,
+            1,
+            1
+        );
+        assertNull(source.createSortedDocsProducerOrNull(reader, Queries.ALL_DOCS_INSTANCE));
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
+
+        source = new GlobalOrdinalValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            keyword,
+            0L,
+            context -> null,
+            DocValueFormat.RAW,
+            false,
+            MissingOrder.DEFAULT,
+            1,
+            -1
+        );
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
+
+        final MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
+        source = new GlobalOrdinalValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            ip,
+            0L,
+            context -> null,
+            DocValueFormat.RAW,
+            false,
+            MissingOrder.DEFAULT,
+            1,
+            1
+        );
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
+        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
     }
 
     public void testNumericSorted() {

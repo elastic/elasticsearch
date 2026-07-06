@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -108,6 +109,59 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
     }
 
+    /**
+     * Wraps a query so that its {@link Weight} is an {@link IndicesQueryCache.OptionalCachingWeight} - the mechanism
+     * doc-partitioning uses to let a single slice populate the per-segment cache while the others fall back to an
+     * uncached scorer. When {@code grantCaching} is {@code false}, {@code startCaching} returns {@code null} to decline
+     * the claim, exactly as a losing slice would.
+     */
+    private static class OptionalCachingQuery extends Query {
+
+        private final Query delegate;
+        private final boolean grantCaching;
+
+        OptionalCachingQuery(Query delegate, boolean grantCaching) {
+            this.delegate = delegate;
+            this.grantCaching = grantCaching;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            Weight inner = delegate.createWeight(searcher, scoreMode, boost);
+            return new IndicesQueryCache.OptionalCachingWeight(inner) {
+                @Override
+                protected Releasable startCaching(LeafReaderContext leaf) {
+                    if (grantCaching) {
+                        return () -> {};
+                    }
+                    return null;
+                }
+            };
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            delegate.visit(visitor);
+        }
+
+        @Override
+        public String toString(String field) {
+            return "optional_caching(" + delegate.toString(field) + ")";
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj)
+                && grantCaching == ((OptionalCachingQuery) obj).grantCaching
+                && delegate.equals(((OptionalCachingQuery) obj).delegate);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * (31 * classHash() + delegate.hashCode()) + Boolean.hashCode(grantCaching);
+        }
+    }
+
     public void testBasics() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
@@ -177,6 +231,51 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertEquals(0L, stats.getMissCount());
 
         cache.close(); // this triggers some assertions
+    }
+
+    /**
+     * Doc-partitioning lets concurrent slices of the same segment race to populate the cache through an
+     * {@link IndicesQueryCache.OptionalCachingWeight}: only the slice that wins {@code startCaching} populates the
+     * cache, the rest fall back to an uncached scorer. This checks the cache honors that gate - the seam that
+     * previously required forking {@code LRUQueryCache} and is now provided upstream by Lucene 10.5 (apache/lucene#15723).
+     */
+    public void testOptionalCachingWeightGatesCachePopulation() throws IOException {
+        // winning the startCaching claim -> the segment is populated into the cache
+        assertEquals(1L, runOptionalCachingQuery(true));
+        // losing the startCaching claim -> nothing is cached, but the query still returns the right count
+        assertEquals(0L, runOptionalCachingQuery(false));
+    }
+
+    /**
+     * Runs a single {@link OptionalCachingQuery} against a one-document segment and returns the resulting
+     * {@code cacheCount} (the number of segment-requests actually populated into the cache).
+     */
+    private long runOptionalCachingQuery(boolean grantCaching) throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        w.addDocument(new Document());
+        DirectoryReader r = DirectoryReader.open(w);
+        w.close();
+        ShardId shard = new ShardId("index", "_na_", 0);
+        r = ElasticsearchDirectoryReader.wrap(r, shard);
+        IndexSearcher s = new IndexSearcher(r);
+        s.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
+
+        Settings settings = Settings.builder()
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
+        IndicesQueryCache cache = new IndicesQueryCache(settings);
+        s.setQueryCache(cache);
+
+        // the single document matches whether or not the segment ended up cached
+        assertEquals(1, s.count(new OptionalCachingQuery(new DummyQuery(0), grantCaching)));
+        long cacheCount = cache.getStats(shard, () -> 0L).getCacheCount();
+
+        IOUtils.close(r, dir);
+        cache.onClose(shard);
+        cache.close();
+        return cacheCount;
     }
 
     public void testTwoShards() throws IOException {

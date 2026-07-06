@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -137,6 +138,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGN
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -272,13 +274,13 @@ public class EsqlDataTypeConverter {
             if (to == DataType.DATETIME) {
                 return l -> EsqlDataTypeConverter.dateTimeToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                    DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                 );
             }
             if (to == DATE_NANOS) {
                 return l -> EsqlDataTypeConverter.dateNanosToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                    DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                 );
             }
             if (to == DataType.IP) {
@@ -646,8 +648,12 @@ public class EsqlDataTypeConverter {
         return GEO.wktToWkb(field);
     }
 
+    /**
+     * Anything spatial that isn't geo (i.e. anything not caught by {@link DataType#isSpatialGeo}) is assumed
+     * to be cartesian.
+     */
     public static BytesRef stringToSpatial(String field) {
-        return UNSPECIFIED.wktToWkb(field);
+        return CARTESIAN.wktToWkb(field);
     }
 
     public static long dateTimeToLong(String dateTime) {

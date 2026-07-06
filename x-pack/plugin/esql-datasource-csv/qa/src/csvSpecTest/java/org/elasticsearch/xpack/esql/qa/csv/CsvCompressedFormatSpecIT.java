@@ -13,30 +13,24 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
-import org.junit.ClassRule;
 
 import java.util.List;
 
 /**
- * Parameterized integration tests for compressed TSV files (.tsv.gz, .tsv.zst, .tsv.zstd, .tsv.bz2, .tsv.bz).
+ * Parameterized integration tests for compressed CSV files (.csv.gz, .csv.zst, .csv.zstd, .csv.bz2, .csv.bz).
  * Each csv-spec test is run against every configured storage backend and compression format.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class TsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
+public class CsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
 
     // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
-    // builds, so .tsv.bz2/.tsv.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
+    // builds, so .csv.bz2/.csv.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
     private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
-        ? List.of("tsv.gz", "tsv.zst", "tsv.zstd", "tsv.bz2", "tsv.bz")
-        : List.of("tsv.gz", "tsv.zst", "tsv.zstd");
+        ? List.of("csv.gz", "csv.zst", "csv.zstd", "csv.bz2", "csv.bz")
+        : List.of("csv.gz", "csv.zst", "csv.zstd");
 
-    @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
-
-    public TsvCompressedFormatSpecIT(
+    public CsvCompressedFormatSpecIT(
         String fileName,
         String groupName,
         String testName,
@@ -49,23 +43,19 @@ public class TsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        // external-basic's multi-value queries assume brackets parsing, no longer the default. Use the
-        // scalar twin (csv-basic); the multifile specs project only scalar columns, so they parse under
-        // the default for TSV (tab delimiter — no misalignment). tsv-multivalue covers the explicit
-        // brackets opt-in on bracket data plus the literal-string read under the new default.
+        // external-basic / external-multifile read the multi-value employees fixture, which does not
+        // parse as CSV under the default multi_value_syntax: none. Use the scalar twin (csv-basic),
+        // csv-headerless, and csv-multifile (both opt into brackets explicitly where they read bracket
+        // data) to restore the equivalent coverage.
         return readExternalSpecTestsWithFormats(
             COMPRESSED_FORMATS,
             "/csv-basic.csv-spec",
-            "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec",
-            "/tsv-multivalue.csv-spec"
+            "/csv-headerless.csv-spec",
+            "/csv-multifile.csv-spec",
+            "/csv-multifile-resolution.csv-spec",
+            "/csv-multivalue.csv-spec"
         );
     }
 }

@@ -12,10 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
-import org.junit.ClassRule;
 
 import java.util.List;
 
@@ -24,10 +21,7 @@ import java.util.List;
  * Each csv-spec test is run against every configured storage backend.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+public class CsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
 
     public CsvFormatSpecIT(
         String fileName,
@@ -39,11 +33,6 @@ public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         StorageBackend storageBackend
     ) {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "csv");
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
     }
 
     // CSV reads only the csv-*.csv-spec files. The shared external-*.csv-spec files read the

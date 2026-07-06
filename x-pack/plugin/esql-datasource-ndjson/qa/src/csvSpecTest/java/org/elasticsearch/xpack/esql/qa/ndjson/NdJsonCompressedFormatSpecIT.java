@@ -13,10 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,16 +24,13 @@ import java.util.Set;
  * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS) and compression format.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
+public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
 
     // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
     // builds, so .ndjson.bz2/.ndjson.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
     private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
         ? List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd", "ndjson.bz2", "ndjson.bz")
         : List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd");
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
 
     /** Same SchemaAdaptingIterator limitation as the uncompressed NDJSON IT — see {@link NdJsonFormatSpecIT}. */
     private static final Set<String> SKIPPED_TESTS = Set.of(
@@ -63,11 +57,6 @@ public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTest
         StorageBackend storageBackend
     ) {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
     }
 
     @Override

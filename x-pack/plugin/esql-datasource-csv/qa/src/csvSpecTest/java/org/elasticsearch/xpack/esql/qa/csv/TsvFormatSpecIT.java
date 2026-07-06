@@ -12,10 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
-import org.junit.ClassRule;
 
 import java.util.List;
 
@@ -24,10 +21,7 @@ import java.util.List;
  * Each csv-spec test is run against every configured storage backend.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class TsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+public class TsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
 
     public TsvFormatSpecIT(
         String fileName,
@@ -39,11 +33,6 @@ public class TsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         StorageBackend storageBackend
     ) {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "tsv");
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
     }
 
     // external-basic.csv-spec is dropped for TSV: its multi-value queries (MV_EXPAND / MV_COUNT on the

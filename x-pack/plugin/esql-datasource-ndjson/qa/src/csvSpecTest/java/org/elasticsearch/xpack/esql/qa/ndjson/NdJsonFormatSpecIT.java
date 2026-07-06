@@ -12,10 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,10 +23,7 @@ import java.util.Set;
  * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL).
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class NdJsonFormatSpecIT extends AbstractExternalSourceSpecTestCase {
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
 
     /**
      * STRICT multi-file NDJSON tests still muted: the fixture's per-file schemas intentionally
@@ -56,11 +50,6 @@ public class NdJsonFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         StorageBackend storageBackend
     ) {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "ndjson");
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
     }
 
     @Override

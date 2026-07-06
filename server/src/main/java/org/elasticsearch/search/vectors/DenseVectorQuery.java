@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.vectors.DenormalizedCosineFloatVectorValue
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -656,8 +657,7 @@ public abstract class DenseVectorQuery extends Query {
             public float score() throws IOException {
                 VectorEncoderDecoder.decodeDenseVector(values.binaryValue(), decoded);
                 if (isBit) {
-                    int numBits = decoded.length * Byte.SIZE;
-                    return (numBits - VectorUtil.xorBitCount(target, decoded)) / (float) numBits;
+                    return ESVectorUtil.hammingScore(target, decoded);
                 }
                 return function.compare(target, decoded);
             }

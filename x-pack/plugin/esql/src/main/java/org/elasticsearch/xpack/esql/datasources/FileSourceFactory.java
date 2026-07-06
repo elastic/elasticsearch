@@ -418,7 +418,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .withSchema(context.attributes())
                 // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
                 // (file) column names, so physicalize the keys through the same `path` renames here at the last mile.
-                .withDeclaredDateFormats(physicalDateFormats(context.declaredReadSpec()));
+                .withDeclaredDateFormats(physicalDateFormats(context.declaredReadSpec()))
+                // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
+                // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
+                .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()));
             ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
             Map<String, Object> partitionValues = Map.of();
@@ -535,6 +538,25 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // Route through the PhysicalNames chokepoint (the single source of truth for logical->physical) rather than
             // hand-rolling the lookup, so this reader-facing name surface stays consistent with the others.
             physical.put(PhysicalNames.translate(e.getKey(), renames), e.getValue());
+        }
+        return physical;
+    }
+
+    /**
+     * The declared-type columns as the physical (file) names the by-name columnar readers see. The spec keys them by
+     * logical name; physicalize through the same {@code path} renames as {@link #physicalDateFormats}. Empty in, empty
+     * out. A declared-type column is licensed to coerce (including narrow) toward its target; an inferred column may only
+     * widen, so the reader keys its whole-column incompatibility null-fill on membership in this set.
+     */
+    private static Set<String> physicalDeclaredTypeColumns(DeclaredReadSpec spec) {
+        Set<String> logical = spec.declaredTypeColumns();
+        if (logical.isEmpty()) {
+            return Set.of();
+        }
+        Map<String, String> renames = spec.renames();
+        Set<String> physical = new HashSet<>(logical.size());
+        for (String col : logical) {
+            physical.add(PhysicalNames.translate(col, renames));
         }
         return physical;
     }

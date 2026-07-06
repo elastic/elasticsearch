@@ -11,7 +11,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<DeclaredReadSpec> {
 
@@ -30,7 +32,12 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
         for (int i = 0; i < formatCount; i++) {
             dateFormats.put("ts" + i, randomFrom("epoch_millis", "yyyy-MM-dd", "dd/MMM/yyyy:HH:mm:ss Z"));
         }
-        return DeclaredReadSpec.of(renames, idPath, dateFormats);
+        Set<String> declaredTypeColumns = new HashSet<>();
+        int declaredCount = between(0, 3);
+        for (int i = 0; i < declaredCount; i++) {
+            declaredTypeColumns.add("col" + i);
+        }
+        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns);
     }
 
     @Override
@@ -48,12 +55,14 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
         Map<String, String> renames = new HashMap<>(instance.renames());
         String idPath = instance.idPath();
         Map<String, String> dateFormats = new HashMap<>(instance.dateFormats());
-        switch (between(0, 2)) {
+        Set<String> declaredTypeColumns = new HashSet<>(instance.declaredTypeColumns());
+        switch (between(0, 3)) {
             case 0 -> renames.put(randomAlphaOfLength(6), randomAlphaOfLength(6));
             case 1 -> idPath = randomValueOtherThan(idPath, () -> randomBoolean() ? randomAlphaOfLength(5) : null);
-            default -> dateFormats.put(randomAlphaOfLength(6), randomFrom("epoch_millis", "yyyy-MM-dd"));
+            case 2 -> dateFormats.put(randomAlphaOfLength(6), randomFrom("epoch_millis", "yyyy-MM-dd"));
+            default -> declaredTypeColumns.add(randomAlphaOfLength(6));
         }
-        return DeclaredReadSpec.of(renames, idPath, dateFormats);
+        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns);
     }
 
     public void testNoneIsEmpty() {
@@ -62,5 +71,6 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
         assertSame(DeclaredReadSpec.NONE, DeclaredReadSpec.of(Map.of(), null));
         assertFalse(DeclaredReadSpec.of(Map.of("a", "b"), null).isEmpty());
         assertFalse(DeclaredReadSpec.of(Map.of(), "id").isEmpty());
+        assertFalse(DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of("age")).isEmpty());
     }
 }

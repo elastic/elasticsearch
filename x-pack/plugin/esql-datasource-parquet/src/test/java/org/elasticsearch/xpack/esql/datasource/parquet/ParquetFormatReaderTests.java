@@ -126,6 +126,16 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A reader that treats the given columns as declared-type — the ones whose target came from an explicit declaration
+     * and are therefore licensed to coerce (including narrow) toward it. Mirrors what {@code FileSourceFactory} threads
+     * from a dataset mapping in production; without it a lossy narrowing (e.g. declared {@code integer} over an
+     * {@code int64} file) is treated as an inferred clash and the whole column null-fills.
+     */
+    private ParquetFormatReader declaredReader(String... declaredColumns) {
+        return (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of(declaredColumns));
+    }
+
+    /**
      * The schema-vs-planner mismatch fallback in {@code ParquetFormatReader} now emits a response
      * Warning header alongside the existing {@code logger.warn}. Drop accumulated warnings so the
      * parent {@code ensureNoWarnings} post-check passes; tests that assert on them call
@@ -3207,8 +3217,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(g);
         });
         StorageObject storageObject = createStorageObject(parquetData, "s3://b/mismatch1.parquet");
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.KEYWORD));
+        ParquetFormatReader reader = declaredReader("x");
         try (
             CloseableIterator<Page> iterator = reader.readRange(
                 storageObject,
@@ -3247,8 +3257,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(ok, bad);
         });
         StorageObject storageObject = createStorageObject(parquetData);
-        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        ParquetFormatReader r = declaredReader("x");
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
@@ -3284,8 +3294,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(ok, bad);
         });
         StorageObject storageObject = createStorageObject(parquetData);
-        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        ParquetFormatReader r = declaredReader("x");
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
@@ -3339,8 +3349,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(a, b);
         });
         StorageObject storageObject = createStorageObject(parquetData);
-        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
+        ParquetFormatReader r = declaredReader("x");
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
@@ -3356,6 +3366,42 @@ public class ParquetFormatReaderTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
         assertTrue("Detail should mention the range failure, got: " + warnings.get(1), warnings.get(1).contains("out of range"));
+    }
+
+    public void testInt64InferredIntegerNullFillsWholeColumn() throws Exception {
+        // The INFERRED counterpart to testInt64DeclaredIntegerOverflowWarnsAndNulls: the SAME int64-file / INTEGER-target
+        // pair, but the INTEGER came from inference (plain reader — no declared signal), so it must NOT narrow. The whole
+        // column null-fills + warns, matching main's first_file_wins behavior (qa spec parquetFfwAllRows). Because
+        // DeclaredTypeCoercions.supports(LONG, INTEGER) is true, this pins the declared-vs-inferred gate split: dropping
+        // the declaredTypeColumns guard in validatePlannerTypesAgainstFile would downcast here instead of null-filling.
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("x").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group a = factory.newGroup();
+            a.add("x", 7L);
+            Group b = factory.newGroup();
+            b.add("x", 42L);
+            return List.of(a, b);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader r = new ParquetFormatReader(blockFactory); // PLAIN reader: no declaredTypeColumns => inferred
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
+        try (
+            CloseableIterator<Page> it = r.readRange(
+                storageObject,
+                new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertTrue("inferred int64->integer must null-fill the whole column, never downcast", page.getBlock(0).isNull(0));
+            assertTrue(page.getBlock(0).isNull(1));
+        }
+        List<String> warnings = drainWarnings();
+        assertFalse("inferred incompatibility must emit a response Warning", warnings.isEmpty());
+        assertTrue(
+            "warning must name the incompatibility, got: " + warnings,
+            warnings.toString().contains("incompatible with planner type")
+        );
     }
 
     /** Fixture for the fused string->datetime tests: good ISO, bad token, good ISO. */
@@ -3384,10 +3430,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // previously hard-failed the read while the deferred extractor warned+nulled the same cell.
         byte[] parquetData = stringDatetimeFixture();
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
-        for (ParquetFormatReader r : List.of(
-            new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
-        )) {
+        for (ParquetFormatReader r : List.of(declaredReader("ts"), declaredReader("ts").withBaselinePath())) {
             StorageObject storageObject = createStorageObject(parquetData);
             try (
                 CloseableIterator<Page> it = r.readRange(
@@ -3414,10 +3457,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // castBlock's strict contract and to the text readers' parse failure under fail_fast.
         byte[] parquetData = stringDatetimeFixture();
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
-        for (ParquetFormatReader r : List.of(
-            new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
-        )) {
+        for (ParquetFormatReader r : List.of(declaredReader("ts"), declaredReader("ts").withBaselinePath())) {
             StorageObject storageObject = createStorageObject(parquetData);
             try (
                 CloseableIterator<Page> it = r.readRange(
@@ -3456,7 +3496,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "vals", DataType.DATETIME));
         StorageObject storageObject = createStorageObject(parquetData);
-        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader r = declaredReader("vals");
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
@@ -3566,7 +3606,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 });
                 List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
                 StorageObject storageObject = createStorageObject(parquetData);
-                ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+                ParquetFormatReader r = declaredReader("x");
                 try (
                     CloseableIterator<Page> it = r.readRange(
                         storageObject,

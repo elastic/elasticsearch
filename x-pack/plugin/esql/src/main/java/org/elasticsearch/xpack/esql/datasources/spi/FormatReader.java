@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -264,6 +265,25 @@ public interface FormatReader extends Closeable {
      * @return a new reader applying the per-column formats, or {@code this} when none apply
      */
     default FormatReader withDeclaredDateFormats(Map<String, String> physicalNameToPattern) {
+        return this;
+    }
+
+    /**
+     * Returns a format reader that treats the given columns as <b>declared-type</b> columns: their target type came from
+     * an explicit declaration rather than inference, which licenses a lossy read-time coercion toward it (e.g. a declared
+     * {@code integer} over an {@code int64} file column narrows per value, null on overflow). An inferred target must
+     * never narrow — a cross-file clash widens-or-nulls. Keyed by <b>physical</b> (file) column name; the caller
+     * ({@code FileSourceFactory}) has already applied any declared {@code path} rename.
+     * <p>
+     * Only the by-name columnar formats (Parquet, ORC) make a whole-column incompatibility null-fill decision and
+     * override this — a declared column keeps the coercion escape, an inferred column null-fills whenever the file type
+     * is not widening-compatible. The text formats (CSV/TSV, NDJSON) parse straight into the target and keep the no-op
+     * default (their per-field failures are governed by the {@code ErrorPolicy}, not a whole-column type check).
+     *
+     * @param physicalDeclaredColumns physical names of the declared-type columns; empty when no column type was declared
+     * @return a new reader honoring the declared-type set, or {@code this} when none apply
+     */
+    default FormatReader withDeclaredTypeColumns(Set<String> physicalDeclaredColumns) {
         return this;
     }
 

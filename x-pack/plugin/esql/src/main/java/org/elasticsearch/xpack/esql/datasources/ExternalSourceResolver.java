@@ -1654,6 +1654,10 @@ public class ExternalSourceResolver {
         DatasetMapping.Mappings mappings = declaredMapping == null ? null : declaredMapping.mappings();
         String idPath = mappings == null ? null : mappings.idPath();
         Map<String, String> dateFormats = Map.of();
+        // Every mapped field carries an explicit declared type (DatasetFieldMapping requires it), so the mapping's
+        // logical column names ARE the declared-type columns — the ones licensed to coerce (incl. narrow) toward their
+        // target at read time. Keyed by LOGICAL name; FileSourceFactory physicalizes them via renames.
+        Set<String> declaredTypeColumns = mappings == null ? Set.of() : Set.copyOf(mappings.properties().keySet());
         if (mappings != null) {
             Map<String, String> collected = new HashMap<>();
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
@@ -1665,7 +1669,7 @@ public class ExternalSourceResolver {
             }
             dateFormats = collected;
         }
-        return DeclaredReadSpec.of(renames, idPath, dateFormats);
+        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns);
     }
 
     /**

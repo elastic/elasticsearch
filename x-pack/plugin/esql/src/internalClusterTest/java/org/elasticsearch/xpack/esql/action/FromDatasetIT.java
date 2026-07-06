@@ -191,6 +191,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_strict_uncoercible",
         "employees_strict_coerce_multi",
         "employees_int_to_long",
+        "employees_declared_narrow",
         "logs_parquet_string_date",
         "coerced_long_to_double",
         "logs_csv_equiv",
@@ -1781,6 +1782,42 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(0), equalTo(100L));
             assertThat(rows.get(1).get(0), equalTo(200L));
             assertThat(rows.get(2).get(0), equalTo(300L));
+        }
+    }
+
+    public void testDeclaredNumericNarrowingCoercesWhereInferredClashWouldNull() throws Exception {
+        // The end-to-end contrast to an INFERRED first_file_wins clash (parquet-multifile.parquetFfwAllRows null-fills an
+        // int64-vs-INTEGER divergence). Here the INTEGER target for the same physical int64 column comes from an explicit
+        // DECLARATION: the coordinator marks it a declared-type column, FileSourceFactory physicalizes that to `emp_no`,
+        // and the reader keeps the coercion escape — narrowing int64 -> integer per value instead of null-filling the
+        // whole column. Guards the declared-vs-inferred null-fill gate split through the non-strict overlay. The
+        // Integer-valued (not Long) non-null results prove both the coercion happened AND the target type is INTEGER.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = writeParquetRenameFixture(); // physical emp_no int64 = 1,2,3 (all fit in integer)
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("integer", "emp_no")); // int64 -> integer NARROWING (declared)
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_declared_narrow",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM employees_declared_narrow | SORT id | KEEP id | LIMIT 10"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1)); // Integer, coerced from int64 — NOT null (an inferred clash nulls)
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(2).get(0), equalTo(3));
         }
     }
 

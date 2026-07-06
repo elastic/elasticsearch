@@ -1751,30 +1751,53 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             };
         }
 
+        /**
+         * Number of non-null child elements in {@code [start, start+len)}. A null child element is
+         * skipped rather than emitted (as a zero) — matching the Parquet list decode
+         * ({@code ParquetColumnDecoding.readListRow} appends only defined elements) and ORC's own
+         * {@code createListDatetimeBlock}. Callers treat a zero count (empty list or all-null
+         * elements) as a null position.
+         */
+        private static int countNonNullElements(ColumnVector child, int start, int len) {
+            if (child.noNulls) {
+                return len;
+            }
+            int count = 0;
+            for (int j = 0; j < len; j++) {
+                if (child.isNull[start + j] == false) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
         private Block createListBytesRefBlock(ListColumnVector listCol, int rowCount) {
             BytesColumnVector child = (BytesColumnVector) listCol.child;
             try (var builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
                 for (int i = 0; i < rowCount; i++) {
                     if (listCol.noNulls == false && listCol.isNull[i]) {
                         builder.appendNull();
-                    } else {
-                        int start = (int) listCol.offsets[i];
-                        int len = (int) listCol.lengths[i];
-                        builder.beginPositionEntry();
-                        for (int j = 0; j < len; j++) {
-                            int idx = start + j;
-                            if (child.noNulls == false && child.isNull[idx]) {
-                                builder.appendBytesRef(new org.apache.lucene.util.BytesRef());
-                            } else {
-                                builder.appendBytesRef(
-                                    Utf8Sanitizer.sanitize(
-                                        new org.apache.lucene.util.BytesRef(child.vector[idx], child.start[idx], child.length[idx])
-                                    )
-                                );
-                            }
-                        }
-                        builder.endPositionEntry();
+                        continue;
                     }
+                    int start = (int) listCol.offsets[i];
+                    int len = (int) listCol.lengths[i];
+                    if (countNonNullElements(child, start, len) == 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.beginPositionEntry();
+                    for (int j = 0; j < len; j++) {
+                        int idx = start + j;
+                        if (child.noNulls == false && child.isNull[idx]) {
+                            continue; // null element: skip, like the Parquet list decode
+                        }
+                        builder.appendBytesRef(
+                            Utf8Sanitizer.sanitize(
+                                new org.apache.lucene.util.BytesRef(child.vector[idx], child.start[idx], child.length[idx])
+                            )
+                        );
+                    }
+                    builder.endPositionEntry();
                 }
                 return builder.build();
             }
@@ -1786,20 +1809,23 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 for (int i = 0; i < rowCount; i++) {
                     if (listCol.noNulls == false && listCol.isNull[i]) {
                         builder.appendNull();
-                    } else {
-                        int start = (int) listCol.offsets[i];
-                        int len = (int) listCol.lengths[i];
-                        builder.beginPositionEntry();
-                        for (int j = 0; j < len; j++) {
-                            int idx = start + j;
-                            if (child.noNulls == false && child.isNull[idx]) {
-                                builder.appendInt(0);
-                            } else {
-                                builder.appendInt((int) child.vector[idx]);
-                            }
-                        }
-                        builder.endPositionEntry();
+                        continue;
                     }
+                    int start = (int) listCol.offsets[i];
+                    int len = (int) listCol.lengths[i];
+                    if (countNonNullElements(child, start, len) == 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.beginPositionEntry();
+                    for (int j = 0; j < len; j++) {
+                        int idx = start + j;
+                        if (child.noNulls == false && child.isNull[idx]) {
+                            continue; // null element: skip, like the Parquet list decode
+                        }
+                        builder.appendInt((int) child.vector[idx]);
+                    }
+                    builder.endPositionEntry();
                 }
                 return builder.build();
             }
@@ -1811,20 +1837,23 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 for (int i = 0; i < rowCount; i++) {
                     if (listCol.noNulls == false && listCol.isNull[i]) {
                         builder.appendNull();
-                    } else {
-                        int start = (int) listCol.offsets[i];
-                        int len = (int) listCol.lengths[i];
-                        builder.beginPositionEntry();
-                        for (int j = 0; j < len; j++) {
-                            int idx = start + j;
-                            if (child.noNulls == false && child.isNull[idx]) {
-                                builder.appendLong(0L);
-                            } else {
-                                builder.appendLong(child.vector[idx]);
-                            }
-                        }
-                        builder.endPositionEntry();
+                        continue;
                     }
+                    int start = (int) listCol.offsets[i];
+                    int len = (int) listCol.lengths[i];
+                    if (countNonNullElements(child, start, len) == 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.beginPositionEntry();
+                    for (int j = 0; j < len; j++) {
+                        int idx = start + j;
+                        if (child.noNulls == false && child.isNull[idx]) {
+                            continue; // null element: skip, like the Parquet list decode
+                        }
+                        builder.appendLong(child.vector[idx]);
+                    }
+                    builder.endPositionEntry();
                 }
                 return builder.build();
             }
@@ -1837,20 +1866,23 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 for (int i = 0; i < rowCount; i++) {
                     if (listCol.noNulls == false && listCol.isNull[i]) {
                         builder.appendNull();
-                    } else {
-                        int start = (int) listCol.offsets[i];
-                        int len = (int) listCol.lengths[i];
-                        builder.beginPositionEntry();
-                        for (int j = 0; j < len; j++) {
-                            int idx = start + j;
-                            if (child.noNulls == false && child.isNull[idx]) {
-                                builder.appendDouble(0.0);
-                            } else {
-                                builder.appendDouble(readDoubleFrom(child, idx, d64ScaleFactor));
-                            }
-                        }
-                        builder.endPositionEntry();
+                        continue;
                     }
+                    int start = (int) listCol.offsets[i];
+                    int len = (int) listCol.lengths[i];
+                    if (countNonNullElements(child, start, len) == 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.beginPositionEntry();
+                    for (int j = 0; j < len; j++) {
+                        int idx = start + j;
+                        if (child.noNulls == false && child.isNull[idx]) {
+                            continue; // null element: skip, like the Parquet list decode
+                        }
+                        builder.appendDouble(readDoubleFrom(child, idx, d64ScaleFactor));
+                    }
+                    builder.endPositionEntry();
                 }
                 return builder.build();
             }
@@ -1873,20 +1905,23 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 for (int i = 0; i < rowCount; i++) {
                     if (listCol.noNulls == false && listCol.isNull[i]) {
                         builder.appendNull();
-                    } else {
-                        int start = (int) listCol.offsets[i];
-                        int len = (int) listCol.lengths[i];
-                        builder.beginPositionEntry();
-                        for (int j = 0; j < len; j++) {
-                            int idx = start + j;
-                            if (child.noNulls == false && child.isNull[idx]) {
-                                builder.appendBoolean(false);
-                            } else {
-                                builder.appendBoolean(child.vector[idx] != 0);
-                            }
-                        }
-                        builder.endPositionEntry();
+                        continue;
                     }
+                    int start = (int) listCol.offsets[i];
+                    int len = (int) listCol.lengths[i];
+                    if (countNonNullElements(child, start, len) == 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.beginPositionEntry();
+                    for (int j = 0; j < len; j++) {
+                        int idx = start + j;
+                        if (child.noNulls == false && child.isNull[idx]) {
+                            continue; // null element: skip, like the Parquet list decode
+                        }
+                        builder.appendBoolean(child.vector[idx] != 0);
+                    }
+                    builder.endPositionEntry();
                 }
                 return builder.build();
             }

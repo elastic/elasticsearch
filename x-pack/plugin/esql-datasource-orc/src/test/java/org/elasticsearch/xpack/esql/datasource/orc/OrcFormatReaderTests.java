@@ -1896,6 +1896,70 @@ public class OrcFormatReaderTests extends ESTestCase {
         });
     }
 
+    public void testListPrimitiveNullElementSkippedNotZeroFilled() throws Exception {
+        // Twin of testListDatetimeNullElementSkippedNotEpochZero for the five primitive list arms
+        // (int/long/double/boolean/string). A [value, null] list reads as the single-element
+        // [value] — a null child element is skipped, never emitted as a phantom 0 / 0.0 / false /
+        // "" — and an all-null list is a null position, matching the Parquet list decode.
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("ints", TypeDescription.createList(TypeDescription.createInt()))
+            .addField("longs", TypeDescription.createList(TypeDescription.createLong()))
+            .addField("dbls", TypeDescription.createList(TypeDescription.createDouble()))
+            .addField("flags", TypeDescription.createList(TypeDescription.createBoolean()))
+            .addField("tags", TypeDescription.createList(TypeDescription.createString()));
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            for (int c = 0; c < 5; c++) {
+                ListColumnVector listCol = (ListColumnVector) batch.cols[c];
+                listCol.childCount = 3;
+                listCol.child.ensureSize(3, false);
+                listCol.child.noNulls = false;
+                // Row 0: [value, null]; Row 1: [null]
+                listCol.offsets[0] = 0;
+                listCol.lengths[0] = 2;
+                listCol.child.isNull[1] = true;
+                listCol.offsets[1] = 2;
+                listCol.lengths[1] = 1;
+                listCol.child.isNull[2] = true;
+            }
+            ((LongColumnVector) ((ListColumnVector) batch.cols[0]).child).vector[0] = 42L;
+            ((LongColumnVector) ((ListColumnVector) batch.cols[1]).child).vector[0] = 42L;
+            ((DoubleColumnVector) ((ListColumnVector) batch.cols[2]).child).vector[0] = 4.5;
+            ((LongColumnVector) ((ListColumnVector) batch.cols[3]).child).vector[0] = 1L; // true
+            ((BytesColumnVector) ((ListColumnVector) batch.cols[4]).child).setVal(0, "a".getBytes(StandardCharsets.UTF_8));
+        });
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        readFirstPage(reader, storageObject, null, page -> {
+            assertEquals(2, page.getPositionCount());
+
+            IntBlock ints = (IntBlock) page.getBlock(0);
+            assertEquals("null element dropped, not 0", 1, ints.getValueCount(0));
+            assertEquals(42, ints.getInt(ints.getFirstValueIndex(0)));
+            assertTrue("all-null list is a null position", ints.isNull(1));
+
+            LongBlock longs = (LongBlock) page.getBlock(1);
+            assertEquals(1, longs.getValueCount(0));
+            assertEquals(42L, longs.getLong(longs.getFirstValueIndex(0)));
+            assertTrue(longs.isNull(1));
+
+            DoubleBlock dbls = (DoubleBlock) page.getBlock(2);
+            assertEquals(1, dbls.getValueCount(0));
+            assertEquals(4.5, dbls.getDouble(dbls.getFirstValueIndex(0)), 0.0);
+            assertTrue(dbls.isNull(1));
+
+            BooleanBlock flags = (BooleanBlock) page.getBlock(3);
+            assertEquals("null element dropped, not false", 1, flags.getValueCount(0));
+            assertTrue(flags.getBoolean(flags.getFirstValueIndex(0)));
+            assertTrue(flags.isNull(1));
+
+            BytesRefBlock tags = (BytesRefBlock) page.getBlock(4);
+            assertEquals("null element dropped, not empty string", 1, tags.getValueCount(0));
+            assertEquals(new BytesRef("a"), tags.getBytesRef(tags.getFirstValueIndex(0), new BytesRef()));
+            assertTrue(tags.isNull(1));
+        });
+    }
+
     /**
      * Guard: every {@code DeclaredTypeCoercions.fusedInDecode} pair must decode NATIVELY in this
      * reader — a fused pair is never routed through {@code castBlock}, so a pair wired into only

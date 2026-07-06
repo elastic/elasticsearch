@@ -97,10 +97,12 @@ public final class ExternalStats {
      *   to (NOT inferred from the byte offset; the reader knows it record-canonically).</li>
      *   <li>{@link #COVERAGE_START_KEY}/{@link #COVERAGE_END_KEY} — the record-canonical byte sub-range
      *   of stripe k this fragment covered, for the interval-cover tiling.</li>
-     *   <li>{@link #STRIPE_AT_START_KEY} — this fragment holds the stripe's first record (its start is
-     *   the stripe's true start).</li>
-     *   <li>{@link #STRIPE_AT_END_KEY} — this fragment's end reached the next stripe's first record (or
-     *   EOF): the stripe's true end.</li>
+     *   <li>{@link #STRIPE_AT_START_KEY} — this chunk covers the stripe's left grid line
+     *   ({@code splitStartByte <= k*B}), so this fragment anchors the stripe's true (grid) start. This is a
+     *   byte-range-cover predicate, NOT "holds the stripe's first record" — a stripe whose first record lands
+     *   in the next chunk is still anchored here by the chunk that owns its left grid line.</li>
+     *   <li>{@link #STRIPE_AT_END_KEY} — this chunk covers the stripe's right grid line
+     *   ({@code chunkAbsEnd >= (k+1)*B}) or is the file-final chunk: the stripe's true (grid) end.</li>
      *   <li>{@link #COVERAGE_IS_LAST_KEY} — this fragment observed end-of-input: the file's last
      *   stripe (drives the whole-file completeness marker).</li>
      * </ul>

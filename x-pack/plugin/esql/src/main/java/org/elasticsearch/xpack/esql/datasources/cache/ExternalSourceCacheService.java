@@ -235,8 +235,9 @@ public class ExternalSourceCacheService implements Closeable {
     /**
      * Folds orthogonal-model stripe fragments into per-stripe stats by interval-cover. Fragments are
      * grouped by their reader-assigned ordinal (NOT inferred from byte offset); within each stripe a
-     * greedy interval-cover walks from the stripe's first record ({@code atStripeStart}) along
-     * contiguous record-canonical sub-ranges to the stripe's last record ({@code atStripeEnd} / EOF).
+     * greedy interval-cover walks from the fragment covering the stripe's left grid line ({@code atStripeStart}
+     * — a byte-cover predicate, not "the stripe's first record") along contiguous byte sub-ranges to the
+     * fragment covering the right grid line ({@code atStripeEnd} / EOF).
      * <p>
      * The cover is robust to misaligned tilings not because the fragment endpoints match across scans (they
      * do not — a chunk boundary landing mid-stripe is a chunk/grid byte position, and different chunkings
@@ -304,9 +305,10 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * Greedy interval-cover of one stripe from its {@code atStripeStart} fragment to an
-     * {@code atStripeEnd} fragment, picking one fragment per position. Returns the covering chain, or
-     * {@code null} when no {@code atStripeStart} anchor exists or a gap is hit before the stripe end.
+     * Greedy interval-cover of one stripe from the fragment covering its left grid line ({@code atStripeStart})
+     * to the fragment covering its right grid line ({@code atStripeEnd}), picking one fragment per position.
+     * Returns the covering chain, or {@code null} when no {@code atStripeStart} anchor exists or a gap is hit
+     * before the stripe end.
      * Empty stripes (a record larger than the grid skips an ordinal entirely) arrive as a single
      * zero-length fragment flagged both start and end, which the walk accepts immediately.
      */

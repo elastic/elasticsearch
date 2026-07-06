@@ -46,10 +46,12 @@ sealed interface SourceStatsContribution {
      * record is counted into {@code floor(recordStart / B)} by its OWN start offset, so it lands in the same
      * stripe regardless of chunking, and sibling fragments tile the same grid cell. That is what makes the
      * reconciler's per-stripe interval-cover dedup exact: scan A covering a stripe in one fragment and scan B
-     * splitting it at a different chunk boundary fold to the same stripe stats. {@code atStripeStart} marks the fragment holding the
-     * stripe's first record; {@code atStripeEnd} marks the fragment whose end reached the next stripe's
-     * first record (or end-of-file). {@code eof} marks the fragment that observed end-of-input — the
-     * file's last stripe. Fragments without stripe addressing ({@code stripeSize <= 0}: older nodes,
+     * splitting it at a different chunk boundary fold to the same stripe stats. {@code atStripeStart} marks the fragment whose
+     * chunk covers the stripe's left grid line ({@code splitStartByte <= k*B}) — a byte-cover predicate, NOT
+     * "holds the stripe's first record"; a stripe whose first record lands in the next chunk is still anchored
+     * by the chunk owning its left grid line. {@code atStripeEnd} marks the fragment whose chunk covers the
+     * right grid line ({@code chunkAbsEnd >= (k+1)*B}) or is file-final. {@code eof} marks the fragment that
+     * observed end-of-input — the file's last stripe. Fragments without stripe addressing ({@code stripeSize <= 0}: older nodes,
      * readers not yet emitting stripes) are not cacheable — a deterministic safe miss, never wrong.
      */
     record StripeFragment(

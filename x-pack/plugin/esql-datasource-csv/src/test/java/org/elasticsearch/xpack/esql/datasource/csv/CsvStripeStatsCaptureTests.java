@@ -39,6 +39,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -164,6 +165,229 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         frags.addAll(captureRaw(slice(full, cut, full.length), cut, false, true, 1000, stripe, true, schema));
 
         assertFoldsTo(frags, total);
+    }
+
+    // ---- Stripe-boundary page geometry (mirrors NdJsonStripeStatsCaptureTests) ----------------------
+
+    /** A parsed view of one emitted stripe fragment. */
+    private record Frag(long ordinal, long rows, long start, long end, boolean atStart, boolean atEnd, boolean eof) {}
+
+    /**
+     * Reads {@code bytes} as one record-aligned chunk with stripe addressing at grid {@code stripeSize},
+     * returning every per-stripe fragment the CSV reader emits, sorted by ordinal.
+     */
+    private List<Frag> captureStripes(byte[] bytes, long baseOffset, boolean firstSplit, boolean fileFinal, int batchSize, long stripeSize)
+        throws Exception {
+        List<Map<String, Object>> raw = captureRaw(bytes, baseOffset, firstSplit, fileFinal, batchSize, stripeSize);
+        List<Frag> frags = new ArrayList<>();
+        for (Map<String, Object> m : raw) {
+            assertTrue("a stripe fragment must carry the partial-chunk marker", m.containsKey(ExternalStats.PARTIAL_CHUNK_KEY));
+            assertTrue("a stripe fragment must carry a stripe ordinal", m.containsKey(ExternalStats.STRIPE_ORDINAL_KEY));
+            frags.add(
+                new Frag(
+                    ((Number) m.get(ExternalStats.STRIPE_ORDINAL_KEY)).longValue(),
+                    ((Number) m.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue(),
+                    ((Number) m.get(ExternalStats.COVERAGE_START_KEY)).longValue(),
+                    ((Number) m.get(ExternalStats.COVERAGE_END_KEY)).longValue(),
+                    (Boolean) m.get(ExternalStats.STRIPE_AT_START_KEY),
+                    (Boolean) m.get(ExternalStats.STRIPE_AT_END_KEY),
+                    (Boolean) m.get(ExternalStats.COVERAGE_IS_LAST_KEY)
+                )
+            );
+        }
+        frags.sort((x, y) -> Long.compare(x.ordinal, y.ordinal));
+        return frags;
+    }
+
+    /**
+     * Asserts the fragments form a complete, non-double-counting cover of a dense file of {@code totalRows}
+     * records over {@code totalBytes} bytes read by one file-final scan under the byte-range cover model
+     * (the shared assertion NDJSON's suite makes): ordinals are dense from 0; every stripe anchors both grid
+     * lines ({@code atStart}/{@code atEnd}) so the coordinator folds it without a continuation; only the
+     * terminal stripe is eof; byte sub-ranges tile contiguously (each stripe's start == the previous stripe's
+     * grid-clamped end) and the last stripe closes to the file's byte length; and the rows sum exactly.
+     */
+    private void assertDenseFileFinalCover(List<Frag> frags, long totalRows, long totalBytes) {
+        assertFalse("a non-empty file must emit at least one stripe fragment", frags.isEmpty());
+        long rowSum = 0;
+        long expectedOrdinal = 0;
+        long expectedStart = 0;
+        for (int i = 0; i < frags.size(); i++) {
+            Frag f = frags.get(i);
+            assertEquals("ordinals must be dense from 0 (empties fill oversized-record gaps)", expectedOrdinal, f.ordinal);
+            assertTrue("every stripe of a file-final scan must anchor its left grid line", f.atStart);
+            assertTrue("every stripe of a file-final scan must anchor its right grid line", f.atEnd);
+            assertEquals("only the terminal stripe is eof", i == frags.size() - 1, f.eof);
+            assertTrue("coverage end must not precede start", f.end >= f.start);
+            assertEquals("byte sub-ranges must tile contiguously across stripe boundaries", expectedStart, f.start);
+            expectedStart = f.end;
+            rowSum += f.rows;
+            expectedOrdinal++;
+        }
+        assertEquals("the head fragment must cover the file's first byte", 0L, frags.get(0).start);
+        assertEquals("the last stripe must close to the file's byte length", totalBytes, frags.get(frags.size() - 1).end);
+        assertEquals("per-stripe rows must sum to the file's true row count", totalRows, rowSum);
+    }
+
+    public void testPageWouldStraddleStripeButIsCapped() throws Exception {
+        // batchSize=1000 would pull the whole file into one page if uncapped; the per-stripe cap forces a
+        // page break at each stripe line, so no fragment spans more than one stripe. (CSV mirror of NDJSON's
+        // testPageWouldStraddleStripeButIsCapped.)
+        byte[] data = asciiCsv(0, 12); // 24 bytes on a 6-byte grid -> several stripes
+        List<Frag> frags = captureStripes(data, 0, true, true, 1000, 6);
+        assertDenseFileFinalCover(frags, 12, 12L * ASCII_RECORD_BYTES);
+        // With a huge uncapped batch the reader would emit one fragment; capping at each stripe line must
+        // split it into several per-stripe fragments instead.
+        assertTrue("the per-stripe cap must split a huge-batch read into multiple stripe fragments", frags.size() > 1);
+    }
+
+    public void testTinyBatchSplitsStripeAcrossPagesThenFolds() throws Exception {
+        // batchSize=1 forces one record per page; multiple pages land in the same stripe and must aggregate
+        // into a single per-stripe fragment (not one fragment per page). CSV mirror of NDJSON's
+        // testTinyBatchSplitsStripeAcrossPagesThenFolds. Grid 8 with 2-byte records = 4 records/stripe, so a
+        // stripe genuinely spans several single-record pages.
+        byte[] data = asciiCsv(1, 9);
+        List<Frag> frags = captureStripes(data, 0, true, true, 1, 8);
+        assertDenseFileFinalCover(frags, 9, 9L * ASCII_RECORD_BYTES);
+    }
+
+    // ---- Cross-path per-stripe fragment parity ------------------------------------------------------
+
+    /**
+     * The three CSV harvest paths that read a plain single-column file — bulk Jackson ({@code convertRowsToPage}
+     * off the byte-tracking iterator), fused bracket ({@code convertLinesToPage} under
+     * {@code multi_value_syntax:brackets}), and direct-to-block ({@code advanceDirectRecord}) — must emit
+     * BYTE-FOR-BYTE identical per-stripe stat fragments for the same bytes. Fragments compose ACROSS queries
+     * (the cache fingerprint excludes projection), so a start-definition shift that preserved per-scan totals
+     * would still corrupt a later fold against a differently-pathed sibling — and the total-length tripwire,
+     * which only checks the whole-chunk byte span, cannot catch a per-stripe redistribution. So this asserts
+     * the per-stripe stat payload (ordinal -&gt; row_count + coverage geometry + every column's
+     * min/max/null_count/value_count), not merely equal whole-file totals. Config-derived addressing keys
+     * (fingerprint, mtime) legitimately differ by path and are excluded from the comparison.
+     */
+    public void testThreeHarvestPathsEmitIdenticalPerStripeFragments() throws Exception {
+        byte[] header = "n\n".getBytes(StandardCharsets.UTF_8);
+        int total = 12;
+        byte[] full = concat(header, asciiCsv(0, total)); // single INTEGER column n, values 0..9,0,1
+        long stripe = 8; // small grid -> several stripes across the file
+
+        Map<Long, Map<String, Object>> jackson = perStripeStats(captureBulkJacksonPath(full, stripe));
+        Map<Long, Map<String, Object>> bracket = perStripeStats(captureBracketScalarPath(full, stripe));
+        Map<Long, Map<String, Object>> direct = perStripeStats(captureDirectBlockScalarPath(full, stripe));
+
+        assertFalse("bulk-Jackson path must emit stripe fragments", jackson.isEmpty());
+        assertEquals("bracket path must cover the same stripe ordinals as bulk-Jackson", jackson.keySet(), bracket.keySet());
+        assertEquals("direct-block path must cover the same stripe ordinals as bulk-Jackson", jackson.keySet(), direct.keySet());
+        // Byte-for-byte per stripe: a real start-definition shift on any one path surfaces here, not as a
+        // (still-correct) whole-file total. If this ever fails it is a genuine cross-path attribution bug.
+        assertEquals("bracket path must emit byte-identical per-stripe fragments to bulk-Jackson", jackson, bracket);
+        assertEquals("direct-block path must emit byte-identical per-stripe fragments to bulk-Jackson", jackson, direct);
+    }
+
+    /**
+     * Projects each fragment down to its stripe ordinal and the stat payload that must be path-invariant
+     * (row count, coverage geometry, and every per-column stat), dropping the config-derived addressing keys
+     * (fingerprint/mtime) that legitimately vary with the read config.
+     */
+    private static Map<Long, Map<String, Object>> perStripeStats(List<Map<String, Object>> fragments) {
+        Map<Long, Map<String, Object>> byOrdinal = new HashMap<>();
+        for (Map<String, Object> frag : fragments) {
+            long ordinal = ((Number) frag.get(ExternalStats.STRIPE_ORDINAL_KEY)).longValue();
+            Map<String, Object> payload = new HashMap<>();
+            for (Map.Entry<String, Object> e : frag.entrySet()) {
+                String key = e.getKey();
+                if (key.equals(ExternalStats.CONFIG_FINGERPRINT_KEY) || key.equals(ExternalStats.MTIME_MILLIS_KEY)) {
+                    continue; // config-derived, legitimately path-dependent
+                }
+                payload.put(key, e.getValue());
+            }
+            assertNull("one fragment per stripe ordinal per path", byOrdinal.put(ordinal, payload));
+        }
+        return byOrdinal;
+    }
+
+    /** Bulk Jackson path: plain single column, no _rowPosition, direct-to-block DISABLED so the read routes onto convertRowsToPage. */
+    private List<Map<String, Object>> captureBulkJacksonPath(byte[] bytes, long stripeSize) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("n"))
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, stripeSize, true)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withDirectBlockEnabled(false)
+                .withConfig(Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true))
+                .read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
+    /** Fused bracket path: multi_value_syntax=brackets reading the SAME scalar file (values without brackets parse as single-value). */
+    private List<Map<String, Object>> captureBracketScalarPath(byte[] bytes, long stripeSize) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("n"))
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, stripeSize, true)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true, CsvFormatReader.CONFIG_MULTI_VALUE_SYNTAX, "brackets")
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
+    /** Direct-to-block path: plain single projected column, no _rowPosition, direct-block enabled (default). */
+    private List<Map<String, Object>> captureDirectBlockScalarPath(byte[] bytes, long stripeSize) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("n"))
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, stripeSize, true)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
     }
 
     // ---- Harvest-scope tests (esql.source.cache.stripe.columns) -------------------------------------

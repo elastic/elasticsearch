@@ -886,7 +886,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             config.startObject("settings");
             config.startObject("index");
             config.field("mode", mode);
-            if (mode == IndexMode.TIME_SERIES) {
+            if (mode.isTsdb()) {
                 config.field("routing_path", "f_keyword");
             }
             if (nodeId != null) {
@@ -945,7 +945,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case NULL -> config.field("type", "keyword");
             case KEYWORD -> {
                 config.field("type", type.esType());
-                if (indexMode == IndexMode.TIME_SERIES) {
+                if (indexMode.isTsdb()) {
                     config.field("time_series_dimension", true);
                 }
             }
@@ -1331,7 +1331,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     ) {
         return switch (type) {
             case COUNTER_DOUBLE, COUNTER_LONG, COUNTER_INTEGER -> {
-                if (indexMode == IndexMode.TIME_SERIES) {
+                if (indexMode.isTsdb()) {
                     yield equalTo(type.esType());
                 }
                 yield equalTo(type.esType().replace("counter_", ""));
@@ -1518,7 +1518,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
         expected = expected.entry(
             "_id",
-            indexMode == IndexMode.TIME_SERIES ? matchesList().item("column_at_a_time:TsIdFieldReader")
+            indexMode.isTsdb() ? matchesList().item("column_at_a_time:TsIdFieldReader")
                 : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:IdDocValuesReader")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockStoredFieldsReader.Id")
         )

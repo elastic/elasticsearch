@@ -19,3 +19,11 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
 }
+
+if (buildParams.snapshotBuild == false) {
+  // Requires ESNext codec which is not available in release test.
+  // This should be removed once the production codec supports slices.
+  tasks.named("yamlRestTest").configure {
+    systemProperty 'tests.rest.blacklist', 'search.vectors/47_knn_search_bbq_disk_slice/*'
+  }
+}

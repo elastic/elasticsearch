@@ -14,7 +14,6 @@ import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -290,7 +289,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testSimpleWhereRuntimeMatchWithScore() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
 
         var query = """
             FROM test METADATA _score
@@ -455,7 +453,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchRuntimeEvalWithOptionsThrowsError() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             FROM test
             | EVAL new_content = to_text(concat(content, " extra"))
@@ -473,7 +470,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchRuntimeRowWithOptionsThrowsError() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             ROW content = to_text("This is a brown fox")
             | WHERE match(content, "fox AND brown", {"operator": "AND"})

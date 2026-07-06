@@ -158,6 +158,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_ndjson_rename_strict",
         "employees_ndjson_rename_nonstrict",
         "employees_parquet_rename",
+        "employees_rename_multi",
         "employees_source_disabled",
         "employees_source_enabled",
         "employees_copy_nonstrict",
@@ -1031,6 +1032,65 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows, hasSize(3));
             assertThat(rows.get(0).get(0), equalTo(1L));                 // physical emp_no under logical id
             assertThat(rows.get(0).get(1).toString(), equalTo("Alice")); // physical first_name under logical name
+        }
+    }
+
+    public void testParquetRenameOverMultiFileGlobReconciles() throws Exception {
+        // Composition of the two axes no single-file rename test crosses: a declared RENAME over a MULTI-FILE parquet
+        // glob, so the per-file reconciliation path (main #152847 pins the reader to the per-file projection/attributes)
+        // runs WITH our logical->physical rename translation applied at the reader boundary. A wrong merge of that seam
+        // (dropping the translate, or feeding the query-unified cols) would read a renamed column from the wrong
+        // physical column or mis-cast a per-file page — and every existing rename test is single-file, so it would pass
+        // silently. Two identical files => each logical id (physical emp_no) 1,2,3 appears twice.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        Files.write(dir.resolve("part1.parquet"), parquetRenameFixtureBytes());
+        Files.write(dir.resolve("part2.parquet"), parquetRenameFixtureBytes());
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
+        properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
+        properties.put("comp", new DatasetFieldMapping("integer", "salary"));
+        properties.put("dept_code", new DatasetFieldMapping("keyword", "dept.code")); // flattened nested path
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_rename_multi",
+                    "local_ds",
+                    dir.toUri() + "*.parquet",
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+        // Full read of all four renamed columns (incl. the flattened nested path) across both files, sorted on the
+        // renamed sort key: projection + TopN reconciliation with renames, per file.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees_rename_multi | KEEP id, name, comp, dept_code | SORT id | LIMIT 20"),
+                TIMEOUT
+            )
+        ) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns.get(0).name(), equalTo("id"));
+            assertThat(columns.get(3).name(), equalTo("dept_code"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(6)); // 3 rows x 2 files
+            assertThat(rows.get(0).get(0), equalTo(1L)); // physical emp_no under logical id, from either file
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice")); // physical first_name under logical name
+            assertThat(rows.get(5).get(0), equalTo(3L));
+        }
+        // WHERE on a renamed column over the glob: the pushed filter must resolve to the physical column per file.
+        try (
+            var response = run(syncEsqlQueryRequest("FROM employees_rename_multi | WHERE name == \"Alice\" | KEEP id | SORT id"), TIMEOUT)
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("Alice appears once per file, two files", rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(1L));
         }
     }
 

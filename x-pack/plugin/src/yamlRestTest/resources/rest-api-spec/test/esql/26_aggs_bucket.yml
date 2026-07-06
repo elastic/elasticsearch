@@ -362,6 +362,30 @@
   - match:    { columns.1.name: b }
   - match:    { columns.1._meta.bucket.interval: 10.0 }
 
+  # column_metadata is also settable via the request body's settings.{} block, not just in-query SET.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+          settings:
+            column_metadata: true
+
+  - match:    { columns.1.name: b }
+  - match:    { columns.1._meta.bucket.interval: 10.0 }
+
+  # Sanity: without column_metadata in either surface, the response has no _meta.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+
+  - match:    { columns.1.name: b }
+  - is_false: columns.1._meta
+
 ---
 "BUCKET column metadata in columnar response":
   - requires:

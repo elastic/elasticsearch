@@ -518,6 +518,32 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(QuerySettings.UNMAPPED_FIELDS.aliases().isEmpty(), is(true));
     }
 
+    public void testResolveColumnMetadataIsRequestBodyExposedWithoutAlias() {
+        // COLUMN_METADATA is body-exposed under settings.{} but, unlike the three legacy settings, carries no
+        // top-level alias — there was never a pre-existing top-level body field for it to stay compatible with.
+        assertThat(QuerySettings.COLUMN_METADATA.requestBody(), is(true));
+        assertThat(QuerySettings.COLUMN_METADATA.aliases().isEmpty(), is(true));
+    }
+
+    public void testResolveRequestParameterAppliesColumnMetadata() {
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.COLUMN_METADATA, Boolean.TRUE);
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.TRUE));
+    }
+
+    public void testResolveBodyColumnMetadataFailsOnNonSnapshot() {
+        // Body-supplied snapshot-only settings bypass the parse-time gate in validate() (which only sees SET) and
+        // are instead rejected here, at resolve time.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.COLUMN_METADATA, Boolean.TRUE);
+        var ex = expectThrows(
+            VerificationException.class,
+            () -> QuerySettings.resolve(requestParams, null, NON_SNAPSHOT_CTX_WITH_CPS_ENABLED)
+        );
+        assertThat(ex.getMessage(), containsString("Setting [column_metadata] is only available in snapshot builds"));
+    }
+
     public void testResolveBodyExposedSettingsDeclareAliases() {
         // The three body-exposed settings each carry exactly one root alias mirroring the legacy field names.
         for (QuerySettingDef<?> def : List.of(QuerySettings.TIME_ZONE, QuerySettings.PROJECT_ROUTING, QuerySettings.APPROXIMATION)) {

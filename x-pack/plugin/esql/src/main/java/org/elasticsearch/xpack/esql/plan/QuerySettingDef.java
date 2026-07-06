@@ -160,16 +160,13 @@ public final class QuerySettingDef<T> {
     }
 
     public static Builder<Boolean> bool(String name) {
-        return Builder.<Boolean>of(name, DataType.BOOLEAN)
-            .jsonReader(XContentParser::booleanValue)
-            .expressionReader(e -> {
-                Object value = Foldables.literalValueOf(e);
-                if (value instanceof Boolean b) {
-                    return b;
-                }
-                throw new IllegalArgumentException("Setting [" + name + "] must be a boolean, got [" + value + "]");
-            })
-            .streamFormat((out, value) -> out.writeBoolean(value), StreamInput::readBoolean);
+        return Builder.<Boolean>of(name, DataType.BOOLEAN).jsonReader(XContentParser::booleanValue).expressionReader(e -> {
+            Object value = Foldables.literalValueOf(e);
+            if (value instanceof Boolean b) {
+                return b;
+            }
+            throw new IllegalArgumentException("Setting [" + name + "] must be a boolean, got [" + value + "]");
+        }).streamFormat((out, value) -> out.writeBoolean(value), StreamInput::readBoolean);
     }
 
     /** Escape hatch for non-primitive types. Supply both a JSON and an expression parser. */

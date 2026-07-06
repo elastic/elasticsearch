@@ -481,7 +481,13 @@ public class EsqlSession {
                             )
                         )
                         .<Result>andThen((l, p) -> {
-                            columnMetadata.set(createColumnMetadata(p, foldContext, statement.setting(QuerySettings.COLUMN_METADATA)));
+                            columnMetadata.set(
+                                createColumnMetadata(
+                                    p,
+                                    foldContext,
+                                    QuerySettings.COLUMN_METADATA.get(finalConfiguration.resolvedSettings())
+                                )
+                            );
                             executeOptimizedPlan(
                                 request,
                                 executionInfo,

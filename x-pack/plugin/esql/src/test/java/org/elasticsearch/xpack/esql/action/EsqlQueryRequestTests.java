@@ -775,6 +775,18 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals("*", request.get(QuerySettings.PROJECT_ROUTING));
     }
 
+    public void testSettingsBlockColumnMetadata() throws IOException {
+        String json = """
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "column_metadata": true
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(Boolean.TRUE, request.get(QuerySettings.COLUMN_METADATA));
+    }
+
     public void testSettingsBlockApproximationObject() throws IOException {
         String json = """
             {

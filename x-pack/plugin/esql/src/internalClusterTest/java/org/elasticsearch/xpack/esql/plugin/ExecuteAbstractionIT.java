@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.nio.file.Files;
@@ -44,6 +46,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -104,7 +107,37 @@ public class ExecuteAbstractionIT extends AbstractExternalDataSourceIT {
         }
 
         List<List<Object>> drained = dispatchAndDrain("employees", expectedSchema);
-        assertThat(sortByFirstColumn(drained), equalTo(sortByFirstColumn(expectedRows)));
+        assertThat(sortByColumn(drained, expectedSchema, "emp_no"), equalTo(sortByColumn(expectedRows, expectedSchema, "emp_no")));
+    }
+
+    /**
+     * The data-node-split path: a VIEW over a real index. Unlike the external CSV dataset (coordinator-only), a view
+     * over an index produces a plan with a data-node scan, so the sink attaches on top of a plan that already carries a
+     * coordinator/data-node split. Dispatching the view name and draining must still match a direct {@code FROM view}
+     * run — proving the {@code ExchangeSinkExec} wrapping is correct for the distributed shape too, not just the
+     * coordinator-only external case.
+     */
+    public void testExecuteViewOverRealIndexSinksRows() throws Exception {
+        createIndex("emp_index");
+        prepareIndex("emp_index").setId("1").setSource(Map.of("emp_no", 1, "first_name", "Alice")).get();
+        prepareIndex("emp_index").setId("2").setSource(Map.of("emp_no", 2, "first_name", "Bob")).get();
+        prepareIndex("emp_index").setId("3").setSource(Map.of("emp_no", 3, "first_name", "Carol")).get();
+        refresh("emp_index");
+        assertAcked(
+            client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TIMEOUT, TIMEOUT, new View("emp_view", "FROM emp_index")))
+        );
+
+        // The oracle must use the same bare shape the dispatch runs (FROM <name>), so the expected schema matches what
+        // the home cluster freshly resolves — otherwise B1 (correctly) fires.
+        List<List<Object>> expectedRows;
+        List<Attribute> expectedSchema;
+        try (var response = run(EsqlQueryRequest.syncEsqlQueryRequest("FROM emp_view"), TIMEOUT)) {
+            expectedSchema = schemaOf(response);
+            expectedRows = rowsOf(response);
+        }
+
+        List<List<Object>> drained = dispatchAndDrain("emp_view", expectedSchema);
+        assertThat(sortByColumn(drained, expectedSchema, "emp_no"), equalTo(sortByColumn(expectedRows, expectedSchema, "emp_no")));
     }
 
     /**
@@ -249,10 +282,18 @@ public class ExecuteAbstractionIT extends AbstractExternalDataSourceIT {
         return rows;
     }
 
-    /** Row order over an exchange is not guaranteed; sort by the first column (emp_no) for a stable comparison. */
-    private static List<List<Object>> sortByFirstColumn(List<List<Object>> rows) {
+    /** Row order over an exchange is not guaranteed; sort by the named column for a stable comparison. */
+    private static List<List<Object>> sortByColumn(List<List<Object>> rows, List<Attribute> schema, String column) {
+        int idx = -1;
+        for (int i = 0; i < schema.size(); i++) {
+            if (schema.get(i).name().equals(column)) {
+                idx = i;
+                break;
+            }
+        }
+        final int col = idx;
         List<List<Object>> sorted = new ArrayList<>(rows);
-        sorted.sort((a, b) -> Integer.compare(((Number) a.get(0)).intValue(), ((Number) b.get(0)).intValue()));
+        sorted.sort((a, b) -> Integer.compare(((Number) a.get(col)).intValue(), ((Number) b.get(col)).intValue()));
         return sorted;
     }
 

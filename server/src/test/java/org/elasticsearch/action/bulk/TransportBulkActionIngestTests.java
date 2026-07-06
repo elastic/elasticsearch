@@ -303,6 +303,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
         localIngest = true;
         // setup nodes for local and remote
         DiscoveryNode localNode = mock(DiscoveryNode.class);

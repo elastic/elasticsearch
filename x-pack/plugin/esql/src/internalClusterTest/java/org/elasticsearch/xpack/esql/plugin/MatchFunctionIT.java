@@ -182,34 +182,22 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("Unknown column [something]"));
     }
 
-    public void testWhereMatchEvalColumn() {
-        var query = """
-            FROM test
-            | EVAL upper_content = to_upper(content)
-            | WHERE match(upper_content, "FOX")
-            | KEEP id
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[MATCH] function cannot operate on [upper_content], which is not a field from an index mapping")
-        );
-    }
-
     public void testWhereMatchOverWrittenColumn() {
         var query = """
             FROM test
             | DROP content
-            | EVAL content = CONCAT("document with ID ", to_str(id))
+            | EVAL content = to_text(CONCAT("document with ID ", to_str(id)))
             | WHERE match(content, "document")
+            | KEEP id, content
+            | SORT id
+            | LIMIT 2
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[MATCH] function cannot operate on [content], which is not a field from an index mapping")
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(resp.values(), List.of(List.of(1, "document with ID 1"), List.of(2, "document with ID 2")));
+        }
     }
 
     public void testWhereMatchAfterStats() {
@@ -236,19 +224,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             assertColumnTypes(resp.columns(), List.of("integer"));
             assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
         }
-    }
-
-    public void testWhereMatchWithRow() {
-        var query = """
-            ROW content = "a brown fox"
-            | WHERE match(content, "fox")
-            """;
-
-        var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("line 2:15: [MATCH] function cannot operate on [content], which is not a field from an index mapping")
-        );
     }
 
     public void testMatchWithStats() {
@@ -320,30 +295,20 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | MV_EXPAND content
+            | EVAL content = to_text(content)
             | WHERE match(content, "fox")
+            | SORT id, content
+            | KEEP id, content
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
-    }
-
-    public void testMatchAfterMvExpandWithIntermediateCommands() {
-        var error = expectThrows(VerificationException.class, () -> run("""
-            FROM test
-            | MV_EXPAND content
-            | EVAL upper_content = to_upper(content)
-            | WHERE match(content, "fox")
-            """));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
-
-        error = expectThrows(VerificationException.class, () -> run("""
-            FROM test
-            | MV_EXPAND content
-            | SORT id
-            | KEEP id, content
-            | WHERE match(content, "fox")
-            """));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, "This is a brown fox"), List.of(6, "The quick brown fox jumps over the lazy dog"))
+            );
+        }
     }
 
     public void testMatchWithLookupJoin() {
@@ -369,14 +334,23 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | EVAL x = 123
             | RENAME x AS id
             | LOOKUP JOIN test_lookup ON id
-            | WHERE id > 0 AND MATCH(id, "fox")
+            | WHERE id > 0 AND MATCH(id, "123")
+            | KEEP id, content
+            | SORT content
+            | LIMIT 2
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("line 5:26: [MATCH] function cannot operate on [id], which is not a field from an index mapping")
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(123, "The dog is brown but this document is very very long"),
+                    List.of(123, "The quick brown fox jumps over the lazy dog")
+                )
+            );
+        }
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatch() {

@@ -714,7 +714,9 @@ public class LuceneTests extends ESTestCase {
                 w.addDocument(new Document());
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                IndexSearcher searcher = newSearcher(reader);
+                // Use a plain IndexSearcher (not newSearcher) to guarantee a deterministic single-threaded
+                // search path that always routes through ScorerSupplier.bulkScorer().
+                IndexSearcher searcher = new IndexSearcher(reader);
 
                 // A query that throws AssertionError if bulkScorer() is called from its weight directly
                 Query throwingQuery = new ThrowingBulkScorerQuery(Queries.ALL_DOCS_INSTANCE);

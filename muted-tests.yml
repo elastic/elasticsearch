@@ -770,9 +770,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/149663
-- class: org.elasticsearch.common.lucene.LuceneTests
-  method: testSearchWithoutBulkScorer
-  issue: https://github.com/elastic/elasticsearch/issues/152898
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:unmapped-type-conflicts.noTypeConflictKeywordKeepTriggersLoadInlineStats}
   issue: https://github.com/elastic/elasticsearch/issues/152904

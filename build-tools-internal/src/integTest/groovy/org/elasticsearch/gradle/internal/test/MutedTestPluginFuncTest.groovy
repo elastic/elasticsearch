@@ -18,9 +18,6 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     Class<? extends Plugin> pluginClassUnderTest = MutedTestPlugin
 
     def setup() {
-        // MutedTestPlugin calls mutedTestsProvider.get() during task configuration, which is
-        // incompatible with the configuration cache.
-        configurationCacheCompatible = false
         buildFile << """
             apply plugin: 'java'
             repositories { mavenCentral() }

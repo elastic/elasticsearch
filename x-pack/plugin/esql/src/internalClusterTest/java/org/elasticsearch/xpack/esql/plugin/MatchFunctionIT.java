@@ -447,15 +447,13 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeEvalWithIncompatibleLongValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | EVAL new_id = to_long(id)
             | WHERE match(new_id, "not_a_number")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([long]) of non-index-mapped field [new_id]",
@@ -464,14 +462,12 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeRowWithIncompatibleIpValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             ROW my_ip = to_ip("192.168.1.1")
             | WHERE match(my_ip, "not_an_ip")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 2:22: [MATCH] query value [\"not_an_ip\"] does not match the type ([ip]) of non-index-mapped field [my_ip]",
@@ -480,15 +476,13 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeEvalWithIncompatibleIntegerValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | EVAL new_id = to_integer(id)
             | WHERE match(new_id, "not_a_number")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([integer]) of non-index-mapped field "
@@ -498,15 +492,13 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeEvalWithIncompatibleDoubleValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | EVAL new_id = to_double(id)
             | WHERE match(new_id, "not_a_number")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([double]) of non-index-mapped field [new_id]",
@@ -515,15 +507,13 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeEvalWithIncompatibleUnsignedLongValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | EVAL new_id = to_unsigned_long(id)
             | WHERE match(new_id, "not_a_number")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([unsigned_long]) of non-index-mapped field "
@@ -533,14 +523,12 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeRowWithIncompatibleDatetimeValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             ROW my_date = to_datetime("2024-01-01")
             | WHERE match(my_date, "not_a_date")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 2:24: [MATCH] query value [\"not_a_date\"] does not match the type ([datetime]) of non-index-mapped field "
@@ -550,14 +538,12 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeRowWithIncompatibleDateNanosValueThrowsError() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             ROW my_date = to_date_nanos("2024-01-01")
             | WHERE match(my_date, "not_a_date")
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        var error = expectThrows(VerificationException.class, () -> run(query));
         assertEquals(
             "Found 1 problem\n"
                 + "line 2:24: [MATCH] query value [\"not_a_date\"] does not match the type ([date_nanos]) of non-index-mapped field "

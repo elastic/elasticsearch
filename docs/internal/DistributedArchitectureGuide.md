@@ -235,17 +235,228 @@ ctx.write(message).addListener(f -> { if (f.isSuccess() ...)});
 
 ### ThreadPool
 
-(We have many thread pools, what and why)
+The [`ThreadPool`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java)
+is the central registry that owns every executor in a node and is the entry point for getting one. Rather than holding
+references to raw `ExecutorService`s, code asks the `ThreadPool` for a named executor and submits work to it:
+
+```java
+threadPool.executor(ThreadPool.Names.SEARCH).execute(runnable);
+threadPool.generic().execute(runnable);
+threadPool.schedule(runnable, delay, executor);
+threadPool.scheduleWithFixedDelay(runnable, interval, executor);
+```
+
+#### Two pool types
+
+Each pool has a [`ThreadPoolType`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java#L159):
+
+- A **FIXED** pool has a static number of threads backed by a *bounded* queue. When the queue fills up, new tasks are
+  *rejected immediately* (surfacing as an `EsRejectedExecutionException`). This gives predictable resource consumption and
+  fast back-pressure under load, so it is used for the hot data paths such as `SEARCH` and `WRITE`.
+- A **SCALING** pool has a thread count that grows on demand between a min and a max, backed by an *unbounded* queue, and
+  its idle threads expire after a keep-alive period. This suits bursty, infrequent work such as `GENERIC`, `MANAGEMENT`,
+  and snapshots.
+
+#### Built-in pools
+
+The built-in pools are declared as string constants in
+[`ThreadPool.Names`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java#L77).
+Plugins register additional pools at startup by overriding
+[`Plugin::getExecutorBuilders(Settings)`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/plugins/Plugin.java#L304).
+Notable pools and their purpose:
+
+- `GENERIC` (scaling) is the catch-all for recovery, housekeeping, and ad-hoc work.
+- `SEARCH` (fixed) runs user search queries on the data nodes.
+- `SEARCH_COORDINATION` (fixed) coordinates the search fan-out across shards.
+- `WRITE` (fixed) handles indexing, bulk, and delete operations.
+- `CLUSTER_COORDINATION` carries all cluster-state updates. It is sized to a **single thread by design** so that
+  cluster-state application is serialized and correctness is guaranteed (see the [Cluster Coordination](#cluster-coordination) section).
+- `MANAGEMENT` (scaling) serves health, monitoring, and admin read APIs.
+- `FLUSH` / `REFRESH` / `MERGE` (scaling) perform shard maintenance operations.
+
+#### `AbstractRunnable` and `ActionRunnable`
+
+Submitting a plain `Runnable` works, but the executor cannot then tell the task that it was *rejected* rather than run,
+and any exception thrown from `run()` is swallowed by the worker thread. ES therefore prefers two richer abstractions:
+
+- [`AbstractRunnable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/AbstractRunnable.java)
+  extends `Runnable` with structured exception handling and lifecycle hooks: `doRun()` holds the work, `onFailure(Exception)`
+  receives any exception thrown by `doRun()`, `onRejection(Exception)` fires when the queue is full (defaulting to
+  `onFailure`), `onAfter()` always runs like a `finally`, and `isForceExecution()` lets a task bypass a bounded queue's
+  capacity limit.
+- [`ActionRunnable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/ActionRunnable.java)
+  extends `AbstractRunnable` and bridges it to an `ActionListener`, so `onFailure` is routed to `listener.onFailure`.
+  Factory methods cover the common cases:
+
+```java
+executor.execute(ActionRunnable.supply(listener, () -> computeResult()));
+executor.execute(ActionRunnable.run(listener, () -> doSomething()));
+```
+
+#### ThreadContext propagation
+
+Every thread managed by ES carries a
+[`ThreadContext`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java),
+which is a map of string headers and transient objects attached to the current logical request, such as authentication
+tokens, tracing IDs, custom request headers, the security context, and other transient objects that should flow with the
+work but not be serialized over the wire. This context is preserved automatically across thread-pool hops. The
+[`EsThreadPoolExecutor`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/EsThreadPoolExecutor.java#L174)
+wraps every submitted task in a `ContextPreservingRunnable` at submission time, and the worker thread restores the
+captured context before `doRun()` and cleans it up afterwards. As a result a request that begins with a user's auth
+token and fans out across search, fetch, and coordination threads carries that token on every hop with no manual
+threading of context through the code.
 
 ### ActionListener
 
 See the [Javadocs for `ActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
 
-(TODO: add useful starter references and explanations for a range of Listener classes. Reference the Netty section.)
+`ActionListener<T>` is the primary async callback interface in Elasticsearch, a form of *continuation-passing style*.
+Instead of computing and returning a value, an asynchronous operation is handed "what to do next" (the listener) as an
+argument and invokes it when the result is ready, and the caller passes its continuation into the callee rather than blocking
+until the callee finishes. This keeps threads free, lets operations compose without waiting, and, because listeners are
+also invoked from thread-pool executors, naturally carries the `ThreadContext` (see [ThreadPool](#threadpool)) across
+async hops. The contract is a two-path pair of methods:
+
+```java
+void onResponse(T response); // success path
+void onFailure(Exception e);  // failure path
+```
+
+The `ActionListener` Javadoc explains why ES deliberately avoids `java.util.concurrent.CompletableFuture` and similar
+mechanisms in production code. They can achieve the same goals, but they permit *blocking* while waiting for a result,
+almost never appropriate where threads are a precious resource, and they can *catch an `Error`*, delaying (or preventing)
+the JVM exit that should follow such a fatal condition. `ActionListener` makes those misuses impossible.
+
+#### Composition
+
+You almost never subclass `ActionListener` directly. Instead you compose delegates using its static factory methods.
+
+- `wrap(onResponse, onFailure)` builds an inline listener from two lambdas.
+- `runAfter(listener, runnable)` runs a cleanup action after completion, on either path.
+- `notifyOnce(listener)` guarantees the delegate is invoked at most once, for example when a timeout races a normal response.
+- `delegateFailureAndWrap((l, response) -> ...)` overrides only `onResponse`, forwarding `onFailure` to the delegate
+  automatically and also catching exceptions thrown by your `onResponse` logic.
+- `releaseAfter(listener, releasable)` ties a resource's lifetime to a listener, and is commonly used with `RefCounted` objects.
+- `delegateResponse((l, e) -> ...)` intercepts the failure path to log or swallow a specific exception before propagating.
+
+#### Fan-out and specialized implementations
+
+When one operation must wait for multiple concurrent sub-operations, there are purpose-built implementations:
+
+- [`GroupedActionListener<T>`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/GroupedActionListener.java)
+  handles a fixed, known number of parallel tasks and collects their results.
+- [`RefCountingListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/RefCountingListener.java)
+  handles a dynamic or unknown number of tasks, or cases where you only need to await all of them without collecting results.
+- [`SubscribableListener<T>`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java)
+  lets multiple independent callers `addListener` to the same result so they are all notified on completion, and its `andThen`
+  supports sequential CPS chaining of steps.
+- [`ThreadedActionListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/ThreadedActionListener.java)
+  wraps a delegate and dispatches its completion onto a specified `Executor`. This is the standard way to fork a
+  listener's continuation off the Netty event-loop thread (see the [Networking](#networking) / Netty discussion above and
+  the [Performance](#performance) note below) so that expensive follow-up work does not run on an I/O thread.
+
+#### Lifecycle listeners
+
+Distinct from the one-shot `ActionListener` are the *lifecycle* listeners. Registered once with a service, they live for
+the lifetime of the node and follow the classical Observer pattern, in which a subject maintains a list of registered
+listeners and notifies all of them on each event. There is no notion of completion, and the listener keeps receiving
+events. The two most common are
+[`ClusterStateListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateListener.java)
+(fires on every cluster-state update) and
+[`IndexEventListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexEventListener.java)
+(per-index and per-shard lifecycle events).
 
 ### Chunk Encoding
 
+Elasticsearch uses two completely separate serialization systems, and neither uses Java's built-in `Serializable`:
+
+- The **transport binary format** is the node-to-node wire protocol, driven by the `Writeable` interface (see
+  [Wire Serialization](#wire-serialization) below).
+- **XContent** is the structured document format used by REST APIs and for on-disk cluster state, supporting JSON, YAML,
+  SMILE, and CBOR via the `ToXContent` family of interfaces (see [XContent](#xcontent) below).
+
 #### XContent
+
+XContent is the structured, human-orientable serialization system. The
+[`XContentType`](https://github.com/elastic/elasticsearch/blob/v9.3.0/libs/x-content/src/main/java/org/elasticsearch/xcontent/XContentType.java)
+enum enumerates the supported concrete formats, which are JSON, YAML, SMILE, and CBOR, plus versioned variants. The
+abstraction exists so that most code does not hardcode a format. Cluster state is persisted on disk in **SMILE** (a
+compact binary superset of JSON), REST APIs default to **JSON**, and a REST caller can request a different response
+format via `?format=`.
+
+**Writing** is done through two interfaces, both requiring
+`XContentBuilder toXContent(XContentBuilder builder, Params params)`:
+
+- [`ToXContentObject`](https://github.com/elastic/elasticsearch/blob/v9.3.0/libs/x-content/src/main/java/org/elasticsearch/xcontent/ToXContentObject.java)
+  wraps its output in `builder.startObject()` / `builder.endObject()`, and is the standard for top-level
+  request/response objects.
+- [`ToXContentFragment`](https://github.com/elastic/elasticsearch/blob/v9.3.0/libs/x-content/src/main/java/org/elasticsearch/xcontent/ToXContentFragment.java)
+  writes bare key/value pairs without an enclosing object, for objects that are always embedded inside a larger object
+  managed by the caller.
+
+**Parsing** is preferentially done with a static `ConstructingObjectParser` declared on the class, which preserves
+immutability by collecting constructor arguments before applying any setters:
+
+```java
+private static final ConstructingObjectParser<Thing, Void> PARSER = new ConstructingObjectParser<>(
+    "thing",
+    a -> new Thing((String) a[0], (Integer) a[1])
+);
+static {
+    PARSER.declareString(constructorArg(), new ParseField("name"));         // required
+    PARSER.declareInt(optionalConstructorArg(), new ParseField("count"));   // optional
+    PARSER.declareString(Thing::setLabel, new ParseField("label"));         // applied after construction
+}
+```
+
+Fields declared with `constructorArg()` are required and `optionalConstructorArg()` may be absent. Fields declared with a
+setter are applied after the object has been constructed.
+
+#### Wire Serialization
+
+The transport binary format is the node-to-node wire protocol (see [Transport](#transport)). The core interface is
+[`Writeable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/io/stream/Writeable.java),
+whose sole method is `void writeTo(StreamOutput out)`. By convention a `Writeable` also provides a symmetric
+*deserialization constructor* taking a `StreamInput`, which keeps the type immutable and puts read and write logic side by
+side:
+
+```java
+public MyClass(StreamInput in) throws IOException {
+    this.count = in.readVInt();
+    this.items = in.readCollectionAsList(Item::new);
+}
+```
+
+[`StreamOutput`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/io/stream/StreamOutput.java)
+and [`StreamInput`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/io/stream/StreamInput.java)
+are abstract `java.io.OutputStream` / `InputStream` subclasses that form the write and read sides of this layer. They are
+*typed* streams that know how to encode ES's primitive and common types (`writeVInt`, `writeString`, collection helpers,
+etc.), and, critically, each carries the negotiated `TransportVersion` for the connection, so `writeTo` implementations
+and deserialization constructors can branch for backwards compatibility. The current BWC idiom gates a field on a named
+transport-version feature:
+
+```java
+// writing
+if (out.getTransportVersion().supports(MY_FEATURE)) {
+    out.writeString(newField);
+}
+// reading
+this.newField = in.getTransportVersion().supports(MY_FEATURE) ? in.readString() : null;
+```
+
+where `MY_FEATURE` is a `public static final TransportVersion MY_FEATURE = TransportVersion.fromName("my_feature");`.
+Prefer `supports(...)` over the older `onOrAfter(TransportVersions.X)` comparison. See
+[Versioning.md](./Versioning.md) for the full transport-version workflow (how to declare a new feature, confirm backport
+branches, and regenerate the resource files with `./gradlew generateTransportVersion`).
+
+When the reader does not know the concrete type at compile time (for example a `QueryBuilder` that could be a
+`TermQueryBuilder` or a `BoolQueryBuilder`), the type implements `NamedWriteable`. The name is written to the stream, a
+`NamedWriteableRegistry` maps `(categoryClass, name)` to the concrete reader, and a `NamedWriteableAwareStreamInput` wraps
+a `StreamInput` with that registry so named reads resolve transparently.
+
+Serialization is exercised by dedicated test base classes: `AbstractWireSerializingTestCase<T>` (transport round-trip
+through `StreamInput`/`StreamOutput`), `AbstractXContentSerializingTestCase<T>` (XContent parse/serialize round-trip), and
+`AbstractBWCSerializationTestCase<T>` (round-trips across transport versions).
 
 ### Performance
 
@@ -331,6 +542,42 @@ two new roles:
 
 - `index`: indexing nodes, which host primary shards and handle all write operations.
 - `search`: search nodes, which host search-only replica shards and handle read operations.
+
+It is worth distinguishing two terms that are often conflated. **Stateless** is the *architecture*. It separates storage
+from compute, keeps durability in an object store, and treats nodes as ephemeral workers. **Serverless** is the managed
+*offering* built on that architecture. It runs on Kubernetes and abstracts away provisioning, autoscaling, and error
+handling, billing users for shared resource usage rather than for statically provisioned servers. The public
+[Elastic serverless architecture blog](https://www.elastic.co/blog/elastic-serverless-architecture) contains an
+architecture diagram of the two-tier design, and the design is described in detail in the SoCC'25 paper
+[*Elasticsearch on the cloud: a stateless architecture*](https://dl.acm.org/doi/10.1145/3772052.3772245).
+
+Splitting the write path (`index` nodes) from the read path (`search` nodes) is what lets read and write capacity scale
+horizontally and independently. Stateless is implemented as an Elasticsearch plugin (the
+[`stateless`](https://github.com/elastic/elasticsearch/tree/main/x-pack/plugin/stateless) plugin) that overrides the
+relevant stateful components while reusing most of the stateful concepts described elsewhere in this guide.
+
+The two tiers exchange all durable data through the object store:
+
+- **Write path.** On an `index` node the
+  [`IndexEngine`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/engine/IndexEngine.java)
+  writes to the in-memory Lucene buffer and the local translog. The
+  [`TranslogReplicator`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/engine/translog/TranslogReplicator.java)
+  intercepts those translog operations and accumulates them in a node-level
+  [`NodeTranslogBuffer`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/engine/translog/NodeTranslogBuffer.java),
+  which is flushed to the object store once it crosses a configurable size or time threshold (defaults on the order of
+  ~16 MB / ~200 ms). Separately, the
+  [`StatelessCommitService`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/commits/StatelessCommitService.java)
+  batches Lucene commits and uploads them when a true flush occurs or when configurable count/size/time thresholds are
+  reached, amortizing object-store round-trips.
+- **Read path.** `search` nodes serve queries from a local disk-backed blob cache
+  ([`StatelessSharedBlobCacheService`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/cache/StatelessSharedBlobCacheService.java)),
+  reading from the object store on a miss. The
+  [`SearchCommitPrefetcher`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/cache/SearchCommitPrefetcher.java)
+  together with online prewarming pulls newly committed data into the cache ahead of queries to reduce cold-read latency.
+- **Recovery and allocation.** Both stateful and stateless use the Lucene segment + translog model, but where a stateful
+  shard recovers from a peer shard or a snapshot (see [Peer Recovery](#peer-recovery)), a stateless shard recovers
+  directly from the object store. Allocation decisions in stateless are driven by the
+  [`StatelessExistingShardsAllocator`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/allocation/StatelessExistingShardsAllocator.java).
 
 #### Master Node Role
 
@@ -646,6 +893,11 @@ move on to applying the new cluster state locally.
 When a new [ClusterState] is committed, the follower nodes need to apply the committed state locally.
 This is the responsibility of the [ClusterApplierService] class, which runs on
 a [single dedicated thread](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L159).
+
+Note that, to save bandwidth, a follower normally receives only a *diff* against the state it last acknowledged rather
+than the full serialized state (see the publication-side diff discussion above). The follower reconstructs the complete
+`ClusterState` from that diff locally, and it is this reconstructed full state that is then exposed as the current state
+to the appliers and listeners below.
 
 When [receiving](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L412)
 an [ApplyCommitRequest] from the master, the [Coordinator] will hand over the committed state to
@@ -1147,6 +1399,12 @@ the latest heartbeat from the blob store and starts the election if it's older t
 seconds). To become master, the candidate node will atomically override the current term in the blob store via a CAS
 operation.
 
+Beyond leadership, the lease/root blob also serves as a consistency gate during normal operation. Before a node acks a
+translog upload it verifies that its local cluster state is consistent with the authoritative blob, via
+[`StatelessClusterConsistencyService.ensureClusterStateConsistentWithRootBlob()`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/cluster/coordination/StatelessClusterConsistencyService.java),
+blocking writes if cluster membership has changed and the node's local state has not yet caught up. This prevents a node
+that has fallen behind on cluster-state updates from durably acknowledging writes it should no longer be handling.
+
 ### New Cluster Formation
 
 [ClusterBootstrapService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java
@@ -1256,6 +1514,11 @@ See `TransportMasterNodeAction` Javadoc for a detailed description of the execut
 
 (rarely use locks)
 
+At the coarsest level, a node acquires a filesystem lock on the `node.lock` file in its data directory at startup (via
+[NodeEnvironment]), which prevents two Elasticsearch processes from sharing the same data path. Finer-grained shard,
+translog, and Lucene locks are described below (see also the [On-Disk Shard Layout](#on-disk-shard-layout) and
+[Concurrency](#concurrency) discussions under [Engine & Store](#engine--store)).
+
 ### ShardLock
 
 ### Translog / Engine Locking
@@ -1350,6 +1613,49 @@ Lucene version that wrote it, and a `writerUuid` that uniquely identifies the wr
 `MetadataSnapshot`s are leveraged by several Elasticsearch workflows, including [peer recovery](#peer-recovery) and
 replica shard allocation (via `TransportNodesListShardStoreMetadata`). They are used to compare the on-disk state of two
 distinct shards and calculate how much data needs to be transferred to bring them into sync.
+
+#### On-Disk Shard Layout
+
+The `Store` and `Translog` files for every shard live under a node's data path. The
+directory tree below the configured `path.data` looks like:
+
+```
+data/
+└── nodes/
+    └── 0/
+        ├── node.lock                       # node-level lock (see below)
+        └── indices/
+            └── <index-uuid>/               # one directory per index
+                ├── _state/
+                │   └── state-<N>.st         # index metadata (settings, mappings)
+                └── <shard-id>/              # e.g. 0, 1, 2 ...
+                    ├── _state/
+                    │   └── state-<N>.st     # shard state (routing, allocation ID)
+                    ├── index/               # Lucene segment files + write.lock
+                    │   ├── segments_N
+                    │   └── ...              # see the Lucene File Layout table below
+                    └── translog/
+                        ├── translog-<N>.tlog # translog generation files
+                        └── translog.ckp      # translog checkpoint (min/max seqno)
+```
+
+The [`node.lock`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/NodeEnvironment.java#L186)
+file is a filesystem lock acquired by [NodeEnvironment] at startup, and it prevents two Elasticsearch processes from
+sharing the same data directory (see the [Locking](#locking) section). The `_state/state-<N>.st` files are written
+via `MetadataStateFormat` and hold the index metadata (at the index level) and shard routing/allocation state (at the
+shard level). The `-<N>` suffix is a monotonically increasing generation so a new state can be written and fsynced
+before the old one is removed. The `index/` directory holds the Lucene segments and commit points (its contents are
+detailed in the [Lucene File Layout](#lucene-file-layout) table). The `translog/` directory holds the durability log
+described under [Translog](#translog), where `translog.ckp` is the checkpoint tracking the current generation and its
+sequence-number range.
+
+The runtime object graph that owns these files is a containment hierarchy rooted at the shard:
+`IndexShard -> Engine (InternalEngine) -> { IndexWriter, DirectoryReader, Store -> Directory }`. The `IndexWriter`
+writes documents and drives flushes and merges, the `DirectoryReader` opens segments for search, and the `Store`
+wraps the Lucene `Directory` for raw file I/O. All of the Lucene extension points ES plugs in (the versioned codec,
+the wrapped `TieredMergePolicy`, soft deletes, and the index deletion policy) are assembled in
+[`InternalEngine#getIndexWriterConfig()`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java),
+which builds the `IndexWriterConfig` handed to the `IndexWriter` when the shard is opened.
 
 #### Concurrency
 
@@ -2840,8 +3146,10 @@ before an ack is sent back to the client.
 
 Note that in serverless Elasticsearch, there is no replication process needed. The same reliability and fault tolerance
 are instead achieved by uploading the translog to a blob store and relying on the store's durability and fault tolerance
-guarantees. See this [blog post](https://www.elastic.co/search-labs/blog/thin-indexing-shards-elasticsearch-serverless)
-for more details.
+guarantees. On an `index` node the `TranslogReplicator` batches operations into a node-level `NodeTranslogBuffer` and
+uploads them to the object store, and the `StatelessCommitService` batches Lucene commits for upload (see the
+[Stateless Roles](#stateless-roles) section for the class-level detail). See this
+[blog post](https://www.elastic.co/search-labs/blog/thin-indexing-shards-elasticsearch-serverless) for more details.
 
 The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the
 [translog](#translog)), but broader search capabilities like query execution, scoring, and aggregations fall under

@@ -1242,13 +1242,6 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(config.getMaxEmptySearches(), equalTo(maxEmptySearches));
     }
 
-    /**
-     * Verifies that serializing an ESQL datafeed {@link DatafeedConfig.Builder} to a stream targeting a
-     * pre-ESQL transport version throws an {@link IllegalStateException} rather than silently
-     * substituting a match-all query. Datafeeds with an ES|QL query are rejected at PUT time in a
-     * mixed-version cluster, so this code path should never be reached in practice; the exception
-     * is a last-resort safety net.
-     */
     public void testSerialization_GivenEsqlQueryBuilderToOldVersionThrows() throws IOException {
         DatafeedConfig.Builder original = createEsqlDatafeedBuilder();
         // The version immediately before ml_datafeed_esql_query was added
@@ -1261,12 +1254,6 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         }
     }
 
-    /**
-     * Verifies that serializing a built {@link DatafeedConfig} with an ES|QL query to a stream targeting
-     * a pre-ESQL transport version throws an {@link IllegalStateException} rather than NPE-ing on a null
-     * {@code queryProvider}. This path is unreachable in a correctly guarded cluster but must fail
-     * loudly rather than silently or with an uninformative NPE.
-     */
     public void testSerialization_GivenEsqlQueryConfigToOldVersionThrows() throws IOException {
         DatafeedConfig original = createEsqlDatafeedBuilder().build();
         TransportVersion preEsqlVersion = TransportVersion.fromName("histogram_blocks_multivalue_support");

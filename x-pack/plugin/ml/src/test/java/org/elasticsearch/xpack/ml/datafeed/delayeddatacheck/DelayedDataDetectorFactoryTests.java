@@ -185,7 +185,6 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
             mock(DataExtractorFactory.class)
         );
 
-        // Delayed data disabled → always a NullDelayedDataDetector, even for ESQL configs
         assertThat(detector, instanceOf(NullDelayedDataDetector.class));
     }
 

@@ -296,10 +296,6 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         return builder;
     }
 
-    // -------------------------------------------------------------------------
-    // ES|QL datafeed + delayed data check validation
-    // -------------------------------------------------------------------------
-
     public void testVerify_GivenEsqlQueryAndDelayedDataEnabledAndNoSummaryCountFieldThrows() {
         Job.Builder jobBuilder = buildJobBuilder("esql-job");
         AnalysisConfig.Builder ac = createAnalysisConfig();
@@ -343,8 +339,6 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job job = jobBuilder.build(new Date());
 
         DatafeedConfig datafeedConfig = createEsqlDatafeedWithDelayedData();
-
-        // Should not throw
         DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry());
     }
 
@@ -356,13 +350,10 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         jobBuilder.setAnalysisConfig(ac);
         Job job = jobBuilder.build(new Date());
 
-        // Delayed data check is disabled → summary count field is not required
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("esql-datafeed", "esql-job");
         builder.setEsqlQuery("FROM logs");
         builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
         DatafeedConfig datafeedConfig = builder.build();
-
-        // Should not throw
         DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry());
     }
 

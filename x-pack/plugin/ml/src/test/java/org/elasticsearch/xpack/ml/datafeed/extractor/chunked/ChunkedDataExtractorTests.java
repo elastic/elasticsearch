@@ -625,9 +625,6 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         stubChunk(1000L, 2000L, inputStream1);
         stubChunk(2000L, 2300L, inputStream2);
 
-        // The explicit chunk span must win over the ESQL auto-chunk heuristic; if the heuristic
-        // wrongly applied here (1000 docs/chunk target over 10 total hits), the whole range would
-        // be treated as a single chunk instead of being split at the specified 1 second boundary.
         assertNextStream(extractor, inputStream1);
         assertNextStream(extractor, inputStream2);
         assertNoMoreData(extractor);
@@ -656,8 +653,6 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(1L, 101L));
 
-        // 1000 (ESQL target docs) * 100 millis / 10 docs = 10_000, clamped up to MIN_CHUNK_SPAN
-        // (60_000), which exceeds the whole 100ms range, so the range is a single chunk.
         InputStream inputStream1 = mock(InputStream.class);
         stubChunkWithSummary(1L, 101L, new DataSummary(1L, 101L, 10L), inputStream1);
 
@@ -672,29 +667,24 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(100_000L, 400_000L));
 
-        // 1000 (ESQL target docs) * 300_000 millis / 3_000 docs = 100_000
         stubSummary(100_000L, 400_000L, new DataSummary(100_000L, 400_000L, 3_000L));
-
         InputStream inputStream1 = mock(InputStream.class);
         stubChunk(100_000L, 200_000L, inputStream1);
-
-        // This one is empty
         stubChunk(200_000L, 300_000L);
 
         assertNextStream(extractor, inputStream1);
         assertThat(extractor.hasNext(), is(true));
 
-        // Now we have: 1000 * 100_000 millis / 1_000 docs = 100_000
         InputStream inputStream2 = mock(InputStream.class);
         stubChunkWithSummary(300_000L, 400_000L, new DataSummary(300_000L, 400_000L, 1_000L), inputStream2);
 
         assertNextStream(extractor, inputStream2);
         assertNoMoreData(extractor);
 
-        verify(dataExtractorFactory).newExtractor(100_000L, 400_000L);  // Initial summary
-        verify(dataExtractorFactory).newExtractor(100_000L, 200_000L);  // Chunk 1
-        verify(dataExtractorFactory).newExtractor(200_000L, 300_000L);  // Chunk 2 with no data
-        verify(dataExtractorFactory, times(2)).newExtractor(300_000L, 400_000L);  // Reconfigure and new chunk
+        verify(dataExtractorFactory).newExtractor(100_000L, 400_000L);
+        verify(dataExtractorFactory).newExtractor(100_000L, 200_000L);
+        verify(dataExtractorFactory).newExtractor(200_000L, 300_000L);
+        verify(dataExtractorFactory, times(2)).newExtractor(300_000L, 400_000L);
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 

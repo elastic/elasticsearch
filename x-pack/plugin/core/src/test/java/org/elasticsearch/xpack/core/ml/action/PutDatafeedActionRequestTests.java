@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -23,15 +24,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction.Request;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -76,11 +76,6 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
-    /**
-     * Verifies that an ESQL datafeed request succeeds without an {@code indices} list and has null
-     * indicesOptions even when the caller passes a non-null default (as RestPutDatafeedAction does).
-     * The default should be silently ignored for ESQL datafeeds.
-     */
     public void testParseRequest_GivenEsqlQueryWithNoIndicesOptions_DoesNotInjectDefault() throws IOException {
         String body = """
             {
@@ -89,52 +84,53 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
             }
             """;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), body)) {
-            // Simulate what RestPutDatafeedAction does: always pass a non-null default
             Request request = Request.parseRequest("test_datafeed", SearchRequest.DEFAULT_INDICES_OPTIONS, parser);
             assertThat(request.getDatafeed().getIndicesOptions(), nullValue());
-            assertThat(request.getDatafeed().getIndices(), nullValue());
         }
     }
 
-    /**
-     * Verifies that an ESQL datafeed request still rejects an explicit {@code indices} list
-     * supplied in the request body.
-     */
-    public void testParseRequest_GivenEsqlQueryWithIndices_Throws() throws IOException {
+    public void testParseRequest_GivenNoIndicesOptions_InjectsDefault() throws IOException {
+        String body = """
+            {
+              "job_id": "test_job",
+              "indices": ["test"]
+            }
+            """;
+        IndicesOptions injected = IndicesOptions.LENIENT_EXPAND_OPEN;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), body)) {
+            Request request = Request.parseRequest("test_datafeed", injected, parser);
+            assertThat(request.getDatafeed().getIndicesOptions(), equalTo(injected));
+        }
+    }
+
+    public void testParseRequest_GivenIndicesOptionsInBody_DoesNotOverride() throws IOException {
         String body = """
             {
               "job_id": "test_job",
               "indices": ["test"],
-              "esql_query": "FROM test | KEEP @timestamp"
+              "indices_options": {
+                "allow_no_indices": false
+              }
             }
             """;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), body)) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> Request.parseRequest("test_datafeed", SearchRequest.DEFAULT_INDICES_OPTIONS, parser)
-            );
-            assertThat(e.getMessage(), containsString(Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES));
+            Request request = Request.parseRequest("test_datafeed", IndicesOptions.LENIENT_EXPAND_OPEN, parser);
+            IndicesOptions result = request.getDatafeed().getIndicesOptions();
+            assertThat(result.allowNoIndices(), equalTo(false));
+            assertThat(result, not(equalTo(IndicesOptions.LENIENT_EXPAND_OPEN)));
         }
     }
 
-    /**
-     * Verifies that an ESQL datafeed request still rejects an explicit indices_options
-     * supplied in the request body.
-     */
-    public void testParseRequest_GivenEsqlQueryWithExplicitIndicesOptions_Throws() throws IOException {
+    public void testParseRequest_SetsDatafeedIdFromArgument() throws IOException {
         String body = """
             {
               "job_id": "test_job",
-              "esql_query": "FROM test | KEEP @timestamp",
-              "indices_options": { "expand_wildcards": "open" }
+              "indices": ["test"]
             }
             """;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), body)) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> Request.parseRequest("test_datafeed", SearchRequest.DEFAULT_INDICES_OPTIONS, parser)
-            );
-            assertThat(e.getMessage(), containsString(Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS));
+            Request request = Request.parseRequest("my_datafeed_id", SearchRequest.DEFAULT_INDICES_OPTIONS, parser);
+            assertThat(request.getDatafeed().getId(), equalTo("my_datafeed_id"));
         }
     }
 

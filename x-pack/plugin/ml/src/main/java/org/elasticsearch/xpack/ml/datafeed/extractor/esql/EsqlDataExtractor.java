@@ -104,20 +104,8 @@ public class EsqlDataExtractor implements DataExtractor {
         return new RangeQueryBuilder(context.timeField()).gte(context.start()).lt(context.end()).format(EPOCH_MILLIS);
     }
 
-    /**
-     * Reads the single row produced by the summary {@code STATS} query and converts it into a
-     * {@link DataSummary}. The query projection is fixed: {@code earliest_time} (column 0),
-     * {@code latest_time} (column 1), {@code total_hits} (column 2).
-     * <p>
-     * {@code STATS} without {@code BY} always emits exactly one row, even when no documents match
-     * (in which case min/max are {@code null} and count is {@code 0}). The {@code null} min maps
-     * to a {@code null} {@code earliestTime}, so {@link DataSummary#hasData()} returns {@code false}
-     * and the chunker treats the range as empty — identical to the previous DSL path's behaviour.
-     */
     private static DataSummary parseSummaryResponse(EsqlResponse response) {
         List<? extends ColumnInfo> columns = response.columns();
-        // earliest_time and latest_time are independent MIN/MAX columns; detect each one's output
-        // type on its own rather than assuming they match.
         boolean earliestIsDate = isDateType(columns, 0);
         boolean latestIsDate = isDateType(columns, 1);
         for (Iterable<Object> row : response.rows()) {
@@ -130,7 +118,6 @@ public class EsqlDataExtractor implements DataExtractor {
             long totalHits = values.get(2) instanceof Number n ? n.longValue() : 0L;
             return new DataSummary(earliestTime, latestTime, totalHits);
         }
-        // Defensive fallback — STATS without BY should never produce zero rows.
         return new DataSummary(null, null, 0L);
     }
 

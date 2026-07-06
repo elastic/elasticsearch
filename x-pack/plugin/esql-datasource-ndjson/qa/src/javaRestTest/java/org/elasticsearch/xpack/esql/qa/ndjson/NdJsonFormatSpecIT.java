@@ -75,6 +75,7 @@ public class NdJsonFormatSpecIT extends AbstractExternalSourceSpecTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         return readExternalSpecTests(
             "/external-basic.csv-spec",
+            "/external-heavy-aggregates.csv-spec",
             "/external-multifile.csv-spec",
             "/external-multifile-resolution.csv-spec",
             "/external-multivalue.csv-spec"

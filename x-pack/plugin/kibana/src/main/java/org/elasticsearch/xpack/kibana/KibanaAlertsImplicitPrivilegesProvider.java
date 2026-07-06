@@ -11,14 +11,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
-import org.elasticsearch.xpack.core.security.support.StringMatcher;
+import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -53,17 +53,9 @@ public class KibanaAlertsImplicitPrivilegesProvider implements ImplicitPrivilege
 
     @Override
     public Collection<RoleDescriptor.IndicesPrivileges> getImplicitIndicesPrivileges(
-        RoleDescriptor roleDescriptor,
-        Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
+        Collection<ResolvedApplicationPrivilege> applicationPrivileges
     ) {
-        // This provider derives privileges from the role's application privileges, so there is
-        // nothing to contribute (and no need to scan the stored privileges) when the role has none.
-        RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = roleDescriptor.getApplicationPrivileges();
-        if (applicationPrivileges.length == 0) {
-            return List.of();
-        }
-
-        Set<String> resources = collectResources(applicationPrivileges, storedApplicationPrivileges);
+        Set<String> resources = collectResources(applicationPrivileges);
         if (resources.isEmpty()) {
             return List.of();
         }
@@ -92,60 +84,35 @@ public class KibanaAlertsImplicitPrivilegesProvider implements ImplicitPrivilege
     }
 
     /**
-     * Union of resources from every role application-privilege block that targets the Kibana
-     * application <i>and</i> grants {@link #ALERTS_ACTION}. A block grants the action if either:
-     *
-     * <ol>
-     *   <li><b>Resolved-name path</b>: the role's {@code privileges[]} names a stored Kibana
-     *       {@link ApplicationPrivilegeDescriptor} (e.g. {@code feature_alerting_v2_alerts.read})
-     *       whose {@code actions} set matches the alerts action. The {@code actions} set may be
-     *       a list of concrete entries or contain wildcard patterns; either form qualifies.</li>
-     *   <li><b>Raw-pattern path</b>: the role's {@code privileges[]} entries are themselves
-     *       action patterns rather than stored privilege names, and at least one of them matches
-     *       the alerts action (e.g. {@code "alerts:*"} or {@code "*"} written directly under
-     *       {@code privileges[]}). {@code NativePrivilegeStore#getPrivileges} returns no
-     *       descriptors for entries that do not name a stored privilege, so the role descriptor
-     *       itself is the only signal we have for this case.</li>
-     * </ol>
-     *
-     * Both paths honor wildcard application names on the role descriptor
-     * (e.g. {@code "kibana-*"}, {@code "*"}).
+     * Union of resources from every resolved application-privilege grant that targets the Kibana application
+     * <i>and</i> authorizes {@link #ALERTS_ACTION}.
+     * <p>
+     * Each {@link ResolvedApplicationPrivilege} carries a resolved {@link ApplicationPrivilege} whose
+     * {@link ApplicationPrivilege#predicate() predicate} already matches every action the grant authorizes — both the
+     * actions of any stored privilege the role referenced by name <em>and</em> any raw action patterns written directly
+     * under {@code privileges[]} (e.g. {@code "alerts:*"} or {@code "*"}) — so a single {@code predicate().test(...)}
+     * settles whether the grant authorizes {@link #ALERTS_ACTION}.
      */
-    private static Set<String> collectResources(
-        RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges,
-        Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
-    ) {
-        Set<String> kibanaPrivilegesGrantingAlerts = storedApplicationPrivileges.stream()
-            .filter(d -> KIBANA_APPLICATION.equals(d.getApplication()))
-            .filter(d -> StringMatcher.of(d.getActions()).test(ALERTS_ACTION))
-            .map(ApplicationPrivilegeDescriptor::getName)
-            .collect(Collectors.toSet());
-
+    private static Set<String> collectResources(Collection<ResolvedApplicationPrivilege> applicationPrivileges) {
         Set<String> resources = new HashSet<>();
-        for (RoleDescriptor.ApplicationResourcePrivileges arp : applicationPrivileges) {
-            // Application field may be a literal ("kibana-.kibana") or a wildcard ("kibana-*", "*");
-            // StringMatcher handles both: it matches a literal with an exact-string predicate and only
-            // builds an automaton for entries that actually contain wildcard characters.
-            if (StringMatcher.of(arp.getApplication()).test(KIBANA_APPLICATION) == false) {
-                continue;
-            }
-
-            // Short-circuit on the resolved-name path (cheap set lookup) before matching the
-            // raw-pattern path with StringMatcher.
-            boolean grantsAlertsByName = false;
-            for (String privilege : arp.getPrivileges()) {
-                if (kibanaPrivilegesGrantingAlerts.contains(privilege)) {
-                    grantsAlertsByName = true;
-                    break;
-                }
-            }
-
-            if (grantsAlertsByName || StringMatcher.of(arp.getPrivileges()).test(ALERTS_ACTION)) {
-                Collections.addAll(resources, arp.getResources());
+        for (ResolvedApplicationPrivilege resolved : applicationPrivileges) {
+            final ApplicationPrivilege privilege = resolved.privilege();
+            if (applicationMatchesKibana(privilege.getApplication()) && privilege.predicate().test(ALERTS_ACTION)) {
+                resources.addAll(resolved.resources());
             }
         }
-
         return resources;
+    }
+
+    /**
+     * Whether a resolved privilege's application targets the Kibana application. Resolution expands wildcard application
+     * names against the stored privileges, so the value is normally concrete and settled by equality; a residual wildcard
+     * (e.g. {@code "kibana-*"} or {@code "*"} with no matching stored descriptor) is matched with an automaton.
+     */
+    private static boolean applicationMatchesKibana(String application) {
+        return application.contains("*")
+            ? Automatons.predicate(application).test(KIBANA_APPLICATION)
+            : KIBANA_APPLICATION.equals(application);
     }
 
     static String buildSpaceIdsDlsQuery(Set<String> spaceIds) {

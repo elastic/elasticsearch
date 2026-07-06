@@ -138,6 +138,21 @@ public final class QuerySettings {
     ).withDefault(UnmappedResolution.DEFAULT).withPreview().build();
 
     @Param(
+        name = "column_metadata",
+        type = { "boolean" },
+        since = "9.5.0",
+        description = "When enabled, column metadata is added to the `_query` response as additional `_meta` properties."
+            + " Defaults to `false`. Currently, only `_meta.bucket` is added for columns corresponding to the `BUCKET` function"
+            + " and contains bucket interval and unit for queries where it can be determined."
+    )
+    public static final QuerySettingDef<Boolean> COLUMN_METADATA = QuerySettingDef.bool("column_metadata")
+        .withDefault(Boolean.FALSE)
+        .withPreview()
+        .withSnapshotOnly()
+        .withRequestBody()
+        .build();
+
+    @Param(
         name = "approximation",
         type = { "boolean", "map_param" },
         since = "9.5+, preview =9.4",
@@ -179,7 +194,7 @@ public final class QuerySettings {
      * request parser, the resolver, and telemetry all iterate this list. Add a new setting's constant here when
      * you declare it. Referencing this field initializes the class, so there is no load-order hazard.
      */
-    public static final List<QuerySettingDef<?>> ALL = List.of(TIME_ZONE, PROJECT_ROUTING, UNMAPPED_FIELDS, APPROXIMATION);
+    public static final List<QuerySettingDef<?>> ALL = List.of(APPROXIMATION, COLUMN_METADATA, PROJECT_ROUTING, TIME_ZONE, UNMAPPED_FIELDS);
 
     private static final Map<String, QuerySettingDef<?>> BY_NAME = byName(ALL);
 

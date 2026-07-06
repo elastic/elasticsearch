@@ -10,13 +10,11 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -91,6 +89,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
@@ -706,19 +705,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 if (usesBinaryDocValues) {
                     BytesRef keyedValue = indexedValueForSearch(value);
                     if (usesArrayOrderBinaryDocValues) {
-                        return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false) {
-                            @Override
-                            protected DocIdSetIterator getDocIdSetIterator(LeafReaderContext context, float matchCost) throws IOException {
-                                BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-                                if (values == null) {
-                                    return null;
-                                }
-                                NumericDocValues counts = context.reader()
-                                    .getNumericDocValues(fieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
-                                assert counts != null : "KeyedArrayOrderInlineNull always writes a companion count field";
-                                return keyedInlineNullIterator(values, counts, matcher, matchCost);
-                            }
-                        };
+                        return new KeyedArrayOrderInlineNullTermQuery(name(), keyedValue);
                     }
                     return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false);
                 } else {

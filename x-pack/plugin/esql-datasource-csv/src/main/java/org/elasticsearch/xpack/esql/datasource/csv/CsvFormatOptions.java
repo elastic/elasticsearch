@@ -55,9 +55,11 @@ import java.util.Locale;
  *                           mirroring schema inference). Jackson only ever
  *                           trimmed unquoted values; with this off an unquoted padded value is preserved,
  *                           matching RFC 4180 and the byte-fidelity posture of {@link Mode#PLAIN}. Known
- *                           limitation: on the Jackson read path the FIRST column still loses its leading
- *                           whitespace (Jackson skips it at record start regardless of the feature); every
- *                           other column and all trailing whitespace is preserved.
+ *                           limitation: the Jackson read path — {@code mode: escaped}, or the direct-block
+ *                           fallback when it is disabled — still loses the FIRST column's leading whitespace
+ *                           (Jackson skips it at record start regardless of the feature); every other column
+ *                           and all trailing whitespace is preserved. The default PLAIN/QUOTED no-trim read
+ *                           uses the house grammar, which preserves it.
  */
 public record CsvFormatOptions(
     char delimiter,

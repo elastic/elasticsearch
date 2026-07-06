@@ -4326,7 +4326,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 try {
                     return splitAndConvertQuoted(buf, from, to);
                 } catch (MalformedRowException e) {
-                    onRowError("CSV parse error: " + e.getMessage(), e, EMPTY_ROW, true);
+                    onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
                     return false;
                 }
             }

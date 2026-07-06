@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -138,7 +137,7 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
         if (failures.hasFailures()) {
             return;
         }
-        boolean hasTsSource = child().anyMatch(p -> p instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES);
+        boolean hasTsSource = child().anyMatch(p -> p instanceof EsRelation er && er.indexMode().isTsdb());
         if (hasTsSource == false) {
             failures.add(fail(this, "TS_INFO can only be used with TS source command"));
         }

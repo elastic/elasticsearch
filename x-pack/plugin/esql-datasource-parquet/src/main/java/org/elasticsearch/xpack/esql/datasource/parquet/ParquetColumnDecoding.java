@@ -239,26 +239,36 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * Decodes a Binary-backed FLOAT16 or DECIMAL footer stat value into the same {@code double} the
-     * scan path produces (mirrors {@code readFloat16Column} / {@code readDecimalAsDoubleColumn}), so
-     * pushed-down MIN/MAX match a scan. Only BINARY/FIXED_LEN_BYTE_ARRAY physical columns reach this
-     * path: their footer stat is a Parquet {@link Binary}, but the resolved ESQL type is DOUBLE, so
-     * leaving the stat as raw bytes/text would break the DOUBLE aggregate. Returns {@code null} when
-     * the value is not a {@link Binary} or the type is not FLOAT16/DECIMAL (caller falls through to
-     * other normalization).
+     * Decodes a FLOAT16 or DECIMAL footer stat value into the same {@code double} the scan path
+     * produces (mirrors {@code readFloat16Column} / {@code readDecimalAsDoubleColumn}), so
+     * pushed-down MIN/MAX match a scan. FLOAT16 is always Binary-backed (physical
+     * {@code FIXED_LEN_BYTE_ARRAY(2)}), so its footer stat is a Parquet {@link Binary}. DECIMAL can
+     * be backed by INT32, INT64, BINARY, or FIXED_LEN_BYTE_ARRAY — its stat arrives as an
+     * {@link Integer}/{@link Long} unscaled value for the former two, and as {@link Binary} bytes
+     * (big-endian two's complement) for the latter two.
+     *
+     * <p>Returns {@code null} when the type is not FLOAT16/DECIMAL, or the value's runtime type
+     * doesn't match what the physical type implies (caller falls through to other normalization).
      */
     static Double decodeBinaryNumericStat(Object value, PrimitiveType type) {
-        if (value instanceof Binary == false) {
-            return null;
-        }
-        byte[] bytes = ((Binary) value).getBytes();
         LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
         if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
-            short float16Bits = (short) ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
-            return (double) Float.float16ToFloat(float16Bits);
+            if (value instanceof Binary binary) {
+                byte[] bytes = binary.getBytes();
+                short float16Bits = (short) ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
+                return (double) Float.float16ToFloat(float16Bits);
+            }
+            return null;
         }
         if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal) {
-            BigInteger unscaled = new BigInteger(bytes);
+            BigInteger unscaled;
+            if (value instanceof Binary binary) {
+                unscaled = new BigInteger(binary.getBytes());
+            } else if (value instanceof Number number) {
+                unscaled = BigInteger.valueOf(number.longValue());
+            } else {
+                return null;
+            }
             return new BigDecimal(unscaled, decimal.getScale()).doubleValue();
         }
         return null;

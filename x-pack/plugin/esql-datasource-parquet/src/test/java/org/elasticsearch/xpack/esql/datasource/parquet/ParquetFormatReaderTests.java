@@ -5517,6 +5517,68 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Verifies that Parquet footer statistics for INT32/INT64-backed DECIMAL columns are scale-decoded
+     * to {@code double}, matching the scan-path decode.
+     */
+    public void testInt32AndInt64BackedDecimalStatsDecodeToDouble() throws Exception {
+        int decimalScale = 2;
+        long decimalLoUnscaled = -100; // -1.00
+        long decimalHiUnscaled = 1234567; // 12345.67
+        double decimalLoExpected = new BigDecimal(BigInteger.valueOf(decimalLoUnscaled), decimalScale).doubleValue();
+        double decimalHiExpected = new BigDecimal(BigInteger.valueOf(decimalHiUnscaled), decimalScale).doubleValue();
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.decimalType(decimalScale, 9))
+            .named("dec32")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.decimalType(decimalScale, 18))
+            .named("dec64")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("dec32", (int) decimalLoUnscaled);
+            g1.add("dec64", decimalLoUnscaled);
+            Group g2 = factory.newGroup();
+            g2.add("dec32", (int) decimalHiUnscaled);
+            g2.add("dec64", decimalHiUnscaled);
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // --- extractStatistics path (metadata) ---
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        var colStats = metadata.statistics().get().columnStatistics().get();
+
+        for (String col : List.of("dec32", "dec64")) {
+            var stats = colStats.get(col);
+            assertEquals(col + " min must be scale-decoded, not the raw unscaled value", Optional.of(decimalLoExpected), stats.minValue());
+            assertEquals(col + " max must be scale-decoded, not the raw unscaled value", Optional.of(decimalHiExpected), stats.maxValue());
+        }
+
+        // --- buildRowGroupStats path (discoverSplitRanges) ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            for (String col : List.of("dec32", "dec64")) {
+                Object min = stats.get("_stats.columns." + col + ".min");
+                if (min != null) {
+                    assertEquals(decimalLoExpected, ((Number) min).doubleValue(), 0.0);
+                }
+                Object max = stats.get("_stats.columns." + col + ".max");
+                if (max != null) {
+                    assertEquals(decimalHiExpected, ((Number) max).doubleValue(), 0.0);
+                }
+            }
+        }
+    }
+
+    /**
      * Direct coverage of {@link ParquetColumnDecoding#decodeTemporalStat} for the timestamp[nanos]
      * and TIME_* branches, which parquet-mr does not always emit footer statistics for (so they are
      * hard to exercise via a written file). Also pins date32/micros/millis, the INT96 opt-out (its

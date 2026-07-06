@@ -143,6 +143,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
             model,
             new TraceContext("trace-parent", "trace-state"),
             randomElasticInferenceServiceRequestMetadata(),
+            null,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
 
@@ -211,6 +212,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
             model,
             new TraceContext(traceParent, traceState),
             randomElasticInferenceServiceRequestMetadata(),
+            null,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
 
@@ -237,6 +239,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
             model,
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomElasticInferenceServiceRequestMetadata(),
+            null,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
     }

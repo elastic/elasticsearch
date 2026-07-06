@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -231,6 +232,57 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals("[" + strategy + "] resolved column 0 type", DataType.LONG, resolvedSchema.get(0).dataType());
             assertEquals("[" + strategy + "] resolved column 1 type", DataType.DOUBLE, resolvedSchema.get(1).dataType());
         }
+    }
+
+    /**
+     * FIRST_FILE_WINS folds every file's stats under the anchor's schema without enforcing that the other files
+     * actually share it. A column whose physical type diverges across files (here {@code ts}: DATETIME/millis in
+     * the anchor, DATE_NANOS/nanos in file 2) is read from the divergent file under the anchor schema — its data
+     * is misread — so a warm extremum cannot match a scan. The fold must POISON such a column's extrema
+     * (safe-miss), while a uniformly-typed column ({@code id}) folds normally.
+     */
+    public void testFfwAggregatePoisonsExtremaOfDivergentlyTypedColumn() {
+        Map<String, Object> f1 = new HashMap<>();
+        f1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        f1.put(SourceStatisticsSerializer.columnMinKey("ts"), 1000L);
+        f1.put(SourceStatisticsSerializer.columnMaxKey("ts"), 5000L);
+        f1.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
+        f1.put(SourceStatisticsSerializer.columnMaxKey("id"), 9L);
+        Map<String, Object> f2 = new HashMap<>();
+        f2.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        f2.put(SourceStatisticsSerializer.columnMinKey("ts"), 2_000_000L);
+        f2.put(SourceStatisticsSerializer.columnMaxKey("ts"), 9_000_000L);
+        f2.put(SourceStatisticsSerializer.columnMinKey("id"), 3L);
+        f2.put(SourceStatisticsSerializer.columnMaxKey("id"), 7L);
+        SourceMetadata m1 = new SimpleSourceMetadata(
+            List.of(attr("ts", DataType.DATETIME), attr("id", DataType.LONG)),
+            "parquet",
+            "file:///1.parquet",
+            null,
+            null,
+            f1,
+            null
+        );
+        SourceMetadata m2 = new SimpleSourceMetadata(
+            List.of(attr("ts", DataType.DATE_NANOS), attr("id", DataType.LONG)),
+            "parquet",
+            "file:///2.parquet",
+            null,
+            null,
+            f2,
+            null
+        );
+
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(List.of(m1, m2), false);
+        assertNotNull(agg);
+        // ts diverged -> extrema poisoned (value dropped, unservable marker set) -> MIN/MAX(ts) safe-miss to a scan.
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("ts")));
+        // id is uniformly LONG -> folds normally.
+        assertEquals(1L, agg.get(SourceStatisticsSerializer.columnMinKey("id")));
+        assertEquals(9L, agg.get(SourceStatisticsSerializer.columnMaxKey("id")));
     }
 
     // ===== Stats partial / file-count flag tests =====
@@ -1786,7 +1838,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
         };
 
-        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
+        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached), true);
         assertNotNull(merged);
         assertEquals(uncachedRowCount + cachedRowCount, ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
 
@@ -1806,7 +1858,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 return "s3://bucket/missing.parquet";
             }
         };
-        assertNull(ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached, missing)));
+        assertNull(ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached, missing), true));
     }
 
     private static SourceStatistics statsOf(long rowCount) {
@@ -1883,7 +1935,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
         };
 
-        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
+        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached), true);
         assertNotNull(merged);
         assertEquals(uncachedRowCount + cachedRowCount, ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
         assertEquals(

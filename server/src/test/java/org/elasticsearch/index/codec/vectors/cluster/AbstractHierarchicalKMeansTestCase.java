@@ -10,6 +10,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.search.TaskExecutor;
+import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -174,7 +175,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         HierarchicalKMeans<V> hkmeansSerial = HierarchicalKMeans.ofSerial(ops, dims, maxIterations, sampleSize, clustersPerNeighborhood);
         var serialResult = hkmeansSerial.cluster(vectors, targetSize);
         var serialOverspill = hkmeansSerial.computeSoar(vectors, serialResult.result(), serialResult.neighborHoods(), soarLambda);
-        assertKMeansResultValid(new KMeansWithOverspill<>(serialResult.result(), serialOverspill), nVectors, nClusters);
+        assertKMeansResultValid(serialResult.result(), serialOverspill, nVectors, nClusters);
 
         int[] serialClusterSizes = new int[serialResult.centroids().length];
         for (int k : serialResult.assignments()) {
@@ -200,7 +201,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
                 concurrentResult.neighborHoods(),
                 soarLambda
             );
-            assertKMeansResultValid(new KMeansWithOverspill<>(concurrentResult.result(), concurrentOverspill), nVectors, nClusters);
+            assertKMeansResultValid(concurrentResult.result(), concurrentOverspill, nVectors, nClusters);
 
             int[] concurrentClusterSizes = new int[concurrentResult.centroids().length];
             for (int k : concurrentResult.assignments()) {
@@ -234,7 +235,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
 
         var result = hkmeans.cluster(vectors, targetSize);
         var overspill = hkmeans.computeSoar(vectors, result.result(), result.neighborHoods(), random().nextFloat(0.5f, 1.5f));
-        assertKMeansResultValid(new KMeansWithOverspill<>(result.result(), overspill), nVectors, -1);
+        assertKMeansResultValid(result.result(), overspill, nVectors, -1);
     }
 
     /**
@@ -314,12 +315,12 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         HierarchicalKMeans<V> hkmeans = HierarchicalKMeans.ofSerial(ops, dims);
         KMeansNeighbors<V> result = hkmeans.cluster(vectors, targetSize);
         var overspill = hkmeans.computeSoar(vectors, result.result(), result.neighborHoods());
-        assertKMeansResultValid(new KMeansWithOverspill<>(result.result(), overspill), nVectors, nClusters);
+        assertKMeansResultValid(result.result(), overspill, nVectors, nClusters);
 
         // Now use those centroids as initial seeds for clusterByInsertion
         ClusteringVectorValues<V> priorView = wrapAsView(result.centroids(), dims);
         KMeansWithOverspill<V> insertionResult = hkmeans.clusterByInsertion(vectors, priorView, targetSize);
-        assertKMeansResultValid(insertionResult, nVectors, nClusters);
+        assertKMeansResultValid(insertionResult.result(), insertionResult.overspill(), nVectors, nClusters);
     }
 
     public void testClusterByConcatenation() throws IOException {
@@ -335,21 +336,25 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         HierarchicalKMeans<V> hkmeans = HierarchicalKMeans.ofSerial(ops, dims);
         var fullResult = hkmeans.cluster(vectors, targetSize);
         var overspill = hkmeans.computeSoar(vectors, fullResult.result(), fullResult.neighborHoods());
-        assertKMeansResultValid(new KMeansWithOverspill<>(fullResult.result(), overspill), nVectors, nClusters);
+        assertKMeansResultValid(fullResult.result(), overspill, nVectors, nClusters);
 
         int[] clusterSizes = fullResult.result().clusterCounts();
         ClusteringVectorValues<V> priorView = wrapAsView(fullResult.centroids(), dims);
 
         KMeansWithOverspill<V> concatResult = hkmeans.clusterByConcatenation(vectors, priorView, clusterSizes, nVectors, targetSize);
-        assertKMeansResultValid(concatResult, nVectors, nClusters);
+        assertKMeansResultValid(concatResult.result(), concatResult.overspill(), nVectors, nClusters);
     }
 
     // ---- Helpers ----
 
-    protected static <V> void assertKMeansResultValid(KMeansWithOverspill<V> result, int nVectors, int expectedClusters) {
+    protected static <V> void assertKMeansResultValid(
+        KMeansResult<V> result,
+        OverspillAssignments overspill,
+        int nVectors,
+        int expectedClusters
+    ) {
         V[] centroids = result.centroids();
         int[] assignments = result.assignments();
-        var overspill = result.overspill();
 
         if (expectedClusters > 0) {
             assertEquals(Math.min(expectedClusters, nVectors), centroids.length, 25);
@@ -368,7 +373,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         for (int count : counts) {
             assertThat("Empty cluster found", count, greaterThan(0));
         }
-        assertArrayEquals(counts, result.result().clusterCounts());
+        assertArrayEquals(counts, result.clusterCounts());
 
         if (centroids.length > 1 && centroids.length < nVectors) {
             // verify no duplicates exist

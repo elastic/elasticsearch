@@ -9,24 +9,33 @@
 /// On search shards we attach a single representative content timestamp (millis) to each cache region as it is populated. The eviction
 /// policies can use this timestamp to keep recent ("pinned") data resident and evict older data first, which gives better performance
 /// for time-based workloads.
+///
 /// ### Where the timestamp comes from
 /// The timestamp originates from [org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit], which carries a range of the
 /// minimum and maximum `@timestamp` field values across all documents in that compound commit (CC). From that range we derive a
 /// single value as its midpoint. The granularity of the underlying value is therefore per CC. The value is not known for commits created
 /// before timestamp ranges were introduced, and for indices that have no `@timestamp` field.
+///
 /// ### Physical layout
 /// CCs are packed into a batched compound commit (BCC), which is stored as a single blob. A BCC may span one or more cache regions, and
 /// with stateless defaults a BCC can contain multiple CCs as long as they all begin in the first region. Because a region can hold bytes
 /// from more than one CC, the single timestamp we assign to a region is necessarily an approximation of the region's contents.
+///
 /// ### Where timestamps are stored
 /// Timestamps live in [org.elasticsearch.xpack.stateless.lucene.SearchDirectory] inside its current metadata, as part of
 /// each file's [org.elasticsearch.xpack.stateless.commits.BlobFileRanges]. They are retrieved together with the file ranges while
 /// iterating over all referenced CCs during recovery and on new-commit notifications. The stored granularity is per CC: for every file in
 /// the directory we keep its owning CC's timestamp, exposed via
 /// [org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory#getTimestampMillis].
+///
+/// Generational files are special as a generational file can appear in multiple BCCs. Search directory pins each generational
+/// file to the first blob location it sees and keeps the timestamp of the CC that wrote it to that location.
+/// See [org.elasticsearch.xpack.stateless.lucene.SearchDirectory#mergeMetadata] for exact details.
+///
 /// ### Entry points into the cache and their granularity
 /// The list below documents, for each way a search node populates the cache, which timestamp is used and at what granularity. This is the
 /// current state and is expected to evolve.
+///
 ///   - BCC metadata reads (`readBatchedCompoundCommitUsingCache` and `readReferencedCompoundCommitsUsingCache` in
 ///     [org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService]) are not handled yet: these regions are populated with
 ///     [org.elasticsearch.blobcache.shared.SharedBlobCacheService#UNKNOWN_TIMESTAMP]. See the TODOs at the call sites in

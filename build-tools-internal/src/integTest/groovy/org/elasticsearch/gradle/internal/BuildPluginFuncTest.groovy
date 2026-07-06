@@ -26,7 +26,7 @@ class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.BuildPlugin
 
-    
+
     @Shared
     @ClassRule
     public LocalRepositoryFixture repository = new LocalRepositoryFixture()
@@ -56,6 +56,7 @@ class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.""".stripIndent()
 
     def setup() {
+        // checkstyle task references LegacyConfiguration class. Revisit after checkstyle update
         configurationCacheCompatible = false
         // elasticsearch.build (BuildPlugin) and elasticsearch.global-build-info are applied by
         // AbstractGradleInternalPluginFuncTest; we only add the java plugin and project config here.

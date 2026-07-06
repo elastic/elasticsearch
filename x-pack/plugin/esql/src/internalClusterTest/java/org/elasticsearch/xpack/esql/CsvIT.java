@@ -344,6 +344,10 @@ public class CsvIT extends ESTestCase {
             testCase.datasetSources.isEmpty() == false
         );
         assumeTrueLogging(
+            "CSV tests don't support local cluster capability requirements",
+            testCase.missingCapabilitiesLocalCluster.isEmpty()
+        );
+        assumeTrueLogging(
             "CSV tests don't support remote cluster capability requirements",
             testCase.missingCapabilitiesRemoteCluster.isEmpty()
         );

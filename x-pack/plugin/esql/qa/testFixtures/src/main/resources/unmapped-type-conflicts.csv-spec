@@ -32,7 +32,7 @@ ignoreOrder:true
 
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -2995,30 +2995,59 @@ null               | null
 typeConflictLongUnmappedSortWithCastToLong - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
-missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | SORT event_duration::long, _index
 | KEEP _index, event_duration
 ;
 
-_index:keyword                        | event_duration:long
-remote_cluster:no_mapping_sample_data | null
-remote_cluster:sample_data            | 725448
-remote_cluster:no_mapping_sample_data | null
-remote_cluster:sample_data            | 1232382
-remote_cluster:no_mapping_sample_data | null
-remote_cluster:sample_data            | 1756467
-remote_cluster:no_mapping_sample_data | null
-remote_cluster:sample_data            | 2764889
-remote_cluster:no_mapping_sample_data | null
-remote_cluster:sample_data            | 3450233
-remote_cluster:no_mapping_sample_data | null
-remote_cluster:sample_data            | 5033755
-remote_cluster:no_mapping_sample_data | null
-remote_cluster:sample_data            | 8268153
+_index:keyword         | event_duration:long
+no_mapping_sample_data | 725447
+sample_data            | 725448
+no_mapping_sample_data | 1232381
+sample_data            | 1232382
+no_mapping_sample_data | 1756466
+sample_data            | 1756467
+no_mapping_sample_data | 2764888
+sample_data            | 2764889
+no_mapping_sample_data | 3450232
+sample_data            | 3450233
+no_mapping_sample_data | 5033754
+sample_data            | 5033755
+no_mapping_sample_data | 8268152
+sample_data            | 8268153
+;
+
+typeConflictLongUnmappedSortWithCastToLong - old coordinator
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| SORT event_duration::long, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword         | event_duration:long
+no_mapping_sample_data | null
+sample_data            | 725448
+no_mapping_sample_data | null
+sample_data            | 1232382
+no_mapping_sample_data | null
+sample_data            | 1756467
+no_mapping_sample_data | null
+sample_data            | 2764889
+no_mapping_sample_data | null
+sample_data            | 3450233
+no_mapping_sample_data | null
+sample_data            | 5033755
+no_mapping_sample_data | null
+sample_data            | 8268153
 ;
 
 typeConflictLongUnmappedSortWithCastToKeyword - old data node

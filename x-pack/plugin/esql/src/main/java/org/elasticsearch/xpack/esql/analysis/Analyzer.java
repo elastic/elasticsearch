@@ -3301,11 +3301,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            if (context.minimumVersion().supports(RESOLVE_TWO_LEGGED_PUNKS) == false) {
-                // Implicit auto-casting of two-legged PUNKS will not take place, given old nodes were detected.
-                return plan;
-            }
-
             return plan.transformUp(EsRelation.class, esRelation -> {
                 if (esRelation.indexMode() == IndexMode.LOOKUP) {
                     return esRelation;

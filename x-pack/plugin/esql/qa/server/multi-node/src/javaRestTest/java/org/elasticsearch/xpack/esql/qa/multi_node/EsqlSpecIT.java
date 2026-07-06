@@ -61,6 +61,10 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         CsvTestUtils.assumeTrueLogging(
+            "Multi-node tests don't support local cluster capability requirements",
+            testCase.missingCapabilitiesLocalCluster.isEmpty()
+        );
+        CsvTestUtils.assumeTrueLogging(
             "Multi-node tests don't support remote cluster capability requirements",
             testCase.missingCapabilitiesRemoteCluster.isEmpty()
         );

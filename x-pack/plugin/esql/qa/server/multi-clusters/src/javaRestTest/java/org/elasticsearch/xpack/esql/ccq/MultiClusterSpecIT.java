@@ -181,6 +181,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         super.shouldSkipTest(testName);
 
         assumeTrue(
+            "Local cluster must not support " + testCase.missingCapabilitiesLocalCluster + " for test " + testName,
+            doesntHaveCapabilities(adminClient(), testCase.missingCapabilitiesLocalCluster)
+        );
+
+        assumeTrue(
             "Remote cluster must not support " + testCase.missingCapabilitiesRemoteCluster + " for test " + testName,
             doesntHaveCapabilities(remoteClusterClient(), testCase.missingCapabilitiesRemoteCluster)
         );

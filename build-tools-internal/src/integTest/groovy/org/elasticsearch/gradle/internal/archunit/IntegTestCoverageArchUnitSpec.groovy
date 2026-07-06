@@ -96,7 +96,6 @@ class IntegTestCoverageArchUnitSpec extends Specification {
         "org.elasticsearch.gradle.internal.test.DistroTestPlugin",
         "org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin",
         "org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin",
-        "org.elasticsearch.gradle.internal.test.MutedTestPlugin",
         "org.elasticsearch.gradle.internal.test.StandaloneRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.StandaloneTestPlugin",
         "org.elasticsearch.gradle.internal.test.TestWithDependenciesPlugin",

@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
@@ -430,12 +429,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     /**
      * The home-cluster resolve+plan+run seam that {@link AbstractionComputeHandler} drives. Synthesizes a
-     * {@code FROM `<name>`} query, assembles the {@code planExecutor.esql(...)} call exactly as {@link #innerExecute}
-     * does (same resolvers, services, external-source executor, live analyzer settings), and drives it with a sink-bound
+     * {@code FROM <name>} query, assembles the {@code planExecutor.esql(...)} call exactly as {@link #innerExecute} does
+     * (same resolvers, services, external-source executor, live analyzer settings), and drives it with a sink-bound
      * {@code PlanRunner} produced by {@code runnerFactory}. The name is resolved through the home cluster's own kind-blind
      * {@code SchemaService} umbrella — this is the execution half's recursion: "run abstraction on cluster X = invoke X's
      * umbrella on X's project". The runner factory is handed the per-request {@link EsqlExecutionInfo} so its
      * {@code executePlan} threads the same info the session builds.
+     *
+     * <p>The name is spliced into the query text unquoted: the dataset/view rewrite matches on the parsed relation's
+     * identifier and does not recognise a back-quoted form (a quoted {@code FROM `name`} resolves as a plain index and
+     * fails "Unknown index"). Names that require identifier quoting are a follow-up — for the abstraction names this POC
+     * targets, the unquoted splice resolves through the umbrella.
      */
     void resolveAndExecuteAbstraction(
         String abstractionName,
@@ -443,7 +447,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         Function<EsqlExecutionInfo, PlanRunner> runnerFactory,
         ActionListener<Result> listener
     ) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest("FROM " + ParserUtils.quoteIdString(abstractionName));
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest("FROM " + abstractionName);
         request.allowPartialResults(defaultAllowPartialResults);
         TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         String sessionId = UUIDs.randomBase64UUID();

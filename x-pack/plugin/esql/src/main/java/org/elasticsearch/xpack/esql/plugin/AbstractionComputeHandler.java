@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -112,6 +113,12 @@ final class AbstractionComputeHandler implements TransportRequestHandler<Execute
             () -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
         exchangeSink.addCompletionListener(ActionListener.running(() -> exchangeService.finishSinkHandler(sessionId, null)));
+        // On any failure (resolve/plan/schema-drift/compute), finish the sink with the failure so the coordinator's
+        // drain terminates instead of hanging — the failure path's analogue of the success completion listener above.
+        listener = listener.delegateResponse((l, e) -> {
+            exchangeService.finishSinkHandler(sessionId, e);
+            l.onFailure(e);
+        });
 
         // Sink-bound PlanRunner factory: instead of collecting pages (computeService.execute), sink them into the
         // exchange the coordinator polls (computeService.executePlan with a non-null sink supplier — the same path the
@@ -130,11 +137,15 @@ final class AbstractionComputeHandler implements TransportRequestHandler<Execute
                 resultListener.onFailure(e);
                 return;
             }
+            // Root the plan in an ExchangeSinkExec so LocalExecutionPlanner builds a sink operator bound to our
+            // exchange-sink supplier. The collect path (computeService.execute) instead wraps in OutputExec; the sink
+            // path must present an ExchangeSinkExec terminal, exactly as the distributed/subplan sink paths do.
+            PhysicalPlan sinkPlan = new ExchangeSinkExec(plan.source(), plan.output(), false, plan);
             computeService.executePlan(
                 sessionId,
                 parentTask,
                 computeService.createFlags(),
-                plan,
+                sinkPlan,
                 configuration,
                 foldCtx,
                 execInfo,

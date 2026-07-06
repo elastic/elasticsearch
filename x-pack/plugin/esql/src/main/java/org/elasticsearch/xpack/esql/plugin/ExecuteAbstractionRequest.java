@@ -98,6 +98,14 @@ final class ExecuteAbstractionRequest extends AbstractTransportRequest implement
     }
 
     ExecuteAbstractionRequest(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    /**
+     * @param idMapper must always be null in production. Only used in tests to remap NameIds when deserializing, so the
+     *                 round-tripped attributes compare equal to the originals (mirrors {@link ClusterComputeRequest}).
+     */
+    ExecuteAbstractionRequest(StreamInput in, PlanStreamInput.NameIdMapper idMapper) throws IOException {
         super(in);
         this.clusterAlias = in.readString();
         this.sessionId = in.readString();
@@ -111,7 +119,7 @@ final class ExecuteAbstractionRequest extends AbstractTransportRequest implement
         this.abstractionName = in.readString();
         // Attributes serialize through a PlanStreamInput (their writeTo/read cast to it for the attribute cache);
         // mirror ClusterComputeRequest, which wraps the raw stream to (de)serialize its plan.
-        this.expectedAttributes = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, null)
+        this.expectedAttributes = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper)
             .readNamedWriteableCollectionAsList(Attribute.class);
         this.indices = new String[] { abstractionName };
     }

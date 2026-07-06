@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 
 import java.io.IOException;
@@ -308,9 +309,17 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      * (Integer+Long→Long, Integer+Double→Double), plus Parquet FLOAT vs DOUBLE which both
      * map to ESQL {@code DOUBLE} at the schema level but retain distinct Java stat types.
      * Long+Double and Long+Float are intentionally incompatible (lossy above 2^53).
-     * DATETIME/DATE_NANOS is not handled — both are {@code Long} at the Java level so
-     * the same-class fast path covers them; if different epoch resolutions ever surface
-     * as different Java types in stats, they will fall through to the incompatible path.
+     * <p>
+     * Known limitation: DATETIME (epoch-millis) and DATE_NANOS (epoch-nanos) stats are both {@code Long}
+     * at the Java level, so the same-class fast path merges them numerically without unit awareness. This
+     * is only reachable across schema-inconsistent files that expose the <em>same</em> column with different
+     * temporal resolutions (e.g. a Parquet {@code timestamp[ms]} file and a {@code timestamp[us]} file, or a
+     * DATE_NANOS Arrow file), which {@link SchemaReconciliation} widens to DATE_NANOS while the per-split
+     * stats retain their original units. Reconciling stat units requires threading the reconciled column type
+     * into this value-only merge; a follow-up (elastic/elasticsearch#152859) does exactly that in
+     * {@link MergedSplitStats}, rescaling temporal values to a common unit (or poisoning on unknown/overflow)
+     * before this compare. Until it lands such a mixed-unit merge can produce a wrong extremum; uniform-schema
+     * datasets (the overwhelmingly common case) are correct regardless, because every split reports the same unit.
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Nullable
@@ -605,14 +614,16 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             return of(sourceMetadata);
         }
         List<org.elasticsearch.xpack.esql.datasources.spi.SplitStats> perSplitStats = new ArrayList<>(splits.size());
+        List<Map<String, DataType>> perSplitTypes = new ArrayList<>(splits.size());
         for (ExternalSplit split : splits) {
             org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
             if (stats == null) {
                 return null;
             }
             perSplitStats.add(stats);
+            perSplitTypes.add(MergedSplitStats.readSchemaTypes(split));
         }
-        return new MergedSplitStats(perSplitStats);
+        return new MergedSplitStats(perSplitStats, perSplitTypes);
     }
 
     @Override

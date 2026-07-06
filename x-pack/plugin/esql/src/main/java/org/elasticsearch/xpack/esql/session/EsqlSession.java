@@ -147,6 +147,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -1452,11 +1453,8 @@ public class EsqlSession {
             // be reflected in result.minimumTransportVersion().
             result.minimumTransportVersion(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
-                // TODO: a resolution that is valid overall but missing the index on some cluster in lookupIndexScope
-                // (partial resolution) is not retried here - only a fully invalid resolution is. Partial resolution
-                // should also be retried against COORDINATOR_LOOKUP_SCOPE so mixed local/remote LOOKUP JOINs can fall
-                // back to the coordinator's own copy instead of failing when a remote cluster lacks the index.
-                if (indexResolution.isValid() || lookupIndexScope.equals(COORDINATOR_LOOKUP_SCOPE)) {
+                if (Objects.equals(COORDINATOR_LOOKUP_SCOPE, lookupIndexScope)
+                    || isLookupJoinIndexResolved(indexResolution, lookupIndexScope, executionInfo)) {
                     l.onResponse(receiveLookupIndexResolution(result, lookupIndexScope, localPattern, executionInfo, indexResolution));
                 } else {
                     // if remote lookup join index resolution failed, retrying local only resolution for coordinator lookup join
@@ -1616,6 +1614,40 @@ public class EsqlSession {
     }
 
     /**
+     * Whether {@code indexResolution} resolved the lookup index well enough that no retry against a
+     * narrower scope is needed.
+     * <p>
+     * A resolution can be {@link IndexResolution#isValid()} yet still be missing the index on some cluster
+     * in {@code lookupIndexScope} (partial resolution), e.g. when only some remote clusters have a matching
+     * lookup index. That's only a problem for clusters that can't be skipped on failure - a missing cluster
+     * that {@link EsqlExecutionInfo#shouldSkipOnFailure} allows to be skipped doesn't force a retry, since
+     * {@link #receiveLookupIndexResolution} will simply mark it as skipped.
+     * <p>
+     * The local cluster can never be skipped. If local itself is missing the index, a retry can't help -
+     * it only re-queries local - so we report this as resolved and let {@link #receiveLookupIndexResolution}
+     * raise the precise "not available in local cluster" failure instead of retrying pointlessly.
+     */
+    private static boolean isLookupJoinIndexResolved(
+        IndexResolution indexResolution,
+        Set<String> lookupIndexScope,
+        EsqlExecutionInfo executionInfo
+    ) {
+        if (indexResolution.isValid() == false) {
+            return false;
+        }
+        Set<String> resolvedClusters = new HashSet<>();
+        for (String indexName : indexResolution.resolvedIndices()) {
+            resolvedClusters.add(RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey());
+        }
+        for (var clusterAlias : lookupIndexScope) {
+            if (resolvedClusters.contains(clusterAlias) == false && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Receive and process lookup index resolutions from resolveAsMergedMapping.
      * This processes the lookup index data for a single index, updates and returns the {@link PreAnalysisResult} result
      */
@@ -1670,7 +1702,9 @@ public class EsqlSession {
 
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
         Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
-        lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
+        for (var entry : lookupIndexResolution.get().indexNameWithModes().entrySet()) {
+            var indexName = entry.getKey();
+            var indexMode = entry.getValue();
             String clusterAlias = RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey();
             // Check that all indices are in lookup mode
             if (indexMode != IndexMode.LOOKUP) {
@@ -1699,16 +1733,16 @@ public class EsqlSession {
             } else {
                 clustersWithResolvedIndices.put(clusterAlias, indexName);
             }
-        });
+        }
 
         // These are clusters that are still in the running, we need to have the index on all of them
         // Verify that all active clusters have the lookup index resolved
-        lookupIndexScope.forEach(clusterAlias -> {
+        for (var clusterAlias : lookupIndexScope) {
             if (clustersWithResolvedIndices.containsKey(clusterAlias) == false) {
                 // Missing cluster resolution
                 skipClusterOrError(clusterAlias, executionInfo, findFailure(lookupIndexResolution.failures(), index, clusterAlias));
             }
-        });
+        }
 
         return result.addLookupIndexResolution(
             index,

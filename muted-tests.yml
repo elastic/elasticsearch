@@ -251,9 +251,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:stats.filterSometimesMatches}
   issue: https://github.com/elastic/elasticsearch/issues/152607
-- class: org.elasticsearch.search.suggest.CompletionSuggestSearchIT
-  method: testBigSizeCircuitBreak
-  issue: https://github.com/elastic/elasticsearch/issues/152785
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testReadBlobWithNoHttpResponse
   issue: https://github.com/elastic/elasticsearch/issues/152911

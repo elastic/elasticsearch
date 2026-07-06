@@ -160,7 +160,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected final Parameter<String> inferenceId;
         protected final Parameter<String> searchInferenceId;
         protected final Parameter<MinimalServiceSettings> modelSettings;
-        protected final Parameter<SemanticTextIndexOptions> indexOptions;
+        protected final Parameter<SemanticIndexOptions> indexOptions;
         protected final Parameter<ChunkingSettings> chunkingSettings;
         protected final Parameter<Map<String, String>> meta;
 
@@ -271,7 +271,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             ).acceptsNull().setMergeValidator(SemanticFieldMapper::canMergeModelSettings);
         }
 
-        protected Parameter<SemanticTextIndexOptions> configureIndexOptionsParam() {
+        protected Parameter<SemanticIndexOptions> configureIndexOptionsParam() {
             return buildIndexOptionsParam(SemanticFieldMapper::defaultIndexOptions, SemanticFieldMapper::defaultElementTypeToBfloat16);
         }
 
@@ -282,8 +282,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
          * configured, and {@code bfloat16Resolver} decides whether an unconfigured {@code element_type} should default
          * to {@code bfloat16} when explicit dense_vector index options are set.
          */
-        protected Parameter<SemanticTextIndexOptions> buildIndexOptionsParam(
-            Function<MinimalServiceSettings, SemanticTextIndexOptions> defaultIndexOptionsResolver,
+        protected Parameter<SemanticIndexOptions> buildIndexOptionsParam(
+            Function<MinimalServiceSettings, SemanticIndexOptions> defaultIndexOptionsResolver,
             Predicate<DenseVectorFieldMapper.ElementType> bfloat16Resolver
         ) {
             return new Parameter<>(
@@ -299,13 +299,13 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             ) {
                 @Override
                 protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-                    SemanticTextIndexOptions value = getValue();
+                    SemanticIndexOptions value = getValue();
                     if (includeDefaults || isConfigured()) {
                         MinimalServiceSettings resolvedModelSettings = getResolvedModelSettings(null, false);
                         if (value == null) {
                             // Default value, serialize resolved defaults
                             value = defaultIndexOptionsResolver.apply(resolvedModelSettings);
-                        } else if (value.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
+                        } else if (value.type() == SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
                             ExtendedDenseVectorIndexOptions innerIndexOptions = getExtendedDenseVectorIndexOptions(value);
                             DenseVectorFieldMapper.ElementType elementTypeOverride = innerIndexOptions.getElementType();
                             DenseVectorFieldMapper.DenseVectorIndexOptions dvio = innerIndexOptions.getBaseIndexOptions();
@@ -317,8 +317,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                             if (includeDefaults
                                 && elementTypeOverride == null
                                 && bfloat16Resolver.test(resolvedModelSettings.elementType())) {
-                                value = new SemanticTextIndexOptions(
-                                    SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                                value = new SemanticIndexOptions(
+                                    SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
                                     new ExtendedDenseVectorIndexOptions(dvio, DenseVectorFieldMapper.ElementType.BFLOAT16)
                                 );
                             }
@@ -550,7 +550,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         protected void validateIndexOptions(MinimalServiceSettings modelSettings) {
-            SemanticTextIndexOptions indexOptions = this.indexOptions.get();
+            SemanticIndexOptions indexOptions = this.indexOptions.get();
             String inferenceId = this.inferenceId.get();
 
             if (indexOptions == null) {
@@ -559,7 +559,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 throw new IllegalArgumentException(
                     "Model settings must be set to validate index options for inference ID [" + inferenceId + "]"
                 );
-            } else if (indexOptions.type() != SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
+            } else if (indexOptions.type() != SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
                 throw new IllegalArgumentException(
                     "[" + contentType() + "] field [" + leafName() + "] does not support [" + indexOptions.type() + "] index options"
                 );
@@ -962,7 +962,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected final String searchInferenceId;
         protected final MinimalServiceSettings modelSettings;
         protected final ChunkingSettings chunkingSettings;
-        protected final SemanticTextIndexOptions indexOptions;
+        protected final SemanticIndexOptions indexOptions;
         protected final ObjectMapper inferenceField;
         protected final boolean storesOriginalValuesInDocValues;
 
@@ -972,7 +972,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             String searchInferenceId,
             MinimalServiceSettings modelSettings,
             ChunkingSettings chunkingSettings,
-            SemanticTextIndexOptions indexOptions,
+            SemanticIndexOptions indexOptions,
             ObjectMapper inferenceField,
             boolean storesOriginalValuesInDocValues,
             Map<String, String> meta
@@ -1013,7 +1013,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return chunkingSettings;
         }
 
-        public SemanticTextIndexOptions getIndexOptions() {
+        public SemanticIndexOptions getIndexOptions() {
             return indexOptions;
         }
 
@@ -1232,7 +1232,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         return false;
     }
 
-    protected static SemanticTextIndexOptions parseIndexOptionsFromMap(
+    protected static SemanticIndexOptions parseIndexOptionsFromMap(
         String fieldName,
         Object node,
         IndexVersion indexVersion,
@@ -1247,18 +1247,16 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             throw new IllegalArgumentException("Too many index options provided, found [" + map.keySet() + "]");
         }
         Map.Entry<String, Object> entry = map.entrySet().iterator().next();
-        SemanticTextIndexOptions.SupportedIndexOptions indexOptions = SemanticTextIndexOptions.SupportedIndexOptions.fromValue(
-            entry.getKey()
-        );
+        SemanticIndexOptions.SupportedIndexOptions indexOptions = SemanticIndexOptions.SupportedIndexOptions.fromValue(entry.getKey());
         @SuppressWarnings("unchecked")
         Map<String, Object> indexOptionsMap = (Map<String, Object>) entry.getValue();
-        return new SemanticTextIndexOptions(
+        return new SemanticIndexOptions(
             indexOptions,
             indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled)
         );
     }
 
-    protected static ExtendedDenseVectorIndexOptions getExtendedDenseVectorIndexOptions(SemanticTextIndexOptions indexOptions) {
+    protected static ExtendedDenseVectorIndexOptions getExtendedDenseVectorIndexOptions(SemanticIndexOptions indexOptions) {
         IndexOptions innerIndexOptions = indexOptions.indexOptions();
         if (innerIndexOptions instanceof ExtendedDenseVectorIndexOptions edvio) {
             return edvio;
@@ -1271,10 +1269,10 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         return modelElementType == DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
-    private static SemanticTextIndexOptions defaultIndexOptions(MinimalServiceSettings modelSettings) {
+    private static SemanticIndexOptions defaultIndexOptions(MinimalServiceSettings modelSettings) {
         if (modelSettings != null && defaultElementTypeToBfloat16(modelSettings.elementType())) {
-            return new SemanticTextIndexOptions(
-                SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+            return new SemanticIndexOptions(
+                SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
                 new ExtendedDenseVectorIndexOptions(null, DenseVectorFieldMapper.ElementType.BFLOAT16)
             );
         }

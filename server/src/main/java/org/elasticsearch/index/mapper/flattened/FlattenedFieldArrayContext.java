@@ -53,6 +53,11 @@ public final class FlattenedFieldArrayContext extends FieldArrayContext {
 
     @Override
     public void addToLuceneDocument(DocumentParserContext context) throws IOException {
+        // Offset ordinals are only valid relative to the values this context instance observed. A second write would mean
+        // parseCreateField ran more than once for this field in the same document (e.g. field supplied as an array of
+        // objects), which silently corrupts array reconstruction since offsets from different instances target the same
+        // document-wide sorted-unique value set. See https://github.com/elastic/elasticsearch/issues/153014.
+        assert context.doc().getField(offsetsFieldName) == null;
         for (var docOffsets : offsetsPerDoc.values()) {
             for (var entry : docOffsets.entrySet()) {
                 String fieldName = entry.getKey();

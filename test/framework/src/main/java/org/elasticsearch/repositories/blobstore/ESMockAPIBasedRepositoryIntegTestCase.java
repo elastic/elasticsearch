@@ -390,8 +390,8 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            delegate.handle(exchange);
             maybeTrack(exchange);
+            delegate.handle(exchange);
         }
 
         /**

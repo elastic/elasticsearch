@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Golden tests for analyzer behavior with unmapped fields using SET unmapped_fields="nullify" and "load".
@@ -949,12 +950,284 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("FROM (FROM languages | WHERE language_code > 1)");
     }
 
+    public void testForkKeepsSingleTypePartiallyUnmappedTextField() throws Exception {
+        runTests("""
+            FROM employees_gender_text, employees_no_gender
+            | KEEP gender
+            | FORK (WHERE true)
+                   (WHERE true)
+            | KEEP _fork, gender
+            | SORT _fork
+            """);
+    }
+
+    public void testForkLoadsUnmappedFieldAcrossLookupJoinAndStatsBranches() throws Exception {
+        runTests("""
+            FROM employees
+            | EVAL language_code = languages
+            | FORK (LOOKUP JOIN languages_lookup ON language_code)
+                   (WHERE does_not_exist::KEYWORD == "x")
+                   (STATS c = COUNT(*) BY emp_no)
+            | KEEP _fork, emp_no, language_name, does_not_exist, c
+            | SORT _fork, emp_no
+            """);
+    }
+
+    public void testForkLoadsUnmappedFieldAcrossLookupJoinBranch() throws Exception {
+        runTests("""
+            FROM employees
+            | EVAL language_code = languages
+            | FORK (LOOKUP JOIN languages_lookup ON language_code)
+                   (WHERE does_not_exist::KEYWORD == "x")
+            | KEEP _fork, emp_no, language_name, does_not_exist
+            | SORT _fork, emp_no
+            """);
+    }
+
+    public void testForkLoadsUnmappedFieldExpandedInOneBranchOnly() throws Exception {
+        runTests("""
+            FROM partial_mapping_sample_data
+            | FORK (MV_EXPAND unmapped_message)
+                   (WHERE message == "42")
+            | KEEP _fork, message, unmapped_message
+            | SORT _fork, message, unmapped_message
+            """);
+    }
+
+    public void testForkLoadsUnmappedFieldKeptInOneBranchOnly() throws Exception {
+        runTests("""
+            FROM partial_mapping_sample_data
+            | FORK (KEEP message, unmapped_message)
+                   (WHERE message == "42")
+            | KEEP _fork, message, unmapped_message
+            | SORT _fork, message
+            """);
+    }
+
+    public void testForkLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
+        runTests("""
+            FROM partial_mapping_sample_data
+            | FORK (WHERE unmapped_message == "Disconnection error")
+                   (WHERE message == "42")
+            | KEEP _fork, message, unmapped_message, unmapped_event_duration
+            | SORT _fork, unmapped_event_duration
+            """);
+    }
+
+    public void testForkLoadsUnmappedFieldWhenSiblingBranchAlignsAnotherColumn() throws Exception {
+        runTests("""
+            FROM partial_mapping_sample_data
+            | FORK (WHERE unmapped_message == "Disconnection error")
+                   (EVAL branch_tag = "two")
+            | KEEP _fork, message, unmapped_message, branch_tag
+            | SORT _fork, message
+            """);
+    }
+
+    public void testForkRenamesUnmappedFieldInOneBranch() throws Exception {
+        runTests("""
+            FROM partial_mapping_sample_data
+            | FORK (WHERE unmapped_message == "Disconnection error")
+                   (RENAME unmapped_message AS msg)
+            | KEEP _fork, message, unmapped_message, msg
+            | SORT _fork, message
+            """);
+    }
+
+    public void testForkThreeWayTypeConflictShortLongUnmappedStaysUnsupported() throws Exception {
+        runTests("""
+            FROM all_types, all_types_short_as_long, all_types_no_short
+            | KEEP short
+            | FORK (WHERE true)
+                   (WHERE true)
+            | KEEP _fork, short
+            | SORT _fork
+            """);
+    }
+
+    public void testForkWidensSingleTypePartiallyUnmappedShortField() throws Exception {
+        runTests("""
+            FROM apps_short, partial_mapping_sample_data
+            | KEEP id
+            | FORK (WHERE true)
+                   (WHERE true)
+            | KEEP _fork, id
+            | SORT _fork
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    public void testForkWithSort() throws Exception {
+        runTests("""
+            FROM employees
+            | WHERE does_not_exist1::LONG > 5
+            | FORK (WHERE emp_no > 3 | SORT does_not_exist2 | LIMIT 7)
+                   (WHERE emp_no > 2 | EVAL xyz = does_not_exist3::KEYWORD)
+            """);
+    }
+
+    public void testSingleTypeAggregateMetricDoubleUnmappedNoCastLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM k8s-downsampled, k8s_unmapped
+            | KEEP network.eth0.tx
+            """, STAGES);
+    }
+
+    public void testSingleTypeDenseVectorUnmappedNoCastLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM dense_vector, dense_vector_unmapped
+            | KEEP float_vector
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunctionAndMetadataKeepLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+            | WHERE match(txt, "Faulkner") OR txt IS NULL
+            | KEEP _index, doc_id, txt
+            | SORT _index
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunctionLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped, text_state_nonexistent
+            | WHERE match(txt, "Faulkner") OR txt IS NULL
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextUnmappedNoCastLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextUnmappedWithMatchFunctionLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | WHERE match(txt, "Faulkner")
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextUnmappedWithMatchOperatorLoadOnly() throws Exception {
+        assumeTrue("Requires match operator", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | WHERE txt:"Faulkner"
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextUnmappedWithMatchPhraseFunctionLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_PHRASE_FUNCTION", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | WHERE match_phrase(txt, "William Faulkner")
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSubquery() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTests("""
+            FROM employees, (FROM languages | WHERE does_not_exist::LONG > 0)
+            | KEEP emp_no, language_code
+            """);
+    }
+
+    public void testSubqueryDropInBranchMaterializesSibling() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTests("""
+            FROM employees,
+                (FROM languages | DROP does_not_exist)
+            | KEEP emp_no, language_code, does_not_exist
+            """);
+    }
+
+    public void testSubqueryLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTests("""
+            FROM employees,
+                (FROM languages | WHERE does_not_exist::LONG > 1 | KEEP language_code, does_not_exist)
+            | KEEP emp_no, language_code, does_not_exist
+            """);
+    }
+
+    public void testSubqueryRenameInBranchOuterReferencesOriginalName() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTests("""
+            FROM employees,
+                (FROM languages | RENAME does_not_exist AS renamed)
+            | KEEP emp_no, language_code, does_not_exist, renamed
+            """);
+    }
+
+    public void testSubqueryWidensSingleTypePartiallyUnmappedShortField() throws Exception {
+        // Both branches make id a two-legged short PUNK and only KEEP it; branches and UnionAll output must agree on the widened INTEGER
+        // type, else checkUnionAll reports [INTEGER] vs [SHORT]. (Plain short avoided: subqueries don't auto-widen numerics.)
+        runTests("""
+            FROM (FROM apps_short, partial_mapping_sample_data | KEEP id),
+                 (FROM apps_short, partial_mapping_sample_data | KEEP id)
+            | KEEP id
+            | SORT id NULLS LAST
+            | LIMIT 5
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    public void testSubqueryWithLookupJoin() throws Exception {
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+        runTests("""
+            FROM employees,
+                (FROM languages | WHERE language_code > 0),
+                (FROM employees | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
+            | WHERE does_not_exist::LONG > 0
+            | KEEP emp_no, language_code
+            """);
+    }
+
+    public void testSubqueryWithRowBranchOuterReference() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        runTests("""
+            FROM employees, (ROW synthetic = 1)
+            | KEEP emp_no, synthetic, does_not_exist
+            """);
+    }
+
+    public void testViewBranchingLoadsUnmappedField() throws Exception {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        runTests("""
+            FROM emp_lang_view
+            | KEEP emp_no, language_code, does_not_exist
+            """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code)"));
+    }
+
+    public void testViewBranchingLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        runTests("""
+            FROM emp_lang_view
+            | KEEP emp_no, language_code, does_not_exist
+            """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code, does_not_exist)"));
+    }
+
     private void runTests(String query) {
         runTestsNullifyAndLoad(query, STAGES, null);
     }
 
     private void runTests(String query, String... nestedPaths) {
         runTestsNullifyAndLoad(query, STAGES, null, nestedPaths);
+    }
+
+    private void runTests(String query, Map<String, String> views) {
+        runTestsNullifyAndLoad(query, STAGES, null, views);
     }
 
     private void runTests(String query, TransportVersion minimumSupportedVersion, String... nestedPath) {

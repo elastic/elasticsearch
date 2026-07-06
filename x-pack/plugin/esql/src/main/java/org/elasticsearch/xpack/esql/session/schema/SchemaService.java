@@ -513,6 +513,13 @@ public final class SchemaService {
      * <p>POC scope. Cross-version protocol-compat (gating wire fields against the negotiated {@code TransportVersion}
      * for old/new cluster pairs — the {@code #cps-project-team} "many protocol versions" problem) is a production
      * follow-up and is not handled here; the wire form assumes both clusters speak the current {@code resolve_schema}.
+     *
+     * <p><b>The remote branch is not yet reachable from a production query.</b> The only in-session caller
+     * ({@link #resolveDatasetConfigs}) routes remote names here, but datasets are local-only today
+     * ({@code DatasetRewriter.hasRemotePattern} keeps a remote-prefixed FROM off this path), so {@code byRemote} is
+     * always empty and only the in-process local dispatch runs. The remote leg is exercised solely by the IT that
+     * invokes the transport action directly. It stays as the seam the next phase (remote dataset/view execution) builds
+     * on.
      */
     public void resolveSchemaFederated(
         SchemaContext ctx,

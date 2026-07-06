@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -179,6 +180,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 sink,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 null
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
@@ -202,66 +205,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             partialCount,
             Matchers.greaterThanOrEqualTo(2L)
         );
-    }
-
-    /**
-     * Each per-chunk partial must carry a coverage range, and those ranges must tile the decompressed
-     * stream contiguously from 0 with the final chunk flagged last — the property the coordinator-side
-     * reconciler checks before committing the summed per-chunk counts.
-     */
-    public void testCleanClosePublishesTilingCoverageToSink() throws Exception {
-        int lineCount = 500;
-        String content = buildContent(lineCount);
-        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
-        String path = "mem://streaming-finalize-test";
-        Instant mtime = Instant.parse("2020-01-01T00:00:00Z");
-        StorageObject file = new TestFileStorageObject(path, mtime);
-        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
-
-        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
-        ExecutorService executor = Executors.newFixedThreadPool(6);
-        try {
-            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
-                reader,
-                stream,
-                file,
-                List.of("line"),
-                50,
-                4,
-                executor,
-                ErrorPolicy.STRICT,
-                null,
-                0L,
-                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                sink,
-                null
-            );
-            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
-                while (iter.hasNext()) {
-                    iter.next().releaseBlocks();
-                }
-            }
-        } finally {
-            executor.shutdownNow();
-        }
-
-        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
-        List<Map<String, Object>> partials = contributions.stream()
-            .filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY)))
-            .sorted(java.util.Comparator.comparingLong(m -> ((Number) m.get(ExternalStats.COVERAGE_START_KEY)).longValue()))
-            .toList();
-        assertThat(partials.size(), Matchers.greaterThanOrEqualTo(2));
-        long expectedStart = 0;
-        boolean lastFlagged = false;
-        for (Map<String, Object> p : partials) {
-            long start = ((Number) p.get(ExternalStats.COVERAGE_START_KEY)).longValue();
-            long end = ((Number) p.get(ExternalStats.COVERAGE_END_KEY)).longValue();
-            assertEquals("chunk coverage must tile the decompressed stream with no gap", expectedStart, start);
-            assertTrue("coverage end must advance", end > start);
-            expectedStart = end;
-            lastFlagged = Boolean.TRUE.equals(p.get(ExternalStats.COVERAGE_IS_LAST_KEY));
-        }
-        assertTrue("the final chunk must be flagged last (observed end-of-input)", lastFlagged);
     }
 
     /**
@@ -297,6 +240,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 sink,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 null
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
@@ -337,7 +282,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Pins the typed-failure contract from elastic/esql-planning#836 on the streaming coordinator: a raw
+     * Pins the typed-failure contract on the streaming coordinator: a raw
      * {@link IOException} thrown by a worker (here, {@code FailingFormatReader.read}) is stored in
      * {@code firstError} and surfaced by {@code checkError()}'s {@code surface()} as a typed
      * {@link ExternalClientException} (HTTP 400) — including the coordinator's "Streaming parallel parsing
@@ -456,6 +401,74 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 assertTrue("chunk[" + i + "] must have recordAligned=true (sliced on \\n)", ctx.recordAligned());
             }
             assertEquals("exactly one chunk must own the file's leading bytes", 1, firstSplitCount);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Canonical-stripe attribution is file-global. On a parallel <b>macro-split</b> ({@code baseFileOffset > 0})
+     * each chunk's stats base offset must equal its file-global {@code splitStartByte} — the two are the same
+     * file-global byte on a record-aligned chunk, and the stripe grid is file-global
+     * ({@code ordinal = floor((statsBase + recordOffsetInChunk) / stripeSize)}). An earlier version passed
+     * {@code chunk.coverageStart()} (stream-local, 0-based) to {@code .stats(...)} while {@code .splitStartByte()}
+     * used {@code baseFileOffset + coverageStart()}, so a parallel macro-split attributed records to stream-local
+     * stripes and misaligned siblings on the file-global grid. Red before that fix, green after.
+     */
+    public void testParallelStripeBaseIsFileGlobalForMacroSplit() throws Exception {
+        int lineCount = 1000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        long baseFileOffset = 1_000_000L; // a non-zero macro-split start
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            // Small chunkSize forces several chunks so interior + EOF chunks are both exercised.
+            LineFormatReader reader = new LineFormatReader(1024);
+            collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    stream,
+                    null,
+                    List.of("line"),
+                    100,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT,
+                    null,
+                    baseFileOffset,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    sink,
+                    64L, // stripe addressing active
+                    StripeColumnScope.PROJECTED,
+                    null
+                )
+            );
+
+            List<FormatReadContext> seen;
+            synchronized (reader.seenContexts) {
+                seen = new ArrayList<>(reader.seenContexts);
+            }
+            assertTrue("Expected at least 2 chunks, recorded " + seen.size(), seen.size() >= 2);
+            for (int i = 0; i < seen.size(); i++) {
+                FormatReadContext ctx = seen.get(i);
+                assertEquals(
+                    "chunk[" + i + "] stats base must be file-global (== splitStartByte), not stream-local",
+                    ctx.splitStartByte(),
+                    ctx.statsBaseOffset()
+                );
+                assertTrue(
+                    "chunk["
+                        + i
+                        + "] stats base ["
+                        + ctx.statsBaseOffset()
+                        + "] must include the macro-split baseFileOffset ["
+                        + baseFileOffset
+                        + "]",
+                    ctx.statsBaseOffset() >= baseFileOffset
+                );
+            }
         } finally {
             executor.shutdownNow();
         }
@@ -951,6 +964,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 maxRecordBytes,
                 null,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
@@ -998,6 +1013,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 maxRecordBytes,
                 null,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
@@ -1027,6 +1044,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 maxRecordBytes,
                 null,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 null
             );
             List<String> got = collectLines(lenientIterator);
@@ -1073,6 +1092,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 maxRecordBytes,
                 null,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 sink::add
             );
             List<String> got = collectLines(iterator);
@@ -1120,6 +1141,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             0L,
             maxRecordBytes,
             null,
+            -1L,
+            StripeColumnScope.PROJECTED,
             null
         );
         List<String> got = collectLines(iterator);

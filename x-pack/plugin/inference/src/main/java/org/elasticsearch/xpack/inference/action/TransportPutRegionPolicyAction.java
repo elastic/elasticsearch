@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -42,6 +43,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.action.PutRegionPolicyAction;
+import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.RegionPolicyResponse;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicyDoc;
@@ -158,7 +160,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
                             ignored -> {},
                             e -> logger.warn("Failed to invalidate inference preferences cache after updating region policy", e)
                         ),
-                        () -> listener.onResponse(new RegionPolicyResponse(doc))
+                        () -> refreshAuthorizedEndpointsAndRespond(doc, listener)
                     )
                 );
             }
@@ -178,6 +180,20 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
                 }
             }
         });
+    }
+
+    private void refreshAuthorizedEndpointsAndRespond(RegionPolicyDoc doc, ActionListener<RegionPolicyResponse> listener) {
+        client.execute(
+            RefreshAuthorizedEndpointsAction.INSTANCE,
+            new RefreshAuthorizedEndpointsAction.Request(),
+            ActionListener.runAfter(
+                ActionListener.<ActionResponse.Empty>wrap(
+                    ignored -> {},
+                    e -> logger.warn("Failed to refresh authorized endpoints after updating region policy", e)
+                ),
+                () -> listener.onResponse(new RegionPolicyResponse(doc))
+            )
+        );
     }
 
     private RegionPolicyDoc createNewRegionPolicyDoc(@Nullable RegionPolicyDoc existingRegionPolicy, RegionPolicy newRegionPolicy) {

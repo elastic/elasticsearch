@@ -417,7 +417,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * @param dataStream                            the data stream to inspect for start window
      * @param request                               the write request to inspect for timestamp
      * @param tsdbWriteWindowStart                  any previously located tsds start windows
-     * @param absoluteStartTimeMillisstamp                 the timestamp of the request, we use it to calculate the eligible write window
+     * @param absoluteStartTimeMillis                 the timestamp of the request, we use it to calculate the eligible write window
      * @param tsdbPastTimestampsToCover             tracks the timestamps that need to be covered by new indices per tsdb
      */
     private void maybeQueueTimeSeriesCreateIndexOperation(
@@ -425,7 +425,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStream dataStream,
         DocWriteRequest<?> request,
         Map<String, Long> tsdbWriteWindowStart,
-        long absoluteStartTimeMillisstamp,
+        long absoluteStartTimeMillis,
         Map<String, List<Instant>> tsdbPastTimestampsToCover
     ) {
         Instant documentTimestamp;
@@ -441,7 +441,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 dataStream,
                 projectMetadata,
                 documentTimestamp,
-                absoluteStartTimeMillisstamp,
+                absoluteStartTimeMillis,
                 tsdbWriteWindowStart
             ) == false) {
             return;
@@ -457,11 +457,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStream dataStream,
         ProjectMetadata projectMetadata,
         Instant documentTimestamp,
-        long absoluteStartTimeMillisstamp,
+        long absoluteStartTimeMillis,
         Map<String, Long> tsdbWriteWindowStart
     ) {
         long documentTimestampMillis = documentTimestamp.toEpochMilli();
-        if (documentTimestampMillis > absoluteStartTimeMillisstamp) {
+        if (documentTimestampMillis > absoluteStartTimeMillis) {
             logger.trace("Timestamp [{}] is in the future, skipping backing index creation", documentTimestamp);
             return false;
         }
@@ -472,7 +472,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 dataStream,
                 projectMetadata,
                 dataStreamGlobalRetentionSettings.get(),
-                absoluteStartTimeMillisstamp
+                absoluteStartTimeMillis
             )
         );
         if (documentTimestampMillis < windowStart) {
@@ -497,8 +497,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
 
     /**
      * This method is responsible for creating any missing indices, rolling over data streams and their failure stores when needed, and then
-     * indexing the data in the BulkRequest.
-     *
+     * indexing the data in the BulkRequest. Note the different timestamps:
      * @param absoluteStartTimeMillis the wall-clock start time of the request, used only for past-tsdb-index eligibility calculations
      * @param relativeStartTimeNanos the monotonic start time of the request, used for computing the BulkResponse's took time
      */

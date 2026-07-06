@@ -53,18 +53,14 @@ public class HeapAttackUnmappedLoadPunkIT extends HeapAttackTestCase {
      * </ul>
      */
     private void initPunkIndices(int sourceOnlyDocs, int sourceFieldSizeMb) throws IOException {
-        CreateIndexResponse mappedResponse = createIndex(
-            MAPPED_LONG_INDEX,
-            Settings.EMPTY,
-            """
-                {
-                  "properties": {
-                    "v": {
-                      "type": "long"
-                    }
-                  }
-                }"""
-        );
+        CreateIndexResponse mappedResponse = createIndex(MAPPED_LONG_INDEX, Settings.EMPTY, """
+            {
+              "properties": {
+                "v": {
+                  "type": "long"
+                }
+              }
+            }""");
         assertTrue(mappedResponse.isAcknowledged());
 
         StringBuilder mappedBulk = new StringBuilder();
@@ -74,15 +70,11 @@ public class HeapAttackUnmappedLoadPunkIT extends HeapAttackTestCase {
         }
         initIndex(MAPPED_LONG_INDEX, mappedBulk.toString());
 
-        CreateIndexResponse sourceOnlyResponse = createIndex(
-            SOURCE_ONLY_INDEX,
-            Settings.EMPTY,
-            """
-                {
-                  "dynamic": false,
-                  "properties": {}
-                }"""
-        );
+        CreateIndexResponse sourceOnlyResponse = createIndex(SOURCE_ONLY_INDEX, Settings.EMPTY, """
+            {
+              "dynamic": false,
+              "properties": {}
+            }""");
         assertTrue(sourceOnlyResponse.isAcknowledged());
 
         int docsPerBulk = 5;

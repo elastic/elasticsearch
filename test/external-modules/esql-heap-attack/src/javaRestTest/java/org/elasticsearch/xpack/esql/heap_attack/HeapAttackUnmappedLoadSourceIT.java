@@ -177,19 +177,15 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
      */
     private void initManySourceOnlyFieldsIndex(int docs, int fields) throws IOException {
         logger.info("loading {} documents with {} 1KB source-only fields", docs, fields);
-        CreateIndexResponse response = createIndex(
-            MANY_SOURCE_ONLY_FIELDS_INDEX,
-            Settings.EMPTY,
-            """
-                {
-                  "dynamic": false,
-                  "properties": {
-                    "sort_key": {
-                      "type": "long"
-                    }
-                  }
-                }"""
-        );
+        CreateIndexResponse response = createIndex(MANY_SOURCE_ONLY_FIELDS_INDEX, Settings.EMPTY, """
+            {
+              "dynamic": false,
+              "properties": {
+                "sort_key": {
+                  "type": "long"
+                }
+              }
+            }""");
         assertTrue(response.isAcknowledged());
 
         int docsPerBulk = 5;

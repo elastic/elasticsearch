@@ -50,7 +50,7 @@ public class RoutingPathExtractorTests extends ESTestCase {
     public void testParityForNestedObjectsBuildsDottedPath() throws IOException {
         // Test that nested-object dotted-path construction matches between the source-parser path
         // (RoutingHashBuilder.extractObject builds path = parent + "." + child) and the encoder path
-        // (EirfSchema.getFullPath walks the parent chain).
+        // (SourceSchema.getFullPath walks the parent chain).
         Map<String, Object> dim = new LinkedHashMap<>();
         dim.put("host", "node-3");
         dim.put("region", "eu-central-1");

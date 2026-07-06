@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal
 
+import spock.lang.TempDir
 import spock.lang.Unroll
 import com.github.tomakehurst.wiremock.WireMockServer
 
@@ -28,6 +29,9 @@ import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.*
 class JdkDownloadPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = JdkDownloadPlugin
+
+    @TempDir
+    File gradleUserHome
 
     
     private static final String OPENJDK_VERSION_OLD = "1+99"

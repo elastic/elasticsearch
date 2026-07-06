@@ -711,7 +711,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         return Settings.builder()
             .put(getIndexSettings())
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+
             .build();
     }
 

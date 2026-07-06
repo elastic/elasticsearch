@@ -513,7 +513,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             context.splitStartByte(),
             context.maxRecordBytes(),
             datetimeFormatter,
-            declaredDateFormats
+            declaredDateFormats,
+            context.statsBaseOffset(),
+            context.statsStripeSize(),
+            context.statsFileFinal(),
+            context.statsColumnScope()
         );
     }
 

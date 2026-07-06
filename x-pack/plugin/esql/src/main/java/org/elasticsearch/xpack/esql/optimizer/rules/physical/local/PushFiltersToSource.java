@@ -287,7 +287,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             }
         }
 
-        var effectiveStats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
+        var effectiveStats = externalExec.effectiveSplitStats();
         pushableCandidates = FilterEvaluationOrderEstimator.orderByEstimatedCost(pushableCandidates, effectiveStats);
 
         // A declared `path` rename lives in logical space in the plan, but the opaque per-format predicate the SPI

@@ -353,6 +353,8 @@ public final class CsvFixtureParser {
             case "double", "scaled_float", "float", "half_float" -> tryParseDouble(value);
             case "boolean", "bool" -> tryParseBoolean(value);
             case "date", "datetime", "dt" -> tryParseDatetime(value);
+            // date_nanos values are plain epoch-nanosecond longs in the fixture CSVs; parse the same way.
+            case "date_nanos" -> tryParseDatetime(value);
             case "ip" -> value;
             case "null", "n" -> null;
             default -> value; // keyword, text, string, etc.

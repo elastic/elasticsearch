@@ -78,7 +78,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
     // rerank-v1
     public static final String RERANK_V1_ENDPOINT_ID = ".jina-reranker-v2";
     public static final String RERANK_V1_MODEL_NAME = "jina-reranker-v2";
-    public static final String EIS_RERANK_PATH = "rerank/text/text-similarity";
+    public static final String EIS_RERANK_PATH = "rerank";
 
     public record EisAuthorizationResponse(
         String responseJson,
@@ -362,7 +362,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
               "id": ".jina-reranker-v2",
               "model_name": "jina-reranker-v2",
               "task_types": {
-                "eis": "rerank/text/text-similarity",
+                "eis": "rerank",
                 "elasticsearch": "rerank"
               },
               "status": "preview",

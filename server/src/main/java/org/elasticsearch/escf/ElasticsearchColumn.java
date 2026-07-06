@@ -11,18 +11,20 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
 
 /**
- * A direct-access view over a single ESCF leaf column. Each kind is a subtype that holds its data
- * unwrapped into the primitive representation it needs ({@code byte[]} / {@code int[]} /
- * {@link FixedBitSet}) rather than chained {@code BytesReference}s, removing per-read indirection.
+ * A direct-access view over a single ESCF leaf column. Each kind is a subtype that reads its payload
+ * in place from the column's native, possibly-paged {@link BytesReference}
+ * (plus native {@code int[]} offsets / {@link FixedBitSet} metadata).
  *
- * <p>The shared base owns identity ({@link #columnIndex()} / {@link #docCount()}) and the optional
- * validity (absent) set, and resolves {@link #getTypeByte}/{@link #isAbsent}/{@link #isNull} once.
+ * <p>The shared base owns identity ({@link #docCount()}) and the optional validity (absent) set, and
+ * resolves {@link #getTypeByte}/{@link #isAbsent}/{@link #isNull} once. A column is self-contained: it
+ * knows nothing about its position within the owning batch.
  * Layout is shared further down via {@link AbstractFixed64Column} (long/double) and
  * {@link AbstractVarColumn} (string/binary). Typed value getters default to throwing; each subtype
  * overrides only what it supports. These columns are internal helpers backing {@link EscfRow} — they
@@ -30,19 +32,13 @@ import org.elasticsearch.xcontent.Text;
  */
 abstract class ElasticsearchColumn {
 
-    final int columnIndex;
     final int docCount;
     /** Absent set (bit set = absent), or {@code null} when every document is present (dense). */
     final FixedBitSet absent;
 
-    ElasticsearchColumn(int columnIndex, int docCount, FixedBitSet absent) {
-        this.columnIndex = columnIndex;
+    ElasticsearchColumn(int docCount, FixedBitSet absent) {
         this.docCount = docCount;
         this.absent = absent;
-    }
-
-    final int columnIndex() {
-        return columnIndex;
     }
 
     final int docCount() {
@@ -53,54 +49,26 @@ abstract class ElasticsearchColumn {
     abstract byte kind();
 
     /** Builds the typed column view for {@code col}, dispatching on its kind. The fields are already native. */
-    static ElasticsearchColumn from(int columnIndex, ElasticsearchColumnData col) {
+    static ElasticsearchColumn from(ElasticsearchColumnData col) {
         int docCount = col.docCount();
         FixedBitSet absent = col.absent();
         return switch (col.kind()) {
-            case ElasticsearchColumnKind.LONG -> {
-                BytesRef d = col.data().toBytesRef();
-                yield new ElasticsearchLongColumn(columnIndex, docCount, absent, d.bytes, d.offset);
-            }
-            case ElasticsearchColumnKind.DOUBLE -> {
-                BytesRef d = col.data().toBytesRef();
-                yield new ElasticsearchDoubleColumn(columnIndex, docCount, absent, d.bytes, d.offset);
-            }
-            case ElasticsearchColumnKind.BOOL -> new ElasticsearchBoolColumn(
-                columnIndex,
+            case ElasticsearchColumnKind.LONG -> new ElasticsearchLongColumn(docCount, absent, col.data());
+            case ElasticsearchColumnKind.DOUBLE -> new ElasticsearchDoubleColumn(docCount, absent, col.data());
+            case ElasticsearchColumnKind.BOOL -> new ElasticsearchBoolColumn(docCount, absent, col.values());
+            case ElasticsearchColumnKind.STRING -> new ElasticsearchStringColumn(docCount, absent, col.data(), col.offsets());
+            case ElasticsearchColumnKind.BINARY -> new ElasticsearchBinaryColumn(docCount, absent, col.data(), col.offsets());
+            case ElasticsearchColumnKind.ARRAY -> ElasticsearchArrayColumn.fromData(docCount, absent, col);
+            case ElasticsearchColumnKind.UNION -> new ElasticsearchUnionColumn(
                 docCount,
                 absent,
-                boolWords(col.values(), docCount)
+                col.typeVector(),
+                0,
+                col.offsets(),
+                col.data()
             );
-            case ElasticsearchColumnKind.STRING -> {
-                BytesRef d = col.data().toBytesRef();
-                yield new ElasticsearchStringColumn(columnIndex, docCount, absent, d.bytes, d.offset, col.offsets());
-            }
-            case ElasticsearchColumnKind.BINARY -> {
-                BytesRef d = col.data().toBytesRef();
-                yield new ElasticsearchBinaryColumn(columnIndex, docCount, absent, d.bytes, d.offset, col.offsets());
-            }
-            case ElasticsearchColumnKind.ARRAY -> ElasticsearchArrayColumn.fromData(columnIndex, docCount, absent, col);
-            case ElasticsearchColumnKind.UNION -> {
-                BytesRef d = col.data().toBytesRef();
-                yield new ElasticsearchUnionColumn(columnIndex, docCount, absent, col.typeVector(), 0, col.offsets(), d.bytes, d.offset);
-            }
             default -> throw new IllegalStateException("Unknown ESCF column kind: " + ElasticsearchColumnKind.name(col.kind()));
         };
-    }
-
-    /**
-     * Materializes the BOOL value bitset into full-width little-endian words ({@code ceil(docCount / 64)}),
-     * zero-filled when {@code values == null} or shorter than {@code docCount} (documents past the last set
-     * bit read as {@code false}).
-     */
-    private static long[] boolWords(FixedBitSet values, int docCount) {
-        int words = (docCount + 63) >>> 6;
-        long[] out = new long[Math.max(1, words)];
-        if (values != null) {
-            long[] bits = values.getBits();
-            System.arraycopy(bits, 0, out, 0, Math.min(bits.length, out.length));
-        }
-        return out;
     }
 
     final boolean isAbsent(int d) {
@@ -144,7 +112,7 @@ abstract class ElasticsearchColumn {
     int getIntValue(int d) {
         long val = getLongValue(d);
         if (val < Integer.MIN_VALUE || val > Integer.MAX_VALUE) {
-            throw new ArithmeticException("Long value " + val + " does not fit in int for column " + columnIndex);
+            throw new ArithmeticException("Long value " + val + " does not fit in int");
         }
         return (int) val;
     }
@@ -171,8 +139,6 @@ abstract class ElasticsearchColumn {
     }
 
     private IllegalStateException notA(String what) {
-        return new IllegalStateException(
-            "Column " + columnIndex + " kind=" + ElasticsearchColumnKind.name(kind()) + " has no " + what + " values"
-        );
+        return new IllegalStateException("Column kind=" + ElasticsearchColumnKind.name(kind()) + " has no " + what + " values");
     }
 }

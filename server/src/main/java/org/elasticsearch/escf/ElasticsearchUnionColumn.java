@@ -11,7 +11,7 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
@@ -32,25 +32,14 @@ final class ElasticsearchUnionColumn extends ElasticsearchColumn {
     private final byte[] typeVec;
     private final int typeVecBase;
     private final int[] offsets;
-    private final byte[] data;
-    private final int base;
+    private final BytesReference data;
 
-    ElasticsearchUnionColumn(
-        int columnIndex,
-        int docCount,
-        FixedBitSet absent,
-        byte[] typeVec,
-        int typeVecBase,
-        int[] offsets,
-        byte[] data,
-        int base
-    ) {
-        super(columnIndex, docCount, absent);
+    ElasticsearchUnionColumn(int docCount, FixedBitSet absent, byte[] typeVec, int typeVecBase, int[] offsets, BytesReference data) {
+        super(docCount, absent);
         this.typeVec = typeVec;
         this.typeVecBase = typeVecBase;
         this.offsets = offsets;
         this.data = data;
-        this.base = base;
     }
 
     @Override
@@ -72,41 +61,48 @@ final class ElasticsearchUnionColumn extends ElasticsearchColumn {
         if (t == SourceValueType.FALSE) {
             return false;
         }
-        throw new IllegalStateException("Column " + columnIndex + " doc " + d + " is not boolean, type=" + SourceValueType.name(t));
+        throw new IllegalStateException("Doc " + d + " is not boolean, type=" + SourceValueType.name(t));
     }
 
     @Override
     long getLongValue(int d) {
-        return ByteUtils.readLongLE(data, base + offsets[d]);
+        return data.getLongLE(offsets[d]);
     }
 
     @Override
     double getDoubleValue(int d) {
-        return Double.longBitsToDouble(ByteUtils.readLongLE(data, base + offsets[d]));
+        return Double.longBitsToDouble(data.getLongLE(offsets[d]));
     }
 
     @Override
     Text getStringValue(int d) {
-        int off0 = offsets[d];
-        return new Text(new XContentString.UTF8Bytes(data, base + off0, offsets[d + 1] - off0));
+        BytesRef ref = value(d);
+        return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
     }
 
     @Override
     BytesRef getBinaryValue(int d) {
-        int off0 = offsets[d];
-        return new BytesRef(data, base + off0, offsets[d + 1] - off0);
+        return value(d);
     }
 
     @Override
     ArrayReader getArrayValue(int d) {
         boolean fixed = typeVec[typeVecBase + d] == SourceValueType.FIXED_ARRAY;
-        int off0 = offsets[d];
-        return new InlineArrayReader(data, base + off0, offsets[d + 1] - off0, fixed);
+        // InlineArrayReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
+        BytesRef ref = value(d);
+        return new InlineArrayReader(ref.bytes, ref.offset, ref.length, fixed);
     }
 
     @Override
     KeyValueReader getKeyValue(int d) {
+        // KeyValueReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
+        BytesRef ref = value(d);
+        return new KeyValueReader(ref.bytes, ref.offset, ref.length);
+    }
+
+    /** The contiguous bytes for document {@code d}'s value, sliced from the payload (zero-copy when contiguous). */
+    private BytesRef value(int d) {
         int off0 = offsets[d];
-        return new KeyValueReader(data, base + off0, offsets[d + 1] - off0);
+        return data.slice(off0, offsets[d + 1] - off0).toBytesRef();
     }
 }

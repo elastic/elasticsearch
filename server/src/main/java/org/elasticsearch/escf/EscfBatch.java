@@ -177,7 +177,7 @@ public final class EscfBatch implements SourceBatch {
         if (cached != null) {
             return cached;
         }
-        ElasticsearchColumn built = ElasticsearchColumn.from(columnIndex, columns[columnIndex]);
+        ElasticsearchColumn built = ElasticsearchColumn.from(columns[columnIndex]);
         columnCache[columnIndex] = built;
         return built;
     }
@@ -521,6 +521,7 @@ public final class EscfBatch implements SourceBatch {
         return new SourceSchema(nonLeafNames, nonLeafParents, leafNames, leafParents);
     }
 
+    // TODO: Optimize onto bytes reference
     private static int readU16LE(BytesReference data, int offset) {
         return (data.get(offset) & 0xFF) | ((data.get(offset + 1) & 0xFF) << 8);
     }

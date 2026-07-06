@@ -13,17 +13,19 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
- * An ESCF column whose values are all booleans, stored as a value bitset (bit set = {@code true})
- * over little-endian 64-bit words. A present document's type byte is {@link SourceValueType#TRUE} or
- * {@link SourceValueType#FALSE} depending on its value bit. This is the only kind with no value {@code byte[]}.
+ * An ESCF column whose values are all booleans, held as the value bitset directly (bit set = {@code true}).
+ * A present document's type byte is {@link SourceValueType#TRUE} or {@link SourceValueType#FALSE} depending
+ * on its value bit. This is the only kind with no value {@code byte[]}: it reads the {@link FixedBitSet}
+ * in place rather than materialising it into words.
  */
 final class ElasticsearchBoolColumn extends ElasticsearchColumn {
 
-    private final long[] valueBits;
+    /** Value bitset (bit set = {@code true}), or {@code null} when every value is {@code false}. */
+    private final FixedBitSet values;
 
-    ElasticsearchBoolColumn(int columnIndex, int docCount, FixedBitSet absent, long[] valueBits) {
-        super(columnIndex, docCount, absent);
-        this.valueBits = valueBits;
+    ElasticsearchBoolColumn(int docCount, FixedBitSet absent, FixedBitSet values) {
+        super(docCount, absent);
+        this.values = values;
     }
 
     @Override
@@ -42,6 +44,8 @@ final class ElasticsearchBoolColumn extends ElasticsearchColumn {
     }
 
     private boolean bitSet(int d) {
-        return ((valueBits[d >>> 6] >>> (d & 63)) & 1L) != 0;
+        // The value bitset is sized only to the last true document (and is null when there are none),
+        // so any doc beyond its length reads false. Mirrors ElasticsearchColumn#isAbsent.
+        return values != null && d < values.length() && values.get(d);
     }
 }

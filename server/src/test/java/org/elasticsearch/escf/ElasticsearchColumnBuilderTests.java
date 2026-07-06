@@ -29,7 +29,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         ElasticsearchColumnData data = b.finish(3);
         assertEquals(ElasticsearchColumnKind.LONG, data.kind());
         assertNull("dense column has no validity bitset", data.absent());
-        ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
+        ElasticsearchColumn col = ElasticsearchColumn.from(data);
         assertEquals(1L, col.getLongValue(0));
         assertEquals(2L, col.getLongValue(1));
         assertEquals(3L, col.getLongValue(2));
@@ -44,7 +44,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         ElasticsearchColumnData data = b.finish(3);
         assertEquals(ElasticsearchColumnKind.LONG, data.kind());
         assertNotNull("a column with an absent row carries a validity bitset", data.absent());
-        ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
+        ElasticsearchColumn col = ElasticsearchColumn.from(data);
         assertFalse(col.isAbsent(0));
         assertTrue(col.isAbsent(1));
         assertFalse(col.isAbsent(2));
@@ -58,7 +58,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         b.addString(utf8("gamma"));
         ElasticsearchColumnData data = b.finish(2);
         assertEquals(ElasticsearchColumnKind.STRING, data.kind());
-        ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
+        ElasticsearchColumn col = ElasticsearchColumn.from(data);
         assertEquals("alpha", col.getStringValue(0).string());
         assertEquals("gamma", col.getStringValue(1).string());
     }
@@ -70,7 +70,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         b.addBoolean(true);
         ElasticsearchColumnData data = b.finish(3);
         assertEquals(ElasticsearchColumnKind.BOOL, data.kind());
-        ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
+        ElasticsearchColumn col = ElasticsearchColumn.from(data);
         assertTrue(col.getBooleanValue(0));
         assertFalse(col.getBooleanValue(1));
         assertTrue(col.getBooleanValue(2));
@@ -85,7 +85,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         b.addDouble(2.5);
         ElasticsearchColumnData data = b.finish(3);
         assertEquals(ElasticsearchColumnKind.UNION, data.kind());
-        ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
+        ElasticsearchColumn col = ElasticsearchColumn.from(data);
         assertEquals(SourceValueType.LONG, col.getTypeByte(0));
         assertEquals(7L, col.getLongValue(0));
         assertEquals(SourceValueType.STRING, col.getTypeByte(1));
@@ -100,7 +100,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         b.addNull();
         ElasticsearchColumnData data = b.finish(2);
         assertEquals(ElasticsearchColumnKind.UNION, data.kind());
-        ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
+        ElasticsearchColumn col = ElasticsearchColumn.from(data);
         assertEquals(1L, col.getLongValue(0));
         assertTrue(col.isNull(1));
         assertEquals(SourceValueType.NULL, col.getTypeByte(1));
@@ -112,7 +112,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         b.addAbsent();
         ElasticsearchColumnData data = b.finish(2);
         assertEquals(ElasticsearchColumnKind.LONG, data.kind());
-        ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
+        ElasticsearchColumn col = ElasticsearchColumn.from(data);
         assertTrue(col.isAbsent(0));
         assertTrue(col.isAbsent(1));
         assertEquals(SourceValueType.ABSENT, col.getTypeByte(0));

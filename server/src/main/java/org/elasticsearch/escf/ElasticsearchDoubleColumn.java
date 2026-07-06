@@ -10,13 +10,14 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /** An ESCF column whose values are all {@code double}s (JSON floats and doubles upcast to 64-bit raw bits). */
 final class ElasticsearchDoubleColumn extends AbstractFixed64Column {
 
-    ElasticsearchDoubleColumn(int columnIndex, int docCount, FixedBitSet absent, byte[] data, int base) {
-        super(columnIndex, docCount, absent, data, base);
+    ElasticsearchDoubleColumn(int docCount, FixedBitSet absent, BytesReference data) {
+        super(docCount, absent, data);
     }
 
     @Override

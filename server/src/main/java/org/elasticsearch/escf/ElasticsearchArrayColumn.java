@@ -9,8 +9,8 @@
 
 package org.elasticsearch.escf;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
@@ -29,37 +29,39 @@ final class ElasticsearchArrayColumn extends ElasticsearchColumn {
     private final ElasticsearchColumn child;
     private final int[] rowOffsets;
 
-    ElasticsearchArrayColumn(int columnIndex, int docCount, FixedBitSet absent, ElasticsearchColumn child, int[] rowOffsets) {
-        super(columnIndex, docCount, absent);
+    ElasticsearchArrayColumn(int docCount, FixedBitSet absent, ElasticsearchColumn child, int[] rowOffsets) {
+        super(docCount, absent);
         this.child = child;
         this.rowOffsets = rowOffsets;
     }
 
     /** Reconstructs an array column from its serialized {@code child_kind(1) | child_values} data field. */
-    static ElasticsearchArrayColumn fromData(int columnIndex, int docCount, FixedBitSet absent, ElasticsearchColumnData col) {
+    static ElasticsearchArrayColumn fromData(int docCount, FixedBitSet absent, ElasticsearchColumnData col) {
         int[] rowOffsets = col.offsets();
         int totalElems = rowOffsets[docCount];
-        BytesRef d = col.data().toBytesRef();
-        byte childKind = d.bytes[d.offset];
-        int childBase = d.offset + 1;
+        BytesReference d = col.data();
+        byte childKind = d.get(0);
+        // Everything past the child-kind prefix byte; a paged slice only re-bases, so this stays pooled.
+        BytesReference childData = d.slice(1, d.length() - 1);
         ElasticsearchColumn child = switch (childKind) {
-            case ElasticsearchColumnKind.LONG -> new ElasticsearchLongColumn(columnIndex, totalElems, null, d.bytes, childBase);
-            case ElasticsearchColumnKind.DOUBLE -> new ElasticsearchDoubleColumn(columnIndex, totalElems, null, d.bytes, childBase);
+            case ElasticsearchColumnKind.LONG -> new ElasticsearchLongColumn(totalElems, null, childData);
+            case ElasticsearchColumnKind.DOUBLE -> new ElasticsearchDoubleColumn(totalElems, null, childData);
             case ElasticsearchColumnKind.STRING -> {
                 int[] childOffsets = new int[totalElems + 1];
                 for (int i = 0; i <= totalElems; i++) {
-                    childOffsets[i] = readIntLE(d.bytes, childBase + i * 4);
+                    childOffsets[i] = childData.getIntLE(i * 4);
                 }
-                int childDataBase = childBase + (totalElems + 1) * 4;
-                yield new ElasticsearchStringColumn(columnIndex, totalElems, null, d.bytes, childDataBase, childOffsets);
+                int childDataBase = (totalElems + 1) * 4;
+                yield new ElasticsearchStringColumn(
+                    totalElems,
+                    null,
+                    childData.slice(childDataBase, childData.length() - childDataBase),
+                    childOffsets
+                );
             }
             default -> throw new IllegalStateException("Unsupported ESCF array child kind: " + ElasticsearchColumnKind.name(childKind));
         };
-        return new ElasticsearchArrayColumn(columnIndex, docCount, absent, child, rowOffsets);
-    }
-
-    private static int readIntLE(byte[] b, int off) {
-        return (b[off] & 0xFF) | ((b[off + 1] & 0xFF) << 8) | ((b[off + 2] & 0xFF) << 16) | ((b[off + 3] & 0xFF) << 24);
+        return new ElasticsearchArrayColumn(docCount, absent, child, rowOffsets);
     }
 
     @Override

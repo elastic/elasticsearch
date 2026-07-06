@@ -11,30 +11,34 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * Shared base for the variable-length columns (STRING and BINARY), whose values are a contiguous
  * {@code data} payload delimited by a {@code (docCount + 1)}-entry offset vector
- * ({@code [offsets[d], offsets[d + 1])} within {@code data} starting at {@code base}). Subclasses
- * differ only in the value type they expose and the {@link org.elasticsearch.sourcebatch.SourceValueType} byte they
- * report.
+ * ({@code [offsets[d], offsets[d + 1])} within {@code data}). Subclasses differ only in the value
+ * type they expose and the {@link org.elasticsearch.sourcebatch.SourceValueType} byte they report.
+ *
+ * <p>The payload is held as its native, possibly-paged {@link BytesReference} rather than a
+ * materialised {@code byte[]}, so the pooled recycler pages are read in place instead of being copied
+ * up front. A single value's contiguous bytes are obtained lazily via {@code slice(off, len).toBytesRef()},
+ * which is zero-copy when the value lives inside one page (the common case) and copies only a lone
+ * page-straddling value.
  */
 abstract class AbstractVarColumn extends ElasticsearchColumn {
 
-    final byte[] data;
-    final int base;
+    final BytesReference data;
     final int[] offsets;
 
-    AbstractVarColumn(int columnIndex, int docCount, FixedBitSet absent, byte[] data, int base, int[] offsets) {
-        super(columnIndex, docCount, absent);
+    AbstractVarColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets) {
+        super(docCount, absent);
         this.data = data;
-        this.base = base;
         this.offsets = offsets;
     }
 
     @Override
     final BytesRef getBinaryValue(int d) {
         int off0 = offsets[d];
-        return new BytesRef(data, base + off0, offsets[d + 1] - off0);
+        return data.slice(off0, offsets[d + 1] - off0).toBytesRef();
     }
 }

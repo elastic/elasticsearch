@@ -10,6 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
@@ -18,8 +19,8 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  */
 final class ElasticsearchBinaryColumn extends AbstractVarColumn {
 
-    ElasticsearchBinaryColumn(int columnIndex, int docCount, FixedBitSet absent, byte[] data, int base, int[] offsets) {
-        super(columnIndex, docCount, absent, data, base, offsets);
+    ElasticsearchBinaryColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets) {
+        super(docCount, absent, data, offsets);
     }
 
     @Override

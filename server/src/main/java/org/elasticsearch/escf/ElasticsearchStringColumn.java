@@ -9,7 +9,9 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
@@ -17,8 +19,8 @@ import org.elasticsearch.xcontent.XContentString;
 /** An ESCF column whose values are all UTF-8 strings (Arrow varbinary layout). */
 final class ElasticsearchStringColumn extends AbstractVarColumn {
 
-    ElasticsearchStringColumn(int columnIndex, int docCount, FixedBitSet absent, byte[] data, int base, int[] offsets) {
-        super(columnIndex, docCount, absent, data, base, offsets);
+    ElasticsearchStringColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets) {
+        super(docCount, absent, data, offsets);
     }
 
     @Override
@@ -34,6 +36,7 @@ final class ElasticsearchStringColumn extends AbstractVarColumn {
     @Override
     Text getStringValue(int d) {
         int off0 = offsets[d];
-        return new Text(new XContentString.UTF8Bytes(data, base + off0, offsets[d + 1] - off0));
+        BytesRef ref = data.slice(off0, offsets[d + 1] - off0).toBytesRef();
+        return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
     }
 }

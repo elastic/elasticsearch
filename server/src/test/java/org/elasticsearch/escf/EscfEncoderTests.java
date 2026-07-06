@@ -94,6 +94,40 @@ public class EscfEncoderTests extends ESTestCase {
             {"other":9}""");
     }
 
+    /**
+     * The column payloads are held as their native, possibly-paged {@link BytesReference}; when a column's
+     * data exceeds one recycler page (16 KiB) it is a multi-page {@code CompositeBytesReference}. These
+     * cases force that layout so the column views' page-straddling reads ({@code getLongLE} over a slot
+     * that crosses a page boundary, and a single value's {@code slice(..).toBytesRef()}) are exercised.
+     */
+    public void testMultiPageNumericColumn() throws IOException {
+        // 8 bytes/doc; 3000 docs -> 24 KiB long column -> multiple pages, with 8-byte slots straddling a boundary.
+        List<String> docs = new ArrayList<>();
+        for (int i = 0; i < 3000; i++) {
+            docs.add("{\"n\":" + (1_000_000_000L + i) + "}");
+        }
+        assertRoundTrip(docs.toArray(new String[0]));
+    }
+
+    public void testMultiPageStringValueStraddlesPage() throws IOException {
+        // A single string value larger than one page, so its bytes span multiple pages and the value slice straddles.
+        String big = "x".repeat(40_000);
+        assertRoundTrip("{\"s\":\"" + big + "\"}");
+    }
+
+    public void testMultiPageFixedArrayColumn() throws IOException {
+        // A fixed long array whose child data (8 bytes/element) exceeds one page, straddling the array child column.
+        StringBuilder sb = new StringBuilder("{\"vals\":[");
+        for (int i = 0; i < 5000; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(i);
+        }
+        sb.append("]}");
+        assertRoundTrip(sb.toString());
+    }
+
     public void testManyRandomDocs() throws IOException {
         List<String> docs = new ArrayList<>();
         for (int i = 0; i < 50; i++) {

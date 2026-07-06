@@ -10,13 +10,14 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /** An ESCF column whose values are all {@code long}s (JSON ints and longs upcast to 64-bit). */
 final class ElasticsearchLongColumn extends AbstractFixed64Column {
 
-    ElasticsearchLongColumn(int columnIndex, int docCount, FixedBitSet absent, byte[] data, int base) {
-        super(columnIndex, docCount, absent, data, base);
+    ElasticsearchLongColumn(int docCount, FixedBitSet absent, BytesReference data) {
+        super(docCount, absent, data);
     }
 
     @Override

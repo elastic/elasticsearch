@@ -247,9 +247,6 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 }
                 int count = valueBlock.getValueCount(position);
                 int stepCount = stepBlock.getValueCount(position);
-                if (count == 0) {
-                    continue; // series with no data in range
-                }
                 if (count != stepCount) {
                     throw new IllegalStateException(
                         "PROMQL response has misaligned collapsed step/value columns: step count ["
@@ -258,6 +255,9 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                             + count
                             + "]"
                     );
+                }
+                if (count == 0) {
+                    continue; // series with no data in range
                 }
                 int valueStart = valueBlock.getFirstValueIndex(position);
                 int stepStart = stepBlock.getFirstValueIndex(position);
@@ -388,13 +388,13 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         }
         int count = valueBlock.getValueCount(position);
         int stepCount = stepBlock.getValueCount(position);
-        if (count == 0) {
-            return null;
-        }
         if (count != stepCount) {
             throw new IllegalStateException(
                 "PROMQL response has misaligned collapsed step/value columns: step count [" + stepCount + "], value count [" + count + "]"
             );
+        }
+        if (count == 0) {
+            return null;
         }
         int lastOffset = count - 1;
         double value = valueBlock.getDouble(valueBlock.getFirstValueIndex(position) + lastOffset);
@@ -434,20 +434,6 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             return value > 0 ? "+Inf" : "-Inf";
         }
         return Double.toString(value);
-    }
-
-    /**
-     * Formats a sample value for the Prometheus JSON response, handling an absent ({@code null}) value.
-     * Used only where a value isn't already known to come from a non-null block position.
-     */
-    static String formatSampleValue(Object value) {
-        if (value == null) {
-            return "NaN";
-        }
-        if (value instanceof Double d) {
-            return formatSampleValue(d.doubleValue());
-        }
-        return value.toString();
     }
 
     /**

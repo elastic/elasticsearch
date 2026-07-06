@@ -178,13 +178,15 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             DataStreamsPlugin.class,
             // ESQL and its dependency needed for node features
             EsqlCorePlugin.class,
+            // Encryption plugin needed to deserialize the project encryption key custom in cluster state from DEFAULT distribution
+            // nodes, and must precede EsqlPlugin: EsqlPlugin.createComponents reads EncryptionServiceRegistry, populated by the
+            // encryption plugin's createComponents.
+            EncryptionPlugin.class,
             EsqlPlugin.class,
             // basic multi-project functionality
             TestOnlyMultiProjectPlugin.class,
             // GPU plugin needed for node features published by DEFAULT distribution nodes
-            GPUPlugin.class,
-            // Encryption plugin needed to deserialize the project encryption key custom in cluster state from DEFAULT distribution nodes
-            EncryptionPlugin.class
+            GPUPlugin.class
         );
     }
 

@@ -6,6 +6,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
+      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
   - wait
   - label: build-logic
@@ -15,6 +16,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
+      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
   - label: part1
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart1
@@ -23,6 +25,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
+      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
   - label: part2
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart2
@@ -31,6 +34,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
+      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
   - label: part3
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart3
@@ -39,6 +43,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
+      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
   - label: part4
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart4
@@ -47,6 +52,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
+      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
   - label: part5
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart5
@@ -55,6 +61,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
+      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
   - label: part6
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart6
@@ -63,6 +70,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
+      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
 
   - group: bwc-snapshots
@@ -77,6 +85,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
+          diskSizeGb: 250
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
@@ -99,6 +108,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
+          diskSizeGb: 250
           buildDirectory: /dev/shm/bk
         env:
           ES_VERSION: "{{matrix.ES_VERSION}}"
@@ -110,6 +120,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
+      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
   - wait
   - trigger: elasticsearch-dra-workflow

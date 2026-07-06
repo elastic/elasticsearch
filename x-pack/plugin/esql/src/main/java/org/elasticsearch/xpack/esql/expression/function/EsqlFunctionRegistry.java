@@ -513,6 +513,11 @@ public class EsqlFunctionRegistry {
                 DayName.DEFINITION,
                 MonthName.DEFINITION,
                 Now.DEFINITION,
+                RangeContains.DEFINITION,
+                RangeIntersects.DEFINITION,
+                RangeMax.DEFINITION,
+                RangeMin.DEFINITION,
+                RangeWithin.DEFINITION,
                 TRange.DEFINITION },
             // spatial
             new FunctionDefinition[] {
@@ -562,6 +567,7 @@ public class EsqlFunctionRegistry {
                 ToDatePeriod.DEFINITION,
                 ToDatetime.DEFINITION,
                 ToDateNanos.DEFINITION,
+                ToDateRange.DEFINITION,
                 ToDegrees.DEFINITION,
                 ToDenseVector.DEFINITION,
                 ToDouble.DEFINITION,
@@ -576,8 +582,10 @@ public class EsqlFunctionRegistry {
                 ToIntegerSurrogate.DEFINITION,
                 ToLongSurrogate.DEFINITION,
                 ToRadians.DEFINITION,
+                ToRange.DEFINITION,
                 ToString.DEFINITION,
                 ToTDigest.DEFINITION,
+                ToText.DEFINITION,
                 ToTimeDuration.DEFINITION,
                 ToUnsignedLong.DEFINITION,
                 ToVersion.DEFINITION, },
@@ -656,16 +664,7 @@ public class EsqlFunctionRegistry {
                 // TSTEP is new enough that we only want to expose it on snapshot builds for now.
                 TStep.DEFINITION,
                 // dense vector functions
-                Magnitude.DEFINITION,
-                // date_range functions
-                RangeContains.DEFINITION,
-                RangeIntersects.DEFINITION,
-                RangeMax.DEFINITION,
-                RangeMin.DEFINITION,
-                RangeWithin.DEFINITION,
-                ToDateRange.DEFINITION,
-                ToRange.DEFINITION,
-                ToText.DEFINITION } };
+                Magnitude.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

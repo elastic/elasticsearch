@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.PutRegionPolicyAction;
+import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
@@ -101,11 +102,14 @@ import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportPutRegionPolicyAction;
+import org.elasticsearch.xpack.inference.action.TransportRefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportRerankAction;
 import org.elasticsearch.xpack.inference.action.TransportStoreEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
+import org.elasticsearch.xpack.inference.common.ClearInferencePreferencesCacheAction;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.oauth2.ClearOAuth2TokenCacheAction;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
@@ -325,10 +329,12 @@ public class InferencePlugin extends Plugin
                 new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
                 new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
                 new ActionHandler(ClearOAuth2TokenCacheAction.INSTANCE, ClearOAuth2TokenCacheAction.class),
+                new ActionHandler(ClearInferencePreferencesCacheAction.INSTANCE, ClearInferencePreferencesCacheAction.class),
                 new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
                 new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
                 new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
-                new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class)
+                new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class),
+                new ActionHandler(RefreshAuthorizedEndpointsAction.INSTANCE, TransportRefreshAuthorizedEndpointsAction.class)
             )
         );
         if (INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
@@ -404,6 +410,13 @@ public class InferencePlugin extends Plugin
         var elasticInferenceServiceHttpClientManager = eisRequestSenderFactoryComponents.httpClientManager();
         elasticInferenceServiceFactory.set(eisRequestSenderFactoryComponents.factory());
 
+        var inferencePreferencesCache = new InferencePreferencesCache(
+            services.projectResolver(),
+            services.client(),
+            services.clusterService(),
+            services.featureService()
+        );
+
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
 
@@ -423,7 +436,8 @@ public class InferencePlugin extends Plugin
                 serviceComponents.get(),
                 inferenceServiceSettings,
                 context,
-                ccmRelatedComponents.ccmAuthApplierFactory()
+                ccmRelatedComponents.ccmAuthApplierFactory(),
+                inferencePreferencesCache
             );
             eisService.init();
             return eisService;
@@ -506,6 +520,7 @@ public class InferencePlugin extends Plugin
         );
 
         components.add(oAuth2TokenCache);
+        components.add(inferencePreferencesCache);
 
         components.add(new PluginComponentBinding<>(ElasticInferenceServiceSettings.class, inferenceServiceSettings));
 
@@ -555,23 +570,21 @@ public class InferencePlugin extends Plugin
             services.featureService(),
             ccmEnablementService,
             ccmFeature,
-            new AuthorizationPoller.Parameters(
-                serviceComponents,
-                authorizationHandler,
-                sender,
-                inferenceServiceSettings,
-                modelRegistry,
-                services.client(),
-                ccmFeature,
-                ccmService,
-                inferenceFeatureService
-            )
+            new AuthorizationPoller.Parameters(serviceComponents, inferenceServiceSettings, services.client(), ccmFeature, ccmService)
         );
         authorizationTaskExecutorRef.set(authTaskExecutor);
         authTaskExecutor.startAndLazilyCreateTask();
 
         return new CCMRelatedComponents(
-            List.of(authorizationHandler, authTaskExecutor, ccmService, ccmPersistentStorageService, ccmCache, ccmEnablementService),
+            List.of(
+                authorizationHandler,
+                authTaskExecutor,
+                ccmService,
+                ccmPersistentStorageService,
+                ccmCache,
+                ccmEnablementService,
+                inferenceFeatureService
+            ),
             ccmAuthApplierFactory
         );
     }

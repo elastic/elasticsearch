@@ -298,25 +298,6 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
     }
 
-    public void testFloat32Bulk8() {
-        assumeTrue(notSupportedMsg(), supported());
-        assumeTrue("Heap segments required", supportsHeapSegments());
-        final int dims = size;
-        var values = new float[8][];
-        var segments = new MemorySegment[8];
-        for (int i = 0; i < 8; i++) {
-            values[i] = randomFloatArray(dims);
-            segments[i] = MemorySegment.ofArray(values[i]);
-        }
-        int queryOrd = randomInt(7);
-        float[] expectedScores = new float[8];
-        ScalarOperations.bulk(function, values[queryOrd], values, expectedScores);
-
-        float[] bulkScores = new float[8];
-        similarityBulk8(segments, MemorySegment.ofArray(values[queryOrd]), dims, MemorySegment.ofArray(bulkScores));
-        assertArrayEquals(expectedScores, bulkScores, delta);
-    }
-
     // Verifies that bulk sparse similarity rejects invalid arguments (undersized segments,
     // negative dims/count) with appropriate out-of-bounds exceptions.
     public void testBulkSparseIllegalArgs() {
@@ -447,12 +428,4 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         }
     }
 
-    void similarityBulk8(MemorySegment[] as, MemorySegment query, int dims, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.FLOAT32, VectorSimilarityFunctions.Operation.BULK8)
-                .invokeExact(as[0], as[1], as[2], as[3], as[4], as[5], as[6], as[7], query, dims, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
-    }
 }

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -21,18 +23,28 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySettingsTests extends ESTestCase {
@@ -50,9 +62,43 @@ public class QuerySettingsTests extends ESTestCase {
     );
 
     public void testValidate_NonExistingSetting() {
+        // An unknown SET key is a typo the user can act on, so it fails loudly — same as the request-body surface.
         String settingName = "non_existing";
+        QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingName, of("12")));
+        EsqlStatement statement = new EsqlStatement(null, List.of(setting));
+        ParsingException e = expectThrows(ParsingException.class, () -> QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_ENABLED));
+        assertThat(e.getMessage(), containsString("Unknown setting [" + settingName + "]"));
+    }
 
-        assertInvalid(settingName, of("12"), "Unknown setting [" + settingName + "]");
+    public void testDeprecatedSettingWarnsButIsAccepted() {
+        // A known-but-deprecated setting is not a typo: it keeps working and merely warns, so clients that
+        // still send it are not broken (unlike an unknown key, which fails).
+        QuerySettingDef<String> deprecated = QuerySettingDef.string("legacy_knob").withDeprecated("use new_knob instead").build();
+        QuerySettings.warnIfDeprecated(deprecated);
+        assertWarnings("Setting [legacy_knob] is deprecated: use new_knob instead");
+
+        // A non-deprecated setting emits nothing.
+        QuerySettings.warnIfDeprecated(QuerySettings.TIME_ZONE);
+    }
+
+    public void testCanonicalizeNormalizesOnOverride() {
+        // TIME_ZONE.canonicalize(ZoneId::normalized) runs inside withOverride, so a programmatic (non-parsed)
+        // value is normalized just like a parsed one — no caller has to remember to normalize.
+        ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, ZoneId.of("UTC"));
+        assertThat(QuerySettings.TIME_ZONE.get(resolved), equalTo(ZoneId.of("UTC").normalized()));
+        assertThat(QuerySettings.TIME_ZONE.get(resolved), not(equalTo(ZoneId.of("UTC"))));
+    }
+
+    public void testAllContainsEveryDeclaredSetting() throws IllegalAccessException {
+        // Adding a QuerySettingDef constant but forgetting to add it to ALL compiles fine and fails only as an
+        // "Unknown setting" at use — the one silent-miss in "add a setting". Guard it: every declared constant is in ALL.
+        Set<QuerySettingDef<?>> declared = new HashSet<>();
+        for (Field f : QuerySettings.class.getFields()) {
+            if (Modifier.isStatic(f.getModifiers()) && QuerySettingDef.class.isAssignableFrom(f.getType())) {
+                declared.add((QuerySettingDef<?>) f.get(null));
+            }
+        }
+        assertThat(Set.copyOf(QuerySettings.all()), equalTo(declared));
     }
 
     public void testValidate_ProjectRouting() {
@@ -84,7 +130,8 @@ public class QuerySettingsTests extends ESTestCase {
 
         assertDefault(setting, both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
 
-        assertValid(setting, of("UTC"), equalTo(ZoneId.of("UTC")));
+        // "UTC" is a fixed-offset zone, so it normalizes to ZoneOffset.UTC (see QuerySettings.parseZoneId).
+        assertValid(setting, of("UTC"), equalTo(ZoneOffset.UTC));
         assertValid(setting, of("Z"), both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
         assertValid(setting, of("Europe/Madrid"), equalTo(ZoneId.of("Europe/Madrid")));
         assertValid(setting, of("+05:00"), equalTo(ZoneId.of("+05:00")));
@@ -101,7 +148,8 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testValidate_TimeZone_techPreview() {
         var setting = QuerySettings.TIME_ZONE;
-        assertValid(setting, of("UTC"), equalTo(ZoneId.of("UTC")), NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        // "UTC" normalizes to ZoneOffset.UTC (see QuerySettings.parseZoneId).
+        assertValid(setting, of("UTC"), equalTo(ZoneOffset.UTC), NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
     }
 
     public void testValidate_UnmappedFields() {
@@ -133,6 +181,28 @@ public class QuerySettingsTests extends ESTestCase {
             of("UNKNOWN"),
             "line 3:11: Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
                 + Arrays.toString(values)
+        );
+    }
+
+    public void testValidate_ColumnMetadata() {
+        var setting = QuerySettings.COLUMN_METADATA;
+
+        assertDefault(setting, equalTo(Boolean.FALSE));
+
+        assertValid(setting, Literal.fromBoolean(Source.EMPTY, true), equalTo(Boolean.TRUE));
+        assertValid(setting, Literal.fromBoolean(Source.EMPTY, false), equalTo(Boolean.FALSE));
+
+        assertInvalid(setting.name(), of("true"), "Setting [" + setting.name() + "] must be of type BOOLEAN");
+        assertInvalid(setting.name(), Literal.integer(Source.EMPTY, 1), "Setting [" + setting.name() + "] must be of type BOOLEAN");
+        assertInvalid(
+            setting.name(),
+            new MapExpression(Source.EMPTY, List.of()),
+            "Setting [" + setting.name() + "] must be of type BOOLEAN"
+        );
+        assertInvalid(
+            setting.name(),
+            new Literal(Source.EMPTY, List.of(true, false), DataType.BOOLEAN),
+            "Setting [" + setting.name() + "] must be a boolean"
         );
     }
 
@@ -214,12 +284,12 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    private static <T> void assertValid(QuerySettings.QuerySettingDef<T> settingDef, Expression value, Matcher<T> parsedValueMatcher) {
+    private static <T> void assertValid(QuerySettingDef<T> settingDef, Expression value, Matcher<T> parsedValueMatcher) {
         assertValid(settingDef, value, parsedValueMatcher, SNAPSHOT_CTX_WITH_CPS_ENABLED);
     }
 
     private static <T> void assertValid(
-        QuerySettings.QuerySettingDef<T> settingDef,
+        QuerySettingDef<T> settingDef,
         Expression value,
         Matcher<T> parsedValueMatcher,
         SettingsValidationContext ctx
@@ -270,7 +340,7 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    private static <T> void assertDefault(QuerySettings.QuerySettingDef<T> settingDef, Matcher<? super T> defaultMatcher) {
+    private static <T> void assertDefault(QuerySettingDef<T> settingDef, Matcher<? super T> defaultMatcher) {
         EsqlStatement statement = new EsqlStatement(null, List.of());
 
         T value = statement.setting(settingDef);
@@ -278,14 +348,247 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(value, defaultMatcher);
     }
 
+    public void testResolveEmptySources() {
+        ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        // Default for time_zone is UTC
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneOffset.UTC));
+        // Defaults for the rest are null
+        assertThat(resolved.get(QuerySettings.PROJECT_ROUTING), is(nullValue()));
+        assertThat(resolved.get(QuerySettings.APPROXIMATION), is(nullValue()));
+    }
+
+    public void testResolveBodyProjectRoutingFailsWithoutCps() {
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.PROJECT_ROUTING, "my-project");
+        var ex = expectThrows(
+            VerificationException.class,
+            () -> QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_DISABLED)
+        );
+        assertThat(ex.getMessage(), containsString("Error validating setting [project_routing]: cross-project search not enabled"));
+    }
+
+    public void testResolveRequestParameterAppliesWhenNoQuerySet() {
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
+    }
+
+    public void testResolveQuerySetOverridesRequestParameter() {
+        // Request says Europe/Paris, query SET says UTC → query SET wins.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
+        QuerySetting set = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "time_zone", of("UTC")));
+        EsqlStatement statement = new EsqlStatement(null, List.of(set));
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        // SET time_zone="UTC" wins and normalizes to ZoneOffset.UTC (see QuerySettings.parseZoneId).
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneOffset.UTC));
+    }
+
+    public void testBuildRejectsSnapshotAndServerlessOnly() {
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> QuerySettingDef.string("x").withSnapshotOnly().withServerlessOnly().build()
+        );
+        assertThat(e.getMessage(), containsString("cannot be both snapshotOnly and serverlessOnly"));
+    }
+
+    public void testBuildRejectsMissingStreamFormat() {
+        // object(...) sets a JSON/expression reader but no stream format; build() must reject it.
+        var e = expectThrows(IllegalStateException.class, () -> QuerySettingDef.object("x", p -> p.text(), ex -> null).build());
+        assertThat(e.getMessage(), containsString("has no stream format"));
+    }
+
+    public void testBuildRejectsBodyExposedWithoutJsonReader() {
+        // builder(name) has no JSON reader; opting into the request body without one is incoherent.
+        var e = expectThrows(IllegalStateException.class, () -> QuerySettingDef.builder("x").withRequestBody().build());
+        assertThat(e.getMessage(), containsString("body-exposed but has no JSON reader"));
+    }
+
+    public void testByNameRejectsDuplicateName() {
+        QuerySettingDef<String> a = QuerySettingDef.string("dup").build();
+        QuerySettingDef<String> b = QuerySettingDef.string("dup").build();
+        var e = expectThrows(IllegalStateException.class, () -> QuerySettings.byName(List.of(a, b)));
+        assertThat(e.getMessage(), containsString("Duplicate query setting [dup]"));
+    }
+
+    public void testUnknownSettingOnTheWireIsSkipped() throws IOException {
+        // Simulate a newer peer sending a setting this node's registry doesn't have. The self-describing
+        // (length-prefixed) format lets the reader skip it instead of failing. The unknown entry is placed FIRST so
+        // that the known setting after it only parses correctly if the skip consumed exactly the unknown value's bytes.
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeVInt(2);
+
+        out.writeString("a_future_setting_this_node_does_not_know");
+        BytesStreamOutput unknownValue = new BytesStreamOutput();
+        unknownValue.writeString("opaque");
+        unknownValue.writeVInt(123); // arbitrary extra bytes, of a shape this node could not guess
+        out.writeBytesReference(unknownValue.bytes());
+
+        out.writeString(QuerySettings.TIME_ZONE.name());
+        BytesStreamOutput knownValue = new BytesStreamOutput();
+        QuerySettings.TIME_ZONE.writeValue(knownValue, ZoneId.of("Europe/Paris"));
+        out.writeBytesReference(knownValue.bytes());
+
+        ResolvedSettings resolved = new ResolvedSettings(out.bytes().streamInput());
+        // The unknown one is silently skipped (no throw); the known setting after it survives intact.
+        assertThat(QuerySettings.TIME_ZONE.get(resolved), equalTo(ZoneId.of("Europe/Paris")));
+    }
+
+    public void testResolveApproximationDisjointFieldsMerge() {
+        // Request supplies rows only; query SET supplies confidence_level only. Both must survive.
+        ApproximationSettings resolved = resolveApproximation(
+            new ApproximationSettings(10000, 0.90),
+            approxMap("confidence_level", Literal.fromDouble(Source.EMPTY, 0.92))
+        );
+        assertThat(resolved, is(new ApproximationSettings(10000, 0.92)));
+    }
+
+    public void testResolveApproximationSharedFieldSetWins() {
+        // Both sources supply rows; query SET's value wins for the shared field.
+        ApproximationSettings resolved = resolveApproximation(
+            new ApproximationSettings(10000, 0.90),
+            approxMap("rows", Literal.integer(Source.EMPTY, 50000), "confidence_level", Literal.fromDouble(Source.EMPTY, 0.85))
+        );
+        assertThat(resolved, is(new ApproximationSettings(50000, 0.85)));
+    }
+
+    public void testResolveApproximationRequestOnly() {
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.APPROXIMATION, new ApproximationSettings(20000, 0.88));
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(QuerySettings.APPROXIMATION.get(resolved), is(new ApproximationSettings(20000, 0.88)));
+    }
+
+    public void testResolveApproximationSetOnly() {
+        QuerySetting set = new QuerySetting(
+            Source.EMPTY,
+            new Alias(Source.EMPTY, "approximation", approxMap("rows", Literal.integer(Source.EMPTY, 30000)))
+        );
+        EsqlStatement statement = new EsqlStatement(null, List.of(set));
+        ResolvedSettings settings = QuerySettings.resolve(Map.of(), statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        // SET supplied rows only; resolver enabled approximation and left confidence_level at its default.
+        ApproximationSettings resolved = QuerySettings.APPROXIMATION.get(settings);
+        assertThat(resolved.rows(), equalTo(30000));
+    }
+
+    public void testResolveApproximationBooleanTrueKeepsRequestFields() {
+        // SET approximation=true parses to DEFAULT (rows=null, confidence_level=0.9). The field-level merge
+        // treats null in the higher-precedence source as "no contribution for this field", so
+        // request-supplied rows survive.
+        ApproximationSettings resolved = resolveApproximation(
+            new ApproximationSettings(50000, 0.85),
+            Literal.fromBoolean(Source.EMPTY, true)
+        );
+        assertThat(resolved, is(new ApproximationSettings(50000, 0.9)));
+    }
+
+    public void testResolveApproximationBooleanFalseDisables() {
+        // SET approximation=false parses to EXPLICIT_NULL, which disables approximation entirely
+        // (Builder.merge with EXPLICIT_NULL clears the enabled flag → build() returns null).
+        ApproximationSettings resolved = resolveApproximation(
+            new ApproximationSettings(50000, 0.85),
+            Literal.fromBoolean(Source.EMPTY, false)
+        );
+        assertThat(resolved, is(nullValue()));
+    }
+
+    private static ApproximationSettings resolveApproximation(ApproximationSettings requestValue, Expression querySetExpr) {
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        if (requestValue != null) {
+            requestParams.put(QuerySettings.APPROXIMATION, requestValue);
+        }
+        QuerySetting set = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "approximation", querySetExpr));
+        EsqlStatement statement = new EsqlStatement(null, List.of(set));
+        return QuerySettings.APPROXIMATION.get(QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED));
+    }
+
+    private static MapExpression approxMap(Object... kvs) {
+        List<Expression> entries = new ArrayList<>();
+        for (int i = 0; i < kvs.length; i += 2) {
+            entries.add(Literal.keyword(Source.EMPTY, (String) kvs[i]));
+            entries.add((Expression) kvs[i + 1]);
+        }
+        return new MapExpression(Source.EMPTY, entries);
+    }
+
+    public void testResolveUnmappedFieldsIsSetOnly() {
+        // UNMAPPED_FIELDS opted out of body exposure. The registry exposure flag is false.
+        assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(false));
+        assertThat(QuerySettings.UNMAPPED_FIELDS.aliases().isEmpty(), is(true));
+    }
+
+    public void testResolveColumnMetadataIsRequestBodyExposedWithoutAlias() {
+        // COLUMN_METADATA is body-exposed under settings.{} but, unlike the three legacy settings, carries no
+        // top-level alias — there was never a pre-existing top-level body field for it to stay compatible with.
+        assertThat(QuerySettings.COLUMN_METADATA.requestBody(), is(true));
+        assertThat(QuerySettings.COLUMN_METADATA.aliases().isEmpty(), is(true));
+    }
+
+    public void testResolveColumnMetadataDefault() {
+        // Nothing supplied it anywhere (no body, no SET) — the registered default applies.
+        ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.FALSE));
+    }
+
+    public void testResolveRequestParameterAppliesColumnMetadata() {
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.COLUMN_METADATA, Boolean.TRUE);
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.TRUE));
+    }
+
+    public void testResolveRequestParameterAppliesColumnMetadataExplicitFalse() {
+        // Explicit false is a real, user-supplied value — distinct from "not supplied" even though both
+        // resolve to the same FALSE default. Guards against a reconciler/resolver that mistakes a falsy
+        // value for an absent one (e.g. an accidental truthiness check instead of a null check).
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.COLUMN_METADATA, Boolean.FALSE);
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.FALSE));
+    }
+
+    public void testResolveColumnMetadataRejectsMalformedSetValue() {
+        // resolve() calls readFromExpression() directly and does not repeat validate()'s upfront type check.
+        // This confirms the bool() factory's own defensive check rejects a non-boolean SET value on its own,
+        // so a malformed value can't silently slip through resolve() even if validate() were ever bypassed.
+        QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "column_metadata", Literal.integer(Source.EMPTY, 1)));
+        EsqlStatement statement = new EsqlStatement(null, List.of(setting));
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> QuerySettings.resolve(Map.of(), statement, SNAPSHOT_CTX_WITH_CPS_ENABLED)
+        );
+        assertThat(ex.getMessage(), containsString("Setting [column_metadata] must be a boolean, got [1]"));
+    }
+
+    public void testResolveBodyColumnMetadataFailsOnNonSnapshot() {
+        // Body-supplied snapshot-only settings bypass the parse-time gate in validate() (which only sees SET) and
+        // are instead rejected here, at resolve time.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.COLUMN_METADATA, Boolean.TRUE);
+        var ex = expectThrows(
+            VerificationException.class,
+            () -> QuerySettings.resolve(requestParams, null, NON_SNAPSHOT_CTX_WITH_CPS_ENABLED)
+        );
+        assertThat(ex.getMessage(), containsString("Setting [column_metadata] is only available in snapshot builds"));
+    }
+
+    public void testResolveBodyExposedSettingsDeclareAliases() {
+        // The three body-exposed settings each carry exactly one root alias mirroring the legacy field names.
+        for (QuerySettingDef<?> def : List.of(QuerySettings.TIME_ZONE, QuerySettings.PROJECT_ROUTING, QuerySettings.APPROXIMATION)) {
+            assertThat("requestParameterExposed for [" + def.name() + "]", def.requestBody(), is(true));
+            assertThat("aliases for [" + def.name() + "]", def.aliases(), hasSize(1));
+            QuerySettingDef.RequestBodyBinding alias = def.aliases().get(0);
+            assertThat(alias.isAtRoot(), is(true));
+            assertThat(alias.name(), equalTo(def.name()));
+        }
+    }
+
     @AfterClass
     public static void generateDocs() throws Exception {
-        List<QuerySettings.QuerySettingDef<?>> settings = QuerySettings.SETTINGS_BY_NAME.values()
-            .stream()
-            .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))
-            .toList();
+        List<QuerySettingDef<?>> settings = QuerySettings.all().stream().sorted(Comparator.comparing(QuerySettingDef::name)).toList();
 
-        for (QuerySettings.QuerySettingDef<?> def : settings) {
+        for (QuerySettingDef<?> def : settings) {
             DocsV3Support.SettingsDocsSupport settingsDocsSupport = new DocsV3Support.SettingsDocsSupport(
                 def,
                 QuerySettingsTests.class,

@@ -41,6 +41,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -814,7 +815,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             case DATE -> DataType.DATETIME;
             case DECIMAL -> DataType.DOUBLE;
             case LIST -> convertOrcTypeToEsql(orcType.getChildren().get(0));
-            default -> DataType.UNSUPPORTED;
+            // BINARY holds arbitrary bytes (KEYWORD would assume valid UTF-8), and MAP/STRUCT/UNION and the
+            // geospatial types have no scalar ESQL equivalent, so all map to UNSUPPORTED. They are enumerated
+            // explicitly so that default is reserved for a genuinely unexpected ORC category (a future enum constant).
+            case BINARY, MAP, STRUCT, UNION, Geometry, Geography -> DataType.UNSUPPORTED;
+            default -> throw new IllegalArgumentException("Unexpected ORC type category: " + orcType.getCategory());
         };
     }
 
@@ -1491,7 +1496,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                 builder.appendBytesRef(new org.apache.lucene.util.BytesRef());
                             } else {
                                 builder.appendBytesRef(
-                                    new org.apache.lucene.util.BytesRef(child.vector[idx], child.start[idx], child.length[idx])
+                                    Utf8Sanitizer.sanitize(
+                                        new org.apache.lucene.util.BytesRef(child.vector[idx], child.start[idx], child.length[idx])
+                                    )
                                 );
                             }
                         }
@@ -1765,7 +1772,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     return blockFactory.newConstantNullBlock(rowCount);
                 }
                 return blockFactory.newConstantBytesRefBlockWith(
-                    new org.apache.lucene.util.BytesRef(bytesVector.vector[0], bytesVector.start[0], bytesVector.length[0]),
+                    Utf8Sanitizer.sanitize(
+                        new org.apache.lucene.util.BytesRef(bytesVector.vector[0], bytesVector.start[0], bytesVector.length[0])
+                    ),
                     rowCount
                 );
             }
@@ -1779,7 +1788,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     } else {
                         int idx = readFromZero ? 0 : i;
                         builder.appendBytesRef(
-                            new org.apache.lucene.util.BytesRef(bytesVector.vector[idx], bytesVector.start[idx], bytesVector.length[idx])
+                            Utf8Sanitizer.sanitize(
+                                new org.apache.lucene.util.BytesRef(
+                                    bytesVector.vector[idx],
+                                    bytesVector.start[idx],
+                                    bytesVector.length[idx]
+                                )
+                            )
                         );
                     }
                 }

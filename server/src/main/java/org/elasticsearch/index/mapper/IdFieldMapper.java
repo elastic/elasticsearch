@@ -17,7 +17,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -37,7 +36,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(mappingParserContext -> {
         var indexSettings = mappingParserContext.getIndexSettings();
-        if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+        if (indexSettings.getMode().isTsdb()) {
             return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
         } else if (indexSettings.isSliceEnabled()) {
             return new ConstantBuilder(
@@ -52,11 +51,18 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             var indexMode = parserContext.getIndexSettings().getMode();
-            if (indexMode == IndexMode.TIME_SERIES) {
+            if (indexMode.isTsdb()) {
                 throw new MapperParsingException(name + " is not configurable if index mode is time_series");
-            } else {
-                return super.parse(name, node, parserContext);
             }
+            Builder builder = super.parse(name, node, parserContext);
+            if (indexMode.isStrictColumnar()
+                && builder instanceof ProvidedIdFieldMapper.Builder idBuilder
+                && idBuilder.getMode() == ProvidedIdFieldMapper.Mode.DOCUMENT) {
+                throw new MapperParsingException(
+                    name + " does not support [mode=document] in a strictly columnar index mode [" + indexMode.getName() + "]"
+                );
+            }
+            return builder;
         }
     };
 

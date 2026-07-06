@@ -105,6 +105,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         @Param(
             name = "query",
             type = { "dense_vector" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Vector value to find top nearest neighbours for."
         ) Expression query,
         @MapParam(

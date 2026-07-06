@@ -282,7 +282,6 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testTemporalityFieldValid() throws IOException {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         Settings s = Settings.builder()
             .put(getSettings("dim"))
             .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
@@ -294,7 +293,6 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testTemporalityFieldAddedToDefaultMapping() throws IOException {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         Settings s = Settings.builder()
             .put(getSettings("dim"))
             .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
@@ -308,7 +306,6 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testTemporalityFieldOverrideWithWrongType() throws IOException {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         Settings s = Settings.builder()
             .put(getSettings("dim"))
             .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
@@ -324,7 +321,6 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testTemporalityFieldOverrideWithoutDimension() throws IOException {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         Settings s = Settings.builder()
             .put(getSettings("dim"))
             .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
@@ -337,10 +333,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testIndexDisabledByDefault() {
-        assumeTrue(
-            "index_disabled_by_default feature flag must be enabled",
-            IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()
-        );
+        assumeTrue("columnar feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assertFalse(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(getSettings()));
     }
 

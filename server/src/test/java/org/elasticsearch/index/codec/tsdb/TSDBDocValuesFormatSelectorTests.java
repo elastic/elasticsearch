@@ -47,11 +47,19 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         );
     }
 
-    public void testES95SelectedAcrossModesWhenSettingEnabled() {
+    public void testES95OnlySelectedForTimeSeriesWhenSettingEnabled() {
         assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
+        final IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG,
+            IndexVersion.current()
+        );
         for (IndexMode mode : indexModesUnderTest()) {
-            final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, IndexVersion.current(), true), null);
-            assertThat("mode=" + mode, format.getName(), equalTo(ES95_CODEC_NAME));
+            final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, version, true), null);
+            if (mode == IndexMode.TIME_SERIES) {
+                assertThat("mode=" + mode + " version=" + version, format.getName(), equalTo(ES95_CODEC_NAME));
+            } else {
+                assertThat("mode=" + mode + " version=" + version, format.getName(), startsWith("ES819"));
+            }
         }
     }
 
@@ -95,8 +103,8 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         if (mode == IndexMode.TIME_SERIES) {
             builder.put("index.routing_path", "dimension");
         }
-        if (es95Enabled && IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
-            builder.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), true);
+        if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
+            builder.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), es95Enabled);
         }
         final IndexMetadata metadata = IndexMetadata.builder("test").settings(builder).build();
         return new IndexSettings(metadata, Settings.EMPTY);

@@ -28,6 +28,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -47,10 +48,9 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
 
     protected boolean columnarId;
 
-    @Override
-    public void setUp() throws Exception {
+    @Before
+    public void initializeColumnarId() throws Exception {
         columnarId = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        super.setUp();
     }
 
     @Override

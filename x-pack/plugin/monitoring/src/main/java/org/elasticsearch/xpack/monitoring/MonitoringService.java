@@ -62,7 +62,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
         true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
-        Setting.Property.DeprecatedWarning
+        Setting.Property.Deprecated
     );
 
     /**
@@ -74,7 +74,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
-        Setting.Property.DeprecatedWarning
+        Setting.Property.Deprecated
     );
 
     /**
@@ -86,7 +86,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
         MIN_INTERVAL,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
-        Setting.Property.DeprecatedWarning
+        Setting.Property.Deprecated
     );
 
     /** State of the monitoring service, either started or stopped **/

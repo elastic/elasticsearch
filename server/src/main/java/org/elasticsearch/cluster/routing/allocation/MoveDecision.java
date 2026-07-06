@@ -317,7 +317,8 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 builder.endObject();
             }
             builder.field("can_remain_on_current_node", canRemain() ? "yes" : "no");
-            if (cannotRemain() && canRemainDecision.getDecisions().isEmpty() == false) {
+            // If DebugMode is OFF, then a Single Decision record is internally used
+            if ((cannotRemain() || canRemainDecision instanceof Decision.Multi) && canRemainDecision.getDecisions().isEmpty() == false) {
                 builder.startArray("can_remain_decisions");
                 canRemainDecision.toXContent(builder, params);
                 builder.endArray();

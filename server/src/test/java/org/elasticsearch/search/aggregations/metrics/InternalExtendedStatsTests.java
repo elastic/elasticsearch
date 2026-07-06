@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,10 +38,13 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
 
     private double sigma;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpSigma() {
         this.sigma = randomDoubleBetween(0, 10, true);
+    }
+
+    public final void setUp() throws Exception {
+        super.setUp();
     }
 
     @Override

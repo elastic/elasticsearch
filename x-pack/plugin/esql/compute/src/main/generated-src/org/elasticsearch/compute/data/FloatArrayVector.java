@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
  * Vector implementation that stores an array of float values.
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class FloatArrayVector extends AbstractVector implements FloatVector {
+public final class FloatArrayVector extends AbstractVector implements FloatVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FloatArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.

@@ -90,6 +90,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
         true,
         FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+        true,
         true
     );
 
@@ -219,10 +220,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (indexed.getValue()) {
                 return IndexType.points(true, docValuesParameters.getValue().enabled());
             }
-            if (docValuesParameters.getValue().enabled()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)
-                && indexSettings.useDocValuesSkipper()) {
-                return IndexType.skippers();
+            if (docValuesParameters.getValue().enabled()) {
+                if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)
+                    && indexSettings.useDocValuesSkipper()) {
+                    return IndexType.skippers();
+                }
             }
             return IndexType.points(false, docValuesParameters.getValue().enabled());
         }
@@ -677,6 +679,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    public boolean isNullable() {
+        return docValuesParameters.nullability() || nullValue != null;
     }
 
     @Override

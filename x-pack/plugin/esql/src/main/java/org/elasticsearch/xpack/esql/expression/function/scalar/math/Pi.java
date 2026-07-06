@@ -33,6 +33,7 @@ public class Pi extends DoubleConstantFunction {
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns the value of pi.")
         .example("pi()")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("pi");
 
     @FunctionInfo(

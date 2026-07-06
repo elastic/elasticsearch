@@ -47,6 +47,7 @@ public class ClampMax extends EsqlScalarFunction {
         .binaryValueTransformation(PromqlFunctionDefinition.MAX_SCALAR, ClampMax::new)
         .description("Clamps the sample values of all elements to have an upper limit of max.")
         .example("clamp_max(http_requests_total, 100)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("clamp_max");
 
     private DataType resolvedType;

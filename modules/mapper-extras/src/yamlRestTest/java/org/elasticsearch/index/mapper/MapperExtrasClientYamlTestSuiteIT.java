@@ -35,7 +35,7 @@ public class MapperExtrasClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         .module("mapper-extras")
         .module("analysis-common")
         .module("reindex")
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .build();
 
     @Override

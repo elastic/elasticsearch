@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -908,8 +909,34 @@ public class AttachmentProcessorTests extends ESTestCase {
         );
         int bytes = randomIntBetween(1, 100);
         assertThat(parseRandomStringAttachmentAndGetTargetField(bytes, processor), notNullValue());
-        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED, bytes);
-        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED, bytes);
+    }
+
+    public void testSizeMetricsOneMebibyteDocument() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        SetOnce<AttachmentIngestMetrics> metricsRef = new SetOnce<>();
+        metricsRef.set(new AttachmentIngestMetrics(meterRegistry));
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            metricsRef
+        );
+        int bytes = 1_048_576;
+        assertThat(parseRandomStringAttachmentAndGetTargetField(bytes, processor), notNullValue());
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED, bytes);
     }
 
     public void testSizeMetricsIgnoreMissing() throws Exception {
@@ -935,11 +962,13 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         processor.execute(ingestDocument);
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED),
             hasSize(0)
         );
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED),
             hasSize(0)
         );
     }
@@ -968,9 +997,10 @@ public class AttachmentProcessorTests extends ESTestCase {
         int bytes = randomIntBetween(1, 100);
         expectThrows(ElasticsearchParseException.class, () -> parseRandomStringAttachmentAndGetTargetField(bytes, processor));
 
-        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED, bytes);
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED),
             hasSize(0)
         );
     }
@@ -997,26 +1027,28 @@ public class AttachmentProcessorTests extends ESTestCase {
         );
         expectThrows(ElasticsearchParseException.class, () -> parseDocument("encrypted.pdf", processor));
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED),
             hasSize(greaterThanOrEqualTo(1))
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED)
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED)
                 .getLast()
-                .getLong(),
-            greaterThan(0L)
+                .getDouble(),
+            greaterThan(0.0)
         );
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED),
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED),
             hasSize(0)
         );
     }
 
-    private static void assertHistogramLastValue(RecordingMeterRegistry meterRegistry, String metricName, long expected) {
-        var measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, metricName);
+    private static void assertHistogramLastValue(RecordingMeterRegistry meterRegistry, String metricName, long rawBytes) {
+        var measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, metricName);
         assertThat(measurements, hasSize(greaterThanOrEqualTo(1)));
-        assertThat(measurements.get(measurements.size() - 1).getLong(), equalTo(expected));
+        assertThat(measurements.get(measurements.size() - 1).getDouble(), closeTo(AttachmentIngestMetrics.toMebibytes(rawBytes), 1e-12));
     }
 
     private static Object parseRandomStringAttachmentAndGetTargetField(int bytes, Processor processor) throws Exception {

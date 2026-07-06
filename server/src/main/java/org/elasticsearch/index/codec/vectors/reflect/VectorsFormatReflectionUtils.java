@@ -20,32 +20,20 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 
 public class VectorsFormatReflectionUtils {
-    private static final VarHandle FLOAT_SUPPLIER_HANDLE;
     private static final VarHandle BYTE_SUPPLIER_HANDLE;
     private static final VarHandle L99_FLOAT_VECTORS_HANDLE;
     private static final VarHandle DEFAULT_FLOAT_VECTORS_HANDLE;
 
-    private static final Class<?> FLAT_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS;
     private static final Class<?> SCALAR_QUANTIZED_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS;
     private static final Class<?> L99_FLOAT_SCORING_SUPPLIER_CLASS;
     private static final Class<?> DEFAULT_FLOAT_SCORING_SUPPLIER_CLASS;
 
     static {
         try {
-            FLAT_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS = Class.forName(
-                "org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter$FlatCloseableRandomVectorScorerSupplier"
-            );
-            var lookup = MethodHandles.privateLookupIn(FLAT_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS, MethodHandles.lookup());
-            FLOAT_SUPPLIER_HANDLE = lookup.findVarHandle(
-                FLAT_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS,
-                "supplier",
-                RandomVectorScorerSupplier.class
-            );
-
             L99_FLOAT_SCORING_SUPPLIER_CLASS = Class.forName(
                 "org.apache.lucene.internal.vectorization.Lucene99MemorySegmentFloatVectorScorerSupplier"
             );
-            lookup = MethodHandles.privateLookupIn(L99_FLOAT_SCORING_SUPPLIER_CLASS, MethodHandles.lookup());
+            var lookup = MethodHandles.privateLookupIn(L99_FLOAT_SCORING_SUPPLIER_CLASS, MethodHandles.lookup());
             L99_FLOAT_VECTORS_HANDLE = lookup.findVarHandle(L99_FLOAT_SCORING_SUPPLIER_CLASS, "values", FloatVectorValues.class);
 
             DEFAULT_FLOAT_SCORING_SUPPLIER_CLASS = Class.forName(
@@ -69,13 +57,6 @@ public class VectorsFormatReflectionUtils {
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
-    }
-
-    public static RandomVectorScorerSupplier getFlatRandomVectorScorerInnerSupplier(CloseableRandomVectorScorerSupplier scorerSupplier) {
-        if (scorerSupplier.getClass().equals(FLAT_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS)) {
-            return (RandomVectorScorerSupplier) FLOAT_SUPPLIER_HANDLE.get(scorerSupplier);
-        }
-        return null;
     }
 
     public static RandomVectorScorerSupplier getScalarQuantizedRandomVectorScorerInnerSupplier(

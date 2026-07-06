@@ -16,6 +16,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -50,6 +52,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final UpdateByQueryMetrics updateByQueryMetrics;
     @Nullable
     private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
@@ -65,6 +68,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         @Nullable UpdateByQueryMetrics updateByQueryMetrics,
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
@@ -75,6 +79,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.updateByQueryMetrics = updateByQueryMetrics;
         this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
         // todo: if relocations are added to update-by-query and it gets its own timeout setting, this should be updated.
@@ -88,6 +93,12 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByPaginatedSearchResponse> listener) {
         BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         long startTime = System.nanoTime();
+        ProjectMetadata projectMetadata = projectResolver.getProjectState(clusterService.state()).metadata();
+        BulkByPaginatedSearchParallelizationHelper.validateSliceRoutingForWriteBackedSearch(
+            request,
+            projectMetadata,
+            "update by query request"
+        );
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByPaginatedSearchTask,

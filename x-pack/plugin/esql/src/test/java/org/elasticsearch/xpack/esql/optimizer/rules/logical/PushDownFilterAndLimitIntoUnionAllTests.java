@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -1530,7 +1531,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE @timestamp > "2024-01-01"
             """);
 
-        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration configuration = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -1593,7 +1594,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE @timestamp > "2024-01-01" AND @timestamp < "2025-12-31"
             """);
 
-        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration configuration = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -1667,7 +1668,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE @timestamp > "2024-01-01" OR @timestamp < "2020-01-01"
             """);
 
-        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration configuration = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -1828,7 +1829,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE @timestamp > "2024-01-01" AND qstr("message:disconnect")
             """);
 
-        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration configuration = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -1908,7 +1909,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE @timestamp > "2024-01-01"
             """);
 
-        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration configuration = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -1989,15 +1990,17 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE emp_no > 10000
             """);
 
-        Project outerProject = as(plan, Project.class);
-        Limit limit = as(outerProject.child(), Limit.class);
+        // No top-level Project: the dataset is read via FROM with no METADATA, so it carries no
+        // _file.* columns and the union output has nothing to strip from default output.
+        Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
         // branch 1 — FROM test: the outer emp_no filter is pushed down onto the EsRelation.
         Project testProject = as(unionAll.children().get(0), Project.class);
-        Eval testEval = as(testProject.child(), Eval.class);
-        Filter testFilter = as(testEval.child(), Filter.class);
+        // No Eval on this branch: the union carries no _file.* (the dataset is FROM with no
+        // METADATA), so the index branch already has every union column — nothing to null-fill.
+        Filter testFilter = as(testProject.child(), Filter.class);
         GreaterThan testGt = as(testFilter.condition(), GreaterThan.class);
         assertEquals("emp_no", as(testGt.left(), FieldAttribute.class).name());
         assertEquals(10000, as(testGt.right(), Literal.class).value());
@@ -2046,15 +2049,17 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE emp_no > 10000
             """);
 
-        Project outerProject = as(plan, Project.class);
-        Limit limit = as(outerProject.child(), Limit.class);
+        // No top-level Project: the dataset is read via FROM with no METADATA, so it carries no
+        // _file.* columns and the union output has nothing to strip from default output.
+        Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
         // branch 1 — FROM test: the outer emp_no filter is pushed down onto the EsRelation.
         Project testProject = as(unionAll.children().get(0), Project.class);
-        Eval testEval = as(testProject.child(), Eval.class);
-        Filter testFilter = as(testEval.child(), Filter.class);
+        // No Eval on this branch: the union carries no _file.* (the dataset is FROM with no
+        // METADATA), so the index branch already has every union column — nothing to null-fill.
+        Filter testFilter = as(testProject.child(), Filter.class);
         GreaterThan testGt = as(testFilter.condition(), GreaterThan.class);
         assertEquals("emp_no", as(testGt.left(), FieldAttribute.class).name());
         assertEquals(10000, as(testGt.right(), Literal.class).value());
@@ -2113,7 +2118,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             .datasets(Map.of(EXTERNAL_DATASET, dataset))
             .build();
         // FROM <dataset> -> UnresolvedExternalRelation, the same shape the EXTERNAL command would parse to.
-        LogicalPlan rewritten = DatasetRewriter.rewrite(
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
             TestIndexNameExpressionResolver.newInstance()

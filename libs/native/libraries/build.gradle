@@ -12,14 +12,33 @@ import org.elasticsearch.gradle.transform.UnzipTransform
 apply plugin: 'base'
 
 configurations {
+  // Internal configuration: declares + resolves the per-platform binary distributions pulled from
+  // the elasticsearch-native repository. Used only as input to `extractLibs`; never published.
   libs {
     attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     canBeConsumed = false
   }
 }
 
+// Dedicated consumable variant carrying the extracted platform-specific native libraries
+// (the `extractLibs` task output directory). Consumers must request this configuration
+// explicitly via `project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')`.
+//
+// We deliberately do NOT publish these binaries via the `default` configuration. If another
+// plugin (e.g. `elasticsearch.build`) ends up applied to this project, its standard Java
+// outputs would otherwise hijack `default` and silently break native library resolution for
+// every test JVM (es.nativelibs.path) and for the distribution packaging. Keeping a named
+// configuration here makes the contract explicit and resilient to such cross-project changes.
+//
+// Declared via the role-based factory because Gradle 9.x locks configuration usage at creation
+// time — toggling `canBeConsumed`/`canBeResolved` post-creation on a legacy configuration is
+// rejected with "Cannot change the allowed usage of configuration ...".
+configurations.consumable('nativeLibs') {
+  attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+}
+
 var zstdVersion = "1.5.7"
-var vecVersion = "1.0.133"
+var vecVersion = "1.0.134"
 var pqrsVersion = "0.2.0"
 
 repositories {
@@ -85,5 +104,5 @@ def extractLibs = tasks.register('extractLibs', Copy) {
 }
 
 artifacts {
-  'default' extractLibs
+  nativeLibs extractLibs
 }

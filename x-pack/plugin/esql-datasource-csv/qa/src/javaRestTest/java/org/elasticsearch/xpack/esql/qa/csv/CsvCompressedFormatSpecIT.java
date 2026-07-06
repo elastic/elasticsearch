@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.csv;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -26,7 +27,11 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
-    private static final List<String> COMPRESSED_FORMATS = List.of("csv.gz", "csv.zst", "csv.zstd", "csv.bz2", "csv.bz");
+    // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
+    // builds, so .csv.bz2/.csv.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
+    private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
+        ? List.of("csv.gz", "csv.zst", "csv.zstd", "csv.bz2", "csv.bz")
+        : List.of("csv.gz", "csv.zst", "csv.zstd");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());

@@ -52,11 +52,16 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         // For simplicity, we just allow all warnings here.
         testCase.allowAllWarnings();
 
+        // Dataset-backed specs (FROM <dataset>) need a registered dataset, which this cluster does not
+        // provision; skip them here (they are covered by the external-source suites).
+        assumeFalse("dataset-backed spec; covered by the external-source suites", testCase.datasetSources.isEmpty() == false);
+        String query = testCase.query;
+
         // Sample a huge number of rows, so that exact results are computed.
         executeQuery("""
             SET approximation={"rows":2000000000};
             {QUERY}
-            """.replace("{QUERY}", testCase.query));
+            """.replace("{QUERY}", query));
 
         try {
             GenerativeForkRestTest.shouldSkipForkTest(testCase);
@@ -64,7 +69,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
                 SET approximation={"rows":2000000000};
                 {QUERY}
                 | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == "fork1" | DROP _fork
-                """.replace("{QUERY}", testCase.query));
+                """.replace("{QUERY}", query));
         } catch (AssumptionViolatedException e) {
             // do nothing
         }
@@ -73,13 +78,13 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
             // Subqueries use FORK under the hood, hence have the same restrictions as FORK tests.
             GenerativeForkRestTest.shouldSkipForkTest(testCase);
             assumeTrue("Subqueries in approximation require inline stats capability", APPROXIMATION_INLINE_STATS_V2.isEnabled());
-            assumeTrue("Subquery must start with FROM", testCase.query.toUpperCase(Locale.ROOT).startsWith("FROM "));
+            assumeTrue("Subquery must start with FROM", query.toUpperCase(Locale.ROOT).startsWith("FROM "));
             executeQuery("""
                 SET approximation={"rows":2000000000};
                 FROM ({QUERY} | EVAL _subquery=1), ({QUERY} | EVAL _subquery=2)
                 | WHERE _subquery == 1
                 | DROP _subquery
-                """.replace("{QUERY}", testCase.query));
+                """.replace("{QUERY}", query));
         } catch (AssumptionViolatedException e) {
             // do nothing
         }

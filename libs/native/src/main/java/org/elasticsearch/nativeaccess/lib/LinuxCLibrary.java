@@ -9,7 +9,7 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-public non-sealed interface LinuxCLibrary extends NativeLibrary {
+public interface LinuxCLibrary {
 
     /**
      * Corresponds to struct sock_filter

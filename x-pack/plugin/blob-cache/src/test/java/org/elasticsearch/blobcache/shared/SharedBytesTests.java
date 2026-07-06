@@ -280,6 +280,100 @@ public class SharedBytesTests extends ESTestCase {
         }
     }
 
+    // Verify that a freshly created region starts with MADV_NORMAL advice.
+    public void testMadviseDefaultIsNormal() throws Exception {
+        int regions = randomIntBetween(1, 4);
+        int regionSize = randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE;
+        var nodeSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put("path.home", createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+            .build();
+        SharedBytes sharedBytes = null;
+        try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
+            sharedBytes = new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, randomBoolean());
+            for (int i = 0; i < regions; i++) {
+                assertThat(sharedBytes.getFileChannel(i).currentAdvice(), equalTo(SharedBytes.MADV_NORMAL));
+            }
+        } finally {
+            if (sharedBytes != null) {
+                sharedBytes.decRef();
+            }
+        }
+    }
+
+    // Verify that madvise updates currentAdvice on an mmap'd region and can be changed back.
+    public void testMadviseTracksCurrentAdvice() throws Exception {
+        int regions = 1;
+        int regionSize = 4 * SharedBytes.PAGE_SIZE;
+        var nodeSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put("path.home", createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+            .build();
+        SharedBytes sharedBytes = null;
+        try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
+            sharedBytes = new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, true);
+            SharedBytes.IO io = sharedBytes.getFileChannel(0);
+            assertThat(io.currentAdvice(), equalTo(SharedBytes.MADV_NORMAL));
+            io.madvise(SharedBytes.MADV_RANDOM);
+            assertThat(io.currentAdvice(), equalTo(SharedBytes.MADV_RANDOM));
+            io.madvise(SharedBytes.MADV_NORMAL);
+            assertThat(io.currentAdvice(), equalTo(SharedBytes.MADV_NORMAL));
+        } finally {
+            if (sharedBytes != null) {
+                sharedBytes.decRef();
+            }
+        }
+    }
+
+    // Verify that calling madvise with the already-current advice does not throw.
+    public void testMadviseNoOpWhenAdviceUnchanged() throws Exception {
+        int regions = 1;
+        int regionSize = 4 * SharedBytes.PAGE_SIZE;
+        var nodeSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put("path.home", createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+            .build();
+        SharedBytes sharedBytes = null;
+        try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
+            sharedBytes = new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, true);
+            SharedBytes.IO io = sharedBytes.getFileChannel(0);
+            io.madvise(SharedBytes.MADV_NORMAL);
+            assertThat(io.currentAdvice(), equalTo(SharedBytes.MADV_NORMAL));
+            io.madvise(SharedBytes.MADV_RANDOM);
+            io.madvise(SharedBytes.MADV_RANDOM);
+            assertThat(io.currentAdvice(), equalTo(SharedBytes.MADV_RANDOM));
+        } finally {
+            if (sharedBytes != null) {
+                sharedBytes.decRef();
+            }
+        }
+    }
+
+    // Verify that madvise is a no-op on non-mmap'd regions and currentAdvice stays at default.
+    public void testMadviseNoOpWhenNotMmap() throws Exception {
+        int regions = 1;
+        int regionSize = 4 * SharedBytes.PAGE_SIZE;
+        var nodeSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put("path.home", createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+            .build();
+        SharedBytes sharedBytes = null;
+        try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
+            sharedBytes = new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, false);
+            SharedBytes.IO io = sharedBytes.getFileChannel(0);
+            io.madvise(SharedBytes.MADV_RANDOM);
+            assertThat(io.currentAdvice(), equalTo(SharedBytes.MADV_NORMAL));
+        } finally {
+            if (sharedBytes != null) {
+                sharedBytes.decRef();
+            }
+        }
+    }
+
     private static class TestSlowByteArrayInputStream extends ByteArrayInputStream {
 
         private TestSlowByteArrayInputStream(byte[] data) {

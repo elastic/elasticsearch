@@ -486,7 +486,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
      * (cheaply, since the query value is a constant) by {@link #queryAsRuntimeSearchValue} when building the evaluator.
      */
     private void verifyRuntimeQueryValue() {
-        if (field.dataType() == TEXT) {
+        if (field.dataType() == TEXT || field.dataType() == NULL) {
             return;
         }
         queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));

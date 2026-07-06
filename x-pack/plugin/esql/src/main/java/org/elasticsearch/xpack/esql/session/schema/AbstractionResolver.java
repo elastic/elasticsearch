@@ -117,6 +117,19 @@ public final class AbstractionResolver {
             return result;
         }
 
+        /** The resolved concrete local names of a kind other than {@code kind}, in resolution order. Names absent from
+         *  the lookup (e.g. a synthesized date-math name) are of no kind and are skipped. */
+        public List<String> namesNotOfKind(IndexAbstraction.Type kind) {
+            List<String> result = new ArrayList<>();
+            for (String name : localNames()) {
+                IndexAbstraction abstraction = lookup.get(name);
+                if (abstraction != null && abstraction.getType() != kind) {
+                    result.add(name);
+                }
+            }
+            return result;
+        }
+
         /** Whether any resolved concrete local name is of a kind other than {@code kind} (lookup-absent names skipped). */
         public boolean hasKindOtherThan(IndexAbstraction.Type kind) {
             for (String name : localNames()) {

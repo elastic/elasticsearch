@@ -613,6 +613,7 @@ public class Constants {
         "indices:data/read/esql/resolve_datasets",
         "indices:data/read/esql/resolve_fields",
         "indices:data/read/esql/resolve_schema",
+        "indices:data/read/esql/resolve_schema_remote",
         "indices:data/read/esql/resolve_views",
         "indices:data/read/esql/search_shards",
         "indices:data/read/explain",

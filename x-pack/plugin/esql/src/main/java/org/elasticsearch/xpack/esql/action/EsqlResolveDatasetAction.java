@@ -94,9 +94,7 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             project.metadata(),
             indexNameExpressionResolver
         );
-        listener.onResponse(
-            new Response(resolution.authorizedDatasets(), resolution.hasNonDatasetTargets(), resolution.explicitUnauthorized())
-        );
+        listener.onResponse(new Response(resolution.authorizedDatasets(), resolution.nonDatasetNames(), resolution.explicitUnauthorized()));
     }
 
     /**
@@ -168,12 +166,12 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
 
     public static class Response extends ActionResponse {
         private final Set<String> datasets;
-        private final boolean hasNonDatasetTargets;
+        private final Set<String> nonDatasetNames;
         private final Set<String> explicitUnauthorized;
 
-        public Response(Set<String> datasets, boolean hasNonDatasetTargets, Set<String> explicitUnauthorized) {
+        public Response(Set<String> datasets, Set<String> nonDatasetNames, Set<String> explicitUnauthorized) {
             this.datasets = datasets;
-            this.hasNonDatasetTargets = hasNonDatasetTargets;
+            this.nonDatasetNames = nonDatasetNames;
             this.explicitUnauthorized = explicitUnauthorized;
         }
 
@@ -183,11 +181,12 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         }
 
         /**
-         * {@code true} when the relation's raw patterns also resolve to at least one non-dataset abstraction (index,
-         * alias, data stream). Drives the mixed-FROM rejection in {@link DatasetRewriter}.
+         * Concrete non-dataset names (indices, aliases, data streams) resolved from the same pattern. Non-empty when
+         * the relation targets a mix of datasets and non-datasets; drives heterogeneous-FROM UnionAll building
+         * in {@link DatasetRewriter}.
          */
-        public boolean hasNonDatasetTargets() {
-            return hasNonDatasetTargets;
+        public Set<String> nonDatasetNames() {
+            return nonDatasetNames;
         }
 
         /** Explicitly-named datasets absent from the authorized set — surfaced as {@code Unknown index} by the rewrite. */

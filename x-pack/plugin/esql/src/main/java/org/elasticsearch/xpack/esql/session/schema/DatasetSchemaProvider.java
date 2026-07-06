@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -29,6 +30,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -98,7 +100,17 @@ final class DatasetSchemaProvider implements AbstractionSchemaProvider {
     void resolveExternalSources(LogicalPlan plan, List<String> icebergPaths, ActionListener<ExternalSourceResolution> listener) {
         Map<String, Map<String, Object>> pathConfigs = extractExternalConfigs(plan);
         var filterHints = PartitionFilterHintExtractor.extract(plan);
-        externalSourceResolver.resolve(icebergPaths, pathConfigs, filterHints.isEmpty() ? null : filterHints, listener);
+        // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the resolver to
+        // selective eager stats: only the listed paths read every file's footer at planning time; the rest defer
+        // (#152328). The 4-arg overload passes null here, which reverts to legacy eager-for-every-path.
+        Set<String> pathsRequiringStats = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan);
+        externalSourceResolver.resolve(
+            icebergPaths,
+            pathConfigs,
+            filterHints.isEmpty() ? null : filterHints,
+            pathsRequiringStats,
+            listener
+        );
     }
 
     /**

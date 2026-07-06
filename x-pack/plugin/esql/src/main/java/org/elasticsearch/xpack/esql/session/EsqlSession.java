@@ -104,6 +104,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.schema.SchemaService;
@@ -344,7 +345,10 @@ public class EsqlSession {
                 assert ThreadPool.assertCurrentThreadPool(
                     ThreadPool.Names.SEARCH,
                     ThreadPool.Names.SEARCH_COORDINATION,
-                    ThreadPool.Names.SYSTEM_READ
+                    ThreadPool.Names.SYSTEM_READ,
+                    // External source resolution ({@link ExternalSourceResolver}) dispatches through the external
+                    // blob-store pool and this callback is reached on that thread.
+                    EsqlPlugin.externalBlobStorePool()
                 );
 
                 LogicalPlan plan = analyzedPlan.inner();
@@ -550,7 +554,10 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
+            ThreadPool.Names.SYSTEM_READ,
+            // Downstream of the analyzed-plan callback, which may complete on the external blob-store pool after
+            // external source resolution.
+            EsqlPlugin.externalBlobStorePool()
         );
         var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 

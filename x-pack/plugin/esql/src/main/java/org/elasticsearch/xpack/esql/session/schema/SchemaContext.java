@@ -35,6 +35,10 @@ import java.util.function.BiFunction;
  * fetch through the umbrella's {@code resolveSchema} dispatch — it is the single source of truth for that request
  * (real {@code projectRouting} and CPS flags included). It is null on the dataset/view paths, which don't issue a
  * field-caps fetch.
+ *
+ * <p>{@code plan} is the parsed query plan, carried so the lookup-index resolution can compute the per-LOOKUP-JOIN
+ * cluster scope from the plan shape ({@code IndexSchemaProvider#computeLookupJoinIndexScope}). It is null on the
+ * per-request/dataset/view sub-contexts that don't drive lookup resolution.
  */
 public record SchemaContext(
     EsqlExecutionInfo executionInfo,
@@ -46,7 +50,8 @@ public record SchemaContext(
     TransportVersion minimumVersion,
     @Nullable String projectRouting,
     @Nullable BiFunction<String, String, LogicalPlan> viewParser,
-    @Nullable IndexSchemaRequest indexRequest
+    @Nullable IndexSchemaRequest indexRequest,
+    @Nullable LogicalPlan plan
 ) {
     /**
      * Build a context for the index/dataset resolution call sites, which do not drive view resolution and so leave
@@ -59,7 +64,8 @@ public record SchemaContext(
         QueryBuilder requestFilter,
         boolean trackUnmappedFieldIndices,
         Set<String> fieldNames,
-        TransportVersion minimumVersion
+        TransportVersion minimumVersion,
+        LogicalPlan plan
     ) {
         this(
             executionInfo,
@@ -71,7 +77,8 @@ public record SchemaContext(
             minimumVersion,
             null,
             null,
-            null
+            null,
+            plan
         );
     }
 
@@ -87,6 +94,6 @@ public record SchemaContext(
 
     /** A context carrying a single per-pattern index field-caps request for the umbrella's index-schema arm. */
     public static SchemaContext forIndexRequest(IndexSchemaRequest indexRequest) {
-        return new SchemaContext(null, null, null, null, false, null, null, null, null, indexRequest);
+        return new SchemaContext(null, null, null, null, false, null, null, null, null, indexRequest, null);
     }
 }

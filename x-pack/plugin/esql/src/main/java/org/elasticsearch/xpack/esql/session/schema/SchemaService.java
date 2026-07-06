@@ -284,7 +284,8 @@ public final class SchemaService {
             requestFilter,
             trackedUnmappedFieldIndices,
             result.fieldNames(),
-            result.minimumTransportVersion()
+            result.minimumTransportVersion(),
+            parsed
         );
         SubscribableListener.<PreAnalysisResult>newForked(l -> resolveMainIndices(schemaCtx, projectMetadata, result, l))
             .andThenApply(r -> {
@@ -618,26 +619,49 @@ public final class SchemaService {
         List<String> names,
         ActionListener<Map<String, Map<String, Object>>> listener
     ) {
+        // Every name here is an already-authorized dataset. Pin local dataset names straight to the dataset arm rather
+        // than re-running the type-based resolveSchema routing on them: a local dataset name transiently absent from
+        // getIndicesLookup() (a create/delete race between the security round-trip and config resolution) would
+        // otherwise default to CONCRETE_INDEX and hit the index arm, which dereferences a null SchemaContext. Only
+        // the remote leg is federated — the dataset arm reads no SchemaContext, so it takes null.
+        List<String> localNames = new ArrayList<>();
+        List<String> remoteNames = new ArrayList<>();
+        for (String name : names) {
+            (RemoteClusterAware.isRemoteIndexName(name) ? remoteNames : localNames).add(name);
+        }
         SchemaContext ctx = null; // the dataset schema arm reads no SchemaContext fields
-        // Route through the federating split: it resolves local names in-process and any remote `alias:ds` names via the
-        // remote umbrella, merging the configs. This is the live in-session caller of the federation entry — closing the
-        // long-standing gap where the remotable resolve_schema action had no caller. For today's local-only dataset names
-        // it is behaviour-identical (the split no-ops to the in-process dispatch when there are no remote expressions);
-        // remote dataset *execution* (turning a remote config into an external read) is a production follow-up.
-        resolveSchemaFederated(ctx, projectMetadata, names, listener.map(resolved -> {
+        int legs = (localNames.isEmpty() ? 0 : 1) + (remoteNames.isEmpty() ? 0 : 1);
+        if (legs == 0) {
+            listener.onResponse(new LinkedHashMap<>());
+            return;
+        }
+        var grouped = new GroupedActionListener<List<ResolvedSchema>>(legs, listener.map(perLeg -> {
             Map<String, Map<String, Object>> configs = new LinkedHashMap<>();
-            for (ResolvedSchema schema : resolved) {
-                Map<String, Object> config = switch (schema) {
-                    case ResolvedSchema.Dataset dataset -> dataset.config();
-                    case ResolvedSchema.Remote remote when remote.kind() == ResolvedSchema.Remote.Kind.DATASET -> remote.config();
-                    default -> throw new IllegalStateException(
-                        "expected a dataset schema for [" + schema.name() + "] but got [" + schema.getClass().getSimpleName() + "]"
-                    );
-                };
-                configs.put(schema.name(), config);
+            for (List<ResolvedSchema> resolved : perLeg) {
+                for (ResolvedSchema schema : resolved) {
+                    Map<String, Object> config = switch (schema) {
+                        case ResolvedSchema.Dataset dataset -> dataset.config();
+                        case ResolvedSchema.Remote remote when remote.kind() == ResolvedSchema.Remote.Kind.DATASET -> remote.config();
+                        default -> throw new IllegalStateException(
+                            "expected a dataset schema for [" + schema.name() + "] but got [" + schema.getClass().getSimpleName() + "]"
+                        );
+                    };
+                    configs.put(schema.name(), config);
+                }
             }
             return configs;
         }));
+        // Local names go directly to the dataset provider's schema arm (pinned to the DATASET kind, no type routing).
+        if (localNames.isEmpty() == false) {
+            datasetProvider.resolveSchema(ctx, projectMetadata, localNames, grouped);
+        }
+        // The remote leg rides the federating split — the live in-session caller of the federation entry, closing the
+        // long-standing gap where the remotable resolve_schema action had no caller. Remote dataset *execution*
+        // (turning a remote config into an external read) is a production follow-up; today remoteNames is empty for
+        // datasets (DatasetRewriter.hasRemotePattern keeps them local), so this leg is not reached in practice.
+        if (remoteNames.isEmpty() == false) {
+            resolveSchemaFederated(ctx, projectMetadata, remoteNames, grouped);
+        }
     }
 
     /** Resolve the schema of external sources (Iceberg tables / Parquet files) referenced by the query. */

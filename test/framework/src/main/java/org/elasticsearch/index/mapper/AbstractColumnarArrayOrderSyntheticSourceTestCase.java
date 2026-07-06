@@ -104,8 +104,9 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
 
     public void testEmptyArray() throws IOException {
         var mapper = columnarMapper();
-        assertEquals("""
-            {"field":[]}""", syntheticSource(mapper, b -> b.startArray("field").endArray()));
+        // An empty array has no values to store in a doc-value column and isn't field-owned, so columnar drops it
+        // (lossy) rather than keeping a generic _ignored_source marker. The field is therefore absent from _source.
+        assertEquals("{}", syntheticSource(mapper, b -> b.startArray("field").endArray()));
     }
 
     public void testEmptyStringDistinctFromNull() throws IOException {

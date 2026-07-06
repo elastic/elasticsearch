@@ -53,7 +53,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         if (in.getTransportVersion().supports(BULK_SHARD_BATCH)) {
             bulkShardBatch = in.readOptionalWriteable(BulkShardBatch::new);
             if (bulkShardBatch != null) {
-                BulkShardBatch.attachBatchToItems(bulkShardBatch.getEirfBatch(), items);
+                BulkShardBatch.attachBatchToItems(bulkShardBatch.getBatch(), items);
             }
         }
     }

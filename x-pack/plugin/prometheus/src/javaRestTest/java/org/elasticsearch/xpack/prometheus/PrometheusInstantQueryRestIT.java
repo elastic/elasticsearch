@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.prometheus;
 
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -55,6 +58,34 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         ingestTestData("test_gauge_iq");
 
         ObjectPath responsePath = executeInstantQuery("metrics-generic.prometheus-*");
+        assertMetricResult(responsePath);
+    }
+
+    public void testInstantQueryWithAliasOutsideApiKeyPatternReturnsUnknownIndex() throws Exception {
+        ingestTestData("test_gauge_iq");
+        createAlias("prometheus-metrics-alias", DEFAULT_DATA_STREAM);
+
+        // Index privileges are resolved against the alias in the request URL, not only the backing data stream.
+        ResponseException e = expectThrows(ResponseException.class, () -> executeInstantQuery("prometheus-metrics-alias"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown index [prometheus-metrics-alias]"));
+    }
+
+    public void testInstantQueryWithAliasGrantedByApiKey() throws Exception {
+        ingestTestData("test_gauge_iq");
+        String alias = "prometheus-metrics-api-key-alias";
+        createAlias(alias, DEFAULT_DATA_STREAM);
+
+        String aliasReadApiKey = createPrometheusReadApiKey("prometheus-alias-read-key", alias);
+        ObjectPath responsePath = executeInstantQuery("test_gauge_iq{job=\"test_job\"}", "2026-01-01T00:05:00Z", alias, aliasReadApiKey);
+        assertMetricResult(responsePath);
+    }
+
+    public void testInstantQueryWithAliasMatchingApiKeyPattern() throws Exception {
+        ingestTestData("test_gauge_iq");
+        createAlias("metrics-prometheus-alias", DEFAULT_DATA_STREAM);
+
+        ObjectPath responsePath = executeInstantQuery("metrics-prometheus-alias");
         assertMetricResult(responsePath);
     }
 
@@ -141,6 +172,36 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(responsePath.evaluate("status"), equalTo("success"));
         assertThat(responsePath.evaluate("data.resultType"), equalTo("vector"));
         return responsePath;
+    }
+
+    private ObjectPath executeInstantQuery(String query, String time, String index, String apiKey) throws Exception {
+        String path = index == null ? "/_prometheus/api/v1/query" : "/_prometheus/" + index + "/api/v1/query";
+        Request request = prometheusGetRequest(path, apiKey, new BasicNameValuePair("query", query), new BasicNameValuePair("time", time));
+
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        ObjectPath responsePath = ObjectPath.createFromResponse(response);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("vector"));
+        return responsePath;
+    }
+
+    private void createAlias(String alias, String dataStream) throws Exception {
+        Request request = new Request("POST", "/_aliases");
+        request.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "$DATA_STREAM",
+                    "alias": "$ALIAS"
+                  }
+                }
+              ]
+            }
+            """.replace("$DATA_STREAM", dataStream).replace("$ALIAS", alias));
+        client().performRequest(request);
     }
 
 }

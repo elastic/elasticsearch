@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -26,7 +24,6 @@ import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
@@ -35,6 +32,8 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVe
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
@@ -48,9 +47,7 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
     @Before
     @Override
     public void setUp() throws Exception {
-        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.values().length
-        )];
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = randomFrom(ESNextDiskBBQVectorsFormat.QuantEncoding.values());
         if (rarely()) {
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
@@ -102,13 +99,10 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
 
     @Override
     protected VectorSimilarityFunction randomSimilarity() {
-        return RandomPicks.randomFrom(
-            random(),
-            List.of(
-                VectorSimilarityFunction.DOT_PRODUCT,
-                VectorSimilarityFunction.EUCLIDEAN,
-                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
-            )
+        return randomFrom(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            VectorSimilarityFunction.EUCLIDEAN,
+            VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
         );
     }
 
@@ -133,7 +127,7 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
             }
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
-            assertThat(offHeap.size(), equalTo(3));
+            assertThat(offHeap, aMapWithSize(3));
             assertThat(totalByteSize, equalTo(offHeap.values().stream().mapToLong(Long::longValue).sum()));
         } else {
             throw new AssertionError("unexpected:" + r.getClass());

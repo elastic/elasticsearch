@@ -2574,17 +2574,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         : "Query parameter [?f1] with value [" + pattern + "] declared as a constant, cannot be used as an identifier"
                 );
             }
-            // nulls
-            if (invalidParamPosition.contains("rename")) {
-                // rename null as null is allowed, there is no ParsingException or VerificationException thrown
-                // named parameter doesn't change this behavior, it will need to be revisited
-                continue;
+            // null params: rejected via unresolvedAttributeNameInParam for eval/stats/mv_expand
+            // (those positions use visitIdentifierOrParameter, not visitQualifiedNamePattern).
+            // For RENAME, KEEP, DROP, and ENRICH, the null param goes through visitQualifiedNamePattern
+            // which silently skips the empty segment; see testNullParamInIdentifierPatternPosition.
+            if (invalidParamPosition.contains("rename") == false) {
+                expectError(
+                    "from test | " + invalidParamPosition,
+                    List.of(paramAsConstant("f1", null), paramAsConstant("f2", null)),
+                    "Query parameter [?f1] is null or undefined"
+                );
             }
-            expectError(
-                "from test | " + invalidParamPosition,
-                List.of(paramAsConstant("f1", null), paramAsConstant("f2", null)),
-                "Query parameter [?f1] is null or undefined"
-            );
+        }
+        // double-parameter markers (??): null param produces a "is null" error rather than an NPE or empty identifier
+        if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+            for (String identifierPosition : List.of("drop ??f1", "keep ??f1", "rename ??f1 as color")) {
+                expectError("from test | " + identifierPosition, List.of(paramAsConstant("f1", null)), "Query parameter [??f1] is null");
+            }
         }
         // enrich with wildcard as pattern or constant is not supported
         String enrich = "ENRICH idx2 ON ?f1 WITH ?f2 = ?f3";
@@ -2600,6 +2606,32 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "Query parameter [?f1] with value [" + pattern + "] declared as a constant, cannot be used as an identifier or pattern"
             );
         }
+    }
+
+    /**
+     * Null params in RENAME/KEEP/DROP/ENRICH identifier-pattern positions are silently skipped
+     * by {@code visitQualifiedNamePattern}, so no {@code ParsingException} is thrown at parse time.
+     * This is a bug, but we can't fix it without breaking some queries.
+     * <p>
+     * Contrast with eval/stats/mv_expand which use {@code unresolvedAttributeNameInParam} and
+     * do produce a parse-time error for null params.
+     */
+    public void testNullParamInIdentifierPatternPosition() {
+        List<QueryParam> params = List.of(paramAsConstant("f1", null), paramAsConstant("f2", null));
+        for (String cmd : List.of(
+            "rename ?f1 as color",
+            "rename foo as ?f2",
+            "rename ?f1 as ?f2",
+            "keep ?f1",
+            "drop ?f1",
+            "enrich idx2 ON ?f1"
+        )) {
+            assertNotNull(query("from test | " + cmd, new QueryParams(params)));
+        }
+        // ENRICH WITH: null param as alias or field name
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH ?f2", new QueryParams(List.of(paramAsConstant("f2", null)))));
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH ?f2 = src_field", new QueryParams(List.of(paramAsConstant("f2", null)))));
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH dst = ?f3", new QueryParams(List.of(paramAsConstant("f3", null)))));
     }
 
     public void testMissingParam() {

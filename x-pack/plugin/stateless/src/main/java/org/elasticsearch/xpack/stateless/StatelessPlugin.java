@@ -783,7 +783,14 @@ public class StatelessPlugin extends Plugin
         if (projectResolver.get().supportsMultipleProjects()) {
             clusterService.addStateApplier(objectStoreService);
         }
-        var cacheService = createSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics, clusterService);
+        var cacheService = createSharedBlobCacheService(
+            nodeEnvironment,
+            settings,
+            threadPool,
+            blobCacheMetrics,
+            clusterService,
+            indicesService
+        );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
         var cacheBlobReaderService = setAndGet(
@@ -1034,6 +1041,7 @@ public class StatelessPlugin extends Plugin
         if (statelessServicesConsumerProviders.get() != null) {
             for (var provider : statelessServicesConsumerProviders.get()) {
                 provider.onServicesCreated(
+                    cacheService,
                     closedShardService,
                     hollowShardsService,
                     searchShardSizeCollector,
@@ -1061,7 +1069,8 @@ public class StatelessPlugin extends Plugin
         Settings settings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
-        ClusterService clusterService
+        ClusterService clusterService,
+        IndicesService indicesService
     ) {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
             nodeEnvironment,
@@ -1069,6 +1078,7 @@ public class StatelessPlugin extends Plugin
             threadPool,
             blobCacheMetrics,
             clusterService,
+            indicesService,
             metricHolder
         );
         statelessSharedBlobCacheService.assertInvariants();
@@ -1507,6 +1517,7 @@ public class StatelessPlugin extends Plugin
             });
         }
         if (hasSearchRole) {
+            final var commitService = this.commitService.get();
             final var collector = searchShardSizeCollector.get();
             indexModule.addIndexEventListener(new IndexEventListener() {
 
@@ -1518,6 +1529,14 @@ public class StatelessPlugin extends Plugin
                 @Override
                 public void onStoreClosed(ShardId shardId) {
                     getClosedShardService().onStoreClose(shardId);
+                    final var cacheService = sharedBlobCacheService.get();
+                    // TODO consider removing the flag guard once performance is verified
+                    if (cacheService.isCacheBoostPreferenceEnabled() && commitService.isNodeShuttingDown() == false) {
+                        final var hasShard = indicesService.get().hasShardPredicate();
+                        final Predicate<ShardId> shouldDemote = id -> hasShard.test(id) == false
+                            && commitService.isNodeShuttingDown() == false;
+                        cacheService.demoteAllAsync(shardId, shouldDemote);
+                    }
                 }
             });
 

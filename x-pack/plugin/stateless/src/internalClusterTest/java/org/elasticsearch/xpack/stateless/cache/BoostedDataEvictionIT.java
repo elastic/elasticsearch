@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -18,23 +20,34 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
+import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
+import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.util.stream.IntStream.range;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
-import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.core.TimeValue.MINUS_ONE;
 import static org.elasticsearch.search.sort.SortOrder.ASC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -74,7 +87,10 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return appendToCopy(super.nodePlugins(), InternalSettingsPlugin.class);
+        final var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(InternalSettingsPlugin.class);
+        plugins.add(ShutdownPlugin.class);
+        return Collections.unmodifiableList(plugins);
     }
 
     @Override
@@ -158,6 +174,138 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             cacheRegionsForIndex(cacheService, BOOSTED_IDX),
             equalTo(0L)
         );
+    }
+
+    public void testCacheDemotedToFrequencyZeroAfterSearchShardRelocation() throws Exception {
+        final Settings cacheSettings = cacheBoostPreferenceTestSettings();
+        startMasterAndIndexNode(cacheSettings);
+        final String searchNodeA = startSearchNode(cacheSettings);
+        final String searchNodeB = startSearchNode(cacheSettings);
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeB).build());
+        ensureGreen(indexName);
+
+        indexAndSearch(indexName, randomIntBetween(10, 100));
+
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+        final StatelessSharedBlobCacheService cacheServiceA = getCacheService(searchNodeA);
+        assertNonZeroFrequencies(cacheServiceA, shardId);
+
+        updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeA), indexName);
+        internalCluster().awaitNodesInclude(indexName, nodes -> nodes.contains(searchNodeA) == false && nodes.contains(searchNodeB));
+
+        assertDemotedToFrequencyZero(cacheServiceA, shardId);
+    }
+
+    public void testCacheNotDemotedWhenNodeIsShuttingDown() throws Exception {
+        final Settings cacheSettings = cacheBoostPreferenceTestSettings();
+        startMasterAndIndexNode(cacheSettings);
+        final String searchNodeA = startSearchNode(cacheSettings);
+        final String searchNodeB = startSearchNode(cacheSettings);
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        indexAndSearch(indexName, randomIntBetween(10, 100));
+
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+        final Set<String> nodesWithShard = internalCluster().nodesInclude(indexName);
+        final String shutdownNode = nodesWithShard.stream()
+            .filter(n -> n.equals(searchNodeA) || n.equals(searchNodeB))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no search node has a shard for [" + indexName + "]"));
+
+        final StatelessSharedBlobCacheService cacheService = getCacheService(shutdownNode);
+        assertNonZeroFrequencies(cacheService, shardId);
+
+        final Map<Integer, Integer> freqsBeforeShutdown = SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(
+            cacheService,
+            shardPredicate(shardId)
+        );
+
+        assertAcked(
+            client().execute(
+                PutShutdownNodeAction.INSTANCE,
+                new PutShutdownNodeAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    getNodeId(shutdownNode),
+                    SingleNodeShutdownMetadata.Type.SIGTERM,
+                    "test shutdown to verify cache demotion is skipped",
+                    null,
+                    null,
+                    TimeValue.timeValueMinutes(5)
+                )
+            )
+        );
+
+        internalCluster().awaitNodeVacated(indexName, shutdownNode);
+
+        long regionCount = cacheService.countCachedRegions(shardPredicate(shardId));
+        assertThat(regionCount, greaterThan(0L));
+        assertThat(
+            "cache regions should not be demoted when node is shutting down",
+            SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, shardPredicate(shardId)),
+            equalTo(freqsBeforeShutdown)
+        );
+    }
+
+    private static Settings cacheBoostPreferenceTestSettings() {
+        return Settings.builder()
+            .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(32))
+            .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256))
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+            .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            .build();
+    }
+
+    private void indexAndSearch(String indexName, int numDocs) {
+        indexDocs(indexName, numDocs);
+        flushAndRefresh(indexName);
+
+        final int searches = randomIntBetween(10, 20);
+        for (int i = 0; i < searches; i++) {
+            assertResponse(
+                prepareSearch(indexName).setSize(numDocs),
+                response -> assertEquals(numDocs, response.getHits().getHits().length)
+            );
+        }
+    }
+
+    private static StatelessSharedBlobCacheService getCacheService(String nodeName) {
+        final var statelessPlugin = internalCluster().getInstance(PluginsService.class, nodeName)
+            .filterPlugins(TestUtils.StatelessPluginWithTrialLicense.class)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("stateless plugin not found on node [" + nodeName + "]"));
+        return statelessPlugin.getStatelessSharedBlobCacheService();
+    }
+
+    private static Predicate<FileCacheKey> shardPredicate(ShardId shardId) {
+        return key -> key.shardId().equals(shardId);
+    }
+
+    private static void assertNonZeroFrequencies(StatelessSharedBlobCacheService cacheService, ShardId shardId) throws Exception {
+        assertBusy(() -> {
+            long regionCount = cacheService.countCachedRegions(shardPredicate(shardId));
+            assertThat(regionCount, greaterThan(0L));
+            int maxFreq = SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, shardPredicate(shardId))
+                .keySet()
+                .stream()
+                .max(Integer::compareTo)
+                .orElse(0);
+            assertThat(maxFreq, greaterThan(0));
+        });
+    }
+
+    private static void assertDemotedToFrequencyZero(StatelessSharedBlobCacheService cacheService, ShardId shardId) throws Exception {
+        assertBusy(() -> {
+            long regionCount = cacheService.countCachedRegions(shardPredicate(shardId));
+            assertThat(regionCount, greaterThan(0L));
+            assertThat(
+                SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, shardPredicate(shardId)),
+                equalTo(Map.of(0, (int) regionCount))
+            );
+        });
     }
 
     private long cacheRegionsForIndex(StatelessSharedBlobCacheService cacheService, String indexName) {

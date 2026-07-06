@@ -22,6 +22,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -57,7 +58,7 @@ public final class AsyncExternalSourceBuffer {
 
     private final SubscribableListener<Void> completionFuture = new SubscribableListener<>();
 
-    private volatile boolean noMoreInputs = false;
+    private final AtomicBoolean noMoreInputs = new AtomicBoolean(false);
     private volatile Throwable failure = null;
 
     /**
@@ -70,6 +71,28 @@ public final class AsyncExternalSourceBuffer {
     private final ConcurrentMap<String, List<Map<String, Object>>> capturedSourceMetadata = new ConcurrentHashMap<>();
     private volatile Map<String, List<Map<String, Object>>> cachedMetadataSnapshot = Map.of();
     private volatile int cachedMetadataPathCount = 0;
+
+    /**
+     * Client-visible partial-results warnings recorded by the background reader path — currently a
+     * streaming {@code max_record_size} truncation under a non-strict {@code error_mode} (see
+     * {@code StreamingParallelParsingCoordinator}). Producer / parse-worker threads append here off
+     * the driver thread; {@link AsyncExternalSourceOperator#close()} drains and re-emits them via
+     * {@link org.elasticsearch.common.logging.HeaderWarning} on the driver thread, whose response
+     * headers {@code DriverRunner} collects into the client response. Emitting from the forked worker
+     * thread directly would land the header on that worker's {@code ThreadContext}, which is never
+     * merged back into the response — so the warning would be invisible to the client.
+     */
+    private final Queue<String> pendingWarnings = new ConcurrentLinkedQueue<>();
+
+    /**
+     * Set when the background reader path drops data under a lenient policy — currently a streaming
+     * {@code max_record_size} truncation under a non-strict {@code error_mode}. Surfaced through the
+     * operator's {@code Status} into {@link org.elasticsearch.compute.operator.DriverCompletionInfo} so the
+     * coordinator can flip the response's {@code is_partial} flag (the structured counterpart of the
+     * client-visible {@link #pendingWarnings} message). {@code volatile}: written on the parse-worker thread,
+     * read on the driver thread when building status.
+     */
+    private volatile boolean partial = false;
 
     private volatile FormatReaderStatus formatReaderStatus = null;
     // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
@@ -91,6 +114,34 @@ public final class AsyncExternalSourceBuffer {
     /** The mutable per-file capture sink shared with the iterator wrapping. */
     public ConcurrentMap<String, List<Map<String, Object>>> capturedSourceMetadataSink() {
         return capturedSourceMetadata;
+    }
+
+    /**
+     * Records a client-visible partial-results warning to be re-emitted on the driver thread when the
+     * operator closes. Thread-safe: called from the background reader / parse-worker thread.
+     * <p>
+     * This sink is currently wired exclusively to the lenient {@code max_record_size} truncation path
+     * (see {@code StreamingParallelParsingCoordinator#emitTruncationWarning}), so it also flips
+     * {@link #partial}: a recorded warning here always means the read returned fewer records than the
+     * source held. If a future caller routes a non-partial warning through this method, split the
+     * partial signal out into its own entry point.
+     */
+    public void recordWarning(String warning) {
+        pendingWarnings.add(warning);
+        partial = true;
+    }
+
+    /** Removes and returns the next recorded warning, or {@code null} if none remain. */
+    public String pollWarning() {
+        return pendingWarnings.poll();
+    }
+
+    /**
+     * Whether the background read dropped data under a lenient policy (see {@link #partial}). Read on the
+     * driver thread when assembling the operator {@code Status}.
+     */
+    public boolean isPartial() {
+        return partial;
     }
 
     /**
@@ -148,7 +199,7 @@ public final class AsyncExternalSourceBuffer {
         // when a consumer drained and blocked on notEmptyFuture between our getAndAdd and queue.add.
         // notifyNotEmpty() is a no-op when no listener is registered, so unconditional fire is cheap.
         notifyNotEmpty();
-        if (noMoreInputs) {
+        if (noMoreInputs.get()) {
             // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
             if (queue.removeIf(p -> p == page)) {
                 page.releaseBlocks();
@@ -194,7 +245,7 @@ public final class AsyncExternalSourceBuffer {
      * Safe to call repeatedly; no-ops if completion was already signaled.
      */
     private void signalCompletionIfDrained() {
-        if (noMoreInputs == false || queueSize.get() != 0 || completionFuture.isDone()) {
+        if (noMoreInputs.get() == false || queueSize.get() != 0 || completionFuture.isDone()) {
             return;
         }
         if (failure != null) {
@@ -234,11 +285,11 @@ public final class AsyncExternalSourceBuffer {
      * @return a listener that completes when space is available, or an already-completed listener if space exists
      */
     public SubscribableListener<Void> waitForSpace() {
-        if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
+        if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs.get()) {
             return SubscribableListener.newSucceeded(null);
         }
         synchronized (notFullLock) {
-            if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
+            if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs.get()) {
                 return SubscribableListener.newSucceeded(null);
             }
             if (notFullFuture == null) {
@@ -253,11 +304,11 @@ public final class AsyncExternalSourceBuffer {
      * Used by operator to signal driver when waiting for data.
      */
     public IsBlockedResult waitForReading() {
-        if (size() > 0 || noMoreInputs) {
+        if (size() > 0 || noMoreInputs.get()) {
             return Operator.NOT_BLOCKED;
         }
         synchronized (notEmptyLock) {
-            if (size() > 0 || noMoreInputs) {
+            if (size() > 0 || noMoreInputs.get()) {
                 return Operator.NOT_BLOCKED;
             }
             if (notEmptyFuture == null) {
@@ -282,9 +333,17 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Mark the buffer as finished. Called when reading is done or an error occurs.
+     *
+     * @return {@code true} if this call performed the running→finishing transition; {@code false} if the buffer had
+     *         already been finished (e.g. producer reached natural EOF, or a concurrent {@code finish}/{@code onFailure}
+     *         beat us to it). The stop-hook path in {@code AsyncExternalSourceOperatorFactory} uses this to distinguish
+     *         "STOP genuinely cut a running producer" (partial result) from "STOP raced with natural completion"
+     *         (honestly complete result).
      */
-    public void finish(boolean drainingPages) {
-        noMoreInputs = true;
+    public boolean finish(boolean drainingPages) {
+        if (noMoreInputs.compareAndSet(false, true) == false) {
+            return false;
+        }
         if (drainingPages) {
             discardPages();
         }
@@ -292,6 +351,7 @@ public final class AsyncExternalSourceBuffer {
         notifyNotFull(); // wake producers so they observe noMoreInputs and exit
         signalCompletionIfDrained();
         assert invariantsHold() : "buffer invariants violated after finish";
+        return true;
     }
 
     /**
@@ -302,7 +362,7 @@ public final class AsyncExternalSourceBuffer {
      */
     public void onFailure(Throwable t) {
         this.failure = t;
-        noMoreInputs = true;
+        noMoreInputs.set(true);
         notifyNotEmpty();
         notifyNotFull();
         signalCompletionIfDrained();
@@ -314,7 +374,7 @@ public final class AsyncExternalSourceBuffer {
     }
 
     public boolean noMoreInputs() {
-        return noMoreInputs;
+        return noMoreInputs.get();
     }
 
     public int size() {
@@ -428,7 +488,7 @@ public final class AsyncExternalSourceBuffer {
      */
     private boolean invariantsHold() {
         if (completionFuture.isDone() && failure == null) {
-            assert noMoreInputs : "completionFuture done with no failure but noMoreInputs is false";
+            assert noMoreInputs.get() : "completionFuture done with no failure but noMoreInputs is false";
         }
         return true;
     }

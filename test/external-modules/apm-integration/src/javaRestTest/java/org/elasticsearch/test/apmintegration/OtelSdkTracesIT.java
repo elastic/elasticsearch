@@ -11,7 +11,6 @@ package org.elasticsearch.test.apmintegration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
@@ -95,16 +94,12 @@ public class OtelSdkTracesIT extends AbstractTracesIT {
     private void updatePersistentSettings(String settingsJson) throws Exception {
         Request request = new Request("PUT", "/_cluster/settings");
         request.setJsonEntity("{\"persistent\": " + settingsJson + "}");
-        try (RestClient client = client()) {
-            assertOK(client.performRequest(request));
-        }
+        assertOK(client().performRequest(request));
     }
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> persistentSettings() throws Exception {
-        try (RestClient client = client()) {
-            Map<String, Object> response = entityAsMap(client.performRequest(new Request("GET", "/_cluster/settings?flat_settings=true")));
-            return (Map<String, Object>) response.get("persistent");
-        }
+        Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_cluster/settings?flat_settings=true")));
+        return (Map<String, Object>) response.get("persistent");
     }
 }

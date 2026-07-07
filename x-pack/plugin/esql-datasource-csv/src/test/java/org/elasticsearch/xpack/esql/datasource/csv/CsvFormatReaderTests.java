@@ -6495,10 +6495,11 @@ public class CsvFormatReaderTests extends ESTestCase {
     // - A PRESENT but empty cell on a KEYWORD/TEXT column reads as the empty string "".
     // - A PRESENT but empty cell on a non-string column (numeric/date/...) reads as null.
     // - A MISSING cell (row shorter than the schema) reads as null on every type.
-    // - The literal token "null" and a custom null_value token map to null; empty IP/VERSION cells map
-    // to null. A present-but-empty element inside a bracket multi-value cell follows the same per-type
-    // rule as a scalar cell (empty string on KEYWORD/TEXT, kept in the list; null — and dropped from the
-    // list — otherwise).
+    // - The literal token "null" maps to null only on non-string columns; a KEYWORD/TEXT column holds it
+    // as the string "null". A custom null_value token maps to null; empty IP/VERSION cells map to null.
+    // A present-but-empty element inside a bracket multi-value cell follows the same per-type rule as a
+    // scalar cell (empty string on KEYWORD/TEXT, kept in the list; null, and dropped from the list,
+    // otherwise).
     // -----------------------------------------------------------------------------------------------
 
     /** Reads {@code csv} with the given reader and runs {@code asserts} against the first page (all columns projected). */
@@ -6590,7 +6591,10 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
     }
 
-    /** The unquoted literal token {@code null} maps to SQL null. */
+    /**
+     * The unquoted literal token {@code null} on a declared string column stays the string "null": a
+     * KEYWORD/TEXT column must be able to hold the value "null", so the token is not a null marker there.
+     */
     public void testEmptyVsNull_literalNullUnquoted_defaultPath() throws IOException {
         withFirstPage(new CsvFormatReader(blockFactory), """
             id:long,phrase:keyword,n:integer
@@ -6599,13 +6603,13 @@ public class CsvFormatReaderTests extends ESTestCase {
             3,banana,30
             """, page -> {
             assertEquals(3, page.getPositionCount());
-            assertBlockNull(page, 1, 1); // literal "null" -> null
+            assertKeyword(page, 1, 1, "null"); // literal "null" on a string column -> the string "null"
         });
     }
 
     /**
-     * A QUOTED {@code "null"} maps to SQL null just like the unquoted token: the "null" check runs after
-     * unquoting, so quoting does not change the result.
+     * A QUOTED {@code "null"} on a string column behaves like the unquoted token: the string-type gate runs
+     * after unquoting, so a KEYWORD/TEXT column keeps the literal "null" either way.
      */
     public void testEmptyVsNull_literalNullQuoted_defaultPath() throws IOException {
         withFirstPage(new CsvFormatReader(blockFactory), """
@@ -6615,7 +6619,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             3,banana,30
             """, page -> {
             assertEquals(3, page.getPositionCount());
-            assertBlockNull(page, 1, 1); // quoted "null" -> null
+            assertKeyword(page, 1, 1, "null"); // quoted "null" on a string column -> the string "null"
         });
     }
 

@@ -390,6 +390,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         final ActionListener<Long> listener
     ) {
         ActionListener.completeWith(listener, () -> {
+            indexShard().ensureRecoveryNotCancelled();
             final RecoveryState.Translog translog = state().getTranslog();
             translog.totalOperations(totalTranslogOps);
             assert indexShard().recoveryState() == state();
@@ -444,6 +445,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ActionListener<Void> listener
     ) {
         ActionListener.completeWith(listener, () -> {
+            indexShard.ensureRecoveryNotCancelled();
             indexShard.resetRecoveryStage();
             indexShard.prepareForIndexRecovery();
             recreateMultiFileWriter();
@@ -469,6 +471,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ActionListener<Void> listener
     ) {
         ActionListener.completeWith(listener, () -> {
+            indexShard.ensureRecoveryNotCancelled();
             state().getTranslog().totalOperations(totalTranslogOps);
             // first, we go and move files that were created with the recovery id suffix to
             // the actual names, its ok if we have a corrupted index here, since we have replicas
@@ -532,6 +535,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ActionListener<Void> listener
     ) {
         try {
+            indexShard.ensureRecoveryNotCancelled();
             state().getTranslog().totalOperations(totalTranslogOps);
             multiFileWriter.writeFileChunk(fileMetadata, position, content, lastChunk);
             listener.onResponse(null);

@@ -149,10 +149,10 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
 
         try {
             switch (recoveryType) {
-                case EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, EMPTY_STORE -> indexShard.requestRecoveryCancellation(
+                case EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, EMPTY_STORE, PEER -> indexShard.requestRecoveryCancellation(
                     new RecoveryCancelledException(shardId, null, clusterService.localNode())
                 );
-                case PEER, RESHARD_SPLIT -> throw new ShardRecoveryNotCancellableException(
+                case RESHARD_SPLIT -> throw new ShardRecoveryNotCancellableException(
                     shardId,
                     recoveryType + " recoveries do not currently support direct cancellation of started recoveries"
                 );

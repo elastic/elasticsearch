@@ -590,9 +590,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformGetAndGetStatsIT
   method: testGetAndGetBasicStats
   issue: https://github.com/elastic/elasticsearch/issues/152351
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testWatcherWithApiKey {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/152355
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152379
@@ -737,9 +734,6 @@ tests:
 - class: org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests
   method: testFetchRegion
   issue: https://github.com/elastic/elasticsearch/issues/153058
-- class: org.elasticsearch.simdvec.Int8VectorScorerFactoryTests
-  method: testScorerWithSNAP
-  issue: https://github.com/elastic/elasticsearch/issues/153060
 - class: org.elasticsearch.xpack.transform.integration.TransformTaskFailedStateIT
   method: testStartFailedTransform
   issue: https://github.com/elastic/elasticsearch/issues/153065
@@ -755,3 +749,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.doubleShadowingWithEval}
   issue: https://github.com/elastic/elasticsearch/issues/153096
+- class: org.elasticsearch.search.telemetry.SearchCoordinatorPhaseShardBytesMetricsIT
+  method: testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes
+  issue: https://github.com/elastic/elasticsearch/issues/153109
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:exponential_histogram.allAggsInlineGrouped}
+  issue: https://github.com/elastic/elasticsearch/issues/153123
+- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
+  method: testStoredIgnoredSource
+  issue: https://github.com/elastic/elasticsearch/issues/153124

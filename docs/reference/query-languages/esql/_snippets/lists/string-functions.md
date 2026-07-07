@@ -22,7 +22,7 @@
 * [`HASH`](../../functions-operators/string-functions/hash.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/hash.md
   :::
-* [`JSON_EXTRACT`](../../functions-operators/string-functions/json_extract.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+* [`JSON_EXTRACT`](../../functions-operators/string-functions/json_extract.md) {applies_to}`stack: preview =9.4, ga 9.5+`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/json_extract.md
   :::
 * [`LEFT`](../../functions-operators/string-functions/left.md)

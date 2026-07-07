@@ -775,6 +775,46 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals("*", request.get(QuerySettings.PROJECT_ROUTING));
     }
 
+    public void testSettingsBlockColumnMetadataAcceptsStringSpelledBoolean() throws IOException {
+        // XContentParser#booleanValue() is lenient for a VALUE_STRING token spelling "true"/"false" — this is
+        // general XContent behavior, not something column_metadata opts into specifically.
+        String json = """
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "column_metadata": "true"
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(Boolean.TRUE, request.get(QuerySettings.COLUMN_METADATA));
+    }
+
+    public void testSettingsBlockColumnMetadataRejectsNumber() {
+        // Unlike a string, a JSON number isn't coerced — it's rejected rather than silently accepted.
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "column_metadata": 1
+                }
+            }"""));
+        assertThat(e.getMessage(), containsString("settings"));
+        assertThat(e.getCause().getMessage(), containsString("Failed to parse value for setting [column_metadata]"));
+        assertThat(e.getCause().getMessage(), containsString("not of boolean type"));
+    }
+
+    public void testSettingsBlockColumnMetadata() throws IOException {
+        String json = """
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "column_metadata": true
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(Boolean.TRUE, request.get(QuerySettings.COLUMN_METADATA));
+    }
+
     public void testSettingsBlockApproximationObject() throws IOException {
         String json = """
             {

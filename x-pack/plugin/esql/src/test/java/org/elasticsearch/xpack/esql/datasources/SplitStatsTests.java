@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +56,302 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals("Alice", stats.min(1));
         assertEquals("Zara", stats.max(1));
         assertEquals(12000, stats.sizeBytes(1));
+    }
+
+    public void testValueCountServesCountColForMultivaluedColumn() throws IOException {
+        // A multivalued column: 100 rows, 10 null, but 270 non-null VALUES (the other 90 rows average 3 each).
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(100);
+        int tags = builder.addColumn("tags");
+        builder.nullCount(tags, 10);
+        builder.valueCount(tags, 270);
+        SplitStats stats = builder.build();
+
+        // COUNT(tags) must be the VALUE count (270), not rowCount - nullCount (90, the non-null ROW count).
+        assertEquals(270L, stats.columnValueCount("tags"));
+        assertEquals(270L, stats.valueCount(0));
+        assertEquals(90L, stats.rowCount() - stats.columnNullCount("tags"));
+
+        // wire round-trip preserves valueCount
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        SplitStats back = new SplitStats(out.bytes().streamInput());
+        assertEquals(270L, back.columnValueCount("tags"));
+
+        // flat-map carries it under the canonical key
+        assertEquals(270L, ((Number) stats.toMap().get(SourceStatisticsSerializer.columnValueCountKey("tags"))).longValue());
+    }
+
+    public void testColumnValueCountIsMinusOneWhenNotHarvested() {
+        // Footer formats (parquet) don't harvest a value count; columnValueCount returns -1 so COUNT(col)
+        // falls back to rowCount - nullCount. A column added without valueCount(...) must report -1.
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(10);
+        int age = builder.addColumn("age");
+        builder.nullCount(age, 2);
+        SplitStats stats = builder.build();
+        assertEquals(-1L, stats.columnValueCount("age"));
+        assertEquals(-1L, stats.columnValueCount("does_not_exist"));
+    }
+
+    public void testMergedMinMaxTreatNaNAsUnmergeable() {
+        // A NaN MERGED with a real value is unmergeable -> null (poison) -> the column safe-misses and a
+        // full scan returns the correct NaN. Comparable.compareTo would otherwise order NaN as the largest
+        // double and silently drop it from a MIN.
+        assertNull(SplitStats.mergedMin(Double.NaN, 5.0));
+        assertNull(SplitStats.mergedMin(5.0, Double.NaN));
+        assertNull(SplitStats.mergedMax(Double.NaN, 5.0));
+        assertNull(SplitStats.mergedMax(5.0, Double.NaN));
+        // Non-NaN doubles still merge normally.
+        assertEquals(1.0, SplitStats.mergedMin(1.0, 2.0));
+        assertEquals(2.0, SplitStats.mergedMax(1.0, 2.0));
+        // A lone NaN contribution (other side null) is the column's value and is served as NaN — the poison
+        // only fires when NaN actually meets another value in a fold.
+        assertEquals(Double.NaN, SplitStats.mergedMin(Double.NaN, null));
+        assertEquals(Double.NaN, SplitStats.mergedMax(null, Double.NaN));
+    }
+
+    public void testValueCountWireGatedByTransportVersion() throws IOException {
+        // valueCount is gated on a transport version. A peer at an older version (that still serializes
+        // SplitStats, e.g. ESQL_SPLIT_STATS_COMPACT) must not see the field; it defaults to -1 so COUNT(col)
+        // falls back to rowCount - nullCount. Verifies the BWC gate, not just the current-version round-trip.
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        int tags = b.addColumn("tags");
+        b.nullCount(tags, 10);
+        b.valueCount(tags, 270);
+        SplitStats stats = b.build();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(FileSplit.ESQL_SPLIT_STATS_COMPACT); // predates the valueCount gate
+        stats.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(FileSplit.ESQL_SPLIT_STATS_COMPACT);
+        SplitStats back = new SplitStats(in);
+        assertEquals("valueCount absent on the wire before its gate -> -1 (COUNT falls back)", -1L, back.columnValueCount("tags"));
+        // nullCount (an older field) still round-trips at the older version.
+        assertEquals(10L, back.columnNullCount("tags"));
+
+        // At the current version it DOES round-trip (sanity vs the gated case above).
+        BytesStreamOutput cur = new BytesStreamOutput();
+        stats.writeTo(cur);
+        assertEquals(270L, new SplitStats(cur.bytes().streamInput()).columnValueCount("tags"));
+    }
+
+    public void testUnservableExtremumReadsNullButDistinguishesFromNoData() {
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        int poisoned = b.addColumn("poisoned", 0L, null, null, 400);
+        b.minUnservable(poisoned);
+        b.maxUnservable(poisoned);
+        b.addColumn("nodata", 0L, null, null, 400); // no extremum, but NOT poisoned
+        SplitStats stats = b.build();
+
+        // Both read as null through the accessor...
+        assertNull(stats.columnMin("poisoned"));
+        assertNull(stats.columnMax("poisoned"));
+        assertNull(stats.columnMin("nodata"));
+
+        // ...but the flat map distinguishes them: the poisoned column carries the marker, no-data does not.
+        Map<String, Object> map = stats.toMap();
+        assertEquals(Boolean.TRUE, map.get(SourceStatisticsSerializer.columnMinUnservableKey("poisoned")));
+        assertEquals(Boolean.TRUE, map.get(SourceStatisticsSerializer.columnMaxUnservableKey("poisoned")));
+        assertNull(map.get(SourceStatisticsSerializer.columnMinKey("poisoned")));
+        assertNull(map.get(SourceStatisticsSerializer.columnMinUnservableKey("nodata")));
+    }
+
+    public void testUnservableMarkerRoundTripsThroughMap() {
+        // The compact form is now a lossless superset of the flat map: a .min_unservable marker survives of()->toMap().
+        Map<String, Object> input = new HashMap<>();
+        input.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        input.put(SourceStatisticsSerializer.columnNullCountKey("ts"), 0L);
+        input.put(SourceStatisticsSerializer.columnMaxKey("ts"), 5000L);            // max servable
+        input.put(SourceStatisticsSerializer.columnMinUnservableKey("ts"), Boolean.TRUE); // min poisoned
+
+        SplitStats stats = SplitStats.of(input);
+        assertNotNull(stats);
+        assertNull("poisoned min reads null", stats.columnMin("ts"));
+        assertEquals("servable max still served", 5000L, stats.columnMax("ts"));
+
+        Map<String, Object> out = stats.toMap();
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertEquals(5000L, out.get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxUnservableKey("ts")));
+    }
+
+    public void testUnservableMarkerSurvivesWireRoundTrip() throws IOException {
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        int c = b.addColumn("c", 0L, null, 90, 400); // min poisoned, max servable
+        b.minUnservable(c);
+        SplitStats stats = b.build();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        SplitStats back = new SplitStats(out.bytes().streamInput());
+
+        assertEquals("compact wire form preserves the servability markers", stats, back);
+        assertNull("poisoned min stays unservable across the wire", back.columnMin("c"));
+        assertEquals("servable max survives", 90, back.columnMax("c"));
+    }
+
+    public void testUnservableMarkerWireGatedByTransportVersion() throws IOException {
+        // The servability markers ship under the warm-aggregate TV. An older peer (that still serializes SplitStats
+        // under ESQL_SPLIT_STATS_COMPACT) does not see them and defaults to servable -- SAFE only because a poisoned
+        // extremum carries NO value (the enforced invariant minServable||min==null), so it reaches the old peer as
+        // an absent value and the old peer safe-misses, never serving a poisoned value as real.
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        int c = b.addColumn("c", 0L, null, 90, 400); // min poisoned (no value); max servable
+        b.minUnservable(c);
+        SplitStats stats = b.build();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(FileSplit.ESQL_SPLIT_STATS_COMPACT); // predates the marker gate
+        stats.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(FileSplit.ESQL_SPLIT_STATS_COMPACT);
+        SplitStats back = new SplitStats(in);
+
+        assertNull("a poisoned min reaches an old peer as an absent value -> safe-miss, never a wrong value", back.columnMin("c"));
+        assertEquals("a servable max still round-trips at the older version", 90, back.columnMax("c"));
+    }
+
+    public void testOfDropsValueWhenUnservableMarkerPresent() {
+        // A malformed flat map carrying BOTH .min and .min_unservable must normalize to min=null (marker wins),
+        // enforcing minServable||min==null so a wire round-trip can never ship a poisoned value to an old peer.
+        Map<String, Object> input = new HashMap<>();
+        input.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        input.put(SourceStatisticsSerializer.columnMinKey("c"), 42);              // stray value...
+        input.put(SourceStatisticsSerializer.columnMinUnservableKey("c"), Boolean.TRUE); // ...alongside the marker
+
+        SplitStats stats = SplitStats.of(input); // must not trip the servability assert
+        assertNotNull(stats);
+        assertNull("marker wins: the stray min value is dropped", stats.columnMin("c"));
+        assertNull("and it re-emits no value", stats.toMap().get(SourceStatisticsSerializer.columnMinKey("c")));
+        assertEquals(Boolean.TRUE, stats.toMap().get(SourceStatisticsSerializer.columnMinUnservableKey("c")));
+    }
+
+    /**
+     * EQUIVALENCE PROOF for the compact fold: over a randomized corpus (multiple files, absent columns,
+     * cross-type / NaN poison, pre-seeded unservable markers, both footer and text modes), the compact
+     * {@code SplitStats.fold(...).toMap()} must be key-equal to {@code mergeStatistics(...)}. This was the signal
+     * that let {@code mergeStatistics} be rewritten to delegate to {@code fold} without behavior change (it ran
+     * against the independent flat-map fold at that point); now that {@code mergeStatistics} delegates, it guards
+     * the {@code of}/{@code fold}/{@code toMap} round-trip over the same broad corpus.
+     */
+    public void testFoldMatchesMergeStatisticsDifferential() {
+        for (int trial = 0; trial < 500; trial++) {
+            int nFiles = randomIntBetween(2, 5);
+            int nCols = randomIntBetween(0, 4);
+            List<Map<String, Object>> maps = new ArrayList<>();
+            for (int f = 0; f < nFiles; f++) {
+                Map<String, Object> m = new HashMap<>();
+                m.put(SourceStatisticsSerializer.STATS_ROW_COUNT, (long) randomIntBetween(0, 1000));
+                if (randomBoolean()) {
+                    m.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, (long) randomIntBetween(0, 10000));
+                }
+                for (int c = 0; c < nCols; c++) {
+                    String col = "c" + c;
+                    if (randomBoolean()) {
+                        continue; // absent in this file
+                    }
+                    if (randomBoolean()) {
+                        m.put(SourceStatisticsSerializer.columnNullCountKey(col), (long) randomIntBetween(0, 100));
+                    }
+                    if (randomBoolean()) {
+                        m.put(SourceStatisticsSerializer.columnValueCountKey(col), (long) randomIntBetween(0, 100));
+                    }
+                    if (randomBoolean()) {
+                        m.put(SourceStatisticsSerializer.columnMinKey(col), randomExtremum());
+                        m.put(SourceStatisticsSerializer.columnMaxKey(col), randomExtremum());
+                    }
+                    if (randomBoolean()) {
+                        m.put(SourceStatisticsSerializer.columnSizeBytesKey(col), (long) randomIntBetween(0, 5000));
+                    }
+                    if (rarely()) { // an already-poisoned input: marker present, value absent
+                        m.remove(SourceStatisticsSerializer.columnMinKey(col));
+                        m.put(SourceStatisticsSerializer.columnMinUnservableKey(col), Boolean.TRUE);
+                    }
+                    if (rarely()) {
+                        m.remove(SourceStatisticsSerializer.columnMaxKey(col));
+                        m.put(SourceStatisticsSerializer.columnMaxUnservableKey(col), Boolean.TRUE);
+                    }
+                }
+                maps.add(m);
+            }
+            for (boolean implicitNulls : new boolean[] { true, false }) {
+                Map<String, Object> viaMerge = SourceStatisticsSerializer.mergeStatistics(maps, implicitNulls);
+                List<SplitStats> splits = new ArrayList<>();
+                for (Map<String, Object> m : maps) {
+                    splits.add(SplitStats.of(m));
+                }
+                SplitStats folded = SplitStats.fold(splits, implicitNulls);
+                Map<String, Object> viaFold = folded == null ? null : folded.toMap();
+                assertEquals("fold != mergeStatistics (implicitNulls=" + implicitNulls + ") for " + maps, viaMerge, viaFold);
+            }
+        }
+    }
+
+    /**
+     * TRIPWIRE linking the two extremum-merge implementations: the fold-time {@link SplitStats#fold} (uses the
+     * stored servable bit) and the serve-time {@link MergedSplitStats} (re-derives poison from a null-count
+     * heuristic). They share the {@code mergedMin}/{@code mergedMax} law but implement the poison POLICY twice; a
+     * future SUM/AVG or a heuristic tweak could silently diverge the serve path from the fold path. On realistic
+     * per-file children -- every child HAS the column, each either servable, all-null, or poisoned (never the
+     * unrealistic present-values-but-no-servable-min state where the two correctly differ by granularity) -- the
+     * two paths MUST agree on columnMin/columnMax (and the counts). Enforces the "argued-benign" split as tested.
+     */
+    public void testMergedSplitStatsMatchesFoldOnRealisticChildren() {
+        for (int trial = 0; trial < 400; trial++) {
+            int n = randomIntBetween(2, 5);
+            List<SplitStats> children = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                long rows = randomIntBetween(1, 100);
+                SplitStats.Builder b = new SplitStats.Builder().rowCount(rows);
+                int c = b.addColumn("c");
+                switch (randomIntBetween(0, 3)) {
+                    case 0 -> { // servable: has non-null values (nc < rows) and a min/max
+                        b.nullCount(c, randomIntBetween(0, (int) rows - 1));
+                        b.min(c, randomExtremum());
+                        b.max(c, randomExtremum());
+                    }
+                    case 1 -> // all-null: every row null, no extremum, not poisoned
+                        b.nullCount(c, rows);
+                    case 2 -> { // poisoned: has values (nc < rows) but the extremum was cleared
+                        b.nullCount(c, randomIntBetween(0, (int) rows - 1));
+                        b.minUnservable(c);
+                        b.maxUnservable(c);
+                    }
+                    default -> // present with non-null rows but NO extremum committed and NOT poisoned
+                        // (minServable stays true, min/max null). This is the case ColumnFold used to serve a
+                        // subset extremum for while MergedSplitStats poisons — the fold must poison too.
+                        b.nullCount(c, randomIntBetween(0, (int) rows - 1));
+                }
+                // Randomly give the (present) column a known value count or leave it unknown (-1, the
+                // addColumn default). Mixing present-with-count and present-without-count children is the
+                // case a naive sum under-counts: fold must poison COUNT(col) exactly like MergedSplitStats.
+                if (randomBoolean()) {
+                    b.valueCount(c, randomIntBetween(0, (int) rows));
+                }
+                children.add(b.build());
+            }
+            SplitStats folded = SplitStats.fold(children, randomBoolean());
+            MergedSplitStats merged = new MergedSplitStats(List.copyOf(children));
+            String ctx = "children=" + children;
+            assertEquals("columnMin fold vs MergedSplitStats: " + ctx, folded.columnMin("c"), merged.columnMin("c"));
+            assertEquals("columnMax fold vs MergedSplitStats: " + ctx, folded.columnMax("c"), merged.columnMax("c"));
+            assertEquals("columnNullCount fold vs MergedSplitStats: " + ctx, folded.columnNullCount("c"), merged.columnNullCount("c"));
+            assertEquals("columnValueCount fold vs MergedSplitStats: " + ctx, folded.columnValueCount("c"), merged.columnValueCount("c"));
+            assertEquals("rowCount fold vs MergedSplitStats: " + ctx, folded.rowCount(), merged.rowCount());
+        }
+    }
+
+    /** A random extremum value spanning the fold-relevant types: int / long / double / NaN. */
+    private Object randomExtremum() {
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> randomIntBetween(-100, 100);
+            case 1 -> (long) randomIntBetween(-100, 100);
+            case 2 -> (double) randomIntBetween(-100, 100);
+            default -> Double.NaN;
+        };
     }
 
     public void testBulkAddColumn() {
@@ -421,218 +719,6 @@ public class SplitStatsTests extends ESTestCase {
         assertNull("Should return null when any split lacks stats", result);
     }
 
-    // --- merge tests ---
-
-    public void testMergeMultipleFilesSumsRowCounts() {
-        SplitStats f1 = new SplitStats.Builder().rowCount(10000).build();
-        SplitStats f2 = new SplitStats.Builder().rowCount(20000).build();
-        SplitStats f3 = new SplitStats.Builder().rowCount(30000).build();
-
-        SplitStats merged = SplitStats.merge(List.of(f1, f2, f3));
-        assertNotNull(merged);
-        assertEquals(60000, merged.rowCount());
-    }
-
-    public void testMergePreservesMinMaxAcrossFiles() {
-        SplitStats.Builder fb1 = new SplitStats.Builder().rowCount(100);
-        fb1.addColumn("ts", 0L, 1000L, 2000L, 800);
-        SplitStats f1 = fb1.build();
-        SplitStats.Builder fb2 = new SplitStats.Builder().rowCount(200);
-        fb2.addColumn("ts", 0L, 500L, 1500L, 1600);
-        SplitStats f2 = fb2.build();
-        SplitStats.Builder fb3 = new SplitStats.Builder().rowCount(300);
-        fb3.addColumn("ts", 0L, 800L, 3000L, 2400);
-        SplitStats f3 = fb3.build();
-
-        SplitStats merged = SplitStats.merge(List.of(f1, f2, f3));
-        assertNotNull(merged);
-        assertEquals(600, merged.rowCount());
-        assertEquals(500L, merged.columnMin("ts"));
-        assertEquals(3000L, merged.columnMax("ts"));
-        assertEquals(0, merged.columnNullCount("ts"));
-        assertEquals(4800, merged.columnSizeBytes("ts"));
-    }
-
-    public void testMergeSingleElementReturnsSame() {
-        SplitStats.Builder sb = new SplitStats.Builder().rowCount(42);
-        sb.addColumn("x", 0L, 1, 2, 100);
-        SplitStats single = sb.build();
-
-        SplitStats merged = SplitStats.merge(List.of(single));
-        assertSame(single, merged);
-    }
-
-    public void testMergeNullAndEmptyReturnsNull() {
-        assertNull(SplitStats.merge(null));
-        assertNull(SplitStats.merge(List.of()));
-    }
-
-    // --- cross-type merge tests (type widening for UNION_BY_NAME) ---
-
-    public void testMergeCrossTypeIntegerLongMinMax() {
-        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
-        b1.addColumn("price", 0L, 10, 50, 400);
-        SplitStats s1 = b1.build();
-
-        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
-        b2.addColumn("price", 0L, 5L, 60L, 800);
-        SplitStats s2 = b2.build();
-
-        SplitStats merged = SplitStats.merge(List.of(s1, s2));
-        assertNotNull(merged);
-        assertEquals(300, merged.rowCount());
-        assertEquals(5L, merged.columnMin("price"));
-        assertEquals(60L, merged.columnMax("price"));
-    }
-
-    public void testMergeCrossTypeIntegerDoubleMinMax() {
-        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
-        b1.addColumn("score", 0L, 3, 80, 400);
-        SplitStats s1 = b1.build();
-
-        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
-        b2.addColumn("score", 0L, 1.5, 99.9, 800);
-        SplitStats s2 = b2.build();
-
-        SplitStats merged = SplitStats.merge(List.of(s1, s2));
-        assertNotNull(merged);
-        assertEquals(1.5, merged.columnMin("score"));
-        assertEquals(99.9, merged.columnMax("score"));
-    }
-
-    public void testMergeCrossTypeFloatDoubleMinMax() {
-        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
-        b1.addColumn("temp", 0L, 10.0f, 30.0f, 400);
-        SplitStats s1 = b1.build();
-
-        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
-        b2.addColumn("temp", 0L, 5.0, 40.0, 800);
-        SplitStats s2 = b2.build();
-
-        SplitStats merged = SplitStats.merge(List.of(s1, s2));
-        assertNotNull(merged);
-        assertEquals(5.0, merged.columnMin("temp"));
-        assertEquals(40.0, merged.columnMax("temp"));
-    }
-
-    public void testMergeCrossTypeIntegerFloatMinMax() {
-        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
-        b1.addColumn("val", 0L, 10, 50, 400);
-        SplitStats s1 = b1.build();
-
-        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
-        b2.addColumn("val", 0L, 5.0f, 60.0f, 800);
-        SplitStats s2 = b2.build();
-
-        SplitStats merged = SplitStats.merge(List.of(s1, s2));
-        assertNotNull(merged);
-        assertEquals(5.0, merged.columnMin("val"));
-        assertEquals(60.0, merged.columnMax("val"));
-    }
-
-    public void testMergeThreeWayCrossType() {
-        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
-        b1.addColumn("price", 0L, 10, 50, 400);
-        SplitStats s1 = b1.build();
-
-        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
-        b2.addColumn("price", 0L, 5L, 60L, 800);
-        SplitStats s2 = b2.build();
-
-        SplitStats.Builder b3 = new SplitStats.Builder().rowCount(300);
-        b3.addColumn("price", 0L, 3L, 100L, 1200);
-        SplitStats s3 = b3.build();
-
-        SplitStats merged = SplitStats.merge(List.of(s1, s2, s3));
-        assertNotNull(merged);
-        assertEquals(600, merged.rowCount());
-        assertEquals(3L, merged.columnMin("price"));
-        assertEquals(100L, merged.columnMax("price"));
-    }
-
-    public void testMergeLongDoubleIncompatibleClearsStats() {
-        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
-        b1.addColumn("val", 0L, 10L, 50L, 400);
-        SplitStats s1 = b1.build();
-
-        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
-        b2.addColumn("val", 0L, 5.0, 60.0, 800);
-        SplitStats s2 = b2.build();
-
-        SplitStats merged = SplitStats.merge(List.of(s1, s2));
-        assertNotNull(merged);
-        assertEquals(300, merged.rowCount());
-        assertNull("incompatible types should clear min", merged.columnMin("val"));
-        assertNull("incompatible types should clear max", merged.columnMax("val"));
-    }
-
-    public void testMergeLongDoubleIncompatibleClearsStatsReversed() {
-        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(200);
-        b1.addColumn("val", 0L, 5.0, 60.0, 800);
-        SplitStats s1 = b1.build();
-
-        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(100);
-        b2.addColumn("val", 0L, 10L, 50L, 400);
-        SplitStats s2 = b2.build();
-
-        SplitStats merged = SplitStats.merge(List.of(s1, s2));
-        assertNotNull(merged);
-        assertEquals(300, merged.rowCount());
-        assertNull("incompatible types should clear min regardless of order", merged.columnMin("val"));
-        assertNull("incompatible types should clear max regardless of order", merged.columnMax("val"));
-    }
-
-    public void testMergeLongFloatIncompatibleClearsStats() {
-        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
-        b1.addColumn("val", 0L, 10L, 50L, 400);
-        SplitStats s1 = b1.build();
-
-        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
-        b2.addColumn("val", 0L, 5.0f, 60.0f, 800);
-        SplitStats s2 = b2.build();
-
-        SplitStats merged = SplitStats.merge(List.of(s1, s2));
-        assertNotNull(merged);
-        assertNull("Long + Float is incompatible, should clear min", merged.columnMin("val"));
-        assertNull("Long + Float is incompatible, should clear max", merged.columnMax("val"));
-    }
-
-    public void testMergeIncompatibleStaysPoisonedWithThirdSplit() {
-        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
-        b1.addColumn("val", 0L, 10L, 50L, 400);
-        SplitStats s1 = b1.build();
-
-        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
-        b2.addColumn("val", 0L, 5.0, 60.0, 800);
-        SplitStats s2 = b2.build();
-
-        SplitStats.Builder b3 = new SplitStats.Builder().rowCount(300);
-        b3.addColumn("val", 0L, 1L, 100L, 1200);
-        SplitStats s3 = b3.build();
-
-        SplitStats merged = SplitStats.merge(List.of(s1, s2, s3));
-        assertNotNull(merged);
-        assertEquals(600, merged.rowCount());
-        assertNull("once poisoned by incompatibility, min must stay null", merged.columnMin("val"));
-        assertNull("once poisoned by incompatibility, max must stay null", merged.columnMax("val"));
-    }
-
-    public void testMergeCrossTypeIntegerLongReversedOrder() {
-        // Verify widening works regardless of which split comes first
-        SplitStats.Builder b1 = new SplitStats.Builder().rowCount(100);
-        b1.addColumn("price", 0L, 5L, 60L, 400);
-        SplitStats s1 = b1.build();
-
-        SplitStats.Builder b2 = new SplitStats.Builder().rowCount(200);
-        b2.addColumn("price", 0L, 10, 50, 800);
-        SplitStats s2 = b2.build();
-
-        SplitStats merged = SplitStats.merge(List.of(s1, s2));
-        assertNotNull(merged);
-        assertEquals(5L, merged.columnMin("price"));
-        assertEquals(60L, merged.columnMax("price"));
-    }
-
     // --- mergedMin / mergedMax unit tests ---
 
     public void testMergedMinNullHandling() {
@@ -721,6 +807,22 @@ public class SplitStatsTests extends ESTestCase {
     public void testMergedMinStringNumericIncompatible() {
         assertNull(SplitStats.mergedMin("hello", 10));
         assertNull(SplitStats.mergedMin(10, "hello"));
+    }
+
+    public void testMergedMinMaxKeywordUsesUtf8ByteOrderNotUtf16() {
+        // U+FFFD (replacement char, BMP) vs U+1F600 (emoji, astral plane). String.compareTo (UTF-16 code units)
+        // orders the emoji BELOW the replacement char (its leading surrogate 0xD83D < 0xFFFD); UTF-8 bytes order
+        // the replacement char below the emoji (0xEF < 0xF0). The runtime keyword MIN/MAX aggregators use UTF-8
+        // (BytesRef) byte order, so the stat fold must too — otherwise a warm MIN/MAX disagrees with a scan.
+        String bmp = "�";
+        String astral = "😀";
+        assertEquals("MIN is the UTF-8-smaller value, not the UTF-16 winner", bmp, SplitStats.mergedMin(bmp, astral));
+        assertEquals(bmp, SplitStats.mergedMin(astral, bmp));
+        assertEquals("MAX is the UTF-8-larger value", astral, SplitStats.mergedMax(bmp, astral));
+        assertEquals(astral, SplitStats.mergedMax(astral, bmp));
+        // The text-harvest representation (BytesRef) is already UTF-8-ordered — the String path must agree with it.
+        assertEquals(new BytesRef(bmp), SplitStats.mergedMin(new BytesRef(bmp), new BytesRef(astral)));
+        assertEquals(new BytesRef(astral), SplitStats.mergedMax(new BytesRef(bmp), new BytesRef(astral)));
     }
 
     private static FileSplit fileSplitWithStats(SplitStats stats) {

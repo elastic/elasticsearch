@@ -158,14 +158,24 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
-        briefSummary = "Performs a match query on the specified field.",
+        briefSummary = "Performs a match query on the specified field or expression.",
         description = """
-            Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
+            Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field or expression.
             Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.""",
         detailedDescription = """
             Match can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,
             as well as other field types like keyword, boolean, dates, and numeric types.
             When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.
+
+            {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+            `MATCH` can also search expressions that are not backed by an index, such as
+            computed columns produced by `EVAL`, `STATS`, or other commands.
+            When the target is not an indexed field, the search evaluates by scanning
+            values row by row, which may be slower on large datasets.
+            When searching expressions, <<esql-function-named-params,function named parameters>>
+            (match query options) are not supported.
+            Additionally, `MATCH` on an expression does not contribute to the relevance score
+            when using `METADATA _score`.
 
             Match can use <<esql-function-named-params,function named parameters>> to specify additional options
             for the match query.
@@ -188,12 +198,12 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         @Param(
             name = "field",
             type = { "keyword", "text", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
-            description = "Field that the query will target."
+            description = "Field or expression that the query will target."
         ) Expression field,
         @Param(
             name = "query",
             type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
-            description = "Value to find in the provided field."
+            description = "Value to find in the provided field or expression."
         ) Expression matchQuery,
         @MapParam(
             name = "options",

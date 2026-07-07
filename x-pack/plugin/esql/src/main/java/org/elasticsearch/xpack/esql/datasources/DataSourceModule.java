@@ -332,6 +332,15 @@ public final class DataSourceModule implements Closeable {
         return externalSourceMetrics;
     }
 
+    /**
+     * Convenience overload that backs BOTH registry roles with a single executor. This collapses the
+     * page-consumer/coordination role and the read/parse role onto one pool, which is the exact wiring that
+     * deadlocks multi-file text reads in production (a full pool of blocked parser workers with no free thread
+     * left to run the drain that consumes them). It is safe only for synchronous / single-threaded callers
+     * (e.g. {@code Runnable::run} in tests). Production wiring must use
+     * {@link #createOperatorFactoryRegistry(Executor, Executor)} with two distinct pools —
+     * see {@code TransportEsqlQueryAction}.
+     */
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
         return createOperatorFactoryRegistry(executor, executor);
     }

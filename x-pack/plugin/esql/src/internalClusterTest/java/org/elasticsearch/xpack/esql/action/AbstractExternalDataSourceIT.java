@@ -24,6 +24,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
@@ -53,6 +54,7 @@ import java.util.function.ObjIntConsumer;
 import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Shared base for {@code FROM <dataset>} external-datasource integration tests.
@@ -357,9 +359,6 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     // Shared Hive-partition fixture + external-scan profile assertions.
     // ---------------------------------------------------------------------------------------------
 
-    /** Operator-name prefix identifying an external-source scan in a query profile. */
-    private static final String EXTERNAL_SCAN_OPERATOR_PREFIX = "ExternalDataSource";
-
     /**
      * Writes a single-column ({@code id: int32}) Parquet file named {@code data.parquet} under {@code dir}, carrying
      * {@code rowCount} rows with ids {@code 0..rowCount-1}. The shared fixture for Hive-partition tests: the partition
@@ -371,16 +370,18 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * The set of data-node names whose profile contains an external-source scan operator. Requires the query to have
-     * run with {@code profile(true)}. Callers assert on the set: a non-empty set proves the read scanned (rather than
-     * warm-folding to a constant), and {@code >= 2} distinct names proves it distributed across data nodes rather than
-     * short-circuiting coordinator-local.
+     * The set of data-node names whose profile contains an external-source scan operator, identified by its
+     * {@link AsyncExternalSourceOperator.Status} (the same type-based idiom the sibling profile ITs use, rather than a
+     * rename-brittle operator-name string). Requires the query to have run with {@code profile(true)}. Callers assert
+     * on the set: a non-empty set proves the read scanned (rather than warm-folding to a constant), and {@code >= 2}
+     * distinct names proves it distributed across data nodes rather than short-circuiting coordinator-local.
      */
     protected static Set<String> externalScanNodeNames(EsqlQueryResponse response) {
+        assertThat("query must be run with profile(true) to inspect the external scan", response.profile(), notNullValue());
         Set<String> nodes = new LinkedHashSet<>();
         for (var driver : response.profile().drivers()) {
             for (var op : driver.operators()) {
-                if (op.operator().startsWith(EXTERNAL_SCAN_OPERATOR_PREFIX)) {
+                if (op.status() instanceof AsyncExternalSourceOperator.Status) {
                     nodes.add(driver.nodeName());
                 }
             }

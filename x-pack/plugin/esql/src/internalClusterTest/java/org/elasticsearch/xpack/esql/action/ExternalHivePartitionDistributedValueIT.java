@@ -102,45 +102,30 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
         String glob = StoragePath.fileUri(root) + "/**/*.parquet";
         String dataset = registerDataset("hive_int_values", glob, Map.of("hive_partitioning", true));
 
-        QueryResult result = runDistributedStatsByPartition(dataset, "n");
-        int nIdx = result.columns().indexOf("n");
-        int cIdx = result.columns().indexOf("c");
-        assertThat("missing partition column 'n'", nIdx, greaterThanOrEqualTo(0));
-        assertThat("expected exactly two partition groups, no duplicate rows", result.rows().size(), equalTo(2));
-
-        Map<Integer, Long> countByPartition = new HashMap<>();
-        for (List<Object> row : result.rows()) {
-            Object partition = row.get(nIdx);
-            assertThat("integer partition must survive the data-node round-trip as Integer", partition, instanceOf(Integer.class));
-            countByPartition.put((Integer) partition, ((Number) row.get(cIdx)).longValue());
-        }
+        Map<Object, Long> countByPartition = runDistributedStatsByPartition(dataset, "n");
+        // Every group key must be a boxed Integer (not a String): a type degrade on the data node would surface the
+        // partition as a keyword, which the Map equality below would also reject, but this gives the sharper message.
+        countByPartition.keySet()
+            .forEach(
+                key -> assertThat("integer partition must survive the data-node round-trip as Integer", key, instanceOf(Integer.class))
+            );
         assertThat(countByPartition, equalTo(Map.of(1, 3L, 2, 2L)));
     }
 
     /** Runs {@code STATS COUNT(*) BY p} distributed and asserts the two real string groups {@code {a=3, b=2}}. */
     private void assertStringPartitionGroups(String dataset) {
-        QueryResult result = runDistributedStatsByPartition(dataset, "p");
-        int pIdx = result.columns().indexOf("p");
-        int cIdx = result.columns().indexOf("c");
-        assertThat("missing partition column 'p'", pIdx, greaterThanOrEqualTo(0));
-        assertThat("expected exactly two partition groups, no duplicate rows", result.rows().size(), equalTo(2));
-
-        Map<String, Long> countByPartition = new HashMap<>();
-        for (List<Object> row : result.rows()) {
-            Object partition = row.get(pIdx);
-            assertNotNull("partition value must attach on the distributed read, got null", partition);
-            countByPartition.put(partition.toString(), ((Number) row.get(cIdx)).longValue());
-        }
-        assertThat(countByPartition, equalTo(Map.of("a", 3L, "b", 2L)));
+        assertThat(runDistributedStatsByPartition(dataset, "p"), equalTo(Map.of("a", 3L, "b", 2L)));
     }
 
     /**
-     * Forces distribution across data nodes and runs {@code STATS c = COUNT(*) BY <partitionCol>}, asserting the
-     * external scan ran on &gt;=2 distinct data nodes (so the distributed leg is genuinely exercised, not a
-     * coordinator-local short-circuit that would resolve values from the FileList). Returns the response columns and
-     * rows for the caller to assert the partition groups.
+     * Forces distribution across data nodes, runs {@code STATS c = COUNT(*) BY <partitionCol>}, and returns the
+     * per-partition counts keyed by the partition value <em>as the engine typed it</em> (so a String key never equals
+     * an expected {@code Integer} key). Asserts along the way that the external scan ran on &gt;=2 distinct data nodes
+     * (so the distributed leg is genuinely exercised, not a coordinator-local short-circuit that would resolve values
+     * from the {@code FileList}) and that exactly two groups came back with non-null keys (catching a null-attach, a
+     * cross-contamination, or a duplicate row). The caller only asserts the expected {@code value -> count} map.
      */
-    private QueryResult runDistributedStatsByPartition(String dataset, String partitionCol) {
+    private Map<Object, Long> runDistributedStatsByPartition(String dataset, String partitionCol) {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         // round_robin distributes every split to a data node regardless of plan shape, so the read runs where the
@@ -163,13 +148,21 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
 
             List<String> columns = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
             int cIdx = columns.indexOf("c");
+            int partIdx = columns.indexOf(partitionCol);
             assertThat("missing count column", cIdx, greaterThanOrEqualTo(0));
-            return new QueryResult(columns, getValuesList(response));
+            assertThat("missing partition column [" + partitionCol + "]", partIdx, greaterThanOrEqualTo(0));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("expected exactly two partition groups, no duplicate rows", rows.size(), equalTo(2));
+            Map<Object, Long> countByPartition = new HashMap<>();
+            for (List<Object> row : rows) {
+                Object partition = row.get(partIdx);
+                assertNotNull("partition value must attach on the distributed read, got null", partition);
+                countByPartition.put(partition, ((Number) row.get(cIdx)).longValue());
+            }
+            return countByPartition;
         }
     }
-
-    /** Columns + rows lifted out of a (closed) response so callers can assert partition groups. */
-    private record QueryResult(List<String> columns, List<List<Object>> rows) {}
 
     /** Writes a single-column ({@code id}) CSV file with {@code rowCount} rows (ids 0..rowCount-1). */
     private static void writeIdCsv(Path dir, int rowCount) throws IOException {

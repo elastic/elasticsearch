@@ -86,7 +86,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
 
     /**
      * Parameterized over (clusterName, leaderNodesUpgraded, followerNodesUpgraded).
-     * The follower cluster is fully upgraded before the leader starts upgrading.
+     * The `follower` cluster is fully upgraded before the leader starts upgrading.
      */
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() {
@@ -110,14 +110,9 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         this.clusterName = clusterName;
         this.targetLeaderNodesUpgraded = leaderNodesUpgraded;
         this.targetFollowerNodesUpgraded = followerNodesUpgraded;
-        final int targetNodesUpgraded = (clusterName == ClusterName.LEADER) ? leaderNodesUpgraded : followerNodesUpgraded;
-        this.upgradeState = switch (targetNodesUpgraded) {
-            case 0 -> UpgradeState.NONE;
-            case 1 -> UpgradeState.ONE_THIRD;
-            case 2 -> UpgradeState.TWO_THIRD;
-            case 3 -> UpgradeState.ALL;
-            default -> throw new AssertionError("unexpected nodes upgraded: " + targetNodesUpgraded);
-        };
+        this.upgradeState = UpgradeState.fromNodesUpgraded(
+            clusterName == ClusterName.LEADER ? leaderNodesUpgraded : followerNodesUpgraded
+        );
     }
 
     @Before
@@ -201,7 +196,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
 
     @Override
     protected String getTestRestCluster() {
-        return (clusterName == ClusterName.LEADER) ? leaderCluster.getHttpAddresses() : followerCluster.getHttpAddresses();
+        return clusterName == ClusterName.LEADER ? leaderCluster.getHttpAddresses() : followerCluster.getHttpAddresses();
     }
 
     @Override
@@ -268,7 +263,17 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         NONE,
         ONE_THIRD,
         TWO_THIRD,
-        ALL
+        ALL;
+
+        static UpgradeState fromNodesUpgraded(int count) {
+            return switch (count) {
+                case 0 -> NONE;
+                case 1 -> ONE_THIRD;
+                case 2 -> TWO_THIRD;
+                case 3 -> ALL;
+                default -> throw new AssertionError("unexpected nodes upgraded: " + count);
+            };
+        }
     }
 
     protected enum ClusterName {

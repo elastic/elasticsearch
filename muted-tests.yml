@@ -755,9 +755,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:exponential_histogram.allAggsInlineGrouped}
   issue: https://github.com/elastic/elasticsearch/issues/153123
-- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
-  method: testStoredIgnoredSource
-  issue: https://github.com/elastic/elasticsearch/issues/153124
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationPitPositionsInBcc
   issue: https://github.com/elastic/elasticsearch/issues/153149
@@ -770,3 +767,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testNdjsonBadDateTokenHonorsErrorPolicyMatchingColumnar
   issue: https://github.com/elastic/elasticsearch/issues/153158
+- class: org.elasticsearch.xpack.inference.RegionPolicyAuthorizationRefreshIT
+  method: testPutRegionPolicy_WhenDeniedEndpointReferencedByPipelineOnly_OmitsEmptyIndexesField
+  issue: https://github.com/elastic/elasticsearch/issues/153170

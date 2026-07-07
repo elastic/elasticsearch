@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.settings.Settings;
@@ -36,12 +38,15 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -356,6 +361,52 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             cleanupServices(infra, threadPool);
             logger.debug("[TEST] cleanupServices() completed");
         }
+    }
+
+    /**
+     * The client tears down the exchange with a synthesized {@link TaskCancelledException} whenever it
+     * stops with in-flight work (for example when the query reaches its LIMIT and the exchange is closed
+     * early). Those teardowns must be logged at DEBUG, not ERROR, so genuine failures stay visible. This
+     * asserts the actual log level emitted by {@link BidirectionalBatchExchangeClient#logExchangeFailure}
+     * for a cancellation, including one wrapped by transport ({@link RemoteTransportException}), which is
+     * the shape that actually reaches the setup/status callbacks.
+     */
+    public void testCancellationsAreLoggedAtDebugNotError() {
+        for (Exception cancellation : List.of(
+            new TaskCancelledException("client stopped"),
+            new TaskCancelledException("parent task was cancelled"),
+            new RemoteTransportException("node", new TaskCancelledException("task cancelled before starting"))
+        )) {
+            assertExchangeFailureLoggedAt(Level.DEBUG, cancellation);
+        }
+    }
+
+    /**
+     * A genuine (non-cancellation) failure must still be logged at ERROR.
+     */
+    public void testGenuineFailuresAreLoggedAtError() {
+        for (Exception failure : List.of(
+            new IllegalStateException("boom"),
+            new CircuitBreakingException("over", CircuitBreaker.Durability.PERMANENT)
+        )) {
+            assertExchangeFailureLoggedAt(Level.ERROR, failure);
+        }
+    }
+
+    /**
+     * Asserts that {@link BidirectionalBatchExchangeClient#logExchangeFailure} logs the given failure at
+     * {@code expectedLevel} and not at the other level.
+     */
+    private static void assertExchangeFailureLoggedAt(Level expectedLevel, Exception failure) {
+        Level unexpectedLevel = expectedLevel == Level.DEBUG ? Level.ERROR : Level.DEBUG;
+        Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
+        String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+        MockLog.assertThatLogger(
+            () -> BidirectionalBatchExchangeClient.logExchangeFailure(clientLogger, failure, "failure: {}", "msg"),
+            BidirectionalBatchExchangeClient.class,
+            new MockLog.SeenEventExpectation("logged at " + expectedLevel, loggerName, expectedLevel, "failure: msg"),
+            new MockLog.UnseenEventExpectation("not logged at " + unexpectedLevel, loggerName, unexpectedLevel, "*")
+        );
     }
 
     /**

@@ -218,7 +218,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                     listener.onResponse(response.planString());
                 }, e -> {
                     planningEndNanos = System.nanoTime();
-                    logger.error("Server setup failed for node=" + serverNode.getId(), e);
+                    BidirectionalBatchExchangeClient.logExchangeFailure(logger, e, "Server setup failed for node=" + serverNode.getId(), e);
                     failure.set(e);
                     listener.onFailure(e);
                 }));
@@ -281,7 +281,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     }
 
     private void handleBatchExchangeFailure(Exception e) {
-        logger.error("Batch exchange failed", e);
+        BidirectionalBatchExchangeClient.logExchangeFailure(logger, e, "Batch exchange failed", e);
         failure.set(e);
         driverContext.removeAsyncAction();
     }

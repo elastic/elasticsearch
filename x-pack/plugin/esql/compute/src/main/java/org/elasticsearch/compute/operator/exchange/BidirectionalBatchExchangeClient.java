@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -320,7 +322,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     worker.setupReadyListener.onFailure(e);
                 }
             }, e -> {
-                logger.error("[LookupJoinClient] Server setup failed for worker={}: {}", worker.workerId, e.getMessage());
+                logExchangeFailure(logger, e, "[LookupJoinClient] Server setup failed for worker={}: {}", worker.workerId, e.getMessage());
                 onWorkerConnectionComplete(worker, "Setup failed");
                 worker.sinkRef.onFailure(e);
                 worker.statusRef.onFailure(e);
@@ -392,7 +394,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     }
                 }, failure -> {
                     responseHeadersCollector.collect();
-                    logger.error(
+                    logExchangeFailure(
+                        logger,
+                        failure,
                         "[LookupJoinClient] Failed to receive batch exchange status response for worker={}: {}",
                         worker.workerId,
                         failure.getMessage()
@@ -417,7 +421,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private void notifyFailure(Exception failure) {
         setPrimaryFailure(failure);
         if (failureTriggered.compareAndSet(false, true)) {
-            logger.error("[LookupJoinClient] Notifying failure: {}", failure.getMessage());
+            logExchangeFailure(logger, failure, "[LookupJoinClient] Notifying failure: {}", failure.getMessage());
             // Notify the operator's failure listener FIRST, before unblocking the driver.
             // This ensures that when the driver thread unblocks, the operator's failure field
             // is already set, so getOutput() will throw the real error immediately.
@@ -431,6 +435,30 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         } else {
             logger.warn("[LookupJoinClient] Additional failure (primary={}): {}", primaryFailure.get() == failure, failure.getMessage());
         }
+    }
+
+    /**
+     * Logs an exchange failure at ERROR, unless it is a cancellation. Cancellations are expected
+     * teardown (for example the query reached its LIMIT and the exchange was closed early via a
+     * synthesized "client stopped" error, or the task was cancelled), so they are logged at DEBUG
+     * to keep genuine failures visible. Shared by the client and the operator driving it, so the
+     * caller supplies its own logger.
+     *
+     * @param logger  the logger to log to (the caller's own logger)
+     * @param failure the failure that decides the log level (ERROR unless it is a cancellation)
+     * @param message a parameterized log message template
+     * @param params  the parameters for the message template; a trailing {@link Throwable} is logged with its stack trace
+     */
+    public static void logExchangeFailure(Logger logger, Exception failure, String message, Object... params) {
+        if (isCancellation(failure)) {
+            logger.debug(message, params);
+        } else {
+            logger.error(message, params);
+        }
+    }
+
+    private static boolean isCancellation(Exception e) {
+        return ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
     }
 
     /**

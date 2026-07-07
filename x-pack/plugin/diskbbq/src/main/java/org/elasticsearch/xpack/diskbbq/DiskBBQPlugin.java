@@ -16,6 +16,9 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -81,6 +84,9 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         ? RoutingFieldMapper.NAME
                         : null;
                     if (Build.current().isSnapshot()) {
+                        IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
+                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                            : IvfMergeConfigResolver.useCodecDefault();
                         return new ESNextDiskBBQVectorsFormat(
                             ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
                             clusterSize,
@@ -92,7 +98,9 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             doPrecondition,
                             ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                             flatIndexThreshold,
-                            sliceField
+                            sliceField,
+                            IvfFlushConfigSource.empty(),
+                            mergeConfigResolver
                         );
                     }
                     return new ES940DiskBBQVectorsFormat(

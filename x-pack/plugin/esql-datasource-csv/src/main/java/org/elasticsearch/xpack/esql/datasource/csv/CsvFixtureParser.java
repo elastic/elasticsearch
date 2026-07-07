@@ -346,9 +346,15 @@ public final class CsvFixtureParser {
             // matching Parquet INT32+IntLogicalTypeAnnotation(bitWidth, false) mapping.
             case "uint32" -> tryParseLong(value);
             case "uint16" -> tryParseInt(value);
+            // uint64 can exceed Long.MAX_VALUE, so it is parsed as an unsigned decimal string into
+            // the raw two's-complement bit pattern (e.g. "18446744073709551615" -> -1L), matching
+            // the physical INT64 on-disk representation ParquetFixtureGenerator writes verbatim.
+            case "uint64" -> tryParseUnsignedLong(value);
             case "double", "scaled_float", "float", "half_float" -> tryParseDouble(value);
             case "boolean", "bool" -> tryParseBoolean(value);
             case "date", "datetime", "dt" -> tryParseDatetime(value);
+            // date_nanos values are plain epoch-nanosecond longs in the fixture CSVs; parse the same way.
+            case "date_nanos" -> tryParseDatetime(value);
             case "ip" -> value;
             case "null", "n" -> null;
             default -> value; // keyword, text, string, etc.
@@ -374,6 +380,14 @@ public final class CsvFixtureParser {
     private static Long tryParseLong(String value) {
         try {
             return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static Long tryParseUnsignedLong(String value) {
+        try {
+            return Long.parseUnsignedLong(value);
         } catch (NumberFormatException e) {
             return null;
         }

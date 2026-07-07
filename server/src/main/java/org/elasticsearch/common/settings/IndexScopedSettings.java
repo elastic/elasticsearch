@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -172,6 +171,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 FieldMapper.IGNORE_MALFORMED_SETTING,
                 FieldMapper.COERCE_SETTING,
                 FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING,
+                FieldMapper.DOC_VALUES_NULLABILITY_SETTING,
                 Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING,
@@ -273,12 +273,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
             settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
         }
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
-        }
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
-        }
+        settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
+        settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };

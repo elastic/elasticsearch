@@ -10,60 +10,30 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
 /** NDJSON counterpart of {@link ExternalCsvAggregatePushdownIT}: same cold-then-warm short-circuit assertion shape. */
-public class ExternalNdJsonAggregatePushdownIT extends AbstractEsqlIntegTestCase {
-
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
+public class ExternalNdJsonAggregatePushdownIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(NdJsonDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesEnabled() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(NdJsonDataSourcePlugin.class);
     }
 
     @Override
@@ -89,12 +59,11 @@ public class ExternalNdJsonAggregatePushdownIT extends AbstractEsqlIntegTestCase
     }
 
     public void testCountStarColdThenWarmShortCircuits() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 200;
         Path ndjsonFile = writeNdJsonFile(totalRows);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(ndjsonFile) + "\" | STATS c = COUNT(*)";
+            String dataset = registerDataset("ndjson_agg", StoragePath.fileUri(ndjsonFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);
@@ -111,12 +80,11 @@ public class ExternalNdJsonAggregatePushdownIT extends AbstractEsqlIntegTestCase
     }
 
     public void testCountStarPushdownSingleRowFile() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 1;
         Path ndjsonFile = writeNdJsonFile(totalRows);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(ndjsonFile) + "\" | STATS c = COUNT(*)";
+            String dataset = registerDataset("ndjson_agg", StoragePath.fileUri(ndjsonFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);
@@ -131,12 +99,11 @@ public class ExternalNdJsonAggregatePushdownIT extends AbstractEsqlIntegTestCase
     }
 
     public void testMinMaxColdThenWarmShortCircuits() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 50;
         Path ndjsonFile = writeNdJsonFile(totalRows);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(ndjsonFile) + "\" | STATS lo = MIN(value), hi = MAX(value)";
+            String dataset = registerDataset("ndjson_agg", StoragePath.fileUri(ndjsonFile), Map.of());
+            String query = "FROM " + dataset + " | STATS lo = MIN(value), hi = MAX(value)";
 
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertMinMax(response, 0L, (long) (totalRows - 1) * 10);
@@ -153,12 +120,11 @@ public class ExternalNdJsonAggregatePushdownIT extends AbstractEsqlIntegTestCase
     }
 
     public void testCountColumnColdThenWarmShortCircuits() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 30;
         Path ndjsonFile = writeNdJsonFile(totalRows);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(ndjsonFile) + "\" | STATS c = COUNT(value)";
+            String dataset = registerDataset("ndjson_agg", StoragePath.fileUri(ndjsonFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(value)";
 
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);

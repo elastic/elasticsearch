@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -141,6 +142,17 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     @Override
     public boolean hasNext() {
         return delegate.hasNext();
+    }
+
+    /**
+     * Forward the async-ready signal so the producer-loop drain parks (rather than blocking in a
+     * parser-backed {@code hasNext()}) across the inter-chunk gap. Without this the default
+     * immediately-done {@link CloseableIterator#waitForReady()} would swallow the delegate's real
+     * signal — the multi-file text-read deadlock.
+     */
+    @Override
+    public SubscribableListener<Void> waitForReady() {
+        return delegate.waitForReady();
     }
 
     @Override

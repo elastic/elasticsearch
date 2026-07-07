@@ -301,6 +301,7 @@ toc:
                   - file: esql/functions-operators/string-functions/concat.md
                   - file: esql/functions-operators/string-functions/contains.md
                   - file: esql/functions-operators/string-functions/ends_with.md
+                  - file: esql/functions-operators/string-functions/field_extract.md
                   - file: esql/functions-operators/string-functions/from_base64.md
                   - file: esql/functions-operators/string-functions/hash.md
                   - file: esql/functions-operators/string-functions/json_extract.md

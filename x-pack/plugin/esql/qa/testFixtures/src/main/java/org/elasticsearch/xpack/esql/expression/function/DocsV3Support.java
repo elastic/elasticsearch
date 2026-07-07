@@ -1186,7 +1186,6 @@ public abstract class DocsV3Support {
 
     /** Command specific docs generating, currently very empty since we only render kibana definition files */
     public static class CommandsDocsSupport extends DocsV3Support {
-
         private final LogicalPlan command;
         private List<EsqlFunctionRegistry.ArgSignature> args;
         private final XPackLicenseState licenseState;

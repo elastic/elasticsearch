@@ -66,6 +66,36 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         result.output.contains("neverSkipOnSmartRetry=true")
     }
 
+    def "never skips task with neverSkipOnSmartRetry set via a later configureEach"() {
+        // Mirrors elasticsearch.bwc-test.gradle's real structure: the rerun plugin is applied first (wiring its
+        // own configureEach), and neverSkipOnSmartRetry is set afterwards via a separate, later-registered
+        // configureEach block. Gradle runs configureEach actions in registration order, so this exercises the
+        // ordering bug the onlyIf-based check must be immune to.
+        given:
+        simpleTestSetup()
+        subProject(":subproject1") {
+            buildFile << '''
+                tasks.register("bwcStageTask", Test) {
+                    testClassesDirs = sourceSets.test.output.classesDirs
+                    classpath = sourceSets.test.runtimeClasspath
+                }
+                tasks.withType(Test).matching { it.name == "bwcStageTask" }.configureEach {
+                    ext.neverSkipOnSmartRetry = true
+                }
+            '''
+        }
+        writeHistory([":subproject1:bwcStageTask", ":subproject1:test"], [:])
+        when:
+        def result = gradleRunner("bwcStageTask", "test", "--warning-mode", "all").build()
+        then:
+        // A normal task, correctly reported as successful, is skipped
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+
+        // A task with neverSkipOnSmartRetry=true, set via a later configureEach, must still always run in full
+        result.task(":subproject1:bwcStageTask").outcome == TaskOutcome.SUCCESS
+        result.output.contains("neverSkipOnSmartRetry=true")
+    }
+
     def "skips successful tasks and runs everything else"() {
         given:
         simpleTestSetup()

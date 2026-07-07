@@ -72,18 +72,30 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
         }
 
         // BWC/FWC suites that chain stages over a shared live cluster (rolling-upgrade, mixed-cluster, multi-cluster,
-        // etc.) set ext.neverSkipOnSmartRetry = true via elasticsearch.bwc-test or elasticsearch.fwc-test. Skipping
-        // an earlier stage on retry leaves later stages operating against a cluster that never had the earlier stage's
-        // side effects applied, so these tasks must always run in full.
-        ExtraPropertiesExtension extra = test.getExtensions().getExtraProperties();
-        if (extra.has("neverSkipOnSmartRetry") && Boolean.TRUE.equals(extra.get("neverSkipOnSmartRetry"))) {
-            test.getLogger().lifecycle("Smart retry: running all tests for {} (neverSkipOnSmartRetry=true)", test.getPath());
+        // etc.) set ext.neverSkipOnSmartRetry = true via elasticsearch.bwc-test or elasticsearch.fwc-test (or
+        // directly on their own task registrations). Skipping an earlier stage on retry leaves later stages
+        // operating against a cluster that never had the earlier stage's side effects applied, so these tasks must
+        // always run in full.
+        //
+        // The property is read inside the onlyIf predicate below rather than here, at configuration time. Some
+        // conventions (elasticsearch.bwc-test) set it via a configureEach block registered after this plugin's own
+        // configureEach, and Gradle runs configureEach actions in registration order - reading the property here
+        // would silently observe a stale, unset value. onlyIf predicates are evaluated during the execution phase,
+        // after all configuration-phase actions have run, so they always see the property's final value.
+        if (testsBuildServiceProvider.get().wasTaskSuccessful(test.getPath())) {
+            test.onlyIf("Skipped by smart retry - succeeded in previous run", element -> {
+                if (neverSkipOnSmartRetry(test)) {
+                    test.getLogger().lifecycle("Smart retry: running all tests for {} (neverSkipOnSmartRetry=true)", test.getPath());
+                    return true;
+                }
+                test.getLogger().lifecycle("Smart retry: skipping {} (succeeded in previous run)", test.getPath());
+                return false;
+            });
             return;
         }
 
-        if (testsBuildServiceProvider.get().wasTaskSuccessful(test.getPath())) {
-            test.getLogger().lifecycle("Smart retry: skipping {} (succeeded in previous run)", test.getPath());
-            test.onlyIf("Skipped by smart retry - succeeded in previous run", element -> false);
+        if (neverSkipOnSmartRetry(test)) {
+            test.getLogger().lifecycle("Smart retry: running all tests for {} (neverSkipOnSmartRetry=true)", test.getPath());
             return;
         }
 
@@ -115,6 +127,11 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
         } else {
             test.getLogger().lifecycle("Smart retry: running all tests for {} (not confirmed successful in previous run)", test.getPath());
         }
+    }
+
+    private static boolean neverSkipOnSmartRetry(Test test) {
+        ExtraPropertiesExtension extra = test.getExtensions().getExtraProperties();
+        return extra.has("neverSkipOnSmartRetry") && Boolean.TRUE.equals(extra.get("neverSkipOnSmartRetry"));
     }
 
     public abstract static class RetryTestsBuildService implements BuildService<RetryTestsBuildService.Params> {

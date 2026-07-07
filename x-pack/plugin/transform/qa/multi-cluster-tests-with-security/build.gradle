@@ -59,12 +59,16 @@ testClusters.register('mixed-cluster') {
 tasks.register('remote-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.rest.suite', 'remote_cluster'
+  // remote-cluster and mixed-cluster share a live cluster across the whole build invocation; that
+  // state is not preserved between CI retries, so smart retry must never skip these stages.
+  ext.neverSkipOnSmartRetry = true
 }
 
 tasks.register('mixed-cluster', RestIntegTestTask) {
   dependsOn 'remote-cluster'
   useCluster remoteCluster
   systemProperty 'tests.rest.suite', 'multi_cluster'
+  ext.neverSkipOnSmartRetry = true
 }
 
 tasks.register("integTest") {

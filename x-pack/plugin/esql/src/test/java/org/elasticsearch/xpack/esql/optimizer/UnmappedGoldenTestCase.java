@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -90,13 +89,7 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         TransportVersion transportVersion,
         String... nestedPaths
     ) {
-        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled() == false) {
-            return;
-        }
-        builder(setUnmappedLoad(query)).nestedPath(ArrayUtils.prepend("load", nestedPaths))
-            .stages(stages)
-            .transportVersion(transportVersion)
-            .run();
+        loadOnlyBuilder(query, stages, Map.of(), nestedPaths).transportVersion(transportVersion).run();
     }
 
     private Optional<Throwable> tryRunTestsNullifyOnly(
@@ -120,14 +113,16 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         Map<String, String> views,
         String... nestedPaths
     ) {
-        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled() == false) {
-            return Optional.empty();
-        }
-        var builder = builder(setUnmappedLoad(query)).views(views).nestedPath(ArrayUtils.prepend("load", nestedPaths)).stages(stages);
+        var builder = loadOnlyBuilder(query, stages, views, nestedPaths);
         if (minimumSupportedVersion != null) {
             builder.transportVersion(TransportVersionUtils.randomVersionSupporting(minimumSupportedVersion));
         }
         return builder.tryRun();
+    }
+
+    /** Shared builder setup for LOAD mode, used by both {@link #tryRunTestsLoadOnly} and {@link #runTestsLoadOnlyAtVersion}. */
+    private TestBuilder loadOnlyBuilder(String query, EnumSet<Stage> stages, Map<String, String> views, String... nestedPaths) {
+        return builder(setUnmappedLoad(query)).views(views).nestedPath(ArrayUtils.prepend("load", nestedPaths)).stages(stages);
     }
 
     private static String setUnmappedNullify(String query) {

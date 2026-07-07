@@ -19,6 +19,8 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
+
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class EsqlSpecIT extends EsqlSpecTestCase {
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
@@ -60,9 +62,9 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-        CsvTestUtils.assumeTrueLogging(
-            "Multi-node tests don't support local cluster capability requirements",
-            testCase.missingCapabilitiesLocalCluster.isEmpty()
+        assumeTrue(
+            "Local cluster must not support " + testCase.missingCapabilitiesLocalCluster + " for test " + testName,
+            doesntHaveCapabilities(adminClient(), testCase.missingCapabilitiesLocalCluster)
         );
         CsvTestUtils.assumeTrueLogging(
             "Multi-node tests don't support remote cluster capability requirements",

@@ -26,6 +26,8 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
+
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlSpecIT extends EsqlSpecTestCase {
 
@@ -82,9 +84,9 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-        CsvTestUtils.assumeTrueLogging(
-            "Single-node tests don't support local cluster capability requirements",
-            testCase.missingCapabilitiesLocalCluster.isEmpty()
+        assumeTrue(
+            "Local cluster must not support " + testCase.missingCapabilitiesLocalCluster + " for test " + testName,
+            doesntHaveCapabilities(adminClient(), testCase.missingCapabilitiesLocalCluster)
         );
         CsvTestUtils.assumeTrueLogging(
             "Single-node tests don't support remote cluster capability requirements",

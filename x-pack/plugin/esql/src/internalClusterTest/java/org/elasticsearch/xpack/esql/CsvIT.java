@@ -346,15 +346,12 @@ public class CsvIT extends ESTestCase {
             testCase.datasetSources.isEmpty() == false
         );
         assumeTrueLogging(
-            "CSV tests don't support local cluster capability requirements",
-            testCase.missingCapabilitiesLocalCluster.isEmpty()
-        );
-        assumeTrueLogging(
             "CSV tests don't support remote cluster capability requirements",
             testCase.missingCapabilitiesRemoteCluster.isEmpty()
         );
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
+        CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
 
         currentGroupName = groupName;

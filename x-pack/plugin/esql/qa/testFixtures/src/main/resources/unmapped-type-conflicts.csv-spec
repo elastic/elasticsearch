@@ -989,7 +989,6 @@ null
 
 noTypeConflictKeywordNonExistentNoCast
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, colors METADATA _index

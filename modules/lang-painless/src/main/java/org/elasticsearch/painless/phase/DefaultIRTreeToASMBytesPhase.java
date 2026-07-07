@@ -1097,13 +1097,54 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     public void visitStringConcatenation(StringConcatenationNode irStringConcatenationNode, WriteScope writeScope) {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irStringConcatenationNode.getLocation());
-        methodWriter.writeNewStrings();
 
-        for (ExpressionNode argumentNode : irStringConcatenationNode.getArgumentNodes()) {
-            visit(argumentNode, writeScope);
-            methodWriter.writeAppendStrings(argumentNode.getDecorationValue(IRDExpressionType.class));
+        List<ExpressionNode> irArgumentNodes = irStringConcatenationNode.getArgumentNodes();
+
+        if (isAllocationTrackingActive(writeScope) == false) {
+            // Tracking off: unchanged zero-overhead emission.
+            methodWriter.writeNewStrings();
+            for (ExpressionNode argumentNode : irArgumentNodes) {
+                visit(argumentNode, writeScope);
+                methodWriter.writeAppendStrings(argumentNode.getDecorationValue(IRDExpressionType.class));
+            }
+            methodWriter.writeToStrings();
+            return;
         }
 
+        // Tracking on: charge STRING_CONCAT_RESULT_OVERHEAD plus a per-operand byte bound before the concat allocates its
+        // result. The bound is the operand's real String length at runtime (via stringConcatOperandBytes) for references and
+        // a compile-time max-length constant for primitives. Operands are spilled to fresh locals first so they can be reloaded
+        // for the actual concat after the check.
+        int argCount = irArgumentNodes.size();
+        Class<?>[] argTypes = new Class<?>[argCount];
+        Variable[] concatOperands = new Variable[argCount];
+        for (int i = 0; i < argCount; ++i) {
+            ExpressionNode argumentNode = irArgumentNodes.get(i);
+            argTypes[i] = argumentNode.getDecorationValue(IRDExpressionType.class);
+            visit(argumentNode, writeScope);
+            concatOperands[i] = writeScope.defineInternalVariable(argTypes[i], "concatOperand" + i);
+            methodWriter.visitVarInsn(concatOperands[i].getAsmType().getOpcode(Opcodes.ISTORE), concatOperands[i].getSlot());
+        }
+
+        loadScriptPointer(writeScope, methodWriter);
+        methodWriter.push((long) AllocSizes.STRING_CONCAT_RESULT_OVERHEAD);
+        for (int i = 0; i < argCount; ++i) {
+            if (argTypes[i].isPrimitive()) {
+                methodWriter.push(AllocSizes.stringConcatPrimitiveBytes(argTypes[i]));
+            } else {
+                methodWriter.visitVarInsn(concatOperands[i].getAsmType().getOpcode(Opcodes.ILOAD), concatOperands[i].getSlot());
+                methodWriter.invokeStatic(WriterConstants.ALLOC_SIZES_TYPE, WriterConstants.ALLOC_STRING_CONCAT_OPERAND_BYTES);
+            }
+            methodWriter.math(MethodWriter.ADD, Type.LONG_TYPE);
+        }
+        methodWriter.invokeInterface(BASE_INTERFACE_TYPE, WriterConstants.CHECK_ALLOC_BYTES);
+
+        // Reload the spilled operands and perform the actual concat.
+        methodWriter.writeNewStrings();
+        for (int i = 0; i < argCount; ++i) {
+            methodWriter.visitVarInsn(concatOperands[i].getAsmType().getOpcode(Opcodes.ILOAD), concatOperands[i].getSlot());
+            methodWriter.writeAppendStrings(argTypes[i]);
+        }
         methodWriter.writeToStrings();
     }
 

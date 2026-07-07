@@ -999,19 +999,53 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * Returns {@code true} when {@link #hasNext()} can run without blocking on upstream
-         * production: a page is already buffered, the current slot has a page or POISON, EOF has
-         * been reached, an error has been recorded, or the iterator is closed.
+         * production: a real page is available at the head of the current slot, EOF has been reached,
+         * an error has been recorded, or the iterator is closed.
+         * <p>
+         * A lone {@code POISON} end-of-chunk marker is <em>not</em> readiness. Reporting ready on a
+         * bare POISON was the multi-file text-read deadlock: the async producer-loop drain saw
+         * {@code waitForReady().isDone()}, called {@link #hasNext()}, which advanced past the POISON
+         * into an empty, still-parsing slot and BLOCKED on the parser latch — pinning its executor
+         * thread while the parser it waited for was queued behind it on the same pool. We instead
+         * {@link #skipDrainedPoison() consume the POISON here} (advancing and freeing a dispatch permit
+         * exactly as {@code takeNextPage} would) so readiness reflects a genuine page or terminal EOF;
+         * the drain then parks on {@link #waitForReady()} across the inter-chunk gap rather than
+         * blocking, and resumes via {@link #signalReady()} when the next chunk's first page lands.
          */
         private boolean isReadyNow() {
             if (closed || buffered != null || firstError.get() != null) {
                 return true;
             }
+            skipDrainedPoison();
             int slot = currentChunk % pageQueueRingSize;
             if (pageQueues[slot].peek() != null) {
                 return true;
             }
             // EOF: consumer has drained every dispatched chunk AND every producer has exited.
             return currentChunk >= chunksDispatched.get() && tasksOutstanding.get() == 0;
+        }
+
+        /**
+         * Non-blocking: consumes any {@code POISON} end-of-chunk markers currently at the head of the
+         * consumer's slot, advancing {@link #currentChunk} and releasing one {@link #dispatchPermits}
+         * permit per marker — identical accounting to {@link #takeNextPage()}'s POISON branch. Stops at
+         * the first real page, an empty slot, or once no chunk is dispatched for the slot. Only ever
+         * called on the single consumer thread (via {@link #waitForReady()} / {@link #hasNext()}), so the
+         * unsynchronized peek/poll/advance is safe: producers only append to the tail and never advance
+         * {@code currentChunk}. Releasing the permit here (rather than deferring to {@code takeNextPage})
+         * keeps the segmentator unblocked even when the async drain parks across the inter-chunk gap.
+         */
+        private void skipDrainedPoison() {
+            while (currentChunk < chunksDispatched.get()) {
+                int slot = currentChunk % pageQueueRingSize;
+                Page head = pageQueues[slot].peek();
+                if (head == null || head != POISON) {
+                    return;
+                }
+                pageQueues[slot].poll();
+                currentChunk++;
+                dispatchPermits.release();
+            }
         }
 
         @Override

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 152884
+pr: 153013
+summary: Fix COUNT on an unmapped field
+type: bug

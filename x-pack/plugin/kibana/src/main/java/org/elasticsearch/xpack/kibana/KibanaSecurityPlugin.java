@@ -23,7 +23,10 @@ import java.util.List;
  */
 public class KibanaSecurityPlugin extends Plugin implements SecurityExtension {
 
-    private static final List<ImplicitPrivilegesProvider> PROVIDERS = List.of(new KibanaAlertsImplicitPrivilegesProvider());
+    private static final List<ImplicitPrivilegesProvider> PROVIDERS = List.of(
+        new KibanaAlertsImplicitPrivilegesProvider(),
+        new KibanaCasesImplicitPrivilegesProvider()
+    );
 
     @Override
     public List<ImplicitPrivilegesProvider> getImplicitPrivilegesProviders(SecurityComponents components) {

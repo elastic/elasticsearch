@@ -151,6 +151,187 @@ FROM partial_mapping_sample_data
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 1                     | English
 ;
 
+doesNotLoadUnmappedFieldsWhere
+required_capability: optional_fields_v5
+
+FROM partial_mapping_sample_data
+| WHERE event_duration > 3000000
+| SORT @timestamp DESC
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3!
+;
+
+doesNotLoadUnmappedFieldsEval
+required_capability: optional_fields_v5
+
+FROM partial_mapping_sample_data
+| EVAL event_duration_plus = event_duration + 1
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | event_duration_plus:long
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1756467
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 5033755
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 8268153
+;
+
+doesNotLoadUnmappedFieldsKeep
+required_capability: optional_fields_v5
+
+FROM partial_mapping_sample_data
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | Connection error?
+2024-10-23T13:52:55.015Z | Connection error?
+;
+
+doesNotLoadUnmappedFieldsKeepWildcard
+required_capability: optional_fields_v5
+
+FROM partial_mapping_sample_data
+| KEEP *
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?
+;
+
+doesNotLoadUnmappedFieldsDrop
+required_capability: optional_fields_v5
+
+FROM partial_mapping_sample_data
+| DROP client_ip
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | event_duration:long | message:keyword
+2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | 5033754             | Connection error?
+2024-10-23T13:52:55.015Z | 8268152             | Connection error?
+;
+
+doesNotLoadUnmappedFieldsRename
+required_capability: optional_fields_v5
+
+FROM partial_mapping_sample_data
+| RENAME message AS msg
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | msg:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?
+;
+
+doesNotLoadUnmappedFieldsDissect
+required_capability: optional_fields_v5
+
+FROM partial_mapping_sample_data
+| WHERE message LIKE "Connected*"
+| DISSECT message "Connected to %{target}"
+| SORT @timestamp DESC
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | target:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 10.1.0.1!
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 10.1.0.2!
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 10.1.0.3!
+;
+
+doesNotLoadUnmappedFieldsGrok
+required_capability: optional_fields_v5
+
+FROM partial_mapping_sample_data
+| WHERE message LIKE "Connected*"
+| GROK message "Connected to %{IP:address}!"
+| SORT @timestamp DESC
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | address:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 10.1.0.1
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 10.1.0.2
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 10.1.0.3
+;
+
+doesNotLoadUnmappedFieldsMvExpand
+required_capability: optional_fields_v5
+
+FROM partial_mapping_sample_data
+| MV_EXPAND message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?
+;
+
+doesNotLoadUnmappedFieldsLimit
+required_capability: optional_fields_v5
+
+FROM partial_mapping_sample_data
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?
+;
+
+doesNotLoadUnmappedFieldsLookupJoin
+required_capability: optional_fields_v5
+required_capability: join_lookup_v12
+
+FROM partial_mapping_sample_data
+| EVAL language_code = 1
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:integer | language_name:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | English
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 1                     | English
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 1                     | English
+;
+
+doesNotLoadUnmappedFieldsFork
+required_capability: optional_fields_v5
+required_capability: fork_v9
+
+FROM partial_mapping_sample_data
+| FORK (WHERE event_duration > 5000000) (WHERE event_duration < 800000)
+| SORT _fork, @timestamp DESC
+| KEEP _fork, @timestamp, event_duration, message
+;
+
+_fork:keyword | @timestamp:datetime      | event_duration:long | message:keyword
+fork1         | 2024-10-23T13:53:55.832Z | 5033754             | Connection error?
+fork1         | 2024-10-23T13:52:55.015Z | 8268152             | Connection error?
+fork2         | 2024-10-23T13:51:54.732Z | 725447              | Connection error?
+;
+
 loadLookupJoin_mappedKeyViaEval
 required_capability: optional_fields_load_with_lookup_join
 
@@ -484,6 +665,120 @@ s:long       | c:long | unmapped_message:keyword
 2764888      | 1      | Disconnected from 10.1.0.2
 3450232      | 1      | Disconnected from 10.1.0.3
 14027353     | 3      | Disconnection error
+;
+
+countUnmappedFieldExistsOnlyInSource
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| STATS c = COUNT(unmapped_message)
+;
+
+c:long
+7
+;
+
+countPartiallyUnmappedKeywordFieldIncludesSourceOnlyValues
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| STATS c = COUNT(message)
+;
+
+c:long
+14
+;
+
+countPartiallyUnmappedPunkCastIncludesSourceOnlyValues
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| EVAL event_duration = event_duration::keyword
+| STATS c = COUNT(event_duration)
+;
+
+c:long
+14
+;
+
+countMultivaluedUnmappedField
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| STATS c = COUNT(unmapped_mv)
+;
+
+c:long
+13
+;
+
+inlineCountUnmappedFieldExistsOnlyInSource
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| INLINE STATS c = COUNT(unmapped_message)
+| KEEP c
+| LIMIT 1
+;
+
+c:long
+7
+;
+
+inlineCountPartiallyUnmappedKeywordFieldIncludesSourceOnlyValues
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| INLINE STATS c = COUNT(message)
+| KEEP c
+| LIMIT 1
+;
+
+c:long
+14
+;
+
+inlineCountPartiallyUnmappedPunkCastIncludesSourceOnlyValues
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| EVAL event_duration = event_duration::keyword
+| INLINE STATS c = COUNT(event_duration)
+| KEEP c
+| LIMIT 1
+;
+
+c:long
+14
+;
+
+inlineCountMultivaluedUnmappedField
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| INLINE STATS c = COUNT(unmapped_mv)
+| KEEP c
+| LIMIT 1
+;
+
+c:long
+13
 ;
 
 inlineStatsByUnmappedFieldExistsInSource

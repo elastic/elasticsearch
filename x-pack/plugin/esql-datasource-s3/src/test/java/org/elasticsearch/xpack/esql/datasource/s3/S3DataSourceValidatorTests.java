@@ -82,6 +82,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         "multi_value_syntax",
         "header_row",
         "column_prefix",
+        "trim_spaces",
         "schema_sample_size"
     );
 

@@ -137,6 +137,77 @@ public class ErrorModelTests extends ESTestCase {
         assertThat(magnitudeModel.errorStd(128, 4096), greaterThan(0.0));
     }
 
+    public void testEstimateMagnitudeFromManifoldResidualsReturnsFiniteModel() throws IOException {
+        CalibrationFixture fixture = newCalibrationFixture(8);
+        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        double alpha = -1.5;
+        double invDim = 0.5;
+        QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromManifoldResiduals(alpha, invDim, source, false, 4, 2, 128, 5000);
+        assertTrue(Double.isFinite(model.params().beta0()));
+        assertTrue(Double.isFinite(model.params().beta1()));
+        assertThat(model.errorStd(128, 5000), greaterThan(0.0));
+    }
+
+    public void testEstimateMagnitudeFromManifoldResidualsUsesInvDimAsSlope() throws IOException {
+        CalibrationFixture fixture = newCalibrationFixture(8);
+        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        double invDim = 0.42;
+        QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromManifoldResiduals(-1.0, invDim, source, false, 4, 2, 128, 5000);
+        // slope beta1 is taken directly from invDim, not refit
+        assertEquals(invDim, model.params().beta1(), 0.0);
+    }
+
+    public void testEstimateMagnitudeFromManifoldResidualsWithDotProduct() throws IOException {
+        CalibrationFixture fixture = newCalibrationFixture(8);
+        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.DOT_PRODUCT, 10);
+        double invDim = 0.4;
+        QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromManifoldResiduals(-1.2, invDim, source, false, 4, 1, 128, 5000);
+        assertTrue(Double.isFinite(model.params().beta0()));
+        assertEquals(invDim, model.params().beta1(), 0.0);
+        assertThat(model.errorStd(128, 5000), greaterThan(0.0));
+    }
+
+    public void testEstimateMagnitudeFromManifoldResidualsSmallCorpus() throws IOException {
+        // corpus smaller than SAMPLE_SIZES_MAGNITUDE[0]=2048 — nDocs is clamped to corpusOrdinals.length
+        float[][] rows = syntheticClusteredRows(600, 8, 4);
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, 8);
+        int[] queryOrdinals = new int[10];
+        int[] corpusOrdinals = new int[500];
+        for (int i = 0; i < queryOrdinals.length; i++) {
+            queryOrdinals[i] = i;
+        }
+        for (int i = 0; i < corpusOrdinals.length; i++) {
+            corpusOrdinals[i] = 10 + i;
+        }
+        CalibrationSource source = new CalibrationSource(
+            VectorSimilarityFunction.EUCLIDEAN,
+            8,
+            fvv,
+            queryOrdinals,
+            8,
+            false,
+            false,
+            null,
+            corpusOrdinals,
+            10
+        );
+        double invDim = 0.3;
+        QuantizationErrorStdModel model = ErrorModel.estimateMagnitudeFromManifoldResiduals(-1.0, invDim, source, false, 4, 2, 64, 500);
+        assertTrue(Double.isFinite(model.params().beta0()));
+        assertEquals(invDim, model.params().beta1(), 0.0);
+    }
+
+    public void testEstimateMagnitudeFromManifoldResidualsIsDeterministic() throws IOException {
+        CalibrationFixture fixture = newCalibrationFixture(8);
+        CalibrationSource source = fixture.toSource(VectorSimilarityFunction.EUCLIDEAN, 10);
+        double alpha = -1.5;
+        double invDim = 0.5;
+        QuantizationErrorStdModel first = ErrorModel.estimateMagnitudeFromManifoldResiduals(alpha, invDim, source, false, 4, 2, 128, 5000);
+        QuantizationErrorStdModel second = ErrorModel.estimateMagnitudeFromManifoldResiduals(alpha, invDim, source, false, 4, 2, 128, 5000);
+        assertEquals(first.params().beta0(), second.params().beta0(), 0.0);
+        assertEquals(first.params().beta1(), second.params().beta1(), 0.0);
+    }
+
     private record CalibrationFixture(FloatVectorValues fvv, int[] queryOrdinals, int[] corpusOrdinals, int dim) {
         CalibrationSource toSource(VectorSimilarityFunction similarityFunction, int k) {
             return new CalibrationSource(similarityFunction, dim, fvv, queryOrdinals, dim, false, false, null, corpusOrdinals, k);

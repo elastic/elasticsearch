@@ -103,7 +103,9 @@ public class RestReindexActionTests extends RestActionTestCase {
               }
             }
             """)));
-        assertThat(e.getMessage(), containsString("[reindex] failed to parse field [dest]"));
+        assertThat(e.getMessage(), containsString("failed to parse field"));
+        assertThat(e.getCause().getMessage(), containsString("failed to parse field"));
+        assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
     }
 
     public void testFilterSource() throws IOException {

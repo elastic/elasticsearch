@@ -767,7 +767,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP message
-            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     /** Same scenario as {@link #testMappedInOneIndexOnly()}, deterministically pinned pre-{@link CompactMultiTypeEsField}. */
@@ -782,7 +782,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | EVAL x = message :: LONG
-            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     /** Same scenario as {@link #testMappedInOneIndexOnlyCast()}, deterministically pinned pre-{@link CompactMultiTypeEsField}. */
@@ -797,7 +797,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP event_duration
-            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     /** Same scenario as {@link #testMappedToNonKeywordInOneIndexOnly()}, deterministically pinned pre-{@link CompactMultiTypeEsField}. */
@@ -855,7 +855,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | WHERE message::keyword LIKE "Connected*"
             | KEEP message
-            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     /**
@@ -876,7 +876,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     public void testPartiallyMappedFieldsAutomaticallyFound() throws Exception {
         runTests("""
             FROM sample_data, no_mapping_sample_data
-            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     /**
@@ -895,7 +895,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP *
-            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     /**
@@ -913,7 +913,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP @timestamp, event_duration
-            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     /**
@@ -960,7 +960,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | DROP message
-            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     /**
@@ -979,7 +979,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | DROP event_duration
-            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     /**
@@ -998,7 +998,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | DROP *_ip, *_duration, @timestamp
-            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     /**

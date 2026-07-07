@@ -317,8 +317,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         "esql_lookup_join_full_text_function"
     );
 
-    public static final TransportVersion RESOLVE_TWO_LEGGED_PUNKS = TransportVersion.fromName("resolve_two_legged_punks");
-
     private final Verifier verifier;
 
     public Analyzer(AnalyzerContext context, Verifier verifier) {

@@ -374,9 +374,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
   method: testRefreshBlockRemovedAfterDelay
   issue: https://github.com/elastic/elasticsearch/issues/150662
-- class: org.elasticsearch.index.engine.InternalEngineTests
-  method: testShouldPeriodicallyFlushOnSize
-  issue: https://github.com/elastic/elasticsearch/issues/150669
 - class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
   method: testCircuitBreakerTripCountMetric
   issue: https://github.com/elastic/elasticsearch/issues/150700
@@ -614,12 +611,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498
-- class: org.elasticsearch.reindex.RestReindexActionTests
-  method: testDestSliceRejectedWhenFeatureFlagDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/152548
-- class: org.elasticsearch.reindex.ReindexScriptTests
-  method: testSetSliceRejectedWhenFeatureFlagDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/152547
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests
   method: testSerializeSumWithOverflowingLongSupplier
   issue: https://github.com/elastic/elasticsearch/issues/152506
@@ -755,9 +746,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testMultiTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/150101
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
-  issue: https://github.com/elastic/elasticsearch/issues/153084
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.doubleShadowingWithEval}
   issue: https://github.com/elastic/elasticsearch/issues/153096
@@ -773,3 +761,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationPitPositionsInBcc
   issue: https://github.com/elastic/elasticsearch/issues/153149
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:spatial_shapes.convertCartesianShapeFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/153154
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testRelocateHollowableShardWithConnectionFailure
+  issue: https://github.com/elastic/elasticsearch/issues/153156
+- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
+  method: testNdjsonBadDateTokenHonorsErrorPolicyMatchingColumnar
+  issue: https://github.com/elastic/elasticsearch/issues/153158

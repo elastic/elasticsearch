@@ -377,6 +377,18 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(null, null), row(br("x"), 5L)), rows);
     }
 
+    /** A declared KEYWORD column must be able to hold the literal string "null" (any case) — see #1098. */
+    public void testLiteralNullTextOnKeywordIsPreserved() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:long\nnull,1\nNULL,2\n");
+        assertEquals(List.of(row(br("null"), 1L), row(br("NULL"), 2L)), rows);
+    }
+
+    /** Non-string columns keep classifying the literal "null" token as a null marker. */
+    public void testLiteralNullTextOnTypedColumnIsNull() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:long,b:keyword\nnull,null\n1,x\n");
+        assertEquals(List.of(row(null, br("null")), row(1L, br("x"))), rows);
+    }
+
     /**
      * B1 inference parity: an untyped header forces inference, which under no-trim samples rows through the
      * house record tokenizer. The configured {@code null_value} marker must map to null before the inferrer
@@ -515,9 +527,16 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(null, null), row(br("x"), 5L)), rows);
     }
 
-    public void testTsvPlainLiteralNullTextIsNull() throws IOException {
+    /** A declared KEYWORD column must be able to hold the literal string "null" (any case) — see #1098. */
+    public void testTsvPlainLiteralNullTextOnKeywordIsPreserved() throws IOException {
         List<List<Object>> rows = read(true, Map.of(), "k:keyword\nnull\nNULL\nx\n");
-        assertEquals(List.of(row((Object) null), row((Object) null), row(br("x"))), rows);
+        assertEquals(List.of(row(br("null")), row(br("NULL")), row(br("x"))), rows);
+    }
+
+    /** Non-string columns keep classifying the literal "null" token as a null marker. */
+    public void testTsvPlainLiteralNullTextOnTypedColumnIsNull() throws IOException {
+        List<List<Object>> rows = read(true, Map.of(), "a:long\tb:keyword\nnull\tnull\n1\tx\n");
+        assertEquals(List.of(row(null, br("null")), row(1L, br("x"))), rows);
     }
 
     public void testTsvPlainDatetimeEpochAndIso() throws IOException {

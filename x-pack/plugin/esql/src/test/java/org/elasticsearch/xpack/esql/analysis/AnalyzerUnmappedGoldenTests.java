@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -816,40 +814,12 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    /**
-     * Same scenario as {@link #testTypeConflictTimeseriesLongUnmappedWithCast()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testTypeConflictTimeseriesLongUnmappedWithCastPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM k8s, k8s_unmapped
-            | EVAL bytes = network.bytes_in::long
-            | KEEP bytes
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
-    }
-
     public void testTSTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
         runTests("""
             TS k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
             """, DimensionValues.DIMENSION_VALUES_VERSION);
-    }
-
-    /**
-     * Same scenario as {@link #testTSTypeConflictTimeseriesLongUnmappedWithCast()}, deterministically pinned to a version
-     * that supports {@link DimensionValues#DIMENSION_VALUES_VERSION} but predates {@link CompactMultiTypeEsField}.
-     */
-    public void testTSTypeConflictTimeseriesLongUnmappedWithCastPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion(
-            """
-                TS k8s, k8s_unmapped
-                | EVAL bytes = network.bytes_in::long
-                | KEEP bytes
-                """,
-            STAGES,
-            randomVersionSupportingButNot(DimensionValues.DIMENSION_VALUES_VERSION, CompactMultiTypeEsField.CompactMultiTypeEsField)
-        );
     }
 
     public void testTypeConflictTimeseriesDoubleUnmappedWithCast() throws Exception {
@@ -860,34 +830,11 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    /**
-     * Same scenario as {@link #testTypeConflictTimeseriesDoubleUnmappedWithCast()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testTypeConflictTimeseriesDoubleUnmappedWithCastPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM k8s, k8s_unmapped
-            | EVAL cost = network.cost::double
-            | KEEP cost
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
-    }
-
     public void testTypeConflictTimeseriesStatsWithCast() throws Exception {
         runTests("""
             FROM k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
             """);
-    }
-
-    /**
-     * Same scenario as {@link #testTypeConflictTimeseriesStatsWithCast()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testTypeConflictTimeseriesStatsWithCastPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM k8s, k8s_unmapped
-            | STATS s = SUM(network.bytes_in::long) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
     }
 
     public void testTSTypeConflictTimeseriesStatsWithCast() throws Exception {
@@ -897,39 +844,12 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
-    /**
-     * Same scenario as {@link #testTSTypeConflictTimeseriesStatsWithCast()}, deterministically pinned to a version that
-     * supports {@link DimensionValues#DIMENSION_VALUES_VERSION} but predates {@link CompactMultiTypeEsField}.
-     */
-    public void testTSTypeConflictTimeseriesStatsWithCastPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion(
-            """
-                TS k8s, k8s_unmapped
-                | STATS s = SUM(network.bytes_in::long) BY cluster
-                """,
-            STAGES,
-            randomVersionSupportingButNot(DimensionValues.DIMENSION_VALUES_VERSION, CompactMultiTypeEsField.CompactMultiTypeEsField)
-        );
-    }
-
     public void testTypeConflictTimeseriesWhereWithCast() throws Exception {
         runTests("""
             FROM k8s, k8s_unmapped
             | WHERE network.cost::double > 10.0
             | KEEP cluster, network.cost
             """);
-    }
-
-    /**
-     * Same scenario as {@link #testTypeConflictTimeseriesWhereWithCast()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testTypeConflictTimeseriesWhereWithCastPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM k8s, k8s_unmapped
-            | WHERE network.cost::double > 10.0
-            | KEEP cluster, network.cost
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
     }
 
     public void testPartiallyMappedField() throws Exception {
@@ -992,38 +912,12 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    /**
-     * Same scenario as {@link #testTypeConflictMappedAndUnmappedWithCast()}, but deterministically pinned to a
-     * transport version that predates {@link CompactMultiTypeEsField}. The two-legged-punk auto-cast rule must still
-     * fire (it no longer checks the minimum version at all), but it has to fall back to the legacy
-     * {@code MultiTypeEsField} representation for wire-compatibility with nodes that don't understand the compact one.
-     */
-    public void testTypeConflictMappedAndUnmappedWithCastPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data, no_mapping_sample_data
-            | EVAL event_duration = event_duration::long
-            | KEEP event_duration
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
-    }
-
     public void testTypeConflictMappedTimesTwoAndUnmapped() throws Exception {
         runTests("""
             FROM sample_data_ts_long, sample_data, no_mapping_sample_data
             | EVAL ts = @timestamp::date
             | KEEP ts
             """);
-    }
-
-    /**
-     * Same scenario as {@link #testTypeConflictMappedTimesTwoAndUnmapped()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testTypeConflictMappedTimesTwoAndUnmappedPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data_ts_long, sample_data, no_mapping_sample_data
-            | EVAL ts = @timestamp::date
-            | KEEP ts
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
     }
 
     public void testNoTypeConflictKeywordAndUnmappedWhere() throws Exception {
@@ -1502,20 +1396,5 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
 
     private void runTests(String query, TransportVersion minimumSupportedVersion, String... nestedPath) {
         runTestsNullifyAndLoad(query, STAGES, minimumSupportedVersion, nestedPath);
-    }
-
-    /**
-     * A random version that supports {@code mustSupport} but not {@code mustNotSupport}. Used for TS-mode two-legged-punk
-     * tests, which need {@link DimensionValues#DIMENSION_VALUES_VERSION} for correct dimension-column output, while still
-     * predating {@link CompactMultiTypeEsField} to exercise the legacy {@code MultiTypeEsField} fallback.
-     */
-    private static TransportVersion randomVersionSupportingButNot(TransportVersion mustSupport, TransportVersion mustNotSupport) {
-        return RandomPicks.randomFrom(
-            random(),
-            TransportVersionUtils.allReleasedVersions()
-                .stream()
-                .filter(v -> v.supports(mustSupport) && v.supports(mustNotSupport) == false)
-                .toList()
-        );
     }
 }

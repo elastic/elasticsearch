@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Multi-node end-to-end guard that Hive partition-column <em>values</em> attach correctly when an external-source
@@ -46,10 +47,16 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * {@code ensureAtLeastNumDataNodes(2)}) and asserts via the profile that the {@code ExternalDataSource} scan ran on
  * at least two distinct data nodes.
  *
- * <p>Why {@code STATS COUNT(*) BY p}: grouping on the partition column collapses every row into a single {@code null}
- * group if the value failed to attach on the data node. Getting back two groups {@code {a=3, b=2}} proves the
- * per-file partition values reached the data-node read intact — a stronger signal than reading the raw
- * {@code a,a,a,b,b} column, which a single missing value would only dent rather than collapse.
+ * <p>Why {@code STATS COUNT(*) BY <partition>}: grouping on the partition column collapses every row into a single
+ * {@code null} group if the value failed to attach on the data node, and into a single group if the per-file values
+ * cross-contaminated. Getting back the two distinct groups with their real counts proves the per-file partition
+ * values reached the data-node read intact.
+ *
+ * <p>The Parquet and CSV tests cover a STRING partition ({@code p=a}/{@code p=b}); the integer test covers an
+ * INTEGER partition ({@code n=1}/{@code n=2}) — the one genuinely distributed-specific case, because the value must
+ * survive the {@code writeGenericMap}/{@code readGenericMap} round-trip on the data node <em>as an Integer</em> (a
+ * silent degrade to String would surface the group key as a keyword) and render through the {@code case Integer} arm
+ * of {@code VirtualColumnIterator.createConstantBlock}.
  */
 public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDataSourceIT {
 
@@ -69,7 +76,7 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.parquet";
         String dataset = registerDataset("hive_parquet_values", glob, Map.of("hive_partitioning", true));
-        assertPartitionValuesAttachOnDistributedRead(dataset);
+        assertStringPartitionGroups(dataset);
     }
 
     /**
@@ -84,23 +91,68 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
         String dataset = registerDataset("hive_csv_values", glob, Map.of("hive_partitioning", true));
-        assertPartitionValuesAttachOnDistributedRead(dataset);
+        assertStringPartitionGroups(dataset);
     }
 
     /**
-     * Forces distribution across data nodes, runs {@code STATS COUNT(*) BY p}, and asserts (1) the external scan ran
-     * on &gt;=2 distinct data nodes (so the distributed leg is genuinely exercised, not a coordinator-local
-     * short-circuit) and (2) the partition column grouped into the two real path values {@code {a=3, b=2}}, never a
-     * single {@code null} group.
+     * INTEGER partition ({@code n=1}: 3 rows, {@code n=2}: 2 rows). {@code HivePartitionDetector} infers the numeric
+     * segment as INTEGER (Spark-style), so the value rides the data node as a boxed {@code Integer} and must survive
+     * the {@code writeGenericMap}/{@code readGenericMap} type round-trip and render through the {@code case Integer}
+     * arm — a distributed-specific property the string cells cannot reach. A degrade to String would surface the
+     * group key as a keyword and fail the {@code Integer} type assertion below.
      */
-    private void assertPartitionValuesAttachOnDistributedRead(String dataset) {
+    public void testIntegerHivePartitionValuesAttachOnDistributedRead() throws Exception {
+        Path root = createTempDir().resolve("hive_int_values");
+        writeIdParquet(root.resolve("n=1"), 3);
+        writeIdParquet(root.resolve("n=2"), 2);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.parquet";
+        String dataset = registerDataset("hive_int_values", glob, Map.of("hive_partitioning", true));
+
+        QueryResult result = runDistributedStatsByPartition(dataset, "n");
+        int nIdx = result.columns().indexOf("n");
+        int cIdx = result.columns().indexOf("c");
+        assertThat("missing partition column 'n'", nIdx, greaterThanOrEqualTo(0));
+
+        Map<Integer, Long> countByPartition = new HashMap<>();
+        for (List<Object> row : result.rows()) {
+            Object partition = row.get(nIdx);
+            assertThat("integer partition must survive the data-node round-trip as Integer", partition, instanceOf(Integer.class));
+            countByPartition.put((Integer) partition, ((Number) row.get(cIdx)).longValue());
+        }
+        assertThat(countByPartition, equalTo(Map.of(1, 3L, 2, 2L)));
+    }
+
+    /** Runs {@code STATS COUNT(*) BY p} distributed and asserts the two real string groups {@code {a=3, b=2}}. */
+    private void assertStringPartitionGroups(String dataset) {
+        QueryResult result = runDistributedStatsByPartition(dataset, "p");
+        int pIdx = result.columns().indexOf("p");
+        int cIdx = result.columns().indexOf("c");
+        assertThat("missing partition column 'p'", pIdx, greaterThanOrEqualTo(0));
+
+        Map<String, Long> countByPartition = new HashMap<>();
+        for (List<Object> row : result.rows()) {
+            Object partition = row.get(pIdx);
+            assertNotNull("partition value must attach on the distributed read, got null", partition);
+            countByPartition.put(partition.toString(), ((Number) row.get(cIdx)).longValue());
+        }
+        assertThat(countByPartition, equalTo(Map.of("a", 3L, "b", 2L)));
+    }
+
+    /**
+     * Forces distribution across data nodes and runs {@code STATS c = COUNT(*) BY <partitionCol>}, asserting the
+     * external scan ran on &gt;=2 distinct data nodes (so the distributed leg is genuinely exercised, not a
+     * coordinator-local short-circuit that would resolve values from the FileList). Returns the response columns and
+     * rows for the caller to assert the partition groups.
+     */
+    private QueryResult runDistributedStatsByPartition(String dataset, String partitionCol) {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         // round_robin distributes every split to a data node regardless of plan shape, so the read runs where the
         // coordinator FileList is UNRESOLVED and partition names must come from the serialized _partition.columns stamp.
         QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build());
 
-        String query = "FROM " + dataset + " | STATS c = COUNT(*) BY p | SORT p";
+        String query = "FROM " + dataset + " | STATS c = COUNT(*) BY " + partitionCol;
         var request = syncEsqlQueryRequest(query);
         request.pragmas(pragmas);
         request.acceptedPragmaRisks(true); // pragmas are rejected on non-snapshot builds without this
@@ -120,19 +172,13 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
 
             List<String> columns = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
             int cIdx = columns.indexOf("c");
-            int pIdx = columns.indexOf("p");
             assertThat("missing count column", cIdx, greaterThanOrEqualTo(0));
-            assertThat("missing partition column 'p'", pIdx, greaterThanOrEqualTo(0));
-
-            Map<String, Long> countByPartition = new HashMap<>();
-            for (List<Object> row : getValuesList(response)) {
-                Object partition = row.get(pIdx);
-                assertNotNull("partition value must attach on the distributed read, got null", partition);
-                countByPartition.put(partition.toString(), ((Number) row.get(cIdx)).longValue());
-            }
-            assertThat(countByPartition, equalTo(Map.of("a", 3L, "b", 2L)));
+            return new QueryResult(columns, getValuesList(response));
         }
     }
+
+    /** Columns + rows lifted out of a (closed) response so callers can assert partition groups. */
+    private record QueryResult(List<String> columns, List<List<Object>> rows) {}
 
     /** Writes a single-column ({@code id: int32}) Parquet file with {@code rowCount} rows (ids 0..rowCount-1). */
     private void writeIdParquet(Path dir, int rowCount) throws IOException {

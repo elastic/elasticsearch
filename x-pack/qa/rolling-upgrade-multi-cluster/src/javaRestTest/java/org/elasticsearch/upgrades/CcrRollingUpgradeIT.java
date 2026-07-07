@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -27,6 +29,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
+
+    public CcrRollingUpgradeIT(
+        @Name("clusterName") ClusterName clusterName,
+        @Name("leaderNodesUpgraded") int leaderNodesUpgraded,
+        @Name("followerNodesUpgraded") int followerNodesUpgraded
+    ) {
+        super(clusterName, leaderNodesUpgraded, followerNodesUpgraded);
+    }
 
     public void testUniDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);

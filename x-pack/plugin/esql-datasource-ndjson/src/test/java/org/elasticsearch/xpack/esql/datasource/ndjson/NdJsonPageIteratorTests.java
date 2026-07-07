@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -35,6 +38,8 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -58,6 +63,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -1084,6 +1090,93 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testDeclaredNumericCoercesStringTokensLikeCastEngine() throws IOException {
+        // A JSON string in a declared numeric column is coerced through the :: cast engine and rounds
+        // (matching CSV and the columnar readers), where it was formerly a policy-blind silent null.
+        String ndjson = """
+            {"n": "42", "m": "1.9"}
+            {"n": "7", "m": "2.5"}
+            """;
+        var object = new BytesStorageObject("file:///nums.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "m", DataType.LONG)
+        );
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("n", "m"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            LongBlock n = page.getBlock(0);
+            LongBlock m = page.getBlock(1);
+            assertEquals(42L, n.getLong(0));
+            assertEquals(7L, n.getLong(1));
+            assertEquals(2L, m.getLong(0)); // "1.9" -> 2 (round, == ::long)
+            assertEquals(3L, m.getLong(1)); // "2.5" -> 3 (round)
+        }
+    }
+
+    public void testDeclaredNumericBadStringFailsUnderStrict() throws IOException {
+        // A string that is not a number in a declared numeric column is a coercion failure routed through
+        // the error policy (strict fails), like a malformed CSV value — not a silent null.
+        String ndjson = "{\"n\": \"notanumber\"}\n";
+        var object = new BytesStorageObject("file:///bad.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("n"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            });
+            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [long]"));
+        }
+    }
+
+    public void testDeclaredDatetimeFormatOverridesNumericEpochShortcut() throws IOException {
+        // A column declared {datetime, format:"yyyyMMdd"} must read the numeric token 20260101 as
+        // 2026-01-01 (the declared format is authoritative), NOT as epoch millis — matching CSV and the
+        // columnar readers. Regression for the epoch-reinterpret-past-declared-format bug.
+        String ndjson = "{\"ts\": 20260101}\n";
+        var object = new BytesStorageObject("file:///dt.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory).withDeclaredDateFormats(Map.of("ts", "yyyyMMdd"));
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATETIME));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("ts"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(Instant.parse("2026-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
     public void testTypeDifferentFromSchema() throws IOException {
 
         String ndjson = """
@@ -1115,6 +1208,127 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
             assertEquals(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
             assertTrue(page.getBlock(0).isNull(1)); // Boolean ignored
+        }
+    }
+
+    public void testDeclaredCrossKindBooleanFailsUnderStrict() throws IOException {
+        // A boolean in a DECLARED long column is an unsupported cross-kind token with no coercion. On a declared
+        // column it must route through the error policy (strict fails) rather than silently reading as null — the
+        // declared-type invariant that no declared type may silently read as null.
+        String ndjson = "{\"n\": true}\n";
+        var object = new BytesStorageObject("file:///xkind.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory).withDeclaredTypeColumns(Set.of("n"));
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("n"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            });
+            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [long]"));
+        }
+    }
+
+    public void testInferredCrossKindBooleanStaysSilentNull() throws IOException {
+        // An inferred (not declared) long column keeps the pre-existing schema-on-read tolerance: a boolean on a
+        // later line is silently null, unchanged. Mirrors testTypeDifferentFromSchema.
+        String ndjson = """
+            {"n": 1}
+            {"n": true}
+            """;
+        var settings = Settings.builder().put(NdJsonFormatReader.SCHEMA_SAMPLE_SIZE_SETTING, 1).build();
+        var reader = new NdJsonFormatReader(settings, blockFactory);
+        var object = new BytesStorageObject("file:///inferred.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("n"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            var n = page.getBlock(0);
+            assertEquals(2, n.getPositionCount());
+            assertFalse(n.isNull(0));
+            assertTrue(n.isNull(1)); // boolean cross-kind silently null on an inferred column
+        }
+    }
+
+    public void testDeclaredTextColumnReadsString() throws IOException {
+        // TEXT is declarable (DeclaredSchemaValidator.DECLARABLE_TYPES) and reads like KEYWORD — a BytesRef block.
+        String ndjson = "{\"t\": \"hello\"}\n";
+        var object = new BytesStorageObject("file:///text.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "t", DataType.TEXT));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("t"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            BytesRefBlock t = page.getBlock(0);
+            assertEquals(new BytesRef("hello"), t.getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    public void testDeclaredIpColumnReadsValidIpAndBadFailsUnderStrict() throws IOException {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "addr", DataType.IP));
+
+        // A valid IP string parses to the encoded InetAddressPoint form (matching CsvFormatReader.tryParseIp).
+        String good = "{\"addr\": \"192.168.1.1\"}\n";
+        try (
+            var iterator = reader.read(
+                new BytesStorageObject("file:///ip.ndjson", good.getBytes(StandardCharsets.UTF_8)),
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("addr"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            BytesRefBlock addr = page.getBlock(0);
+            assertEquals(
+                new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.1"))),
+                addr.getBytesRef(0, new BytesRef())
+            );
+        }
+
+        // A string that is not a valid IP is a coercion failure routed through the error policy (strict fails).
+        String bad = "{\"addr\": \"not-an-ip\"}\n";
+        try (
+            var iterator = reader.read(
+                new BytesStorageObject("file:///ipbad.ndjson", bad.getBytes(StandardCharsets.UTF_8)),
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("addr"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            });
+            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [ip]"));
         }
     }
 
@@ -1172,6 +1386,256 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
             assertEquals(2, page.getBlockCount());
         }
+    }
+
+    public void testNestedObjectSometimesNull() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        // "address" is a nested-object prefix in the schema (address.city / address.zip), but in one row it is a JSON null.
+        // Reproduces https://github.com/elastic/elasticsearch/issues/152574 (NPE on structural decoder nodes).
+        String ndjson = """
+            {"address": {"city": "NYC", "zip": "10001"}}
+            {"address": null}
+            {"address": {"city": "London", "zip": "SW1A"}}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("address.city", "address.zip"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                   BYTES_REF   |   BYTES_REF  \s
+                ---------------+---------------
+                NYC            |10001         \s
+                null           |null          \s
+                London         |SW1A          \s
+                """);
+            assertEquals(3, page.getPositionCount());
+        }
+    }
+
+    public void testDeeplyNestedObjectSometimesNull() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        // Intermediate prefix "user.sessionContext" is an object in one row and JSON null in another.
+        String ndjson = """
+            {"user": {"type": "Root", "sessionContext": {"creationDate": "2017"}}}
+            {"user": {"type": "IAMUser", "sessionContext": null}}
+            {"user": null}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("user.type", "user.sessionContext.creationDate"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                   BYTES_REF   |   BYTES_REF  \s
+                ---------------+---------------
+                Root           |2017          \s
+                IAMUser        |null          \s
+                null           |null          \s
+                """);
+            assertEquals(3, page.getPositionCount());
+        }
+    }
+
+    /**
+     * Issue-faithful regression for https://github.com/elastic/elasticsearch/issues/152574: AWS CloudTrail-shaped
+     * NDJSON read through full per-file schema inference (null projection), with a nested {@code userIdentity} object
+     * that is sometimes {@code null} and an arbitrary {@code responseElements} object that is intermittently
+     * {@code null}. The previous code NPE'd on the structural decoder nodes; here the whole file must decode with the
+     * mismatched rows null-filled and every column staying row-aligned.
+     */
+    public void testCloudTrailNestedObjectsWithInferredSchema() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"eventSource":"s3.amazonaws.com","userIdentity":{"type":"Root","arn":"arn:1"},"responseElements":{"code":"200"}}
+            {"eventSource":"ec2.amazonaws.com","userIdentity":{"type":"IAMUser","arn":"arn:2"},"responseElements":null}
+            {"eventSource":"iam.amazonaws.com","userIdentity":null,"responseElements":{"code":"403"}}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///cloudtrail.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var schema = reader.metadata(object).schema();
+
+        try (var iterator = reader.read(object, null, 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            for (int b = 0; b < page.getBlockCount(); b++) {
+                assertEquals("column " + b + " row-misaligned", 3, page.getBlock(b).getPositionCount());
+            }
+
+            BytesRef scratch = new BytesRef();
+            BytesRefBlock eventSource = page.getBlock(indexOf(schema, "eventSource"));
+            assertEquals("s3.amazonaws.com", eventSource.getBytesRef(eventSource.getFirstValueIndex(0), scratch).utf8ToString());
+            assertEquals("iam.amazonaws.com", eventSource.getBytesRef(eventSource.getFirstValueIndex(2), scratch).utf8ToString());
+
+            BytesRefBlock userType = page.getBlock(indexOf(schema, "userIdentity.type"));
+            assertEquals("Root", userType.getBytesRef(userType.getFirstValueIndex(0), scratch).utf8ToString());
+            assertEquals("IAMUser", userType.getBytesRef(userType.getFirstValueIndex(1), scratch).utf8ToString());
+            assertTrue("userIdentity null row -> userIdentity.type null", userType.isNull(2));
+
+            BytesRefBlock respCode = page.getBlock(indexOf(schema, "responseElements.code"));
+            assertEquals("200", respCode.getBytesRef(respCode.getFirstValueIndex(0), scratch).utf8ToString());
+            assertTrue("responseElements null row -> responseElements.code null", respCode.isNull(1));
+            assertEquals("403", respCode.getBytesRef(respCode.getFirstValueIndex(2), scratch).utf8ToString());
+        }
+    }
+
+    /**
+     * Reproduces the exact repro from elastic/esql-planning#1028: an NDJSON field ("user") that is a scalar in
+     * some sampled records and a JSON object in others must resolve to exactly one shape in the inferred schema
+     * -- never both a scalar "user" attribute and its nested "user.id"/"user.tier" children.
+     */
+    public void testScalarThenObjectConflictSchemaIsSingleShape() throws IOException {
+        String ndjson = """
+            {"event":1,"user":"alice"}
+            {"event":2,"user":{"id":"bob","tier":"gold"}}
+            {"event":3,"user":"carol"}
+            """;
+        var object = new BytesStorageObject("memory://scalar-then-object.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        List<String> userFamily = schema.stream().map(Attribute::name).filter(n -> n.equals("user") || n.startsWith("user.")).toList();
+        assertEquals("expected exactly one scalar [user] shape, got: " + userFamily, List.of("user"), userFamily);
+        assertEquals(DataType.KEYWORD, schema.get(indexOf(schema, "user")).dataType());
+    }
+
+    /** Mirror of {@link #testScalarThenObjectConflictSchemaIsSingleShape}: object shape observed first. */
+    public void testObjectThenScalarConflictSchemaIsSingleShape() throws IOException {
+        String ndjson = """
+            {"event":1,"user":{"id":"bob","tier":"gold"}}
+            {"event":2,"user":"alice"}
+            {"event":3,"user":{"id":"carol","tier":"silver"}}
+            """;
+        var object = new BytesStorageObject("memory://object-then-scalar.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        List<String> userFamily = schema.stream().map(Attribute::name).filter(n -> n.equals("user") || n.startsWith("user.")).toList();
+        assertEquals("expected exactly the nested [user.*] shape, got: " + userFamily, List.of("user.id", "user.tier"), userFamily);
+    }
+
+    /**
+     * Under {@link ErrorPolicy#STRICT}, reaching the conflicting record must fail the query with an actionable
+     * message naming the field and both shapes, mirroring how core ES dynamic mapping rejects the same
+     * ambiguity as a hard document-parsing conflict, rather than silently null-filling as it did pre-#1028.
+     */
+    public void testScalarThenObjectConflictStrictFailsOnceReached() throws IOException {
+        String ndjson = """
+            {"event":1,"user":"alice"}
+            {"event":2,"user":{"id":"bob","tier":"gold"}}
+            {"event":3,"user":"carol"}
+            """;
+        var object = new BytesStorageObject("memory://scalar-then-object.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var ctx = FormatReadContext.builder().batchSize(1).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page first = iterator.next();
+            assertEquals(1, first.getPositionCount());
+            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("user"));
+            assertThat(ex.getMessage(), Matchers.containsString("an object"));
+        }
+    }
+
+    /** Mirror of {@link #testScalarThenObjectConflictStrictFailsOnceReached}: object shape observed first. */
+    public void testObjectThenScalarConflictStrictFailsOnceReached() throws IOException {
+        String ndjson = """
+            {"event":1,"user":{"id":"bob","tier":"gold"}}
+            {"event":2,"user":"alice"}
+            {"event":3,"user":{"id":"carol","tier":"silver"}}
+            """;
+        var object = new BytesStorageObject("memory://object-then-scalar.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var ctx = FormatReadContext.builder().batchSize(1).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page first = iterator.next();
+            assertEquals(1, first.getPositionCount());
+            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("user"));
+            assertThat(ex.getMessage(), Matchers.containsString("an object"));
+        }
+    }
+
+    /**
+     * Under a non-strict policy, the conflicting record's [user] column is null-filled and a client warning is
+     * surfaced, while [event] (and the other records) decode normally -- a per-field null-fill, not a
+     * whole-row skip (elastic/esql-planning#1028).
+     */
+    public void testScalarThenObjectConflictLenientNullFillsAndWarns() throws IOException {
+        String ndjson = """
+            {"event":1,"user":"alice"}
+            {"event":2,"user":{"id":"bob","tier":"gold"}}
+            {"event":3,"user":"carol"}
+            """;
+        var object = new BytesStorageObject("memory://scalar-then-object.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var schema = reader.metadata(object).schema();
+        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            IntBlock event = page.getBlock(indexOf(schema, "event"));
+            BytesRefBlock user = page.getBlock(indexOf(schema, "user"));
+            BytesRef scratch = new BytesRef();
+            assertEquals(1, event.getInt(event.getFirstValueIndex(0)));
+            assertEquals("alice", user.getBytesRef(user.getFirstValueIndex(0), scratch).utf8ToString());
+            assertEquals(2, event.getInt(event.getFirstValueIndex(1)));
+            assertTrue("object-valued row -> user null", user.isNull(1));
+            assertEquals(3, event.getInt(event.getFirstValueIndex(2)));
+            assertEquals("carol", user.getBytesRef(user.getFirstValueIndex(2), scratch).utf8ToString());
+        }
+        List<String> warnings = drainWarnings();
+        assertFalse("expected a warning for the shape conflict", warnings.isEmpty());
+        assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("user")));
+    }
+
+    /** Mirror of {@link #testScalarThenObjectConflictLenientNullFillsAndWarns}: object shape observed first. */
+    public void testObjectThenScalarConflictLenientNullFillsAndWarns() throws IOException {
+        String ndjson = """
+            {"event":1,"user":{"id":"bob","tier":"gold"}}
+            {"event":2,"user":"alice"}
+            {"event":3,"user":{"id":"carol","tier":"silver"}}
+            """;
+        var object = new BytesStorageObject("memory://object-then-scalar.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var schema = reader.metadata(object).schema();
+        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            BytesRefBlock userId = page.getBlock(indexOf(schema, "user.id"));
+            BytesRefBlock userTier = page.getBlock(indexOf(schema, "user.tier"));
+            BytesRef scratch = new BytesRef();
+            assertEquals("bob", userId.getBytesRef(userId.getFirstValueIndex(0), scratch).utf8ToString());
+            assertEquals("gold", userTier.getBytesRef(userTier.getFirstValueIndex(0), scratch).utf8ToString());
+            assertTrue("scalar-valued row -> user.id null", userId.isNull(1));
+            assertTrue("scalar-valued row -> user.tier null", userTier.isNull(1));
+            assertEquals("carol", userId.getBytesRef(userId.getFirstValueIndex(2), scratch).utf8ToString());
+            assertEquals("silver", userTier.getBytesRef(userTier.getFirstValueIndex(2), scratch).utf8ToString());
+        }
+        List<String> warnings = drainWarnings();
+        assertFalse("expected a warning for the shape conflict", warnings.isEmpty());
+        assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("user")));
+    }
+
+    private static int indexOf(List<Attribute> schema, String name) {
+        for (int i = 0; i < schema.size(); i++) {
+            if (schema.get(i).name().equals(name)) {
+                return i;
+            }
+        }
+        throw new AssertionError("column [" + name + "] not found in schema " + schema);
     }
 
     public void testArrayOfObjects() throws IOException {

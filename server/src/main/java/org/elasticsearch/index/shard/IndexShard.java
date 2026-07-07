@@ -74,7 +74,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -163,6 +162,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
@@ -1140,7 +1140,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Applies a batch of index operations on the primary. Returns null if any operation requires a mapping update,
      * signaling the caller to fall back to the item-by-item path.
      */
-    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(List<Engine.Index> operations, EirfBatch batch) throws IOException {
+    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(List<Engine.Index> operations, SourceBatch batch) throws IOException {
         ensureWriteAllowed(Engine.Operation.Origin.PRIMARY);
         final Engine engine = getEngine();
         return indexBatch(engine, operations, batch);
@@ -1149,13 +1149,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Applies a batch of index operations on a replica.
      */
-    public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(List<Engine.Index> operations, EirfBatch batch) throws IOException {
+    public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(List<Engine.Index> operations, SourceBatch batch) throws IOException {
         ensureWriteAllowed(Engine.Operation.Origin.REPLICA);
         final Engine engine = getEngine();
         return indexBatch(engine, operations, batch);
     }
 
-    private List<Engine.IndexResult> indexBatch(Engine engine, List<Engine.Index> operations, EirfBatch batch) throws IOException {
+    private List<Engine.IndexResult> indexBatch(Engine engine, List<Engine.Index> operations, SourceBatch batch) throws IOException {
         List<Engine.Index> preIndexOps = new ArrayList<>(operations.size());
         // TODO: Right now the only production users are stats. Should add batch listener.
         for (Engine.Index op : operations) {
@@ -1781,34 +1781,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public Engine.SearcherSupplier acquireSearcherSupplier() {
-        return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL);
-    }
-
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      * The supplier is aware of shard splits and will filter documents that have been moved to other shards
      * according to the provided {@link SplitShardCountSummary}.
      * @param splitShardCountSummary a summary of the shard routing state seen when the search request was created
      * @return a searcher supplier
      */
     public Engine.SearcherSupplier acquireExternalSearcherSupplier(SplitShardCountSummary splitShardCountSummary) {
-        return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL, splitShardCountSummary);
-    }
-
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
-        return acquireSearcherSupplier(scope, SplitShardCountSummary.UNSET);
-    }
-
-    public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope, SplitShardCountSummary splitShardCountSummary) {
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        return engine.acquireSearcherSupplier(this::wrapSearcher, scope, splitShardCountSummary);
+        return engine.acquireSearcherSupplier(this::wrapSearcher, Engine.SearcherScope.EXTERNAL, splitShardCountSummary);
     }
 
     /**
@@ -4639,6 +4621,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             listener.accept(false);
         }
+    }
+
+    /**
+     * Variant of {@link #ensureShardSearchActive(Consumer)} that dispatches the listener on {@code responseExecutor} when a refresh was
+     * pending, keeping non-trivial search-side work off the refresh-completing thread (often an indexing or recovery thread). When no
+     * refresh is pending the listener runs inline on the calling thread; if dispatching fails it is invoked inline with {@code true}.
+     *
+     * @param responseExecutor the executor on which to invoke the listener when it was registered to wait for a refresh
+     * @param listener         the listener to invoke once the pending refresh location is visible. The listener will be called with
+     *                         <code>true</code> if the listener was registered to wait for a refresh.
+     */
+    public final void ensureShardSearchActive(Executor responseExecutor, Consumer<Boolean> listener) {
+        Objects.requireNonNull(responseExecutor);
+        ensureShardSearchActive(wasRegistered -> {
+            if (wasRegistered) {
+                try {
+                    responseExecutor.execute(() -> listener.accept(true));
+                } catch (Exception e) {
+                    logger.warn(() -> format("ensureShardSearchActive could not dispatch to [%s], running inline", responseExecutor), e);
+                    listener.accept(true);
+                }
+            } else {
+                listener.accept(false);
+            }
+        });
     }
 
     /**

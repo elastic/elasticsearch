@@ -46,6 +46,8 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
     // Baselines
     // -------------------------------------------------------------------------
 
+    private static final Set<String> KNOWN_GET_ROOT_DIR = [] as Set
+
     private static final Set<String> KNOWN_GET_ROOT_PROJECT = [
         "org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin",
         "org.elasticsearch.gradle.internal.BuildPlugin",
@@ -94,6 +96,20 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
     // -------------------------------------------------------------------------
     // Rules
     // -------------------------------------------------------------------------
+
+    def "production code does not call Project.getRootDir()"() {
+        given:
+        ArchRule rule = noClasses()
+            .that(notInBaseline(KNOWN_GET_ROOT_DIR))
+            .should().callMethodWhere(projectMethodNamed("getRootDir"))
+            .because("Project.getRootDir() returns the root project directory as a raw File and is incompatible "
+                + "with project isolation and the configuration cache; use "
+                + "ProjectLayout.getSettingsDirectory() instead, which returns a lazy Directory "
+                + "that is cache-safe")
+
+        expect:
+        rule.check(productionClasses)
+    }
 
     def "production code does not call Project.getRootProject()"() {
         given:
@@ -183,6 +199,14 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
     // -------------------------------------------------------------------------
     // Staleness checks
     // -------------------------------------------------------------------------
+
+    def "the getRootDir baseline contains no stale entries"() {
+        expect:
+        List<String> stale = staleBaselineEntries(KNOWN_GET_ROOT_DIR, productionClasses) { JavaClass c ->
+            callsProjectMethod(c, "getRootDir")
+        }
+        assert stale.isEmpty(), "Stale entries (migrated or removed) — delete them:\n  " + stale.join("\n  ")
+    }
 
     def "the getRootProject baseline contains no stale entries"() {
         expect:

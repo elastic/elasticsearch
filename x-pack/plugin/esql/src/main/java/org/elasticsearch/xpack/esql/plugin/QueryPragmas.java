@@ -193,7 +193,7 @@ public final class QueryPragmas implements Writeable {
     /**
      *  When {@code true}, allows full-text functions to be used with expressions that are not indexed fields.
      */
-    public static final Setting<Boolean> RUNTIME_LEXICAL_SEARCH = Setting.boolSetting("runtime_lexical_search", false);
+    public static final Setting<Boolean> RUNTIME_LEXICAL_SEARCH = Setting.boolSetting("runtime_lexical_search", true);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -219,6 +219,7 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
+        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         RUNTIME_LEXICAL_SEARCH
     ).map(Setting::getKey).toList();
 
@@ -396,6 +397,13 @@ public final class QueryPragmas implements Writeable {
             return PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
         }
         return defaultThreshold;
+    }
+
+    public int timeSeriesTargetChunkRows(int defaultChunkRows) {
+        if (settings.hasValue(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey())) {
+            return PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.get(settings);
+        }
+        return defaultChunkRows;
     }
 
     public int docsThresholdForAutoPartitioning(int defaultThreshold) {

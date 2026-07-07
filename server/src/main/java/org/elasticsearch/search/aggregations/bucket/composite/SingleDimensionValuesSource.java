@@ -141,16 +141,6 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     abstract SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query);
 
     /**
-     * Whether this source encodes slot values in a per-segment space (e.g. segment ordinals) so that the
-     * {@link CompositeValuesCollectorQueue} must rebuild its value-to-slot map at every segment boundary, after this
-     * source has remapped its slots in {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}. Sources whose
-     * slot encoding is stable across segments (raw bytes, numeric values) return {@code false} (the default).
-     */
-    boolean requiresMapRebuildPerSegment() {
-        return false;
-    }
-
-    /**
      * Returns true if a {@link SortedDocsProducer} should be used to optimize the execution.
      */
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {

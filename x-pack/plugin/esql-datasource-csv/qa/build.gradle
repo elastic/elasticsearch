@@ -54,12 +54,47 @@ def serverProject = project(xpackModule('esql:qa:server'))
 def csvIcebergFixtureRoot = file("${buildDir}/csv-iceberg-fixtures")
 def tsvFixtureOutputRoot = file("${buildDir}/generated-tsv-fixtures")
 
+// The source-of-truth CSVs spell null as an empty (or whitespace-only, for padding) cell — the ingested
+// CsvTestsDataLoader convention. CsvFormatReader reads an empty field as the EMPTY STRING on text columns
+// (only the literal `null` token — or a configured null_value — is null), so an untransformed copy would
+// turn every null keyword into "" and break the csv-spec expectations that pin those values as null.
+// Rewrite whitespace-only top-level cells to the literal `null` token when syncing. Bracket [a,b] content
+// is left untouched; none of the synced fixtures use quoted cells. Comment lines pass through unchanged,
+// and header cells (`name:type`) are never blank, so the transform applies uniformly per line.
+def spellNullCells = { String line ->
+  if (line.startsWith('//')) {
+    return line
+  }
+  StringBuilder out = new StringBuilder(line.length() + 16)
+  StringBuilder cell = new StringBuilder()
+  int depth = 0
+  for (int i = 0; i < line.length(); i++) {
+    char c = line.charAt(i)
+    if (c == ('[' as char)) {
+      depth++
+    } else if (c == (']' as char) && depth > 0) {
+      depth--
+    }
+    if (c == (',' as char) && depth == 0) {
+      out.append(cell.toString().trim().isEmpty() ? 'null' : cell.toString()).append(',')
+      cell.setLength(0)
+    } else {
+      cell.append(c)
+    }
+  }
+  // Final cell: only null-substitute when the line actually has cells (a blank line stays blank).
+  out.append(cell.toString().trim().isEmpty() && out.length() > 0 ? 'null' : cell.toString())
+  return out.toString()
+}
+
 tasks.register('syncCsvIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
     include 'employees.csv', 'web_logs.csv', 'books.csv', 'apps.csv', 'mv_sample.csv', 'employees_no_mv.csv'
   }
+  filteringCharset = 'UTF-8'
+  filter(spellNullCells)
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
 }
 
@@ -101,8 +136,9 @@ tasks.register('syncCsvIcebergMultifileTypeDriftFixtures', Sync) {
 
 // Generate multifile CSV fixtures by splitting employees.csv into 3 parts (analogous to
 // the Parquet 3-way split in esql-datasource-parquet/qa/build.gradle). This enables the
-// shared external-multifile.csv-spec tests to run for CSV format. The split preserves raw
-// line content (no parsing) so multi-value bracket syntax and typed headers stay intact.
+// shared external-multifile.csv-spec tests to run for CSV format. The split keeps each line
+// intact apart from the spellNullCells empty-cell rewrite, so multi-value bracket syntax and
+// typed headers stay as authored.
 def multifileSplitDir = file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_split")
 def multifileEmployeesCsv = testFixturesProject.file('src/main/resources/data/employees.csv')
 def multifileSplitParts = 3
@@ -132,7 +168,8 @@ tasks.register('generateMultifileCsvSplit_employees') {
       out.withWriter('UTF-8') { w ->
         w.writeLine(header)
         for (int i = from; i < to; i++) {
-          w.writeLine(data[i])
+          // Same empty-cell → literal `null` rewrite as syncCsvIcebergFixtures (see spellNullCells).
+          w.writeLine(spellNullCells(data[i]))
         }
       }
     }

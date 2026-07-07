@@ -395,6 +395,17 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("alpha"), 1L), row(br(""), 2L), row(br("beta"), 3L)), read(true, Map.of(), tsv));
     }
 
+    public void testWhitespaceOnlyCellIsEmptyStringForTextNullOtherwise() throws IOException {
+        // With trim_spaces on, a whitespace-only unquoted cell reduces to empty, which then follows the same
+        // convention as a truly empty cell: the empty string for a text column, null for other types. This is
+        // the shape of column-padded CSV files whose null cells are all spaces. (The default is no-trim, where
+        // a text column keeps its bytes, so trim_spaces must be set to collapse the padding to empty.)
+        List<List<Object>> rows = read(false, Map.of("trim_spaces", true), "a:keyword,b:long\n   ,5\nx,   \n");
+        assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
+        List<List<Object>> tsvRows = read(true, Map.of("trim_spaces", true), "a:keyword\tb:long\n   \t5\nx\t   \n");
+        assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), tsvRows);
+    }
+
     public void testCustomNullValue() throws IOException {
         List<List<Object>> rows = read(false, Map.of("null_value", "NULL"), "a:keyword,b:long\nNULL,NULL\nx,5\n");
         assertEquals(List.of(row(null, null), row(br("x"), 5L)), rows);

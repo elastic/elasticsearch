@@ -149,7 +149,11 @@ public final class TsvFixtureGenerator {
             return formatScalar(type, value);
         }
         if (value == null) {
-            return "";
+            // Spell null explicitly: CsvFormatReader reads an empty field as the empty string on text
+            // columns (only the literal `null` token — or a configured null_value — is null), so an
+            // empty cell would silently turn a null keyword into "" and break the shared csv-spec
+            // expectations that pin these values as null across formats.
+            return "null";
         }
         return formatScalar(type, value);
     }

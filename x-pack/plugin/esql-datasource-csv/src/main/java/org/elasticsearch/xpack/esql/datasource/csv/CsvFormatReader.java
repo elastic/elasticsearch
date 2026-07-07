@@ -117,7 +117,9 @@ import java.util.regex.Pattern;
  * <ul>
  *   <li>First non-comment line: schema — {@code column:type} pairs separated by the delimiter
  *   <li>Subsequent lines: data rows
- *   <li>Empty/missing values → {@code null}
+ *   <li>Empty values → the empty string on {@code keyword}/{@code text} columns, {@code null} on every other
+ *       type (see {@link #isTextType}); the literal {@code null} (any case) and a configured {@code null_value}
+ *       are always {@code null}; missing trailing values are {@code null}
  *   <li>Lines starting with the comment prefix (default {@code //}) are skipped
  * </ul>
  *
@@ -145,7 +147,8 @@ import java.util.regex.Pattern;
  *   <tr><td>{@code escape}</td><td>{@code \}</td><td>Escape character; setting it turns escaping on
  *           regardless of {@code mode}, the literal {@code none} turns it off (overrides the preset)</td></tr>
  *   <tr><td>{@code comment}</td><td>{@code //}</td><td>Line comment prefix</td></tr>
- *   <tr><td>{@code null_value}</td><td>(empty)</td><td>String representation of null</td></tr>
+ *   <tr><td>{@code null_value}</td><td>(unset)</td><td>String representation of null; when unset, an empty
+ *           field is not a null token (it reads as the empty string on text columns)</td></tr>
  *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>Character encoding</td></tr>
  *   <tr><td>{@code datetime_format}</td><td>ISO-8601 / epoch</td><td>Custom datetime pattern</td></tr>
  *   <tr><td>{@code max_field_size}</td><td>10 MB</td><td>OOM protection; max bytes per field</td></tr>
@@ -4662,7 +4665,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * is decoded with Jackson's quoted-escape rule; quoted content (including inner whitespace and embedded newlines) is preserved
          * verbatim, while unquoted fields are trimmed only for typed columns (a keyword keeps its bytes
          * unless trim_spaces). Non-whitespace after a closing quote is a row error, and an empty quoted field
-         * ({@code ""}) is null. Simple unquoted fields (no escape) take the same char-range fast path as
+         * ({@code ""}) yields the empty string on a text column and null otherwise (see {@link #stageEmptyField}).
+         * Simple unquoted fields (no escape) take the same char-range fast path as
          * {@link #splitAndConvertPlain}; quoted or escaped fields are assembled into a reused buffer.
          *
          * @return {@code true} if the row was accepted, {@code false} if rejected by the error policy

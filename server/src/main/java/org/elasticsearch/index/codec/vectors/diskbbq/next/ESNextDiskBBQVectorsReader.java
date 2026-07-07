@@ -137,7 +137,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         float visitRatio
     ) throws IOException {
         ESNextDiskBBQVectorsReader.NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
-        CentroidIndex index = switch (fieldEntry.centroidIndexFormat()) {
+        var iterator = switch (fieldEntry.centroidIndexFormat()) {
             case FLAT -> new FlatCentroidIndex(
                 fieldInfo,
                 fieldEntry,
@@ -148,9 +148,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 approximateCost,
                 values,
                 visitRatio
-            );
+            ).getIterator();
         };
-        return getPostingListPrefetchIterator(index.getIterator(), postingListSlice);
+        return getPostingListPrefetchIterator(iterator, postingListSlice);
     }
 
     @Override

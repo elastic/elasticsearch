@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152585
+summary: Async STOP / cancel / DELETE contract for EXTERNAL queries
+type: enhancement

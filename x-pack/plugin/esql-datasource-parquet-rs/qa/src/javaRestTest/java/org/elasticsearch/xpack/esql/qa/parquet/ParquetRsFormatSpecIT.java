@@ -48,6 +48,17 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return FormatNameResolver.READER_PARQUET_RS;
     }
 
+    /**
+     * The parquet-rs native reader registers no file extension and the dataset model has no reader/format
+     * selector, so parquet-rs is unreachable via {@code FROM <dataset>}. This suite is therefore a sanctioned
+     * EXTERNAL holdout (like gRPC/Flight and Iceberg): it rebuilds each {@code FROM <dataset>} spec into an
+     * {@code EXTERNAL ... WITH "reader": "parquet-rs"} query. See {@link #forceExternalRebuild()}.
+     */
+    @Override
+    protected boolean forceExternalRebuild() {
+        return true;
+    }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
@@ -96,7 +107,17 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         "nestedWhereEquals",
         "nestedWhereIsNull",
         "nestedStatsMinMax",
-        "nestedFilterAndProjectMixed"
+        "nestedFilterAndProjectMixed",
+        // A LIST leaf reached through a STRUCT (e.g. answers.text where answers is struct<text: list<...>>)
+        // is bound by its flattened logical name only by the Java parquet reader; parquet-rs does not yet
+        // flatten struct schemas, so the leaf resolves to no column descriptor and reads as all-null
+        // (COUNT returns 0, values/min/max are null). Re-enable once parquet-rs binds list-under-struct
+        // leaves by their flattened name in both the read and aggregate-statistics paths.
+        "listUnderStructCount",
+        "listUnderStructValues",
+        "listUnderStructMvCount",
+        "listUnderStructIsNull",
+        "listUnderStructMinMax"
     );
 
     @Override

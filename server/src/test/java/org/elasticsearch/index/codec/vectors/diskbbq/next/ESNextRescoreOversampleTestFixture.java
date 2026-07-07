@@ -14,7 +14,9 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexWriter;
@@ -23,6 +25,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
@@ -144,6 +147,67 @@ public final class ESNextRescoreOversampleTestFixture {
         IndexWriterConfig iwc = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
 
         writeTwoCommits(vectorsPerSegment, vectorDimensions, dir, iwc);
+        return DirectoryReader.open(dir);
+    }
+
+    /**
+     * Two commits under {@link NoMergePolicy}, both persisting {@code ONE_BIT_4BIT_QUERY} (so merge-time metadata
+     * reuse fires). The first segment interleaves {@code vectoredDocsA} docs carrying a vector with
+     * {@code unvectoredDocsA} docs that omit the field, then — after the segment is flushed — deletes
+     * {@code deletedVectoredDocsA} of the vectored docs (so their vectors remain physically present but are marked
+     * deleted). The second segment holds {@code vectoredDocsB} plain vectored docs. This exercises calibration over
+     * segments where the per-segment vector count ({@code getFloatVectorValues().size()}) differs from both
+     * {@code maxDoc} (docs without vectors inflate it) and the live-vector count (deletes deflate it).
+     */
+    public static DirectoryReader buildTwoSegmentsWithSparseAndDeletedVectors(
+        Directory dir,
+        int vectorDimensions,
+        int vectoredDocsA,
+        int unvectoredDocsA,
+        int deletedVectoredDocsA,
+        int vectoredDocsB,
+        float oversampleSegmentA,
+        float oversampleSegmentB
+    ) throws IOException {
+        Objects.requireNonNull(dir, "dir");
+        AtomicInteger flushSequence = new AtomicInteger(0);
+        IvfFlushConfigSource flushConfig = (state, fieldInfo) -> {
+            if (FIELD_NAME.equals(fieldInfo.name) == false) {
+                return Optional.empty();
+            }
+            float oversample = flushSequence.getAndIncrement() == 0 ? oversampleSegmentA : oversampleSegmentB;
+            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversample));
+        };
+        Codec codec = createDiskBbqCodec(flushConfig, IvfMergeConfigResolver.useCodecDefault());
+        IndexWriterConfig iwc = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
+
+        try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < vectoredDocsA; i++) {
+                Document d = new Document();
+                d.add(new StringField("id", "a-" + i, Field.Store.NO));
+                d.add(new KnnFloatVectorField(FIELD_NAME, randomUnitVector(vectorDimensions), VectorSimilarityFunction.EUCLIDEAN));
+                writer.addDocument(d);
+            }
+            for (int i = 0; i < unvectoredDocsA; i++) {
+                Document d = new Document();
+                d.add(new StringField("id", "a-novec-" + i, Field.Store.NO));
+                writer.addDocument(d);
+            }
+            // Flush segment A first so its vectors are written to disk, then delete: the deletes are recorded as
+            // liveDocs against the flushed segment and the vector data for those docs stays on disk. Deletes applied
+            // before the flush would instead be dropped entirely, changing getFloatVectorValues().size().
+            writer.commit();
+            for (int i = 0; i < deletedVectoredDocsA; i++) {
+                writer.deleteDocuments(new Term("id", "a-" + i));
+            }
+
+            for (int i = 0; i < vectoredDocsB; i++) {
+                Document d = new Document();
+                d.add(new KnnFloatVectorField(FIELD_NAME, randomUnitVector(vectorDimensions), VectorSimilarityFunction.EUCLIDEAN));
+                writer.addDocument(d);
+            }
+            writer.commit();
+        }
         return DirectoryReader.open(dir);
     }
 

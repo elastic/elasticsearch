@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -1107,6 +1108,131 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             authModel.getEndpoints(responseData.inferenceIds()),
             containsInAnyOrder(responseData.expectedEndpoints().toArray(ElasticInferenceServiceModel[]::new))
         );
+    }
+
+    public void testParse_GivenReasoningWithUnknownEffort_IgnoresReasoning() throws IOException {
+        var response = parse(Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-endpoint",
+                  "model_name": "test-model",
+                  "task_types": {
+                    "eis": "chat",
+                    "elasticsearch": "chat_completion"
+                  },
+                  "status": "ga",
+                  "release_date": "2024-05-01",
+                  "configuration": {
+                    "reasoning": {
+                      "effort": "super-high"
+                    },
+                    "similarity": "%s"
+                  }
+                }
+              ]
+            }
+            """, SimilarityMeasure.COSINE));
+
+        assertThat(response.authorizedEndpoints().size(), is(1));
+        var configuration = response.authorizedEndpoints().get(0).configuration();
+        assertNotNull(configuration);
+        assertNull(configuration.reasoning());
+        // Confirms the outer parser stayed correctly positioned after the reasoning parse failure and
+        // continued parsing the sibling configuration field.
+        assertThat(configuration.similarity(), is(SimilarityMeasure.COSINE.toString()));
+    }
+
+    public void testParse_GivenReasoningWithUnknownSummary_IgnoresReasoning() throws IOException {
+        var response = parse(Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-endpoint",
+                  "model_name": "test-model",
+                  "task_types": {
+                    "eis": "chat",
+                    "elasticsearch": "chat_completion"
+                  },
+                  "status": "ga",
+                  "release_date": "2024-05-01",
+                  "configuration": {
+                    "reasoning": {
+                      "effort": "medium",
+                      "summary": "verbose"
+                    },
+                    "similarity": "%s"
+                  }
+                }
+              ]
+            }
+            """, SimilarityMeasure.COSINE));
+
+        assertThat(response.authorizedEndpoints().size(), is(1));
+        var configuration = response.authorizedEndpoints().get(0).configuration();
+        assertNotNull(configuration);
+        assertNull(configuration.reasoning());
+        assertThat(configuration.similarity(), is(SimilarityMeasure.COSINE.toString()));
+    }
+
+    public void testParse_GivenReasoningEnabledFalseWithoutEffort_IgnoresReasoning() throws IOException {
+        var response = parse(Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-endpoint",
+                  "model_name": "test-model",
+                  "task_types": {
+                    "eis": "chat",
+                    "elasticsearch": "chat_completion"
+                  },
+                  "status": "ga",
+                  "release_date": "2024-05-01",
+                  "configuration": {
+                    "reasoning": {
+                      "enabled": false
+                    },
+                    "similarity": "%s"
+                  }
+                }
+              ]
+            }
+            """, SimilarityMeasure.COSINE));
+
+        assertThat(response.authorizedEndpoints().size(), is(1));
+        var configuration = response.authorizedEndpoints().get(0).configuration();
+        assertNotNull(configuration);
+        assertNull(configuration.reasoning());
+        assertThat(configuration.similarity(), is(SimilarityMeasure.COSINE.toString()));
+    }
+
+    public void testParse_GivenEmptyReasoning_IgnoresReasoning() throws IOException {
+        var response = parse(Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-endpoint",
+                  "model_name": "test-model",
+                  "task_types": {
+                    "eis": "chat",
+                    "elasticsearch": "chat_completion"
+                  },
+                  "status": "ga",
+                  "release_date": "2024-05-01",
+                  "configuration": {
+                    "reasoning": {},
+                    "similarity": "%s"
+                  }
+                }
+              ]
+            }
+            """, SimilarityMeasure.COSINE));
+
+        assertThat(response.authorizedEndpoints().size(), is(1));
+        var configuration = response.authorizedEndpoints().get(0).configuration();
+        assertNotNull(configuration);
+        assertNull(configuration.reasoning());
+        assertThat(configuration.similarity(), is(SimilarityMeasure.COSINE.toString()));
     }
 
     public void testParseEmptyResponse() throws IOException {

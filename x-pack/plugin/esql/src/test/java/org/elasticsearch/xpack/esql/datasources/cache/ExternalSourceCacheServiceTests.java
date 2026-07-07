@@ -666,7 +666,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertEquals(100L, enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
             // Once the 0..K fold is complete the per-stripe bookkeeping is compacted away (it has served its
-            // purpose) so the entry weight stays O(1) — see the compaction step in applyStripeDelta.
+            // purpose) so the entry weight stays O(1) — see ExternalSourceCacheService#compactCommittedStripes.
             assertNull(
                 "stripe bookkeeping compacted after a complete fold",
                 enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)

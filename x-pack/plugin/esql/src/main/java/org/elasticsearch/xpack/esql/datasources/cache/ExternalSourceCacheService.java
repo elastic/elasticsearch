@@ -149,18 +149,8 @@ public class ExternalSourceCacheService implements Closeable {
         if (enabled == false || contributionsPerFile == null || contributionsPerFile.isEmpty()) {
             return;
         }
-        // Snapshot every contribution path's matching entries in ONE pass BEFORE any commit writes.
-        // A cold scan longer than the schema TTL (multi-minute external scans vs the 5m default)
-        // reconciles into a cache whose entries for the scanned glob have ALL expired. Expired
-        // entries are still forEach-visible (expiry is evicted lazily), but the FIRST
-        // schemaCache.put() below prunes every expired entry from the LRU tail
-        // (Cache.promote -> evict -> isExpired). Without this snapshot, file #1's commit evicts
-        // files #2..N's entries before their deltas are applied; those deltas then match nothing
-        // and are silently dropped, aggregateFileStatistics goes null -> STATS_PARTIAL, and the
-        // warm aggregate re-scans the whole multi-file source. A single-file source self-heals
-        // (no sibling to evict) — which is why only multi-file scans longer than the TTL lost the
-        // warm short-circuit. The appliers prefer the live cache and fall back to this snapshot
-        // only when the live match is empty.
+        // Snapshot the glob's entries BEFORE any commit writes: the first put() sweeps TTL-expired
+        // entries, evicting files #2..N's entries before their deltas apply. See snapshotEntriesByPath.
         Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preMatched = snapshotEntriesByPath(contributionsPerFile.keySet());
         Map<String, Map<String, Object>> merged = new HashMap<>(contributionsPerFile.size());
         for (Map.Entry<String, List<Map<String, Object>>> e : contributionsPerFile.entrySet()) {
@@ -216,11 +206,15 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * One {@code Cache.forEach} pass collecting, per contribution path, every schema-cache entry whose
-     * canonical path matches. Taken BEFORE the first commit write of a reconcile so that entries the
-     * commit's own LRU expiry sweep evicts (a scan longer than the schema TTL leaves the whole glob's
-     * entries expired) remain applicable as a fallback. Freshness (mtime) and config-fingerprint
-     * discrimination are NOT applied here — the appliers re-check both, exactly as they do for live
-     * matches.
+     * canonical path matches — taken BEFORE a reconcile's first commit write. A cold scan longer than
+     * the schema TTL reconciles into a cache whose entries for the scanned glob have ALL expired:
+     * expired entries are still forEach-visible (expiry evicts lazily), but the first
+     * {@code schemaCache.put()} prunes them from the LRU tail, so file #1's commit would evict files
+     * #2..N's entries before their deltas apply — the deltas match nothing, the all-or-nothing
+     * multi-file fold goes incomplete, and the warm aggregate re-scans the whole source. (A
+     * single-file source self-heals: no sibling to evict.) Freshness (mtime) and config-fingerprint
+     * discrimination are NOT applied here — {@link #collectMatchingEntries} re-checks both, exactly
+     * as it does for live matches.
      */
     private Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> snapshotEntriesByPath(Set<String> paths) {
         Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> byPath = new HashMap<>();
@@ -230,6 +224,57 @@ public class ExternalSourceCacheService implements Closeable {
             }
         });
         return byPath;
+    }
+
+    /**
+     * Collects every schema-cache entry a contribution for {@code (path, mtimeMillis, fingerprint)}
+     * applies to: the live cache first, and only when that yields NOTHING the pre-reconcile
+     * {@code fallback} snapshot (see {@link #snapshotEntriesByPath}) — the case where a sibling
+     * path's earlier commit swept this path's expired entry out of the cache before its stats could
+     * be applied. A fallback entry passes the same mtime + fingerprint predicate as a live one, and
+     * re-putting it re-inserts the entry with a fresh write time — the same revive a live expired
+     * match already gets. Must run holding the per-path {@link #stripeCommitLocks} lock; callers
+     * mutate and re-put the returned entries after this method returns.
+     */
+    private List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> collectMatchingEntries(
+        String path,
+        long mtimeMillis,
+        Object fingerprint,
+        @Nullable List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> fallback
+    ) {
+        List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matches = new ArrayList<>();
+        // Cache.forEach iterates each segment's HashMap under the segment's readLock, making it safe
+        // against concurrent LRU mutations: promote() (called by get(), computeIfAbsent, etc. on any
+        // thread) acquires only lruLock, not the segment readLock, so it cannot corrupt the forEach
+        // traversal. Cache.keys() and Cache.values() walk the LRU doubly-linked list with no locks and
+        // are therefore unsafe here. Do NOT call get() or put() inside the forEach consumer — the
+        // segment readLock is not reentrant and put() acquires the segment writeLock.
+        schemaCache.forEach((key, existing) -> {
+            if (matchesContribution(key, existing, path, mtimeMillis, fingerprint)) {
+                matches.add(Map.entry(key, existing));
+            }
+        });
+        if (matches.isEmpty() && fallback != null) {
+            for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> candidate : fallback) {
+                if (matchesContribution(candidate.getKey(), candidate.getValue(), path, mtimeMillis, fingerprint)) {
+                    matches.add(candidate);
+                }
+            }
+        }
+        return matches;
+    }
+
+    /** True when the entry is for {@code path}, observed at the contribution's mtime, under the same format config. */
+    private static boolean matchesContribution(
+        SchemaCacheKey key,
+        SchemaCacheEntry entry,
+        String path,
+        long mtimeMillis,
+        Object fingerprint
+    ) {
+        return path.equals(key.canonicalPath())
+            && key.lastModifiedEpochMillis() == mtimeMillis
+            && Objects.equals(entry.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY), fingerprint);
     }
 
     /**
@@ -449,42 +494,17 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * The locked read-modify-write of {@link #commitStripeDelta}: collect matching entries under the
-     * {@code Cache.forEach} segment readLock (see {@code reconcileSourceStats} for that contract), then
-     * enrich and re-put each. Must run holding the per-path {@link #stripeCommitLocks} lock.
-     * {@code fallback} carries the pre-reconcile snapshot (see {@link #snapshotEntriesByPath}); it is
-     * consulted only when the live cache has NO match — the case where a sibling path's earlier commit
-     * swept this path's expired entry out of the cache before this delta could be applied. A fallback
-     * entry is filtered by the same mtime + fingerprint predicate as a live one, and re-putting it
-     * re-inserts the entry with a fresh write time — the same revive the first-committed path already
-     * gets today.
+     * The locked read-modify-write of {@link #commitStripeDelta}: collect matching entries via
+     * {@link #collectMatchingEntries} (live cache, snapshot fallback), then enrich and re-put each.
+     * Must run holding the per-path {@link #stripeCommitLocks} lock.
      */
     private void applyStripeDelta(String path, StripeDelta delta, @Nullable List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> fallback) {
-        // Same matching + concurrency discipline as reconcileSourceStats: collect under forEach
-        // (segment readLock), mutate after (see that method's javadoc for the Cache.forEach contract).
-        List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matchingEntries = new ArrayList<>();
-        schemaCache.forEach((key, existing) -> {
-            if (path.equals(key.canonicalPath()) == false || key.lastModifiedEpochMillis() != delta.mtimeMillis()) {
-                return;
-            }
-            Object existingFingerprint = existing.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
-            if (Objects.equals(existingFingerprint, delta.fingerprint()) == false) {
-                return;
-            }
-            matchingEntries.add(Map.entry(key, existing));
-        });
-        if (matchingEntries.isEmpty() && fallback != null) {
-            for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> candidate : fallback) {
-                if (candidate.getKey().lastModifiedEpochMillis() != delta.mtimeMillis()) {
-                    continue;
-                }
-                Object candidateFingerprint = candidate.getValue().safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
-                if (Objects.equals(candidateFingerprint, delta.fingerprint()) == false) {
-                    continue;
-                }
-                matchingEntries.add(candidate);
-            }
-        }
+        List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matchingEntries = collectMatchingEntries(
+            path,
+            delta.mtimeMillis(),
+            delta.fingerprint(),
+            fallback
+        );
         for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
             SchemaCacheKey key = match.getKey();
             SchemaCacheEntry existing = match.getValue();
@@ -520,22 +540,7 @@ public class ExternalSourceCacheService implements Closeable {
             }
             Map<String, Object> wholeFile = foldCommittedStripes(enriched, delta);
             if (wholeFile != null) {
-                // The 0..K fold is complete: the whole-file _stats.* now carry the authoritative row count and
-                // extrema, so the per-stripe sub-entries have served their only purpose (composing partial
-                // knowledge across queries until the file is fully covered). Retaining them makes each entry's
-                // cache weight O(stripe count) — a many-stripe file (thousands of 8 MB stripes over a large
-                // uncompressed/JSON object) then weighs hundreds of KB, and a multi-file glob's accumulated
-                // working set overflows the schema-cache budget (0.4% heap default). The LRU then evicts
-                // already-committed sibling entries, and the all-or-nothing multi-file fold
-                // (aggregateFileStatistics returns null if ANY file lacks stats) forces a full warm re-scan.
-                // Compact to O(1): once complete, drop the stripe bookkeeping and keep only the whole-file fold.
-                // Safe because the file is fully known — a later scan of the same (path, mtime, fingerprint)
-                // re-emits identical stripes idempotently, and a partial re-scan folds to null but leaves the
-                // committed whole-file row count in place. NDJSON hits the overflow first (its decompressed
-                // footprint packs 2-3x the stripes of CSV/TSV at equal rows), but the bloat is format-agnostic.
-                enriched.keySet().removeIf(k -> k.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX));
-                enriched.remove(ExternalStats.STRIPE_LAST_INDEX_KEY);
-                enriched.remove(ExternalStats.STRIPE_GRID_KEY);
+                compactCommittedStripes(enriched);
                 enriched.putAll(wholeFile);
             }
             schemaCache.put(
@@ -726,6 +731,22 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
+     * Drops the per-stripe bookkeeping once {@link #foldCommittedStripes} has materialized the
+     * whole-file {@code _stats.*} — the stripes' only purpose was composing partial knowledge until
+     * the file was fully covered. Retaining them makes the entry's cache weight O(stripe count), and
+     * a multi-file glob of many-stripe entries overflows the schema-cache budget; the LRU then evicts
+     * already-committed sibling entries and the all-or-nothing multi-file fold forces a full warm
+     * re-scan. Compacting is safe because the file is fully known: a later scan of the same
+     * (path, mtime, fingerprint) re-emits identical stripes idempotently, and a partial re-scan folds
+     * to null but leaves the committed whole-file stats in place.
+     */
+    private static void compactCommittedStripes(Map<String, Object> enriched) {
+        enriched.keySet().removeIf(k -> k.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX));
+        enriched.remove(ExternalStats.STRIPE_LAST_INDEX_KEY);
+        enriched.remove(ExternalStats.STRIPE_GRID_KEY);
+    }
+
+    /**
      * Folds duplicate whole-file contributions for the same file into one map. Row count, mtime,
      * and config fingerprint must agree across entries (asserted) since each contribution already
      * covers the entire file under the same pinned config. Column-stats keys, however, may differ
@@ -841,37 +862,12 @@ public class ExternalSourceCacheService implements Closeable {
             // earlier's enrichment (lost update). The lock keyspace (canonical path) is shared, so the
             // two writers serialize against each other.
             try (Releasable ignored = stripeCommitLocks.acquire(path)) {
-                // Cache.forEach iterates each segment's HashMap under the segment's readLock,
-                // making it safe against concurrent LRU mutations: promote() (called by get(),
-                // computeIfAbsent, etc. on any thread) acquires only lruLock, not the segment
-                // readLock, so it cannot corrupt the forEach traversal. Cache.keys() and
-                // Cache.values() walk the LRU doubly-linked list with no locks and are therefore
-                // unsafe here. Do NOT call get() or put() inside the forEach consumer — the
-                // segment readLock is not reentrant and put() acquires the segment writeLock.
-                List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matchingEntries = new ArrayList<>();
-                schemaCache.forEach((key, existing) -> {
-                    if (path.equals(key.canonicalPath()) == false || key.lastModifiedEpochMillis() != mtimeMillis) {
-                        return;
-                    }
-                    Object existingFingerprint = existing.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
-                    if (Objects.equals(existingFingerprint, contributionFingerprint) == false) {
-                        return;
-                    }
-                    matchingEntries.add(Map.entry(key, existing));
-                });
-                List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> fallback = preMatched.get(path);
-                if (matchingEntries.isEmpty() && fallback != null) {
-                    for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> candidate : fallback) {
-                        if (candidate.getKey().lastModifiedEpochMillis() != mtimeMillis) {
-                            continue;
-                        }
-                        Object candidateFingerprint = candidate.getValue().safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
-                        if (Objects.equals(candidateFingerprint, contributionFingerprint) == false) {
-                            continue;
-                        }
-                        matchingEntries.add(candidate);
-                    }
-                }
+                List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matchingEntries = collectMatchingEntries(
+                    path,
+                    mtimeMillis,
+                    contributionFingerprint,
+                    preMatched.get(path)
+                );
                 for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
                     SchemaCacheKey key = match.getKey();
                     SchemaCacheEntry existing = match.getValue();

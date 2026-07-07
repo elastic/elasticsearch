@@ -1,0 +1,153 @@
+setup:
+  - requires:
+      cluster_features: ["data_stream.time_series.past_index_creation"]
+      reason: "TSDB past index creation is required to index documents with past timestamps"
+      test_runner_features: allowed_warnings
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_stream.past_tsdb_index_creation_enabled: true
+
+  - do:
+      allowed_warnings:
+        - "index template [tsdb-past-indexing-template] has index patterns [tsdb-past-metrics-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [tsdb-past-indexing-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: tsdb-past-indexing-template
+        body:
+          index_patterns: ["tsdb-past-metrics-*"]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [pod_name]
+                number_of_replicas: 0
+                number_of_shards: 1
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                pod_name:
+                  type: keyword
+                  time_series_dimension: true
+                cpu_usage:
+                  type: double
+                  time_series_metric: gauge
+          priority: 500
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_stream.past_tsdb_index_creation_enabled: null
+
+  - do:
+      indices.delete_data_stream:
+        name: tsdb-past-metrics-*
+        ignore: 404
+
+  - do:
+      indices.delete_index_template:
+        name: tsdb-past-indexing-template
+        ignore: 404
+
+---
+"Index past timestamps with infinite write window creates new backing indices":
+  - do:
+      indices.create_data_stream:
+        name: tsdb-past-metrics-no-lifecycle
+
+  - do:
+      index:
+        index: tsdb-past-metrics-no-lifecycle
+        body:
+          '@timestamp': '2025-03-15T12:00:00Z'
+          pod_name: test-pod
+          cpu_usage: 0.5
+  - match: { result: created }
+  - match: { _index: '/\.ds-tsdb-past-metrics-no-lifecycle-2025\.\d{2}\.\d{2}-\d+/' }
+
+  - do:
+      index:
+        index: tsdb-past-metrics-no-lifecycle
+        body:
+          '@timestamp': '2026-06-15T12:00:00Z'
+          pod_name: test-pod
+          cpu_usage: 0.7
+  - match: { result: created }
+  - match: { _index: '/\.ds-tsdb-past-metrics-no-lifecycle-2026\.\d{2}\.\d{2}-\d+/' }
+
+---
+"Past timestamps fail if it's out of the eligible write time window":
+  - do:
+      indices.create_data_stream:
+        name: tsdb-past-metrics-with-lifecycle
+
+  - do:
+      indices.put_data_lifecycle:
+        name: "tsdb-past-metrics-with-lifecycle"
+        body:
+          downsampling:
+            - after: "7d"
+              fixed_interval: "1h"
+
+  - do:
+      catch: /timestamp_error/
+      index:
+        index: tsdb-past-metrics-with-lifecycle
+        body:
+          '@timestamp': '2025-03-15T12:00:00Z'
+          pod_name: test-pod
+          cpu_usage: 0.5
+
+  - do:
+      catch: /timestamp_error/
+      index:
+        index: tsdb-past-metrics-with-lifecycle
+        body:
+          '@timestamp': '2026-06-15T12:00:00Z'
+          pod_name: test-pod
+          cpu_usage: 0.7
+
+---
+"Past timestamps redirect to failure store if enabled and they are out of the eligible write window":
+  - do:
+      indices.create_data_stream:
+        name: tsdb-past-metrics-failure-store
+
+  - do:
+      indices.put_data_lifecycle:
+        name: "tsdb-past-metrics-failure-store"
+        body:
+          data_retention: "7d"
+
+  - do:
+      indices.put_data_stream_options:
+        name: "tsdb-past-metrics-failure-store"
+        body:
+          failure_store:
+            enabled: true
+
+  - do:
+      index:
+        index: tsdb-past-metrics-failure-store
+        body:
+          '@timestamp': '2025-03-15T12:00:00Z'
+          pod_name: test-pod
+          cpu_usage: 0.5
+  - match: { result: created }
+  - match: { failure_store: used }
+
+  - do:
+      index:
+        index: tsdb-past-metrics-failure-store
+        body:
+          '@timestamp': '2026-06-15T12:00:00Z'
+          pod_name: test-pod
+          cpu_usage: 0.7
+  - match: { result: created }
+  - match: { failure_store: used }

@@ -292,7 +292,6 @@ public abstract class FullTextFunction extends Function
                 FullTextFunction.class,
                 lp -> (lp instanceof Limit == false)
                     && (lp instanceof Aggregate == false)
-                    && (lp instanceof UnionAll == false)
                     && (lp instanceof MvExpand == false)
                     && (lp instanceof Fork == false)
                     && (lp instanceof LimitBy == false)
@@ -348,12 +347,11 @@ public abstract class FullTextFunction extends Function
         Failures failures
     ) {
         condition.forEachDown(typeToken, exp -> {
-            if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
-                return;
-            }
-
             plan.forEachDown(LogicalPlan.class, lp -> {
-                if (commandCheck.test(lp) == false) {
+                // `checkCommandsBeforeExpression` should be completely skipped for search functions that do not operate on index fields,
+                // but for now all checks apply, except for MV_EXPAND which can be used before a runtime search function
+                if ((lp instanceof MvExpand && exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) == false
+                    && commandCheck.test(lp) == false) {
                     String sourceText = lp.sourceText();
                     String errorMessage;
                     if (lp instanceof ExternalRelation) {

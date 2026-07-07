@@ -83,6 +83,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -147,7 +148,9 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -255,6 +258,7 @@ public class LocalExecutionPlanner {
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
+    private final MatcherWatchdog grokMatcherWatchdog;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -275,7 +279,8 @@ public class LocalExecutionPlanner {
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
         @Nullable Executor parallelWorkerExecutor,
-        int esqlWorkerPoolSize
+        int esqlWorkerPoolSize,
+        MatcherWatchdog grokMatcherWatchdog
     ) {
 
         this.sessionId = sessionId;
@@ -297,6 +302,10 @@ public class LocalExecutionPlanner {
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
+        // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
+        // by every GROK matcher this planner builds — MatcherWatchdog.Default is a stateless, immutable
+        // wrapper around a single timeout value.
+        this.grokMatcherWatchdog = grokMatcherWatchdog;
     }
 
     /**
@@ -1205,11 +1214,14 @@ public class LocalExecutionPlanner {
         }
 
         Layout layout = layoutBuilder.build();
+        // Rebind the matcher to this node's own grok.watchdog.max_execution_time setting instead of the
+        // no-op watchdog it was parsed/deserialized with, since the pattern is about to run against real data.
+        org.elasticsearch.grok.Grok watchdogGrok = Grok.pattern(grok.source(), grok.pattern().pattern(), grokMatcherWatchdog).grok();
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout, context.analysisRegistry()),
-                new GrokEvaluatorExtracter.Factory(grok.pattern().grok(), grok.pattern().pattern(), fieldToPos, fieldToType)
+                new GrokEvaluatorExtracter.Factory(watchdogGrok, grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
         );
@@ -1762,7 +1774,7 @@ public class LocalExecutionPlanner {
     private MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
         Map<String, MappingLookup> mappingsByIndex = new HashMap<>();
         for (ShardContext shard : shardContexts.iterable()) {
-            if (shard.indexSettings().getMode() == IndexMode.TIME_SERIES) {
+            if (shard.indexSettings().getMode().isTsdb()) {
                 mappingsByIndex.putIfAbsent(shard.indexSettings().getIndex().getName(), shard.mappingLookup());
             }
         }
@@ -1878,6 +1890,14 @@ public class LocalExecutionPlanner {
                 virtualColumnNames.addAll(pm.partitionColumns().keySet());
             }
         }
+        // On a data node the resolved FileList is not serialized (see the slice-queue note above), so the
+        // partition columns above are absent there. Their names ARE serialized via the PARTITION_COLUMNS_KEY
+        // stamp in sourceMetadata — the same stamp the aggregate fold reads
+        // (ExternalSourceAggregatePushdown.partitionColumnNames). Union them in so VirtualColumnIterator
+        // materialises the partition column as a constant block even when ONLY a partition column is projected
+        // (e.g. COUNT(p) that safe-missed to a scan): otherwise the operator treats it as a data column, the
+        // reader emits a 0-block page, and the downstream aggregator reads a non-existent block.
+        virtualColumnNames.addAll(ExternalSourceAggregatePushdown.partitionColumnNames(externalSource.sourceMetadata()));
         for (Attribute attr : externalSource.output()) {
             if (FileMetadataColumns.isFileMetadataColumn(attr.name())) {
                 virtualColumnNames.add(attr.name());

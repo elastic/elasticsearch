@@ -25,10 +25,15 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Direct unit tests for {@link ColumnMapping#pruneToPerFileQuery} — the fused method that
@@ -297,15 +302,111 @@ public class ColumnMappingTests extends ESTestCase {
 
     // ===== mapPage failure-cleanup =====
 
+    public void testReconciliationCastMatchesDeclaredCoercion() {
+        // THE one-coercion-path equivalence: casting a physical block through the reconciliation
+        // route (mapPage with a cast slot) and through the declared route (DeclaredTypeCoercions
+        // .castBlock, as the readers invoke it) must produce the same values in the same block
+        // shape AND the same per-value warnings — there is no separate merge-cast mechanism left
+        // to drift. Exercised on the one fallible reconciliation pair (DATETIME -> DATE_NANOS,
+        // one in-range value + one unrepresentable pre-epoch value) and on a lossless widen
+        // (INTEGER -> LONG).
+        long inRange = 1_711_800_000_000L;
+        // DATETIME -> DATE_NANOS with a per-value failure.
+        {
+            List<String> declaredWarnings = new java.util.ArrayList<>();
+            List<String> inferredWarnings = new java.util.ArrayList<>();
+            ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+            LongBlock src = blockFactory.newLongArrayVector(new long[] { inRange, -5L }, 2).asBlock();
+            Page filePage = new Page(2, new Block[] { src });
+            try (
+                Block declared = DeclaredTypeCoercions.castBlock(
+                    src,
+                    DataType.DATETIME,
+                    DataType.DATE_NANOS,
+                    null,
+                    blockFactory,
+                    "ts",
+                    capturing(declaredWarnings)
+                )
+            ) {
+                Page out = mapping.mapPage(
+                    filePage,
+                    blockFactory,
+                    new DataType[] { DataType.DATETIME },
+                    new String[] { "ts" },
+                    capturing(inferredWarnings)
+                );
+                try {
+                    LongBlock inferred = out.getBlock(0);
+                    assertEquals("identical blocks: same values, same nulls", declared, inferred);
+                    assertThat(((LongBlock) declared).getLong(0), equalTo(inRange * 1_000_000L));
+                    assertTrue("the unrepresentable instant nulls, in both routes", inferred.isNull(1));
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
+            assertEquals("identical warnings, event for event", declaredWarnings, inferredWarnings);
+            assertThat(declaredWarnings, org.hamcrest.Matchers.hasSize(1));
+            assertThat(declaredWarnings.get(0), org.hamcrest.Matchers.containsString("ts"));
+        }
+        // INTEGER -> LONG lossless widen.
+        {
+            ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.LONG });
+            IntBlock src = blockFactory.newConstantIntBlockWith(7, 3);
+            Page filePage = new Page(3, new Block[] { src });
+            try (Block declared = DeclaredTypeCoercions.castBlock(src, DataType.INTEGER, DataType.LONG, null, blockFactory, null, null)) {
+                Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.INTEGER });
+                try {
+                    assertEquals("identical blocks for the lossless widen", declared, out.getBlock(0));
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    public void testCastDatetimeToDateNanosOutOfRangeIsStrictWithoutSink() {
+        // Without a warnings sink the cast is strict: the unrepresentable instant fails the page
+        // (wrapped by mapPage) instead of nulling. Previously this pair silently multiplied into
+        // an overflowed long; the range rule now matches TO_DATE_NANOS (DateUtils.toNanoSeconds).
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+        LongBlock src = blockFactory.newConstantLongBlockWith(-5L, 1);
+        Page filePage = new Page(1, new Block[] { src });
+        try {
+            RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DATETIME })
+            );
+            assertTrue("wrapped under mapPage's catch", e.getMessage() != null && e.getMessage().contains("Failed to map page"));
+        } finally {
+            filePage.releaseBlocks();
+        }
+    }
+
+    private static SkipWarnings capturing(List<String> into) {
+        return new SkipWarnings("summary") {
+            @Override
+            public void add(String detail) {
+                into.add(detail);
+            }
+        };
+    }
+
     public void testMapPageWrapsAndRethrowsOnUnsupportedCast() {
-        // Mapping declares an unsupported cast: source block is DoubleBlock but cast target is LONG.
-        // ColumnMapping.castBlock has no DOUBLE → LONG path and throws UnsupportedOperationException;
-        // mapPage's try/catch must wrap as RuntimeException, close partially-built blocks, and rethrow.
+        // Mapping declares an unsupported cast: source block is BooleanBlock but cast target is LONG —
+        // a pair DeclaredTypeCoercions.supports rejects (booleans do not ingest into numeric fields),
+        // and one reconciliation can never produce. ColumnMapping.castBlock throws
+        // UnsupportedOperationException; mapPage's try/catch must wrap as RuntimeException, close
+        // partially-built blocks, and rethrow.
         ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { null, DataType.LONG });
 
         IntBlock intBlock = blockFactory.newConstantIntBlockWith(7, 2);
-        DoubleBlock doubleBlock = blockFactory.newConstantDoubleBlockWith(3.14, 2);
-        Page filePage = new Page(2, new Block[] { intBlock, doubleBlock });
+        BooleanBlock booleanBlock = blockFactory.newConstantBooleanBlockWith(true, 2);
+        Page filePage = new Page(2, new Block[] { intBlock, booleanBlock });
 
         RuntimeException e = expectThrows(RuntimeException.class, () -> mapping.mapPage(filePage, blockFactory));
         assertTrue("wrapped under mapPage's catch", e.getMessage() != null && e.getMessage().contains("Failed to map page"));
@@ -517,6 +618,27 @@ public class ColumnMappingTests extends ESTestCase {
             try {
                 BytesRefBlock returned = out.getBlock(0);
                 assertSame("KEYWORD → KEYWORD must be a ref-bumped passthrough, not a copy", src, returned);
+            } finally {
+                out.releaseBlocks();
+            }
+        } finally {
+            filePage.releaseBlocks();
+        }
+    }
+
+    public void testCastIpToKeywordStringifiesAddress() {
+        // UBN's KEYWORD fallback covers every cross-type pair, so an ip-typed file column can
+        // carry a KEYWORD cast slot (ip file vs keyword file). The stringification must emit the
+        // address text — TO_STRING(col) bytes — not the mapper's 16-byte encoded form the block
+        // physically holds (which the pre-unification passthrough leaked).
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        BytesRefBlock src = blockFactory.newConstantBytesRefBlockWith(StringUtils.parseIP("10.20.30.40"), 1);
+        Page filePage = new Page(1, new Block[] { src });
+        try {
+            Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.IP });
+            try {
+                BytesRefBlock result = out.getBlock(0);
+                assertEquals("10.20.30.40", result.getBytesRef(0, new BytesRef()).utf8ToString());
             } finally {
                 out.releaseBlocks();
             }

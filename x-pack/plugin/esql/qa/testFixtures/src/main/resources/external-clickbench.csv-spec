@@ -1,65 +1,75 @@
-// ClickBench-derived Parquet queries. The {{clickbench}} template is resolved by ClickBenchParquetSpecIT
-// to either a single-file or a 5-file split layout; each test runs against both layouts (86 tests total).
+// ClickBench-derived Parquet queries. Each test declares a `clickbench` dataset via a `dataset:` directive
+// and queries it with `FROM clickbench`. ClickBenchParquetSpecIT registers the dataset against a local
+// data_source, resolving the {{clickbench}} template to either a single-file or a 5-file split layout, and
+// runs each query against both layouts (86 tests total).
 
 q01_countHits
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS count = COUNT(*);
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS count = COUNT(*);
 
 count:long
 1283172
 ;
 
 q02_countAdvEngineIdNonzero
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE AdvEngineID != 0 | STATS count = COUNT(*);
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE AdvEngineID != 0 | STATS count = COUNT(*);
 
 count:long
 2823
 ;
 
 q03_statsAdvEngineIdResolution
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS sum_AdvEngineID = SUM(AdvEngineID), count = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth);
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS sum_AdvEngineID = SUM(AdvEngineID), count = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth);
 
 sum_AdvEngineID:long | count:long | avg_ResolutionWidth:double
 37554                | 1283172    | 1518.508
 ;
 
 q04_statsAvgUserid
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS avg_UserID = AVG(UserID);
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS avg_UserID = AVG(UserID);
 
 avg_UserID:double
 2.567362511837506E18
 ;
 
 q05_statsDistinctUserid
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS u = MV_COUNT(VALUES(UserID));
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS u = MV_COUNT(VALUES(UserID));
 
 u:integer
 192760
 ;
 
 q06_statsDistinctSearchPhrase
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS u = MV_COUNT(VALUES(SearchPhrase));
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS u = MV_COUNT(VALUES(SearchPhrase));
 
 u:integer
 40175
 ;
 
 q07_statsMinMaxEventDate
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS min_EventDate = MIN(EventDate), max_EventDate = MAX(EventDate);
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS min_EventDate = MIN(EventDate), max_EventDate = MAX(EventDate);
 
 min_EventDate:integer | max_EventDate:integer
 15888                 | 15915
 ;
 
 q08_statsAdvEngineIdByAdvEngineId
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE AdvEngineID != 0 | STATS c = COUNT(*) BY AdvEngineID | SORT c DESC;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE AdvEngineID != 0 | STATS c = COUNT(*) BY AdvEngineID | SORT c DESC;
 
 c:long | AdvEngineID:integer
 1669   | 2
@@ -73,8 +83,9 @@ c:long | AdvEngineID:integer
 ;
 
 q09_statsDistinctUseridByRegion
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS u = MV_COUNT(VALUES(UserID)) BY RegionID | SORT u DESC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS u = MV_COUNT(VALUES(UserID)) BY RegionID | SORT u DESC | LIMIT 10;
 
 u:integer | RegionID:integer
 36175     | 229
@@ -90,8 +101,9 @@ u:integer | RegionID:integer
 ;
 
 q10_statsRegionAggregates
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS sum_AdvEngineID = SUM(AdvEngineID), c = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY RegionID | SORT c DESC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS sum_AdvEngineID = SUM(AdvEngineID), c = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY RegionID | SORT c DESC | LIMIT 10;
 
 sum_AdvEngineID:long | c:long | avg_ResolutionWidth:double | count_distinct_UserID:integer | RegionID:integer
 12215                | 285647 | 1517.272                   | 36175                         | 229
@@ -107,8 +119,9 @@ sum_AdvEngineID:long | c:long | avg_ResolutionWidth:double | count_distinct_User
 ;
 
 q11_statsMobilePhoneModelUsers
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhoneModel | SORT u DESC, MobilePhoneModel | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhoneModel | SORT u DESC, MobilePhoneModel | LIMIT 10;
 
 u:integer | MobilePhoneModel:keyword
 17692     | iPad
@@ -124,8 +137,9 @@ u:integer | MobilePhoneModel:keyword
 ;
 
 q12_statsMobilePhoneUsers
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhone, MobilePhoneModel | SORT u DESC, MobilePhone, MobilePhoneModel | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhone, MobilePhoneModel | SORT u DESC, MobilePhone, MobilePhoneModel | LIMIT 10;
 
 u:integer | MobilePhone:integer | MobilePhoneModel:keyword
 15595     | 1                   | iPad
@@ -141,8 +155,9 @@ u:integer | MobilePhone:integer | MobilePhoneModel:keyword
 ;
 
 q13_statsSearchPhraseCount
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC, SearchPhrase | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC, SearchPhrase | LIMIT 10;
 
 c:long | SearchPhrase:keyword
 6911   | карелки
@@ -158,8 +173,9 @@ c:long | SearchPhrase:keyword
 ;
 
 q14_statsSearchPhraseUsers
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS u = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT u DESC, SearchPhrase | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE SearchPhrase != "" | STATS u = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT u DESC, SearchPhrase | LIMIT 10;
 
 u:integer | SearchPhrase:keyword
 2898      | карелки
@@ -175,8 +191,9 @@ u:integer | SearchPhrase:keyword
 ;
 
 q15_statsSearchEnginePhrase
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC, SearchEngineID, SearchPhrase | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC, SearchEngineID, SearchPhrase | LIMIT 10;
 
 c:long | SearchEngineID:integer | SearchPhrase:keyword
 4309   | 2                      | карелки
@@ -192,8 +209,9 @@ c:long | SearchEngineID:integer | SearchPhrase:keyword
 ;
 
 q16_statsUseridCount
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY UserID | SORT c DESC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS c = COUNT(*) BY UserID | SORT c DESC | LIMIT 10;
 
 c:long | UserID:long
 1400   | 992473989013836791
@@ -209,8 +227,9 @@ c:long | UserID:long
 ;
 
 q17_statsUseridSearchPhraseCount
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID ASC, SearchPhrase ASC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID ASC, SearchPhrase ASC | LIMIT 10;
 
 c:long | UserID:long         | SearchPhrase:keyword
 1400   | 992473989013836791  |
@@ -226,8 +245,9 @@ c:long | UserID:long         | SearchPhrase:keyword
 ;
 
 q18_statsUseridSearchPhraseLimit
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID, SearchPhrase | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID, SearchPhrase | LIMIT 10;
 
 c:long | UserID:long         | SearchPhrase:keyword
 1400   | 992473989013836791  |
@@ -243,8 +263,9 @@ c:long | UserID:long         | SearchPhrase:keyword
 ;
 
 q19_statsUseridMinuteSearchPhrase
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC, UserID, m, SearchPhrase | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC, UserID, m, SearchPhrase | LIMIT 10;
 
 c:long | UserID:long         | m:long | SearchPhrase:keyword
 64     | 116609765411432275  | 11     |
@@ -260,30 +281,34 @@ c:long | UserID:long         | m:long | SearchPhrase:keyword
 ;
 
 q20_filterUserid435090932899640449
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE UserID == -9136168843017551521 | KEEP UserID;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE UserID == -9136168843017551521 | KEEP UserID;
 
 UserID:long
 ;
 
 q21_statsGoogleUrlCount
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE URL LIKE "*google*" | STATS count = COUNT(*);
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE URL LIKE "*google*" | STATS count = COUNT(*);
 
 count:long
 30
 ;
 
 q22_statsGoogleUrlSearchPhrase
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE URL LIKE "*google*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*) BY SearchPhrase | SORT c DESC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE URL LIKE "*google*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*) BY SearchPhrase | SORT c DESC | LIMIT 10;
 
 min_URL:keyword | c:long | SearchPhrase:keyword
 ;
 
 q23_statsGoogleTitleNotUrl
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE Title LIKE "*Google*" AND NOT URL LIKE "*.google.*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT c DESC, SearchPhrase ASC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE Title LIKE "*Google*" AND NOT URL LIKE "*.google.*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT c DESC, SearchPhrase ASC | LIMIT 10;
 
 min_URL:keyword                                                                                        | c:long | count_distinct_UserID:integer | SearchPhrase:keyword
 http://viktori-decord.ru/a-album/login-alilinex_YOGURCY/ogurcomm                                       | 3      | 3                             | секретарь оверка все серии порт
@@ -299,8 +324,9 @@ http://domchelove.ru/#!/search/page                                             
 ;
 
 q24_sortGoogleUrlByTime
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE URL LIKE "*google*" | SORT EventTime ASC | KEEP WatchID, JavaEnable, Title, GoodEvent, EventTime, EventDate, CounterID, ClientIP, RegionID, UserID, URL, Referer | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE URL LIKE "*google*" | SORT EventTime ASC | KEEP WatchID, JavaEnable, Title, GoodEvent, EventTime, EventDate, CounterID, ClientIP, RegionID, UserID, URL, Referer | LIMIT 10;
 
 WatchID:long        | JavaEnable:integer | Title:keyword                                                                                            | GoodEvent:integer | EventTime:long | EventDate:integer | CounterID:integer | ClientIP:integer | RegionID:integer | UserID:long         | URL:keyword                                                                                                                                                                                             | Referer:keyword
 7381524648140977766 | 1                  | Ploshchad' stolitsi zwy 110911923, Г официальная Прессы и Огонек                                         | 1                 | 1372712506     | 15888             | 63217             | 1638850281       | 59               | 1564939829982760596 | http://bjdleaksbrand=bpc bonprix%2F12.02&he=1024&location=pm;f=inbox;pmsg_1733/page.google                                                                                                              | http://loveplanet.ru/url?sa=t&rct
@@ -316,8 +342,9 @@ WatchID:long        | JavaEnable:integer | Title:keyword                        
 ;
 
 q25_sortSearchPhraseByTime
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
 
 SearchPhrase:keyword
 молочного родинокиа
@@ -333,8 +360,9 @@ sven орион дозорная флешки-трое вросшего поху
 ;
 
 q26_sortSearchPhraseAsc
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" AND TRIM(SearchPhrase) == SearchPhrase | SORT SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE SearchPhrase != "" AND TRIM(SearchPhrase) == SearchPhrase | SORT SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
 
 SearchPhrase:keyword
 'kbnysq cgtrnjh xperia mazda test.ru/modern warplanet.ru+pony
@@ -350,8 +378,9 @@ SearchPhrase:keyword
 ;
 
 q27_sortSearchPhraseTimeAsc
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
 
 SearchPhrase:keyword
 молочного родинокиа
@@ -367,8 +396,9 @@ sven орион дозорная флешки-трое вросшего поху
 ;
 
 q28_statsUrlLengthByCounter
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE URL != "" | STATS l = AVG(BYTE_LENGTH(URL)), c = COUNT(*) BY CounterID | WHERE c > 1000 | SORT l DESC | LIMIT 25;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE URL != "" | STATS l = AVG(BYTE_LENGTH(URL)), c = COUNT(*) BY CounterID | WHERE c > 1000 | SORT l DESC | LIMIT 25;
 
 l:double | c:long | CounterID:integer
 119.7487 | 11023  | 85225
@@ -399,8 +429,9 @@ l:double | c:long | CounterID:integer
 ;
 
 q29_statsRefererDomainAnalysis
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE Referer != "" | EVAL k = REPLACE(Referer, "^https?://(?:www\\.)?([^/]+)/.*$", "$1") | STATS l = AVG(BYTE_LENGTH(Referer)), c = COUNT(*), min_Referer = MIN(Referer) BY k | WHERE c > 1000 | SORT l DESC | LIMIT 25;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE Referer != "" | EVAL k = REPLACE(Referer, "^https?://(?:www\\.)?([^/]+)/.*$", "$1") | STATS l = AVG(BYTE_LENGTH(Referer)), c = COUNT(*), min_Referer = MIN(Referer) BY k | WHERE c > 1000 | SORT l DESC | LIMIT 25;
 
 l:double | c:long | min_Referer:keyword                                                                                                                                                                                                                     | k:keyword
 219.6506 | 2424   | http://saint-peters-total=меньше 80/city_id=1955451&lr=47&lr=12&ar_by=2&page2=25&order=cmarka=24&sp=-1&pla=&mob=&sort=&brand=23                                                                                                         | saint-peters-total=меньше 80
@@ -431,16 +462,18 @@ l:double | c:long | min_Referer:keyword                                         
 ;
 
 q30_statsResolutionWidthSums
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS s0 = SUM(ResolutionWidth), s1 = SUM(ResolutionWidth + 1), s2 = SUM(ResolutionWidth + 2), s3 = SUM(ResolutionWidth + 3), s4 = SUM(ResolutionWidth + 4), s5 = SUM(ResolutionWidth + 5), s6 = SUM(ResolutionWidth + 6), s7 = SUM(ResolutionWidth + 7), s8 = SUM(ResolutionWidth + 8), s9 = SUM(ResolutionWidth + 9);
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS s0 = SUM(ResolutionWidth), s1 = SUM(ResolutionWidth + 1), s2 = SUM(ResolutionWidth + 2), s3 = SUM(ResolutionWidth + 3), s4 = SUM(ResolutionWidth + 4), s5 = SUM(ResolutionWidth + 5), s6 = SUM(ResolutionWidth + 6), s7 = SUM(ResolutionWidth + 7), s8 = SUM(ResolutionWidth + 8), s9 = SUM(ResolutionWidth + 9);
 
 s0:long    | s1:long    | s2:long    | s3:long    | s4:long    | s5:long    | s6:long    | s7:long    | s8:long    | s9:long
 1948507205 | 1949790377 | 1951073549 | 1952356721 | 1953639893 | 1954923065 | 1956206237 | 1957489409 | 1958772581 | 1960055753
 ;
 
 q31_statsSearchEngineClientIp
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY SearchEngineID, ClientIP | SORT c DESC, SearchEngineID, ClientIP | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY SearchEngineID, ClientIP | SORT c DESC, SearchEngineID, ClientIP | LIMIT 10;
 
 c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | SearchEngineID:integer | ClientIP:integer
 94     | 2                  | 1368.0                     | 3                      | -1090378108
@@ -456,8 +489,9 @@ c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | SearchEngineID:intege
 ;
 
 q32_statsWatchIdClientIp
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
 
 c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long        | ClientIP:integer
 1      | 0                  | 1750.0                     | 4611688027162466482 | -1294239990
@@ -473,8 +507,9 @@ c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long        |
 ;
 
 q33_statsWatchIdClientIpAll
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
 
 c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long        | ClientIP:integer
 1      | 0                  | 1638.0                     | 4611686445117788904 | -567897301
@@ -490,8 +525,9 @@ c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long        |
 ;
 
 q34_statsUrlCount
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY URL | SORT c DESC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS c = COUNT(*) BY URL | SORT c DESC | LIMIT 10;
 
 c:long | URL:keyword
 322510 | http://liver.ru/belgorod/page/1006.jки/доп_приборы
@@ -507,8 +543,9 @@ c:long | URL:keyword
 ;
 
 q35_statsConstUrlCount
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | EVAL const1 = 1 | STATS c = COUNT(*) BY const1, URL | SORT c DESC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | EVAL const1 = 1 | STATS c = COUNT(*) BY const1, URL | SORT c DESC | LIMIT 10;
 
 c:long | const1:integer | URL:keyword
 322510 | 1              | http://liver.ru/belgorod/page/1006.jки/доп_приборы
@@ -524,8 +561,9 @@ c:long | const1:integer | URL:keyword
 ;
 
 q36_statsClientIpVariations
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | EVAL ip_m1 = ClientIP - 1, ip_m2 = ClientIP - 2, ip_m3 = ClientIP - 3 | STATS c = COUNT(*) BY ClientIP, ip_m1, ip_m2, ip_m3 | SORT c DESC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | EVAL ip_m1 = ClientIP - 1, ip_m2 = ClientIP - 2, ip_m3 = ClientIP - 3 | STATS c = COUNT(*) BY ClientIP, ip_m1, ip_m2, ip_m3 | SORT c DESC | LIMIT 10;
 
 c:long | ClientIP:integer | ip_m1:integer | ip_m2:integer | ip_m3:integer
 1294   | 1193428638       | 1193428637    | 1193428636    | 1193428635
@@ -541,8 +579,9 @@ c:long | ClientIP:integer | ip_m1:integer | ip_m2:integer | ip_m3:integer
 ;
 
 q37_statsCounter62JulyUrls
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND URL != "" | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC, URL | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND URL != "" | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC, URL | LIMIT 10;
 
 PageViews:long | URL:keyword
 9094           | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
@@ -558,8 +597,9 @@ PageViews:long | URL:keyword
 ;
 
 q38_statsCounter62JulyTitles
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND Title != "" | STATS PageViews = COUNT(*) BY Title | SORT PageViews DESC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND Title != "" | STATS PageViews = COUNT(*) BY Title | SORT PageViews DESC | LIMIT 10;
 
 PageViews:long | Title:keyword
 10709          | Тест (Россия) - Яндекс
@@ -575,8 +615,9 @@ PageViews:long | Title:keyword
 ;
 
 q39_statsCounter62JulyLinks
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND IsLink != 0 AND IsDownload == 0 | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND IsLink != 0 AND IsDownload == 0 | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC | LIMIT 10;
 
 PageViews:long | URL:keyword
 607            | http://sslow_13507.html?aspx?naId=6r7RoWvxU9qQ=
@@ -592,8 +633,9 @@ PageViews:long | URL:keyword
 ;
 
 q40_statsCounter62JulyTrafficSources
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 | EVAL Src = CASE(SearchEngineID == 0 AND AdvEngineID == 0, Referer, ""), Dst = URL | STATS PageViews = COUNT(*) BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst | SORT PageViews DESC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 | EVAL Src = CASE(SearchEngineID == 0 AND AdvEngineID == 0, Referer, ""), Dst = URL | STATS PageViews = COUNT(*) BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst | SORT PageViews DESC | LIMIT 10;
 
 PageViews:long | TraficSourceID:integer | SearchEngineID:integer | AdvEngineID:integer | Src:keyword                                                      | Dst:keyword
 3062           | -1                     | 0                      | 0                   | http://kinopoisk.ru/?state                                       | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
@@ -609,8 +651,9 @@ PageViews:long | TraficSourceID:integer | SearchEngineID:integer | AdvEngineID:i
 ;
 
 q41_statsCounter62JulyRefererHash
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND TraficSourceID IN (-1, 6) AND RefererHash == 3594120000172545465 | STATS PageViews = COUNT(*) BY URLHash, EventDate | SORT PageViews DESC, URLHash, EventDate | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND TraficSourceID IN (-1, 6) AND RefererHash == 3594120000172545465 | STATS PageViews = COUNT(*) BY URLHash, EventDate | SORT PageViews DESC, URLHash, EventDate | LIMIT 10;
 
 PageViews:long | URLHash:long         | EventDate:integer
 299            | -7370781399609543775 | 15901
@@ -626,8 +669,9 @@ PageViews:long | URLHash:long         | EventDate:integer
 ;
 
 q42_statsCounter62JulyWindowClient
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND DontCountHits == 0 AND URLHash == 2868770270353813622 | STATS PageViews = COUNT(*) BY WindowClientWidth, WindowClientHeight | SORT PageViews DESC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND DontCountHits == 0 AND URLHash == 2868770270353813622 | STATS PageViews = COUNT(*) BY WindowClientWidth, WindowClientHeight | SORT PageViews DESC | LIMIT 10;
 
 PageViews:long | WindowClientWidth:integer | WindowClientHeight:integer
 347            | 1750                      | 653
@@ -643,8 +687,9 @@ PageViews:long | WindowClientWidth:integer | WindowClientHeight:integer
 ;
 
 q43_statsCounter62July1415Minutes
-required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15900 AND EventDate <= 15901 AND IsRefresh == 0 AND DontCountHits == 0 | EVAL M = EventTime - EventTime % 60 | STATS PageViews = COUNT(*) BY M | SORT M ASC | LIMIT 10;
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15900 AND EventDate <= 15901 AND IsRefresh == 0 AND DontCountHits == 0 | EVAL M = EventTime - EventTime % 60 | STATS PageViews = COUNT(*) BY M | SORT M ASC | LIMIT 10;
 
 PageViews:long | M:long
 47             | 1373832000

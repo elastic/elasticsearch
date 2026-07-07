@@ -119,6 +119,21 @@ public class ExternalFailuresTests extends ESTestCase {
         }
     }
 
+    public void testClassifyFallsBackToClassNameWhenMessageIsNull() {
+        // The actual bug this hunk fixes: classify() must use detail() so a null-message fault surfaces its
+        // class name instead of a useless "null" in the user-facing message. Covers both the server (bare
+        // NPE) and client (bare IOException) branches.
+        RuntimeException server = ExternalFailures.classify(new NullPointerException());
+        assertThat(server, org.hamcrest.Matchers.instanceOf(ExternalServerException.class));
+        assertThat(server.getMessage(), org.hamcrest.Matchers.containsString("NullPointerException"));
+        assertThat(server.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("null")));
+
+        RuntimeException client = ExternalFailures.classify(new IOException());
+        assertThat(client, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertThat(client.getMessage(), org.hamcrest.Matchers.containsString("IOException"));
+        assertThat(client.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("null")));
+    }
+
     public void testSurfaceRethrowsErrorUnchanged() {
         AssertionError error = new AssertionError("boom");
         AssertionError thrown = expectThrows(AssertionError.class, () -> ExternalFailures.surface(error, "ctx"));

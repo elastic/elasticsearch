@@ -611,12 +611,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498
-- class: org.elasticsearch.reindex.RestReindexActionTests
-  method: testDestSliceRejectedWhenFeatureFlagDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/152548
-- class: org.elasticsearch.reindex.ReindexScriptTests
-  method: testSetSliceRejectedWhenFeatureFlagDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/152547
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests
   method: testSerializeSumWithOverflowingLongSupplier
   issue: https://github.com/elastic/elasticsearch/issues/152506

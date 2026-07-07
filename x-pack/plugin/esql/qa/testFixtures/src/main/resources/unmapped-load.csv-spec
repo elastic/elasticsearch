@@ -3792,3 +3792,33 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped
 message:keyword | unmapped_message:keyword
 42              | 43
 ;
+
+dropNonMatchingPatternIsNoop
+required_capability: optional_fields_v5
+required_capability: optional_fields_drop_non_matching_pattern_noop
+
+SET unmapped_fields="load"\;
+FROM sample_data
+| DROP no_such_field*
+| SORT @timestamp DESC
+| LIMIT 1
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1
+;
+
+dropExistingFieldAndNonMatchingPattern
+required_capability: optional_fields_v5
+required_capability: optional_fields_drop_non_matching_pattern_noop
+
+SET unmapped_fields="load"\;
+FROM sample_data
+| DROP message, no_such_field*
+| SORT @timestamp DESC
+| LIMIT 1
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467
+;

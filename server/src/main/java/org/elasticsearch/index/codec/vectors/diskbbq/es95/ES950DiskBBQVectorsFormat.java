@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq.es95;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -16,8 +16,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
-import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
@@ -35,7 +33,7 @@ import java.util.concurrent.ExecutorService;
  * into clusters and assign each vector to a cluster generating a posting list of vectors. Clusters
  * are represented by centroids.
  * The vector quantization format used here is a per-vector optimized scalar quantization. Also see {@link
- * OptimizedScalarQuantizer}. Some of key features are:
+ * org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer}. Some of key features are:
  * The format is stored in three files:
  *
  * <h2>.cenivf (centroid data) file</h2>
@@ -51,9 +49,9 @@ import java.util.concurrent.ExecutorService;
  * <p> Stores metadata including the number of centroids and their offsets in the clivf file</p>
  *
  */
-public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
+public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
 
-    public static final String NAME = "ESNextDiskBBQVectorsFormat";
+    public static final String NAME = "ES950DiskBBQVectorsFormat";
     // centroid ordinals -> centroid values, offsets
     public static final String CENTROID_EXTENSION = "cenivf";
     // offsets contained in cen_ivf, [vector ordinals, actually just docIds](long varint), quantized vectors
@@ -100,7 +98,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;
     public static final int MAX_DIMENSIONS = 4096;
 
-    private final CentroidIndexFormat centroidIndexFormat = CentroidIndexFormat.FLAT;
     private final QuantEncoding quantEncoding;
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
@@ -111,15 +108,14 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
     private final int flatVectorThreshold;
-    private final String sliceField;
     private final IvfFlushConfigSource ivfFlushConfigSource;
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
 
-    public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
-        this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster, sliceField);
+    public ES950DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
+        this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
     }
 
-    public ESNextDiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
+    public ES950DiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
         this(
             quantEncoding,
             vectorPerCluster,
@@ -131,13 +127,12 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             defaultFlatThreshold(vectorPerCluster),
-            sliceField,
             IvfFlushConfigSource.empty(),
             IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
-    public ESNextDiskBBQVectorsFormat(
+    public ES950DiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -146,8 +141,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         ExecutorService mergingExecutorService,
         int maxMergingWorkers,
         boolean doPrecondition,
-        int preconditioningBlockDimension,
-        String sliceField
+        int preconditioningBlockDimension
     ) {
         this(
             quantEncoding,
@@ -160,13 +154,12 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             preconditioningBlockDimension,
             defaultFlatThreshold(vectorPerCluster),
-            sliceField,
             IvfFlushConfigSource.empty(),
             IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
-    public ESNextDiskBBQVectorsFormat(
+    public ES950DiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -176,8 +169,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         int maxMergingWorkers,
         boolean doPrecondition,
         int preconditioningBlockDimension,
-        int flatVectorThreshold,
-        String sliceField
+        int flatVectorThreshold
     ) {
         this(
             quantEncoding,
@@ -190,7 +182,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             preconditioningBlockDimension,
             flatVectorThreshold,
-            sliceField,
             IvfFlushConfigSource.empty(),
             IvfMergeConfigResolver.useCodecDefault()
         );
@@ -200,7 +191,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
      * @param ivfFlushConfigSource optional per-field config on flush ({@code null} uses writer default)
      * @param ivfMergeConfigResolver optional merged config on merge ({@code null} uses writer default)
      */
-    public ESNextDiskBBQVectorsFormat(
+    public ES950DiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -211,7 +202,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         boolean doPrecondition,
         int preconditioningBlockDimension,
         int flatVectorThreshold,
-        String sliceField,
         IvfFlushConfigSource ivfFlushConfigSource,
         IvfMergeConfigResolver ivfMergeConfigResolver
     ) {
@@ -267,24 +257,22 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
-        this.sliceField = sliceField;
         this.ivfFlushConfigSource = ivfFlushConfigSource;
         this.ivfMergeConfigResolver = ivfMergeConfigResolver;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
-    public ESNextDiskBBQVectorsFormat() {
-        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, null);
+    public ES950DiskBBQVectorsFormat() {
+        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ESNextDiskBBQVectorsWriter(
+        return new ES950DiskBBQVectorsWriter(
             state,
             rawVectorFormat.getName(),
             useDirectIO,
             rawVectorFormat.fieldsWriter(state),
-            centroidIndexFormat,
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,
@@ -293,7 +281,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             doPrecondition,
             flatVectorThreshold,
-            sliceField,
             ivfFlushConfigSource,
             ivfMergeConfigResolver
         );
@@ -301,7 +288,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ESNextDiskBBQVectorsReader(state, (f, dio) -> {
+        return new ES950DiskBBQVectorsReader(state, (f, dio) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
             return format.fieldsReader(state, dio);
@@ -315,16 +302,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return "ESNextDiskBBQVectorsFormat("
-            + "vectorPerCluster="
-            + vectorPerCluster
-            + ", "
-            + "mergeExec="
-            + (mergeExec != null)
-            + ", "
-            + "sliceField="
-            + sliceField
-            + ')';
+        return "ES950DiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ", " + "mergeExec=" + (mergeExec != null) + ')';
     }
 
 }

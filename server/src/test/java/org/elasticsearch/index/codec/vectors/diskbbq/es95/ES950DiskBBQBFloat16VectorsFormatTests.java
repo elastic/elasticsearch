@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq.es95;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -26,18 +26,18 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
-import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_PRECONDITIONING_BLOCK_DIMS;
-import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
-import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat.MAX_PRECONDITIONING_BLOCK_DIMS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
+public class ES950DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
@@ -50,7 +50,7 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
     public void setUp() throws Exception {
         QuantEncoding encoding = randomFrom(QuantEncoding.values());
         if (rarely()) {
-            format = new ESNextDiskBBQVectorsFormat(
+            format = new ES950DiskBBQVectorsFormat(
                 encoding,
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
@@ -59,11 +59,10 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 null,
                 1,
                 false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                null
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
             );
         } else if (rarely()) {
-            format = new ESNextDiskBBQVectorsFormat(
+            format = new ES950DiskBBQVectorsFormat(
                 encoding,
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
@@ -72,12 +71,11 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 null,
                 1,
                 true,
-                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
-                null
+                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS)
             );
         } else {
             // run with low numbers to force many clusters with parents
-            format = new ESNextDiskBBQVectorsFormat(
+            format = new ES950DiskBBQVectorsFormat(
                 encoding,
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
@@ -86,8 +84,7 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 null,
                 1,
                 false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                null
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
             );
         }
         super.setUp();

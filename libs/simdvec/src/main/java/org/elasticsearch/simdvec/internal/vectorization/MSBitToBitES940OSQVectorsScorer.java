@@ -29,9 +29,9 @@ import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Panamized scorer for symmetric 1-bit query and 1-bit index vectors. */
-final class MSBitToBitESNextOSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
+final class MSBitToBitES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
 
-    MSBitToBitESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+    MSBitToBitES940OSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
     }
 

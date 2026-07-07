@@ -7,19 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.DirectWriter;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndex;
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSlices;
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
-import org.elasticsearch.index.codec.vectors.diskbbq.DiskBBQBulkWriter;
-import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidClusters;
-import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,12 +23,15 @@ import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
-class FlatCentroidIndexWriter {
+public class FlatCentroidIndexWriter {
 
-    record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
+    public record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
 
-    static CentroidGroups writeCentroidIndex(CentroidSupplier centroidSupplier, int[] centroidAssignments, IndexOutput centroidOutput)
-        throws IOException {
+    public static CentroidGroups writeCentroidIndex(
+        CentroidSupplier centroidSupplier,
+        int[] centroidAssignments,
+        IndexOutput centroidOutput
+    ) throws IOException {
         CentroidSlices centroidSlices = centroidSupplier.slices();
         if (centroidSlices != null) {
             int numSlices = centroidSlices.sliceNumVectors().length;
@@ -66,7 +63,7 @@ class FlatCentroidIndexWriter {
         }
     }
 
-    static void writeCentroidData(
+    public static void writeCentroidData(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         float[] globalCentroid,
@@ -124,7 +121,7 @@ class FlatCentroidIndexWriter {
             buffer.asFloatBuffer().put(centroid);
             centroidOutput.writeBytes(buffer.array(), buffer.array().length);
         }
-        ESNextDiskBBQVectorsWriter.QuantizedCentroids parentQuantizeCentroid = new ESNextDiskBBQVectorsWriter.QuantizedCentroids(
+        QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
             CentroidSupplier.fromArray(centroidGroups.centroids, CentroidIndex.NO_INDEX, fieldInfo.getVectorDimension()),
             fieldInfo.getVectorDimension(),
             osq,
@@ -138,7 +135,7 @@ class FlatCentroidIndexWriter {
             offset += centroidVectors.length;
         }
 
-        ESNextDiskBBQVectorsWriter.QuantizedCentroids childrenQuantizeCentroid = new ESNextDiskBBQVectorsWriter.QuantizedCentroids(
+        QuantizedCentroids childrenQuantizeCentroid = new QuantizedCentroids(
             centroidSupplier,
             fieldInfo.getVectorDimension(),
             osq,
@@ -173,7 +170,7 @@ class FlatCentroidIndexWriter {
         writeSlicesOffsets(centroidOutput, centroidSupplier.slices());
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, BULK_SIZE, centroidOutput, true, true);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        ESNextDiskBBQVectorsWriter.QuantizedCentroids quantizedCentroids = new ESNextDiskBBQVectorsWriter.QuantizedCentroids(
+        QuantizedCentroids quantizedCentroids = new QuantizedCentroids(
             centroidSupplier,
             fieldInfo.getVectorDimension(),
             osq,

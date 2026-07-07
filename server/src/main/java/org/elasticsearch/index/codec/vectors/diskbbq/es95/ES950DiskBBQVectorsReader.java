@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq.es95;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -27,7 +27,6 @@ import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidIndex;
@@ -56,24 +55,24 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVectorsReader.NextFieldEntry>
+public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVectorsReader.NextFieldEntry>
     implements
         VectorPreconditioner,
         CalibrationAwareReader {
 
-    public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
+    public ES950DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
         super(
             state,
             getFormatReader,
-            ESNextDiskBBQVectorsFormat.NAME,
-            ESNextDiskBBQVectorsFormat.CENTROID_EXTENSION,
-            ESNextDiskBBQVectorsFormat.CLUSTER_EXTENSION,
-            ESNextDiskBBQVectorsFormat.IVF_META_EXTENSION,
-            ESNextDiskBBQVectorsFormat.VERSION_START,
-            ESNextDiskBBQVectorsFormat.VERSION_CURRENT,
-            ESNextDiskBBQVectorsFormat.VERSION_DIRECT_IO,
-            ESNextDiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
+            ES950DiskBBQVectorsFormat.NAME,
+            ES950DiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ES950DiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            ES950DiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ES950DiskBBQVectorsFormat.VERSION_START,
+            ES950DiskBBQVectorsFormat.VERSION_CURRENT,
+            ES950DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            ES950DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
         );
     }
 
@@ -139,20 +138,18 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         FloatVectorValues values,
         float visitRatio
     ) throws IOException {
-        ESNextDiskBBQVectorsReader.NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
-        var iterator = switch (fieldEntry.centroidIndexFormat()) {
-            case FLAT -> new FlatCentroidIndex(
-                fieldInfo,
-                fieldEntry,
-                numCentroids,
-                centroids,
-                targetQuery,
-                acceptDocs,
-                approximateCost,
-                values,
-                visitRatio
-            ).getIterator();
-        };
+        ES950DiskBBQVectorsReader.NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
+        var iterator = new FlatCentroidIndex(
+            fieldInfo,
+            fieldEntry,
+            numCentroids,
+            centroids,
+            targetQuery,
+            acceptDocs,
+            approximateCost,
+            values,
+            visitRatio
+        ).getIterator();
         return getPostingListPrefetchIterator(iterator, postingListSlice);
     }
 
@@ -172,7 +169,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         float globalCentroidDp
     ) throws IOException {
         int bulkSize = input.readInt();
-        CentroidIndexFormat centroidIndexFormat = CentroidIndexFormat.fromId(input.readInt());
         QuantEncoding quantEncoding = QuantEncoding.fromId(input.readInt());
         long preconditionerLength = input.readLong();
         long preconditionerOffset = -1;
@@ -197,7 +193,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             postingListLength,
             globalCentroid,
             globalCentroidDp,
-            centroidIndexFormat,
             quantEncoding,
             bulkSize,
             preconditionerOffset,
@@ -294,7 +289,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     }
 
     public static class NextFieldEntry extends FieldEntry {
-        private final CentroidIndexFormat centroidIndexFormat;
         private final QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;
@@ -317,7 +311,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             long postingListLength,
             float[] globalCentroid,
             float globalCentroidDp,
-            CentroidIndexFormat centroidIndexFormat,
             QuantEncoding quantEncoding,
             int bulkSize,
             long preconditionerOffset,
@@ -340,17 +333,12 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 globalCentroidDp,
                 bulkSize
             );
-            this.centroidIndexFormat = centroidIndexFormat;
             this.quantEncoding = quantEncoding;
             this.preconditionerOffset = preconditionerOffset;
             this.preconditionerLength = preconditionerLength;
             this.numSlices = numSlices;
             this.maxSliceSize = maxSliceSize;
             this.rescoreOversample = rescoreOversample;
-        }
-
-        public CentroidIndexFormat centroidIndexFormat() {
-            return centroidIndexFormat;
         }
 
         public QuantEncoding quantEncoding() {
@@ -373,13 +361,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         public int numSlices() {
             return numSlices;
         }
-    }
-
-    @Override
-    protected long maxVectorsToVisit(NextFieldEntry entry, float visitRatio, int numVectors) {
-        return switch (entry.centroidIndexFormat()) {
-            case FLAT -> super.maxVectorsToVisit(entry, visitRatio, numVectors);
-        };
     }
 
     @Override

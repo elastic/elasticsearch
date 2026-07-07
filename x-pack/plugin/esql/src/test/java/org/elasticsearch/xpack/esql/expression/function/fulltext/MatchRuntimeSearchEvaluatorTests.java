@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.test.ESTestCase;
@@ -44,6 +45,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * End-to-end execution tests for runtime {@code match}, where the field is
@@ -176,6 +178,14 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
         assertArrayEquals(new Boolean[] { true, false }, result);
     }
 
+    public void testTextWithZeroQueryTerms() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("! ! !"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("This is a Brown fox"));
+            builder.appendBytesRef(new BytesRef("The cat sat on the mat"));
+        }));
+        assertArrayEquals(new Boolean[] { false, false }, result);
+    }
+
     // ---- keyword: exact (unanalyzed) matching ----
 
     public void testKeywordIsExactAndCaseSensitive() {
@@ -248,6 +258,11 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
             }
         });
         assertArrayEquals(new Boolean[] { true, false, false }, result);
+    }
+
+    public void testTextWithZeroTermsQueryUsesConstantBlock() {
+        Match match = runtimeMatch(KEYWORD, new BytesRef("! ! !"), TEXT);
+        assertThat(match.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
     }
 
     /**

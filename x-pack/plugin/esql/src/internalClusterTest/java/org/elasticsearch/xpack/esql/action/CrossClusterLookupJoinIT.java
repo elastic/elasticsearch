@@ -739,7 +739,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testLookupJoinAfterPipelineBreakerAfterOtherCommands() throws IOException {
+    public void testLookupJoinAfterPipelineBreakerAndOtherCommands() throws IOException {
         setupClusters(3);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
@@ -769,9 +769,6 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         createIndexWithDocument(REMOTE_CLUSTER_1, "lookup", lookupSettings, Map.of("key", 1, "mode", "remote"));
         createIndexWithDocument(REMOTE_CLUSTER_2, "lookup", lookupSettings, Map.of("key", 2, "mode", "remote"));
 
-        // "mode" here is a *data* field, unrelated to the lookup index's "mode" field. Renaming it right
-        // before the join is what makes PushDownJoinPastProject see a name conflict with the join's own
-        // added "mode" field and take the isRemote-dropping Eval branch.
         expectThrows(
             VerificationException.class,
             containsString("LOOKUP JOIN with remote indices can't be executed after [LIMIT 1 BY key, cluster, mode]"),
@@ -785,14 +782,6 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 """, randomBoolean())
         );
 
-        // Independent of the case above: no name conflict is needed here. PushDownJoinPastProject.rule
-        // (PushDownJoinPastProject.java:59) calls PushDownUtils.resolveRenamesFromMap(join, ...) to rewrite
-        // the join's own leftFields whenever the RENAME'd name is the join key itself (id -> key here).
-        // That rewrite goes through join.transformExpressionsOnly(...), which reconstructs the Join via
-        // Join.info() (Join.java:174-188) - still bound to the isRemote-less 7-arg constructor. So the join
-        // comes back from resolveRenamesFromMap with isRemote already false, before PushDownJoinPastProject's
-        // own explicit `updatedJoin.isRemote()` pass-through ever runs. checkRemoteJoin is therefore
-        // skipped, same failure mode as above but via a different, conflict-free code path.
         expectThrows(
             VerificationException.class,
             containsString("LOOKUP JOIN with remote indices can't be executed after [LIMIT 1 BY id, cluster]"),

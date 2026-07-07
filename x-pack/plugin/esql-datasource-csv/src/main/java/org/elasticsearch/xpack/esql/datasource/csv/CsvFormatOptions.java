@@ -30,7 +30,8 @@ import java.util.Locale;
  *                           consulted only when {@link #escaping} is {@code true} — inside quoted
  *                           fields when {@link #quoting} is also on, otherwise at value decode
  * @param commentPrefix      prefix for comment lines to skip (default: "//")
- * @param nullValue          string representation of null in the data (default: empty string)
+ * @param nullValue          token whose exact match reads as null (default: empty string, which installs
+ *                           no null token, so an empty field is a present empty value rather than null)
  * @param encoding           character encoding of the input (default: UTF-8)
  * @param datetimeFormatter  custom datetime format pattern, or null for ISO-8601/epoch
  * @param maxFieldSize       maximum size in bytes for a single field value; 0 means no limit

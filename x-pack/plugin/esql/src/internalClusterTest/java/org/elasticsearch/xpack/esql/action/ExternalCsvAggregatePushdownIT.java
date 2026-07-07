@@ -233,10 +233,11 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
     }
 
     public void testAllNullColumnMinMaxReturnsNull() throws Exception {
-        // Column 'maybe' is keyword and all cells are empty. The optimizer cannot short-circuit
-        // here (cached min/max are null, so the rule bails to a regular scan), but the regular
-        // scan must still return null on both cold and warm runs.
-        StringBuilder sb = new StringBuilder("id:integer,maybe:keyword\n");
+        // Column 'maybe' is numeric and all cells are empty, so every value reads as null (an empty
+        // cell on a numeric column has no representation other than null). The optimizer cannot
+        // short-circuit here (cached min/max are null, so the rule bails to a regular scan), but the
+        // regular scan must still return null on both cold and warm runs.
+        StringBuilder sb = new StringBuilder("id:integer,maybe:long\n");
         for (int i = 0; i < 4; i++) {
             sb.append(i).append(',').append('\n');
         }

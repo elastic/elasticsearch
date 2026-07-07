@@ -13,8 +13,11 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -304,7 +307,10 @@ public final class CalibrationUtils {
     }
 
     /**
-     * Total live vectors for {@code fieldInfo} across merge inputs.
+     * Total live (non-deleted) vectors for {@code fieldInfo} across merge inputs. Segments without deletes
+     * ({@code liveDocs == null}) contribute {@link FloatVectorValues#size()} directly; segments with deletes
+     * are counted by intersecting their vector doc ids with {@code liveDocs} (one pass over the segment's
+     * vectors), the only way to exclude deleted vectors since Lucene's merged sub-readers are package-private.
      */
     public static int countMergedVectors(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         Objects.requireNonNull(fieldInfo, "fieldInfo");
@@ -315,8 +321,19 @@ public final class CalibrationUtils {
         int total = 0;
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
             FloatVectorValues segmentVectors = segmentFloatVectorValues(fieldInfo, mergeState, i);
-            if (segmentVectors != null) {
+            if (segmentVectors == null) {
+                continue;
+            }
+            Bits liveDocs = mergeState.liveDocs == null ? null : mergeState.liveDocs[i];
+            if (liveDocs == null) {
                 total += segmentVectors.size();
+            } else {
+                KnnVectorValues.DocIndexIterator iterator = segmentVectors.iterator();
+                for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                    if (liveDocs.get(doc)) {
+                        total++;
+                    }
+                }
             }
         }
         return total;

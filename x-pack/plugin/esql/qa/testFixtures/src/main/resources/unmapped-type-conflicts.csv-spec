@@ -6,7 +6,7 @@
 
 typeConflictWithUnmappedJustFrom
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -59,7 +59,7 @@ ignoreOrder:true
 
 typeConflictWithUnmappedJustKeepWildcardPrefix
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -483,7 +483,7 @@ emp_no:integer | gender:text           | _index:keyword
 // null.
 typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -670,7 +670,7 @@ no_mapping_sample_data
 // reproducer for https://github.com/elastic/elasticsearch/issues/145206
 typeConflictPartiallyUnmappedKeywordFieldKept
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -2084,7 +2084,7 @@ no_mapping_sample_data | 2024-10-23T13:55:01.543Z
 
 typeConflictLongUnmappedSortWithCastToLong
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -2111,7 +2111,7 @@ sample_data            | 8268153
 
 typeConflictLongUnmappedSortWithCastToKeyword
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -2532,7 +2532,7 @@ avg_cost:double | c:long | _index:keyword
 
 typeConflictLongUnmappedTimeseriesSortWithCast
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM k8s, k8s_unmapped METADATA _index

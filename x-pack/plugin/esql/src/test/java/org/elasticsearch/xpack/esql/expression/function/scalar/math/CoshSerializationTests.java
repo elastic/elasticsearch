@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class CoshSerializationTests extends AbstractUnaryScalarSerializationTests<Cosh> {
     @Override
     protected Cosh create(Source source, Expression child) {
-        return new Cosh(source, child);
+        return new Cosh(source, child, randomBoolean());
     }
 }

@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -35,11 +37,18 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAddExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
 
-public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
+public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible, NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
     public static final String OP_NAME = "Add";
 
     private final Configuration configuration;
+
+    /**
+     * When {@code true}, a non-finite scalar sum ({@code NaN}/{@code ±Inf}) is returned as-is instead of being
+     * rejected to {@code null}. Set only by the PromQL translation so that arithmetic follows IEEE-754; the default
+     * is {@code false}, preserving ES|QL's finite-only contract. Only the scalar double path honors this flag.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
         operator = "+",
@@ -90,6 +99,10 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
         ) Expression right,
         Configuration configuration
     ) {
+        this(source, left, right, configuration, false);
+    }
+
+    public Add(Source source, Expression left, Expression right, Configuration configuration, boolean allowNonFinite) {
         super(
             source,
             left,
@@ -98,27 +111,32 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddIntsEvaluator.Factory::new,
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
-            AddDoublesEvaluator.Factory::new,
+            (s, lhs, rhs) -> new AddDoublesEvaluator.Factory(s, lhs, rhs, allowNonFinite),
             ADD_DENSE_VECTOR_EVALUATOR,
             AddDatetimesEvaluator.Factory::new,
             AddDateNanosEvaluator.Factory::new
         );
         this.configuration = configuration;
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Add(StreamInput in) throws IOException {
-        super(
-            in,
-            ADD,
-            AddIntsEvaluator.Factory::new,
-            AddLongsEvaluator.Factory::new,
-            AddUnsignedLongsEvaluator.Factory::new,
-            AddDoublesEvaluator.Factory::new,
-            ADD_DENSE_VECTOR_EVALUATOR,
-            AddDatetimesEvaluator.Factory::new,
-            AddDateNanosEvaluator.Factory::new
+        // Children are serialized by BinaryScalarFunction#writeTo (source, left, right); the non-finite flag, when
+        // present, follows them, so read it last to match. Configuration is read from the PlanStreamInput context,
+        // not the byte stream. Bypassing the base StreamInput constructor lets the flag reach the double-evaluator factory.
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration(),
+            NonFiniteSupport.readNonFinite(in)
         );
-        this.configuration = ((PlanStreamInput) in).configuration();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeNonFinite(out);
     }
 
     @Override
@@ -128,17 +146,27 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
 
     @Override
     protected NodeInfo<Add> info() {
-        return NodeInfo.create(this, Add::new, left(), right(), configuration);
+        return NodeInfo.create(this, Add::new, left(), right(), configuration, allowNonFinite);
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Add(source(), left(), right(), configuration, false);
     }
 
     @Override
     protected Add replaceChildren(Expression left, Expression right) {
-        return new Add(source(), left, right, configuration);
+        return new Add(source(), left, right, configuration, allowNonFinite);
     }
 
     @Override
     public Add swapLeftAndRight() {
-        return new Add(source(), right(), left(), configuration);
+        return new Add(source(), right(), left(), configuration, allowNonFinite);
     }
 
     @Override
@@ -167,8 +195,9 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     }
 
     @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
-    static double processDoubles(double lhs, double rhs) {
-        return NumericUtils.asFiniteNumber(lhs + rhs);
+    static double processDoubles(double lhs, double rhs, @Fixed(includeInToString = false) boolean allowNonFinite) {
+        double result = lhs + rhs;
+        return allowNonFinite ? result : NumericUtils.asFiniteNumber(result);
     }
 
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })
@@ -208,7 +237,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
 
     @Override
     public Add withConfiguration(Configuration configuration) {
-        return new Add(source(), left(), right(), configuration);
+        return new Add(source(), left(), right(), configuration, allowNonFinite);
     }
 
     private static float addDenseVectorElements(float lhs, float rhs) {

@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,11 +39,18 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSubtractExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
 
-public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
+public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible, NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sub", Sub::new);
     public static final String OP_NAME = "Sub";
 
     private final Configuration configuration;
+
+    /**
+     * When {@code true}, a non-finite scalar difference ({@code NaN}/{@code ±Inf}) is returned as-is instead of being
+     * rejected to {@code null}. Set only by the PromQL translation so that arithmetic follows IEEE-754; the default
+     * is {@code false}, preserving ES|QL's finite-only contract. Only the scalar double path honors this flag.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
         operator = "-",
@@ -66,6 +75,10 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
         ) Expression right,
         Configuration configuration
     ) {
+        this(source, left, right, configuration, false);
+    }
+
+    public Sub(Source source, Expression left, Expression right, Configuration configuration, boolean allowNonFinite) {
         super(
             source,
             left,
@@ -74,27 +87,32 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubIntsEvaluator.Factory::new,
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
-            SubDoublesEvaluator.Factory::new,
+            (s, lhs, rhs) -> new SubDoublesEvaluator.Factory(s, lhs, rhs, allowNonFinite),
             SUB_DENSE_VECTOR_EVALUATOR,
             SubDatetimesEvaluator.Factory::new,
             SubDateNanosEvaluator.Factory::new
         );
         this.configuration = configuration;
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Sub(StreamInput in) throws IOException {
-        super(
-            in,
-            SUB,
-            SubIntsEvaluator.Factory::new,
-            SubLongsEvaluator.Factory::new,
-            SubUnsignedLongsEvaluator.Factory::new,
-            SubDoublesEvaluator.Factory::new,
-            SUB_DENSE_VECTOR_EVALUATOR,
-            SubDatetimesEvaluator.Factory::new,
-            SubDateNanosEvaluator.Factory::new
+        // Children are serialized by BinaryScalarFunction#writeTo (source, left, right); the non-finite flag, when
+        // present, follows them, so read it last to match. Configuration is read from the PlanStreamInput context,
+        // not the byte stream. Bypassing the base StreamInput constructor lets the flag reach the double-evaluator factory.
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration(),
+            NonFiniteSupport.readNonFinite(in)
         );
-        this.configuration = ((PlanStreamInput) in).configuration();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeNonFinite(out);
     }
 
     @Override
@@ -124,12 +142,22 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
 
     @Override
     protected NodeInfo<Sub> info() {
-        return NodeInfo.create(this, Sub::new, left(), right(), configuration);
+        return NodeInfo.create(this, Sub::new, left(), right(), configuration, allowNonFinite);
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Sub(source(), left(), right(), configuration, false);
     }
 
     @Override
     protected Sub replaceChildren(Expression left, Expression right) {
-        return new Sub(source(), left, right, configuration);
+        return new Sub(source(), left, right, configuration, allowNonFinite);
     }
 
     @Override
@@ -153,8 +181,9 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     }
 
     @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
-    static double processDoubles(double lhs, double rhs) {
-        return NumericUtils.asFiniteNumber(lhs - rhs);
+    static double processDoubles(double lhs, double rhs, @Fixed(includeInToString = false) boolean allowNonFinite) {
+        double result = lhs - rhs;
+        return allowNonFinite ? result : NumericUtils.asFiniteNumber(result);
     }
 
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })
@@ -194,7 +223,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
 
     @Override
     public Sub withConfiguration(Configuration configuration) {
-        return new Sub(source(), left(), right(), configuration);
+        return new Sub(source(), left(), right(), configuration, allowNonFinite);
     }
 
     private static float subDenseVectorElements(float lhs, float rhs) {

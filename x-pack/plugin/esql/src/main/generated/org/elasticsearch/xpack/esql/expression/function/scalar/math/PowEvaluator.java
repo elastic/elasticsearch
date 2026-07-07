@@ -32,15 +32,18 @@ public final class PowEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator exponent;
 
+  private final boolean allowNonFinite;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public PowEvaluator(Source source, ExpressionEvaluator base, ExpressionEvaluator exponent,
-      DriverContext driverContext) {
+      boolean allowNonFinite, DriverContext driverContext) {
     this.source = source;
     this.base = base;
     this.exponent = exponent;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -97,7 +100,7 @@ public final class PowEvaluator implements ExpressionEvaluator {
         double base = baseBlock.getDouble(baseBlock.getFirstValueIndex(p));
         double exponent = exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Pow.process(base, exponent));
+          result.appendDouble(Pow.process(base, exponent, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -113,7 +116,7 @@ public final class PowEvaluator implements ExpressionEvaluator {
         double base = baseVector.getDouble(p);
         double exponent = exponentVector.getDouble(p);
         try {
-          result.appendDouble(Pow.process(base, exponent));
+          result.appendDouble(Pow.process(base, exponent, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -147,16 +150,19 @@ public final class PowEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory exponent;
 
+    private final boolean allowNonFinite;
+
     public Factory(Source source, ExpressionEvaluator.Factory base,
-        ExpressionEvaluator.Factory exponent) {
+        ExpressionEvaluator.Factory exponent, boolean allowNonFinite) {
       this.source = source;
       this.base = base;
       this.exponent = exponent;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public PowEvaluator get(DriverContext context) {
-      return new PowEvaluator(source, base.get(context), exponent.get(context), context);
+      return new PowEvaluator(source, base.get(context), exponent.get(context), allowNonFinite, context);
     }
 
     @Override

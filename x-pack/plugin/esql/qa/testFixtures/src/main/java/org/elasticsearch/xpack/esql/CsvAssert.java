@@ -274,8 +274,10 @@ public final class CsvAssert {
                     }
                     return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 } else if (value instanceof String s) {
-                    if ("NaN".equals(s)) {
-                        return Double.NaN;
+                    // Non-finite doubles (NaN, Infinity, -Infinity) arrive as strings for text content types and must
+                    // not be fed to BigDecimal (which rejects them); return them as-is and only round finite values.
+                    if ("NaN".equals(s) || "Infinity".equals(s) || "-Infinity".equals(s)) {
+                        return Double.parseDouble(s);
                     }
                     return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 }
@@ -286,8 +288,10 @@ public final class CsvAssert {
                 }
             }
             if (type == CsvTestUtils.Type.DOUBLE) {
-                if (value instanceof String s && "NaN".equals(s)) {
-                    return Double.NaN;
+                // Non-finite doubles (NaN, Infinity, -Infinity) are serialized as strings for text content types
+                // (JSON/YAML) but as real doubles for binary ones (SMILE/CBOR); normalize both to a double.
+                if (value instanceof String s) {
+                    return Double.parseDouble(s);
                 }
                 return ((Number) value).doubleValue();
             }

@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class SqrtSerializationTests extends AbstractUnaryScalarSerializationTests<Sqrt> {
     @Override
     protected Sqrt create(Source source, Expression child) {
-        return new Sqrt(source, child);
+        return new Sqrt(source, child, randomBoolean());
     }
 }

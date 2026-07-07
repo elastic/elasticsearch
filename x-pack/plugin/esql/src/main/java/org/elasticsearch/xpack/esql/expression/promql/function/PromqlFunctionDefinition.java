@@ -55,6 +55,16 @@ public final class PromqlFunctionDefinition {
     }
 
     /**
+     * Constructor reference for a unary function whose non-finite behavior is selectable, i.e. a constructor of the
+     * form {@code (source, field, allowNonFinite)}. Used by {@link Builder#unaryNonFiniteValueTransformation} to build
+     * the PromQL variant of math functions that must follow IEEE-754 semantics.
+     */
+    @FunctionalInterface
+    public interface NonFiniteUnaryBuilder {
+        Expression build(Source source, Expression field, boolean allowNonFinite);
+    }
+
+    /**
      * Describes whether a PromQL function supports counter metric types.
      * <p>
      * This is an ES|QL implementation detail — in real PromQL, all functions work with any numeric type.
@@ -307,15 +317,6 @@ public final class PromqlFunctionDefinition {
         "Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs "
             + "unchanged rather than rejecting or converting them.";
     public static final String COUNT_NOTE = "Returns a `long` integer count rather than a floating-point value.";
-    public static final String LOG_DOMAIN_NOTE =
-        "For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the "
-            + "`-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns.";
-    public static final String DOMAIN_PLUS_MINUS_ONE_NOTE =
-        "For inputs outside the range [-1, 1], {{es}} returns `null` and emits a warning, rather than the `NaN` that "
-            + "Prometheus returns.";
-    public static final String OVERFLOW_NOTE =
-        "On numeric overflow for large-magnitude inputs, {{es}} returns `null` and emits a warning, rather than the "
-            + "`±Inf` that Prometheus returns.";
     public static final String QUANTILE_NOTE =
         "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "
             + "from Prometheus's exact linear interpolation, particularly for small sample sets.";
@@ -465,6 +466,16 @@ public final class PromqlFunctionDefinition {
             this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, target);
             this.params = List.of(INSTANT_VECTOR);
             return this;
+        }
+
+        /**
+         * Registers a unary math function whose PromQL variant must preserve non-finite results ({@code NaN}/{@code ±Inf})
+         * rather than reject them to {@code null}. The input is coerced to {@code double} so the function evaluates with
+         * IEEE-754 semantics regardless of the metric's stored type (e.g. {@code sqrt(-x)} yields {@code NaN} even for a
+         * {@code long}/{@code integer} metric), and the function is constructed with its non-finite-preserving flag set.
+         */
+        public PromqlFunctionDefinition.Builder unaryNonFiniteValueTransformation(NonFiniteUnaryBuilder ctorRef) {
+            return unaryValueTransformation((source, field) -> ctorRef.build(source, new ToDouble(source, field), true));
         }
 
         public PromqlFunctionDefinition.Builder binaryValueTransformation(

@@ -277,6 +277,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Shared by the fused bracket walker ({@code splitAndConvertProjected}) and the split-then-convert
      * bracket route ({@code splitCommaDelimiterBracketAwareFields}) so the two routes agree on where the
      * schema boundary falls.
+     * <p>
+     * The {@code priorFieldCount > 0} guard requires a preceding field: an unquoted trailing empty is only
+     * meaningful after a delimiter that closed a real field (the {@code b,} in {@code a,b,}). A tokenization
+     * that produced no fields at all is not a row ending in a bare delimiter, so it fabricates no empty
+     * field. This also makes the predicate always {@code false} for a single-column schema
+     * ({@code schemaColumnCount == 1} leaves no integer with {@code 0 < priorFieldCount < 1}): a
+     * single-column present-empty cell arrives instead through the quoted-empty path ({@code ""}), while a
+     * blank line is skipped before tokenization.
      */
     private static boolean isPresentTrailingEmpty(int priorFieldCount, int schemaColumnCount) {
         return priorFieldCount > 0 && priorFieldCount < schemaColumnCount;
@@ -3741,7 +3749,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             int[] stringSlots = new int[columnCount];
             int stringColumns = 0;
             for (int i = 0; i < columnCount; i++) {
-                if (isStringType(projectedTypes[i])) {
+                if (DataType.isString(projectedTypes[i])) {
                     stringSlots[stringColumns++] = i;
                 }
             }
@@ -4682,7 +4690,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (end - start > maxFieldChars) {
                     return rejectFieldTooLarge(end - start);
                 }
-                if (isStringType(dt) == false) {
+                if (DataType.isString(dt) == false) {
                     // Mirror tryConvertValue's raw-first null-marker check: a whitespace-bearing null_value
                     // (e.g. " 0 ") must match the UNTRIMMED value, else a typed column trims it away and misses
                     // it while the house arm (which compares the raw field) nulls it — a silent divergence.
@@ -4698,12 +4706,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                 }
             }
+            // maxFieldChars was already enforced against end-start in both trim branches above; trimming
+            // only shrinks the range, so len here is always within the cap and needs no re-check.
             int len = end - start;
-            // Jackson enforces maxStringLength on the trimmed value during tokenization, before any
-            // null/type interpretation, so the cap check precedes the null classification below.
-            if (len > maxFieldChars) {
-                return rejectFieldTooLarge(len);
-            }
             // Null classification mirrors tryConvertValue: a present-but-empty field is the empty string
             // on string columns and null on other types; the literal "null" (any case) or the configured
             // null marker always become null.
@@ -5442,11 +5447,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return true;
         }
 
-        /** The string data types, whose values are stored verbatim; every other type trims before parsing. */
-        private static boolean isStringType(DataType dataType) {
-            return dataType == DataType.KEYWORD || dataType == DataType.TEXT;
-        }
-
         private Object tryConvertValue(String value, DataType dataType, int columnIndex) {
             if (value == null) {
                 // A field the parser already resolved to null: a missing field (row shorter than the
@@ -5471,7 +5471,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return tryConvertMultiValue(probe, dataType, columnIndex);
                 }
             }
-            if (isStringType(dataType) == false) {
+            if (DataType.isString(dataType) == false) {
                 // Typed parses mirror CsvSchemaInferrer, which trims before type detection: a value the
                 // sampler classified as INTEGER (etc.) must convert as that type regardless of surrounding
                 // whitespace or quoting. A now-empty or "null" cell is null (as the sampler treats it —
@@ -5581,7 +5581,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // Present-but-empty quoted element (e.g. [a,"",c]).
                 return presentEmptyValue(dataType);
             }
-            if (isStringType(dataType) == false) {
+            if (DataType.isString(dataType) == false) {
                 // Same typed-parse leniency as tryConvertValue: a quoted, padded numeric element (e.g.
                 // [" 5 ", 6]) converts by its inferred/declared type; padded null-sentinels become null.
                 value = value.trim();

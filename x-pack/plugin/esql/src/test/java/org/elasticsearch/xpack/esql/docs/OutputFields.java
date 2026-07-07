@@ -51,23 +51,32 @@ public class OutputFields {
     }
 
     /**
-     * Renders the {@code vary_by: "database_file"} shape of the output block (currently only
-     * IP_LOCATION). Called directly by {@code IpLocationOutputFields} via its
-     * {@code renderOutput(XContentBuilder)} method. Matching is filename-based on known glob patterns;
-     * a custom database registered under a standard name would get incorrect autocomplete hints in
-     * Kibana, but ES itself resolves fields from the actual database metadata, so queries are
-     * unaffected.
+     * Renders a "varies by something" shape of the output block: a keyed set of named variants, each rendering its
+     * own fields. For example, IP_LOCATION uses this with {@code varyBy = "database_file"} and
+     * {@code selectedBy = "properties"}, keying variants by database file name glob (see
+     * {@code IpLocationOutputFields}). Called directly by {@code *OutputFields} classes via their
+     * {@code renderOutput(XContentBuilder)} method.
+     *
+     * @param varyBy      the {@code vary_by} value, describing what selects between variants
+     * @param selectedBy  the {@code selected_by} value, describing what narrows the fields within a variant;
+     *                    omitted entirely (no {@code selected_by} field rendered) when {@code null}
+     * @param variants    the variants, keyed by the value used to select them, in the order they should be rendered
+     * @param renderer    renders one variant's fields
      */
-    public static <T> void renderDatabaseFileOutputBlock(
+    public static <T> void renderVariedOutputBlock(
         XContentBuilder builder,
-        LinkedHashMap<String, T> databaseGlobs,
+        String varyBy,
+        String selectedBy,
+        LinkedHashMap<String, T> variants,
         VariantFieldsRenderer<T> renderer
     ) throws IOException {
         builder.startObject("output");
-        builder.field("vary_by", "database_file");
-        builder.field("selected_by", "properties");
+        builder.field("vary_by", varyBy);
+        if (selectedBy != null) {
+            builder.field("selected_by", selectedBy);
+        }
         builder.startObject("variants");
-        for (Map.Entry<String, T> entry : databaseGlobs.entrySet()) {
+        for (Map.Entry<String, T> entry : variants.entrySet()) {
             builder.startObject(entry.getKey());
             renderer.render(builder, entry.getValue());
             builder.endObject();

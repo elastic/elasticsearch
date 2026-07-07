@@ -90,6 +90,15 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // A pattern DROP that doesn't match the missing field still lets nullify inject it for a later KEEP.
+    public void testDropPatternThenKeepMissing() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | DROP emp_*
+            | KEEP does_not_exist_field
+            """, STAGES);
+    }
+
     public void testRename() throws Exception {
         runTests("""
             FROM employees

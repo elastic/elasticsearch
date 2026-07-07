@@ -258,7 +258,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || indexSettings.getMode().isStrictColumnar() == false) {
+        if (indexSettings.getMode().isStrictColumnar() == false) {
             return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
         }
 

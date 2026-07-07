@@ -24,7 +24,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,11 +37,6 @@ import java.util.List;
  * pattern ({@code field.key} rather than {@code field}).
  */
 public class FlattenedColumnarArrayOrderFieldDataTests extends MapperServiceTestCase {
-
-    @Before
-    public void assumeColumnarFeatureEnabled() {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
 
     private MapperService columnarMapperService() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();

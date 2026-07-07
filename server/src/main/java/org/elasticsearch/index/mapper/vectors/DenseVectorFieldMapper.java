@@ -2721,7 +2721,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     VectorIndexType.BBQ_DISK.name
                 );
             }
-            if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE) && experimentalFeaturesEnabled) {
+            if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE) && experimentalFeaturesEnabled) {
                 IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
                     ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
                     : IvfMergeConfigResolver.useCodecDefault();
@@ -2740,7 +2740,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     IvfFlushConfigSource.empty(),
                     mergeConfigResolver
                 );
-            } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE)) {
+            } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
                 IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
                     ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
                     : IvfMergeConfigResolver.useCodecDefault();

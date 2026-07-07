@@ -104,7 +104,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             IvfFlushConfigSource.empty(),
                             mergeConfigResolver
                         );
-                    } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE)) {
+                    } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
                             ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
                             : IvfMergeConfigResolver.useCodecDefault();

@@ -129,7 +129,9 @@ public class LongBlockTests extends BlockTestCase<LongBlock, LongBlock.Builder, 
     }
 
     public void testEmptyArrayBlockFactory() {
-        try (LongBlock block = blockFactory().newLongArrayBlock(new long[] {}, 0, new int[] { 0 }, new BitSet(), Block.MvOrdering.UNORDERED)) {
+        try (
+            LongBlock block = blockFactory().newLongArrayBlock(new long[] {}, 0, new int[] { 0 }, new BitSet(), Block.MvOrdering.UNORDERED)
+        ) {
             assertThat(block, instanceOf(LongArrayBlock.class));
             assertBlock(block, List.of());
         }

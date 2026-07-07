@@ -1443,6 +1443,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * in-memory representation — the scan path already applies this same encoding to every value
      * it reads, so stats must match or MIN/MAX pushdown and split-skip classification would
      * compare against the wrong domain.
+     * <p>
+     * A Binary-backed FLOAT16 or DECIMAL column (logical type over BINARY/FIXED_LEN_BYTE_ARRAY,
+     * resolved ESQL type DOUBLE) has its stat decoded to the same {@code double} the scan path
+     * produces (see {@link ParquetColumnDecoding#decodeBinaryNumericStat}) — otherwise the stat
+     * would fall through to the generic {@link Binary}-to-String conversion below, and the
+     * DOUBLE-typed aggregate would fail trying to read it as a {@code Double}.
      */
     private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
         if (ParquetColumnDecoding.hasTemporalStatEncoding(primitiveType)) {
@@ -1453,6 +1459,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
         if (value instanceof Long l && ParquetColumnDecoding.isUnsignedInt64(primitiveType)) {
             return ParquetColumnDecoding.encodeUnsignedLong(l);
+        }
+        Double binaryNumeric = ParquetColumnDecoding.decodeBinaryNumericStat(value, primitiveType);
+        if (binaryNumeric != null) {
+            return binaryNumeric;
         }
         if (value instanceof Binary binary) {
             return binary.toStringUsingUTF8();

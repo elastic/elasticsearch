@@ -1,4 +1,0 @@
-  from employees
-| sort salary desc
-| limit 5 by languages
-| keep first_name, salary, languages

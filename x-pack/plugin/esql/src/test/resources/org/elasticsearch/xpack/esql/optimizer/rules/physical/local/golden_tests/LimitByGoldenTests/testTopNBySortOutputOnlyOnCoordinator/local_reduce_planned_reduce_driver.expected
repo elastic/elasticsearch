@@ -1,3 +1,0 @@
-ExchangeSinkExec[[first_name{f}#0, languages{f}#1, salary{f}#2],false]
-\_TopNByExec[[Order[salary{f}#2,DESC,FIRST]],5[INTEGER],[languages{f}#1],356]
-  \_ExchangeSourceExec[[first_name{f}#0, languages{f}#1, salary{f}#2],false]

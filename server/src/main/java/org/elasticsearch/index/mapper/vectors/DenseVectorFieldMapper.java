@@ -53,6 +53,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
@@ -2721,23 +2722,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE) && experimentalFeaturesEnabled) {
-                if (autoCalibrate) {
-                    return new ESNextDiskBBQVectorsFormat(
-                        QuantEncoding.fromBits((byte) bits),
-                        clusterSize,
-                        ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                        elementType,
-                        onDiskRescore,
-                        mergingExecutorService,
-                        numMergeWorkers,
-                        doPrecondition,
-                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                        flatIndexThreshold,
-                        sliceField,
-                        IvfFlushConfigSource.empty(),
-                        IvfAutoCalibration.mergeConfigResolver(clusterSize)
-                    );
-                }
+                IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
+                    ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                    : IvfMergeConfigResolver.useCodecDefault();
                 return new ESNextDiskBBQVectorsFormat(
                     QuantEncoding.fromBits((byte) bits),
                     clusterSize,
@@ -2749,25 +2736,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     doPrecondition,
                     ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                     flatIndexThreshold,
-                    sliceField
+                    sliceField,
+                    IvfFlushConfigSource.empty(),
+                    mergeConfigResolver
                 );
             } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE)) {
-                if (autoCalibrate) {
-                    return new ES950DiskBBQVectorsFormat(
-                        QuantEncoding.fromBits((byte) bits),
-                        clusterSize,
-                        ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                        elementType,
-                        onDiskRescore,
-                        mergingExecutorService,
-                        numMergeWorkers,
-                        doPrecondition,
-                        ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                        flatIndexThreshold,
-                        IvfFlushConfigSource.empty(),
-                        IvfAutoCalibration.mergeConfigResolver(clusterSize)
-                    );
-                }
+                IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
+                    ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                    : IvfMergeConfigResolver.useCodecDefault();
                 return new ES950DiskBBQVectorsFormat(
                     QuantEncoding.fromBits((byte) bits),
                     clusterSize,
@@ -2778,7 +2754,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     numMergeWorkers,
                     doPrecondition,
                     ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                    flatIndexThreshold
+                    flatIndexThreshold,
+                    IvfFlushConfigSource.empty(),
+                    mergeConfigResolver
                 );
             } else {
                 return new ES940DiskBBQVectorsFormat(

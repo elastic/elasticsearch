@@ -58,26 +58,25 @@ import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -369,7 +368,12 @@ public class ComputeService {
         // needs to record scan stats here.
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
-            if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {
+            if (canSkipSplitDiscovery(plan, formatReaderRegistry)) {
+                // Warm short-circuit: every external aggregate is answered from stripe / whole-file stats and
+                // the scan is skipped. Record the affirmative "served from stripes" signal on the profile
+                // here, the one place it is observable — no scan operator runs for a warm relation.
+                recordExternalWarmAggregates(execInfo, plan);
+            } else {
                 discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
@@ -382,6 +386,27 @@ public class ComputeService {
             // else: splits stays empty — the optimizer will use sourceMetadata for pushdown
         }
         return splits;
+    }
+
+    /**
+     * Records, on the query profile, that the warm short-circuit fired for this plan — counting the
+     * external-relation aggregate fragments that were served from statistics rather than scanned. Only
+     * invoked when {@link #canSkipSplitDiscovery} returned {@code true}, so every {@link ExternalRelation}
+     * fragment is an ungrouped {@code Aggregate -> ExternalRelation} the optimizer will fold to constants.
+     */
+    private static void recordExternalWarmAggregates(EsqlExecutionInfo execInfo, PhysicalPlan plan) {
+        if (execInfo == null) {
+            return;
+        }
+        int[] warm = { 0 };
+        plan.forEachDown(FragmentExec.class, fragment -> {
+            if (fragment.fragment() instanceof Aggregate agg && agg.groupings().isEmpty() && agg.child() instanceof ExternalRelation) {
+                warm[0]++;
+            }
+        });
+        if (warm[0] > 0) {
+            execInfo.queryProfile().addExternalWarmAggregates(warm[0]);
+        }
     }
 
     /**
@@ -449,23 +474,36 @@ public class ComputeService {
         if (support == AggregatePushdownSupport.UNSUPPORTED) {
             return false;
         }
-        List<Expression> aggFunctions = extractAggregateFunctions(agg.aggregates());
+        List<Expression> aggFunctions = ExternalSourceAggregatePushdown.extractAggregateFunctions(agg.aggregates());
         // No aggregate functions to push (e.g. only literals): keep normal discovery.
         if (aggFunctions.isEmpty()) {
             return false;
         }
-        return support.canPushAggregates(aggFunctions, List.of()) == AggregatePushdownSupport.Pushability.YES;
-    }
-
-    private static List<Expression> extractAggregateFunctions(List<? extends NamedExpression> aggregates) {
-        List<Expression> result = new ArrayList<>(aggregates.size());
-        for (NamedExpression agg : aggregates) {
-            Expression toCheck = agg instanceof Alias alias ? alias.child() : agg;
-            if (toCheck instanceof AggregateFunction) {
-                result.add(toCheck);
-            }
+        if (support.canPushAggregates(aggFunctions, List.of()) != AggregatePushdownSupport.Pushability.YES) {
+            return false;
         }
-        return result;
+        // The type-level canPushAggregates check above is necessary but not sufficient: the fold rule
+        // (PushStatsToExternalSource) additionally safe-misses when a column's statistics are unservable
+        // (unharvested text column, poisoned/divergent extremum). If the gate skipped discovery while the fold
+        // then bailed, the query would run a zero-split scan whose un-pruned union_by_name ColumnMapping trips
+        // SchemaAdaptingIterator's width guard (the union_by_name zero-split servability guard). Mirror the fold's exact resolution:
+        // on the skip path the fold's effectiveSplitStats() reduces to SplitStats.of(sourceMetadata) (splits are
+        // empty and STATS_PARTIAL was excluded above), so probing the same map here guarantees that whenever the
+        // gate skips discovery the fold can actually serve every aggregate from stats.
+        SplitStats stats = SplitStats.of(meta);
+        if (stats == null) {
+            return false;
+        }
+        // Feed the same partition-column set the fold uses (read from serialized sourceMetadata, so it matches the
+        // data-node fold): COUNT(partition_col) must safe-miss on both paths, or the gate skips discovery for a
+        // fold that then bails -> the zero-split crash above.
+        Set<String> pathDerivedColumns = ExternalSourceAggregatePushdown.partitionColumnNames(meta);
+        return ExternalSourceAggregatePushdown.canServeAllFromStats(
+            agg.aggregates(),
+            stats,
+            support.appliesImplicitNullsForAbsentColumn(),
+            pathDerivedColumns
+        );
     }
 
     private void discoverSplitsFromFragments(

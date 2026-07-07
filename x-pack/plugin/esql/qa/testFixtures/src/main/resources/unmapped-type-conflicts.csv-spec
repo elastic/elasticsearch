@@ -44,6 +44,7 @@ ignoreOrder:true
 typeConflictWithUnmappedJustFrom - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -99,7 +100,7 @@ null                         | null         | null                | Connected to
 
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -127,6 +128,7 @@ ignoreOrder:true
 typeConflictWithUnmappedJustKeepWildcard - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -184,11 +186,10 @@ null                         | null         | null                | Connected to
 
 typeConflictWithUnmappedJustKeepWildcardPrefix
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
-| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | KEEP @t*, cli*, ev*, me*, _in*
 ;
 ignoreOrder:true
@@ -213,6 +214,7 @@ ignoreOrder:true
 typeConflictWithUnmappedJustKeepWildcardPrefix - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -667,11 +669,10 @@ emp_no:integer | gender:text           | _index:keyword
 // null.
 typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
-| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | SORT _index, message DESC
 | LIMIT 6
 ;
@@ -689,6 +690,7 @@ ignoreOrder:true
 typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -899,7 +901,7 @@ no_mapping_sample_data
 // reproducer for https://github.com/elastic/elasticsearch/issues/145206
 typeConflictPartiallyUnmappedKeywordFieldKept
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -927,6 +929,7 @@ event_duration:long
 typeConflictPartiallyUnmappedKeywordFieldKept - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -2369,11 +2372,10 @@ no_mapping_sample_data | 2024-10-23T13:55:01.543Z
 
 typeConflictLongUnmappedSortWithCastToLong
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
-| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | SORT event_duration::long, _index
 | KEEP _index, event_duration
 ;
@@ -2398,6 +2400,7 @@ sample_data            | 8268153
 typeConflictLongUnmappedSortWithCastToLong - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -2455,11 +2458,10 @@ sample_data            | 8268153
 
 typeConflictLongUnmappedSortWithCastToKeyword
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
-| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | SORT event_duration::keyword, _index
 | KEEP _index, event_duration
 ;
@@ -2484,6 +2486,7 @@ sample_data            | 8268153
 typeConflictLongUnmappedSortWithCastToKeyword - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -2935,11 +2938,10 @@ avg_cost:double | c:long | _index:keyword
 
 typeConflictLongUnmappedTimeseriesSortWithCast
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM k8s, k8s_unmapped METADATA _index
-| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | SORT network.bytes_in::long DESC, _index
 | KEEP _index, network.bytes_in
 | LIMIT 10
@@ -2961,6 +2963,7 @@ k8s_unmapped   | 1006
 typeConflictLongUnmappedTimeseriesSortWithCast - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -3295,7 +3298,7 @@ addresses_text           | North America
 
 autocast two-legged long punk
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped METADATA _index
@@ -3323,10 +3326,12 @@ network.cost:long | x:double | y:double
 autocast two-legged long punk - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 # for determinism and keeping output size in check
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
 | EVAL
@@ -3349,6 +3354,7 @@ missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legg
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 # for determinism and keeping output size in check
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
 | EVAL
@@ -3366,7 +3372,7 @@ null              | 1.25     | null
 
 autocast two-legged double punk
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s METADATA _index
@@ -3393,10 +3399,12 @@ network.cost:double | x:double | y:double
 autocast two-legged double punk - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 # for determinism and keeping output size in check
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
 | EVAL
@@ -3419,6 +3427,7 @@ missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legg
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 # for determinism and keeping output size in check
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
 | EVAL
@@ -3436,7 +3445,7 @@ null                | 1.25     | null
 
 autocast two-legged punk in WHERE
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped METADATA _index
@@ -3457,10 +3466,12 @@ network.cost:long
 autocast two-legged punk in WHERE - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | WHERE network.cost >= 1
 # for determinism and keeping output size in check
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
@@ -3481,6 +3492,7 @@ missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legg
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | WHERE network.cost >= 1
 # for determinism and keeping output size in check
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
@@ -3498,7 +3510,7 @@ network.cost:long
 
 autocast two-legged punk in EVAL
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped METADATA _index
@@ -3519,10 +3531,12 @@ network.cost:long | x:long
 autocast two-legged punk in EVAL - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 # for determinism and keeping output size in check
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
 | EVAL x = network.cost + 1
@@ -3543,6 +3557,7 @@ missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legg
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 # for determinism and keeping output size in check
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
 | EVAL x = network.cost + 1
@@ -3572,6 +3587,7 @@ avg_cost:double | max_cost:long | min_cost:long
 
 autocast two-legged punk in STATS - old data node
 required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.index.IndexMode;
-
 import java.util.HashSet;
 import java.util.Set;
 
@@ -68,9 +66,7 @@ public class CreateIndexCapabilities {
                 REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD
             )
         );
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
-        }
+        caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
         caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
         caps.add(TSDB_INDEX_MODE_CAPABILITY);
         CAPABILITIES = Set.copyOf(caps);

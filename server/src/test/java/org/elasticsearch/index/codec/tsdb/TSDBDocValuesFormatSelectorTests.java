@@ -32,10 +32,8 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
 
     private static List<IndexMode> indexModesUnderTest() {
         List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.STANDARD, IndexMode.LOGSDB));
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.add(IndexMode.COLUMNAR);
-            modes.add(IndexMode.LOGSDB_COLUMNAR);
-        }
+        modes.add(IndexMode.COLUMNAR);
+        modes.add(IndexMode.LOGSDB_COLUMNAR);
         return modes;
     }
 

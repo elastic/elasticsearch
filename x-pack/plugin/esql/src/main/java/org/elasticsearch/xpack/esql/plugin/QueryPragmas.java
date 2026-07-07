@@ -193,7 +193,7 @@ public final class QueryPragmas implements Writeable {
     /**
      *  When {@code true}, allows full-text functions to be used with expressions that are not indexed fields.
      */
-    public static final Setting<Boolean> RUNTIME_LEXICAL_SEARCH = Setting.boolSetting("runtime_lexical_search", false);
+    public static final Setting<Boolean> RUNTIME_LEXICAL_SEARCH = Setting.boolSetting("runtime_lexical_search", true);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 

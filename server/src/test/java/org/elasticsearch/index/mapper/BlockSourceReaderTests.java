@@ -33,10 +33,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class BlockSourceReaderTests extends MapperServiceTestCase {
     public void testSingle() throws IOException {
-        assumeTrue(
-            "requires ignored_source_as_doc_values feature flag enabled",
-            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
-        );
         withIndex(
             source -> source.field("field", "foo"),
             (mapperService, ctx) -> loadBlock(mapperService, ctx, block -> assertThat(block.get(0), equalTo(new BytesRef("foo"))))
@@ -44,18 +40,10 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
     }
 
     public void testMissing() throws IOException {
-        assumeTrue(
-            "requires ignored_source_as_doc_values feature flag enabled",
-            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
-        );
         withIndex(source -> {}, (mapperService, ctx) -> loadBlock(mapperService, ctx, block -> assertThat(block.get(0), nullValue())));
     }
 
     public void testArray() throws IOException {
-        assumeTrue(
-            "requires ignored_source_as_doc_values feature flag enabled",
-            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
-        );
         withIndex(
             source -> source.startArray("field").value("foo").value("bar").endArray(),
             (mapperService, ctx) -> loadBlock(
@@ -67,10 +55,6 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
     }
 
     public void testEmptyArray() throws IOException {
-        assumeTrue(
-            "requires ignored_source_as_doc_values feature flag enabled",
-            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
-        );
         withIndex(
             source -> source.startArray("field").endArray(),
             (mapperService, ctx) -> loadBlock(mapperService, ctx, block -> assertThat(block.get(0), nullValue()))
@@ -78,10 +62,6 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
     }
 
     public void testMoreFields() throws IOException {
-        assumeTrue(
-            "requires ignored_source_as_doc_values feature flag enabled",
-            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
-        );
         withIndex(
             source -> source.field("field", "foo").field("other_field", "bar").field("other_field_2", 1L),
             (mapperService, ctx) -> loadBlock(mapperService, ctx, block -> assertThat(block.get(0), equalTo(new BytesRef("foo"))))

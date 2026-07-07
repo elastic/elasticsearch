@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -459,6 +460,34 @@ public class RoutingTableTests extends ESAllocationTestCase {
             assertThat(routingTable.hasIndex(TEST_INDEX_1), is(true));
             assertThat(routingTable.allShards(TEST_INDEX_1).size(), is(this.shardsPerIndex));
             assertThat(routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size(), is(this.shardsPerIndex));
+        }
+    }
+
+    public void testAddAsRecoveryReshardSplitTargets() {
+        int numSourceShards = 2;
+        int multiple = 2;
+        var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(numSourceShards, multiple);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(numSourceShards * multiple)
+            .numberOfReplicas(0)
+            .reshardingMetadata(reshardingMetadata)
+            .build();
+
+        RoutingTable routingTable = new RoutingTable.Builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsRecovery(indexMetadata)
+            .build();
+
+        var split = reshardingMetadata.getSplit();
+        for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
+            ShardRouting primary = routingTable.index("test").shard(shardId).primaryShard();
+            if (split.isTargetShard(shardId)) {
+                assertThat(primary.recoverySource().getType(), equalTo(RecoverySource.Type.RESHARD_SPLIT));
+                assertThat(primary.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.RESHARD_ADDED));
+                var source = (RecoverySource.ReshardSplitRecoverySource) primary.recoverySource();
+                assertThat(source.getSourceShardId().id(), equalTo(split.sourceShard(shardId)));
+            } else {
+                assertThat(primary.recoverySource().getType(), equalTo(RecoverySource.Type.EMPTY_STORE));
+            }
         }
     }
 

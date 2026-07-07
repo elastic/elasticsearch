@@ -7,24 +7,32 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.docs.OutputFields;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 
+import java.io.IOException;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
 /**
- * Reflection target for {@code DocsV3Support}'s Kibana output-block rendering for the
- * {@code USER_AGENT} command. This is not a test suite (no test methods, no assertions); it
- * lives under {@code src/test} because that's the natural place to regenerate Kibana docs from,
- * matching {@link CommandLicenseTests}.
+ * Defines the `output` fields for {@code USER_AGENT}. {@link DocsV3Support} finds this class via
+ * reflection by naming convention, then calls {@link #renderOutput} directly.
  */
 public class UserAgentOutputFields {
 
     /**
+     * Entry point called by {@link DocsV3Support.CommandsDocsSupport} via reflection. Delegates to
+     * {@link OutputFields#renderFixedOutputBlock} with normal parameters.
+     */
+    public static void renderOutput(XContentBuilder builder) throws IOException {
+        OutputFields.renderFixedOutputBlock(builder, allOutputFieldTypes());
+    }
+
+    /**
      * Returns the full set of possible output fields and their types, keyed by field name and sorted alphabetically.
-     * Used by DocsV3Support to render the Kibana command definition's output block, found via reflection on
-     * {@code UserAgentOutputFields}.
      */
     public static SortedMap<String, DataType> allOutputFieldTypes() {
         SortedMap<String, DataType> result = new TreeMap<>();

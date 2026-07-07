@@ -11,6 +11,8 @@ import org.elasticsearch.ingest.geoip.Database;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.docs.OutputFields;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -20,10 +22,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 /**
- * Reflection target for {@code DocsV3Support}'s Kibana output-block rendering for the
- * {@code IP_LOCATION} command. This is not a test suite (no test methods, no assertions); it
- * lives under {@code src/test} because that's the natural place to regenerate Kibana docs from,
- * matching {@link CommandLicenseTests}.
+ * Defines the `output` fields for {@code IP_LOCATION}. {@link DocsV3Support} finds this class via
+ * reflection by naming convention, then calls {@link #renderOutput} directly.
  */
 public class IpLocationOutputFields {
 
@@ -47,6 +47,14 @@ public class IpLocationOutputFields {
         DATABASE_GLOBS.put("ipinfo*country*.mmdb", Database.CountryV2);
         DATABASE_GLOBS.put("ipinfo*location*.mmdb", Database.CityV2);
         DATABASE_GLOBS.put("ipinfo*privacy*.mmdb", Database.PrivacyDetection);
+    }
+
+    /**
+     * Entry point called by {@link DocsV3Support.CommandsDocsSupport} via reflection. Delegates to
+     * {@link OutputFields#renderDatabaseFileOutputBlock} with normal parameters.
+     */
+    public static void renderOutput(XContentBuilder builder) throws IOException {
+        OutputFields.renderDatabaseFileOutputBlock(builder, DATABASE_GLOBS, IpLocationOutputFields::renderVariantFields);
     }
 
     /**

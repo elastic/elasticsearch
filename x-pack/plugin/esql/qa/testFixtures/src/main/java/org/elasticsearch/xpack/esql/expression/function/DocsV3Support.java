@@ -52,6 +52,7 @@ import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
@@ -68,7 +69,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -1186,6 +1186,7 @@ public abstract class DocsV3Support {
 
     /** Command specific docs generating, currently very empty since we only render kibana definition files */
     public static class CommandsDocsSupport extends DocsV3Support {
+
         private final LogicalPlan command;
         private List<EsqlFunctionRegistry.ArgSignature> args;
         private final XPackLicenseState licenseState;
@@ -1261,28 +1262,31 @@ public abstract class DocsV3Support {
         private static final String OUTPUT_FIELDS_PACKAGE = "org.elasticsearch.xpack.esql.plan.logical.";
 
         /**
-         * Renders the "output" block describing the columns produced by commands with a known output
-         * schema. Commands without a known output schema (no matching reflection target found) render
-         * nothing. Two shapes are supported, each driven by a differently-shaped static method found via
-         * reflection on a test "mothership" class named {@code <Command>OutputFields} in the same package
-         * as {@code CommandLicenseTests}:
-         * <ul>
-         *   <li>{@code vary_by: "none"}: a single {@code allOutputFieldTypes()} returning
-         *       {@code SortedMap<String, DataType>}.</li>
-         *   <li>{@code vary_by: "database_file"}: a {@code DATABASE_GLOBS} field plus a
-         *       {@code renderVariantFields(XContentBuilder, Database)} method (currently only
-         *       {@code IpLocationOutputFields}).</li>
-         * </ul>
+         * Renders the "output" block by finding a public static {@code renderOutput(XContentBuilder)}
+         * method on the matching {@code <Command>OutputFields} class and calling it. Commands without a
+         * matching class or without that method render nothing.
          */
         private static void renderOutputBlock(XContentBuilder builder, LogicalPlan command) throws IOException {
             Class<?> outputFieldsClass = findOutputFieldsClass(command);
             if (outputFieldsClass == null) {
                 return;
             }
-            if (renderDatabaseFileOutputBlock(builder, outputFieldsClass)) {
+            try {
+                Method m = outputFieldsClass.getMethod("renderOutput", XContentBuilder.class);
+                if (Modifier.isStatic(m.getModifiers()) == false) {
+                    return;
+                }
+                m.invoke(null, builder);
+            } catch (NoSuchMethodException e) {
                 return;
+            } catch (InvocationTargetException e) {
+                if (e.getCause() instanceof IOException ioe) {
+                    throw ioe;
+                }
+                throw new RuntimeException(e);
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
             }
-            renderFixedOutputBlock(builder, outputFieldsClass);
         }
 
         /**
@@ -1297,94 +1301,6 @@ public abstract class DocsV3Support {
             } catch (ClassNotFoundException e) {
                 return null;
             }
-        }
-
-        /**
-         * Renders the {@code vary_by: "none"} shape of the output block, reflectively invoking a public static
-         * {@code allOutputFieldTypes()} method returning {@code SortedMap<String, DataType>} on
-         * {@code outputFieldsClass}. Renders nothing if no such method is found.
-         */
-        @SuppressWarnings("unchecked")
-        private static void renderFixedOutputBlock(XContentBuilder builder, Class<?> outputFieldsClass) throws IOException {
-            SortedMap<String, DataType> outputFieldTypes;
-            try {
-                Method m = outputFieldsClass.getMethod("allOutputFieldTypes");
-                if (Modifier.isStatic(m.getModifiers()) == false) {
-                    return;
-                }
-                outputFieldTypes = (SortedMap<String, DataType>) m.invoke(null);
-            } catch (NoSuchMethodException e) {
-                return;
-            } catch (ReflectiveOperationException e) {
-                throw new RuntimeException(e);
-            }
-            builder.startObject("output");
-            builder.field("vary_by", "none");
-            builder.startObject("variants");
-            builder.startObject("all");
-            for (Map.Entry<String, DataType> entry : outputFieldTypes.entrySet()) {
-                builder.startObject(entry.getKey());
-                builder.field("type", entry.getValue().esNameIfPossible());
-                builder.endObject();
-            }
-            builder.endObject();
-            builder.endObject();
-            builder.endObject();
-        }
-
-        /**
-         * Renders the {@code vary_by: "database_file"} shape of the output block (currently only IP_LOCATION),
-         * reflectively looking for a public static {@code DATABASE_GLOBS} field and a public static
-         * {@code renderVariantFields(XContentBuilder, Database)} method on {@code outputFieldsClass}. Matching is
-         * filename-based on known glob patterns; a custom database registered under a standard name would get
-         * incorrect autocomplete hints in Kibana, but ES itself resolves fields from the actual database
-         * metadata, so queries are unaffected.
-         *
-         * @return {@code true} if the block was rendered, {@code false} if {@code outputFieldsClass} doesn't
-         * expose this shape and the caller should fall back to {@link #renderFixedOutputBlock}.
-         */
-        private static boolean renderDatabaseFileOutputBlock(XContentBuilder builder, Class<?> outputFieldsClass) throws IOException {
-            Map<?, ?> databaseGlobs;
-            Method renderVariantFields = null;
-            try {
-                Field globsField = outputFieldsClass.getField("DATABASE_GLOBS");
-                if (Modifier.isStatic(globsField.getModifiers()) == false) {
-                    return false;
-                }
-                databaseGlobs = (Map<?, ?>) globsField.get(null);
-                for (Method candidate : outputFieldsClass.getMethods()) {
-                    if (candidate.getName().equals("renderVariantFields")
-                        && candidate.getParameterCount() == 2
-                        && candidate.getParameterTypes()[0].equals(XContentBuilder.class)
-                        && Modifier.isStatic(candidate.getModifiers())) {
-                        renderVariantFields = candidate;
-                        break;
-                    }
-                }
-                if (renderVariantFields == null) {
-                    return false;
-                }
-            } catch (NoSuchFieldException e) {
-                return false;
-            } catch (ReflectiveOperationException e) {
-                throw new RuntimeException(e);
-            }
-            builder.startObject("output");
-            builder.field("vary_by", "database_file");
-            builder.field("selected_by", "properties");
-            builder.startObject("variants");
-            for (Map.Entry<?, ?> entry : databaseGlobs.entrySet()) {
-                builder.startObject((String) entry.getKey());
-                try {
-                    renderVariantFields.invoke(null, builder, entry.getValue());
-                } catch (ReflectiveOperationException e) {
-                    throw new RuntimeException(e);
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-            builder.endObject();
-            return true;
         }
 
         @Override

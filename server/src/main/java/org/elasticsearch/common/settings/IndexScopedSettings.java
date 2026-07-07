@@ -270,9 +270,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
         settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
-        if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
-            settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
-        }
+        settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
         settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
         settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);

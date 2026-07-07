@@ -312,7 +312,6 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "fix in this pr")
     public void testLookupJoinMissingKey() throws IOException {
         setupClusters(2);
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
@@ -398,11 +397,10 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         ex = expectThrows(VerificationException.class, () -> runQuery("FROM c*:logs-* | LOOKUP JOIN values_lookup ON v", randomBoolean()));
         assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
 
-        ex = expectThrows(
-            VerificationException.class,
-            () -> runQuery("FROM c*:logs-* | EVAL local_tag = to_string(v) | LOOKUP JOIN values_lookup ON local_tag", randomBoolean())
-        );
-        assertThat(ex.getMessage(), containsString("Unknown column [local_tag] in right side of join"));
+        // is falling back to coordinator lookup
+        try (var response = runQuery("FROM c*:logs-* | EVAL local_tag = to_string(v) | LOOKUP JOIN values_lookup ON local_tag", randomBoolean())) {
+            assertThat(response.isPartial(), equalTo(false));
+        }
 
         // Add KEEP clause to try and trick the field-caps result parser into returning empty mapping
         ex = expectThrows(

@@ -130,8 +130,6 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
      * accepted because its original value is stored in doc values and its internal inference sub-fields are exempt.
      */
     public void testSemanticFieldAcceptedInColumnar() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         IndexVersion version = IndexVersion.current();
         String dvFieldName = SemanticTextField.getOriginalValuesFieldName("my_field");
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {

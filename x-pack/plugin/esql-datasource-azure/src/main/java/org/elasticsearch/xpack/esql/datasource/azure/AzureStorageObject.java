@@ -300,21 +300,22 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
         BlobRange range = new BlobRange(position, length);
         long startNanos = System.nanoTime();
-        blobAsyncClient.downloadWithResponse(range, null, null, false)
-            .flatMapMany(response -> response.getValue())
-            .reduce(drb.buffer(), (acc, chunk) -> {
-                if (chunk.remaining() > acc.remaining()) {
-                    throw new IllegalStateException("Server returned more bytes than requested (" + length + ")");
-                }
-                acc.put(chunk);
-                return acc;
-            })
-            .map(buffer -> {
-                buffer.flip();
-                return buffer;
-            })
-            .toFuture()
-            .whenComplete((buffer, error) -> {
+        onReadComplete(
+            blobAsyncClient.downloadWithResponse(range, null, null, false)
+                .flatMapMany(response -> response.getValue())
+                .reduce(drb.buffer(), (acc, chunk) -> {
+                    if (chunk.remaining() > acc.remaining()) {
+                        throw new IllegalStateException("Server returned more bytes than requested (" + length + ")");
+                    }
+                    acc.put(chunk);
+                    return acc;
+                })
+                .map(buffer -> {
+                    buffer.flip();
+                    return buffer;
+                })
+                .toFuture(),
+            (buffer, error) -> {
                 if (error != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     // Release eagerly on the failure path so the breaker charge does not outlive
@@ -323,19 +324,10 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                     Throwable cause = error.getCause() != null ? error.getCause() : error;
                     listener.onFailure(mapReadFailure("Failed to read bytes from", cause));
                 } else {
-                    counters.addRequest(System.nanoTime() - startNanos, buffer.remaining());
-                    try {
-                        listener.onResponse(drb);
-                    } catch (Exception e) {
-                        try {
-                            drb.close();
-                        } catch (Exception closeEx) {
-                            e.addSuppressed(closeEx);
-                        }
-                        throw e;
-                    }
+                    deliverRead(listener, drb, startNanos);
                 }
-            });
+            }
+        );
     }
 
     @Override

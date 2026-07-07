@@ -40,6 +40,7 @@ public class MvSum extends AbstractMultivalueFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Calculates the sum of all values in a multi-value field.",
         description = "Converts a multivalued field into a single valued field containing the sum of all of the values.",
         examples = @Example(file = "math", tag = "mv_sum")
     )

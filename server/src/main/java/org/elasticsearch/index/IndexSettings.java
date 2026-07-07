@@ -25,12 +25,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -638,11 +636,6 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
-    public static final FeatureFlag TIME_SERIES_TEMPORALITY_FEATURE_FLAG = new FeatureFlag("time_series_temporality");
-
-    /** Feature flag gating the ES95 pipeline-based TSDB doc values codec. */
-    public static final FeatureFlag ES95_CODEC_FEATURE_FLAG = new FeatureFlag("es95_codec");
-
     /**
      * Defines the name of the field storing the metric temporality.
      * The corresponding field must be a keyword field (or keyword-like, e.g. constant_keyword).
@@ -727,14 +720,14 @@ public final class IndexSettings {
         public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
             if (enabled) {
                 var indexMode = (IndexMode) settings.get(MODE);
-                if (indexMode == IndexMode.TIME_SERIES) {
+                if (IndexMode.isTsdb(indexMode)) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
                             "The setting [%s] cannot be used with [%s=%s].",
                             SLICE_ENABLED.getKey(),
                             MODE.getKey(),
-                            IndexMode.TIME_SERIES.getName()
+                            indexMode.getName()
                         )
                     );
                 }
@@ -770,7 +763,7 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", settings -> {
         IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
-        boolean isTimeSeries = IndexMode.TIME_SERIES.equals(MODE.get(settings));
+        boolean isTimeSeries = MODE.get(settings).isTsdb();
         boolean isValidCodec = isValidCodecForSyntheticId(INDEX_CODEC_SETTING.get(settings), indexVersion);
         boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
         return isTimeSeries && isValidCodec && onByDefault ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
@@ -783,7 +776,7 @@ public final class IndexSettings {
             if (enabled) {
                 // Verify if index mode is TIME_SERIES
                 var indexMode = (IndexMode) settings.get(MODE);
-                if (indexMode != IndexMode.TIME_SERIES) {
+                if (indexMode.isTsdb() == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
@@ -853,7 +846,7 @@ public final class IndexSettings {
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
         var indexMode = MODE.get(s);
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             return Boolean.toString(iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB));
         }
         if (indexMode == IndexMode.LOGSDB || indexMode.isStrictColumnar()) {
@@ -988,7 +981,7 @@ public final class IndexSettings {
                 return Boolean.FALSE.toString();
             }
             var indexMode = IndexSettings.MODE.get(settings);
-            return Boolean.toString(indexMode == IndexMode.TIME_SERIES);
+            return Boolean.toString(indexMode.isTsdb());
         },
         Property.IndexScope,
         Property.Final
@@ -1001,7 +994,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final FeatureFlag INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG = new FeatureFlag("index_disabled_by_default");
     public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
         "index.mapping.index_disabled_by_default",
         settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar()),
@@ -1010,15 +1002,45 @@ public final class IndexSettings {
     );
 
     /**
-     * Opt in setting that enables the ES95 TSDB doc values codec for a given time series index.
-     * Registered only when {@link #ES95_CODEC_FEATURE_FLAG} is enabled, defaults to {@code false}.
+     * Controls whether columnar id mode is used. This is a proxy setting for the default based on index.mode setting.
+     * Proxy mainly exists for tests to easily randomly test with columnar id mode.
      */
-    public static final Setting<Boolean> TIME_SERIES_ES95_CODEC_ENABLED_SETTING = Setting.boolSetting(
-        "index.time_series.es95_codec.enabled",
-        false,
+    public static final Setting<Boolean> USE_COLUMNAR_ID_BY_DEFAULT = Setting.boolSetting(
+        "index.mapping.use_columnar_id_mode_by_default",
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            IndexVersion indexVersionCreated = SETTING_INDEX_VERSION_CREATED.get(settings);
+            if (indexVersionCreated.before(IndexVersions.MAPPING_ID_MODE_DEFAULT)) {
+                return Boolean.FALSE.toString();
+            }
+            IndexMode indexMode = IndexSettings.MODE.get(settings);
+            return Boolean.toString(indexMode.isStrictColumnar());
+        },
         Property.IndexScope,
         Property.Final
     );
+
+    /**
+     * Controls whether the ES95 TSDB doc values codec is used for a given time series index, allowing opt-out.
+     * Defaults to {@code true} for time series indices created on or after
+     * {@link IndexVersions#TIME_SERIES_ES95_CODEC_DEFAULT}, and {@code false} otherwise. The codec is
+     * additionally disabled on stateless nodes regardless of this setting; see {@link #isTimeSeriesEs95CodecEnabled()}.
+     */
+    public static final Setting<Boolean> TIME_SERIES_ES95_CODEC_ENABLED_SETTING = Setting.boolSetting(
+        "index.time_series.es95_codec.enabled",
+        settings -> Boolean.toString(es95CodecEnabledByDefault(settings)),
+        Property.IndexScope,
+        Property.Final
+    );
+
+    private static boolean es95CodecEnabledByDefault(final Settings settings) {
+        if (settings == null || MODE.get(settings).isTsdb() == false) {
+            return false;
+        }
+        return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
+    }
 
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
@@ -1118,7 +1140,7 @@ public final class IndexSettings {
         if (indexMode.isStrictColumnar()) {
             return true;
         }
-        return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
+        return (indexMode == IndexMode.LOGSDB || indexMode.isTsdb())
             && (indexVersionCreated.onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS) || indexVersionCreated.equals(IndexVersions.ZERO));
     }
 
@@ -1132,7 +1154,9 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING = Setting.boolSetting(
         "index.dense_vector.experimental_features",
-        Build.current().isSnapshot(),
+        // snapshot should use new experimental formats
+        // enabling with slice feature as well for ease of testing
+        Build.current().isSnapshot() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled(),
         Property.IndexScope,
         Property.Final
     );
@@ -1216,14 +1240,7 @@ public final class IndexSettings {
             boolean disableAutoTextByDefault = mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR;
             return Boolean.toString(disableAutoTextByDefault == false);
         },
-        value -> {
-            if (value == false && FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
-                throw new IllegalArgumentException(
-                    "[index.mapping.dynamic_strings.auto_text] can only be disabled when the"
-                        + " extended_doc_values_options feature flag is enabled"
-                );
-            }
-        },
+        value -> {},
         Property.Dynamic,
         Property.IndexScope
     );
@@ -1333,6 +1350,7 @@ public final class IndexSettings {
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
+    private final boolean useColumnarIdByDefault;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1543,12 +1561,14 @@ public final class IndexSettings {
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
-        indexDisabledByDefault = INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
+        indexDisabledByDefault = scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
+        useColumnarIdByDefault = scopedSettings.get(USE_COLUMNAR_ID_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
-        timeSeriesEs95CodecEnabled = ES95_CODEC_FEATURE_FLAG.isEnabled() && scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        timeSeriesEs95CodecEnabled = DiscoveryNode.isStateless(nodeSettings) == false
+            && scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -2360,12 +2380,10 @@ public final class IndexSettings {
     }
 
     /**
-     * Checks if this index has opted into the ES95 TSDB doc values codec.
-     * Always returns {@code false} when {@link #ES95_CODEC_FEATURE_FLAG} is disabled,
-     * regardless of any value set on {@link #TIME_SERIES_ES95_CODEC_ENABLED_SETTING}.
+     * Checks if this index uses the ES95 TSDB doc values codec, as resolved from
+     * {@link #TIME_SERIES_ES95_CODEC_ENABLED_SETTING}. Always {@code false} on stateless nodes.
      *
-     * @return {@code true} if the index has opted into ES95 and the feature flag is enabled;
-     *         {@code false} otherwise.
+     * @return {@code true} if the index uses ES95; {@code false} otherwise.
      */
     public boolean isTimeSeriesEs95CodecEnabled() {
         return timeSeriesEs95CodecEnabled;
@@ -2380,6 +2398,10 @@ public final class IndexSettings {
 
     public boolean isIndexDisabledByDefault() {
         return indexDisabledByDefault;
+    }
+
+    public boolean isUseColumnarIdByDefault() {
+        return useColumnarIdByDefault;
     }
 
     /**

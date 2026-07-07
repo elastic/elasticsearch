@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -39,11 +41,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 public class DatasetRewriterTests extends ESTestCase {
 
@@ -52,7 +54,7 @@ public class DatasetRewriterTests extends ESTestCase {
     public void testNoDatasetsLeavesPlanUnchanged() {
         UnresolvedRelation relation = relationOf("my_index");
         ProjectMetadata project = projectWith(Map.of(), Map.of());
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+        assertSame(relation, rewrite(relation, project));
     }
 
     public void testUnknownNameLeavesPlanUnchanged() {
@@ -63,7 +65,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         UnresolvedRelation relation = relationOf("not_a_dataset_or_index");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+        assertSame(relation, rewrite(relation, project));
     }
 
     public void testSingleDatasetRewritesToUnresolvedExternalRelation() {
@@ -77,7 +79,7 @@ public class DatasetRewriterTests extends ESTestCase {
         );
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
 
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
@@ -91,7 +93,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of("region", "eu-west-2"));
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
         assertThat(paramValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("eu-west-2"));
     }
 
@@ -101,7 +103,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("ds1,ds2"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("ds1,ds2"), project);
 
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
@@ -110,23 +112,45 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testMixedDatasetsAndNonDatasetsRejected() {
-        // Register a real index alongside the dataset so the resolver actually sees both abstractions.
-        // The error reports counts only — listing matched names would exfiltrate index/alias/data-stream
-        // names the caller may not have read access to.
+    public void testMixedDatasetsAndNonDatasetsProducesUnionAll() {
+        // Phase 2: heterogeneous FROM (index + dataset) produces UnionAll instead of rejecting.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs", dataset), Set.of("some_idx"));
 
-        VerificationException ex = expectThrows(
-            VerificationException.class,
-            () -> DatasetRewriter.rewrite(relationOf("some_idx,logs"), project, RESOLVER)
-        );
-        assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), containsString("1 non-dataset(s)"));
-        assertThat(ex.getMessage(), containsString("1 dataset(s)"));
-        assertThat(ex.getMessage(), not(containsString("some_idx")));
-        assertThat(ex.getMessage(), not(containsString("[logs]")));
+        LogicalPlan rewritten = rewrite(relationOf("some_idx,logs"), project);
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        // Dataset branches precede the index branch under the unified rail.
+        // First child: UnresolvedExternalRelation for the dataset
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation datasetBranch = (UnresolvedExternalRelation) union.children().get(0);
+        assertThat(tablePathString(datasetBranch), equalTo("s3://logs/"));
+        // Second child: UnresolvedRelation for the non-dataset index
+        assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation indexBranch = (UnresolvedRelation) union.children().get(1);
+        assertThat(indexBranch.indexPattern().indexPattern(), equalTo("some_idx"));
+    }
+
+    public void testMixedMultipleIndicesAndDatasetsProducesUnionAll() {
+        // Multiple non-dataset indices are joined into a single UnresolvedRelation branch;
+        // each dataset becomes its own UnresolvedExternalRelation branch.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://ds1/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://ds2/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2), Set.of("idx1", "idx2"));
+
+        LogicalPlan rewritten = rewrite(relationOf("idx1,idx2,ds1,ds2"), project);
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        // 1 index branch + 2 dataset branches = 3 children
+        assertThat(union.children(), hasSize(3));
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(2), instanceOf(UnresolvedRelation.class));
     }
 
     public void testIndexModeNonStandardRejected() {
@@ -151,16 +175,18 @@ public class DatasetRewriterTests extends ESTestCase {
         for (Map.Entry<IndexMode, String> entry : expectedFragments.entrySet()) {
             VerificationException ex = expectThrows(
                 VerificationException.class,
-                () -> DatasetRewriter.rewrite(relationOfWithMode("logs", entry.getKey()), project, RESOLVER)
+                () -> rewrite(relationOfWithMode("logs", entry.getKey()), project)
             );
             assertThat(ex.getMessage(), containsString(entry.getValue()));
             assertThat(ex.getMessage(), containsString("logs"));
         }
     }
 
-    public void testMetadataFieldsRejectedOnDataset() {
-        // METADATA fields on a dataset are rejected at the rewriter rather than silently dropped.
-        // Mirrors the TS / LOOKUP rejection style. _index synthesis is tracked separately.
+    public void testMetadataFieldsThreadedToUnresolvedExternalRelation() {
+        // METADATA fields on FROM <dataset> are no longer rejected; the rewriter carries them
+        // verbatim into UnresolvedExternalRelation so the analyzer's ResolveExternalRelations can
+        // bind each one to an ExternalMetadataAttribute. The registered dataset name also flows
+        // through (drives the per-file _index synthesizer).
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
@@ -169,13 +195,18 @@ public class DatasetRewriterTests extends ESTestCase {
             Source.EMPTY,
             new IndexPattern(Source.EMPTY, "logs"),
             false,
-            List.of(MetadataAttribute.create(Source.EMPTY, MetadataAttribute.INDEX)),
+            List.of(MetadataAttribute.create(Source.EMPTY, MetadataAttribute.INDEX), MetadataAttribute.create(Source.EMPTY, "_id")),
             IndexMode.STANDARD,
             null
         );
-        VerificationException ex = expectThrows(VerificationException.class, () -> DatasetRewriter.rewrite(relation, project, RESOLVER));
-        assertThat(ex.getMessage(), containsString("METADATA fields are not supported on datasets"));
-        assertThat(ex.getMessage(), containsString("logs"));
+        LogicalPlan rewritten = rewrite(relation, project);
+
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        assertThat("metadata fields preserved verbatim", out.metadataFields(), hasSize(2));
+        assertThat(out.metadataFields().get(0).name(), equalTo(MetadataAttribute.INDEX));
+        assertThat(out.metadataFields().get(1).name(), equalTo("_id"));
+        assertThat("dataset name threaded", out.datasetName(), equalTo("logs"));
     }
 
     public void testDatasetReferencingUnknownDataSourceFailsWithExplicitMessage() {
@@ -190,10 +221,7 @@ public class DatasetRewriterTests extends ESTestCase {
         // broken-state we're simulating.
         ProjectMetadata project = projectWith(Map.of(), Map.of("orphan_ds", orphan));
 
-        IllegalStateException ex = expectThrows(
-            IllegalStateException.class,
-            () -> DatasetRewriter.rewrite(relationOf("orphan_ds"), project, RESOLVER)
-        );
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> rewrite(relationOf("orphan_ds"), project));
         assertThat(ex.getMessage(), containsString("dataset [orphan_ds]"));
         assertThat(ex.getMessage(), containsString("unknown data source [missing_parent]"));
     }
@@ -205,7 +233,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
         assertThat(datasourceParamValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("us-east-1"));
     }
 
@@ -219,7 +247,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
@@ -235,15 +263,15 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         UnresolvedRelation relation = relationOf("metrics_*");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+        assertSame(relation, rewrite(relation, project));
     }
 
-    public void testClosedIndexCountsAsNonDatasetInMixedRejection() {
+    public void testClosedIndexCountsAsNonDatasetInHeterogeneousUnionAll() {
         // The rewriter's IndicesOptions are based on IndexResolver.DEFAULT_OPTIONS so the gatekeeper
         // matches user-side semantics. allowClosedIndices=true means a closed index in the pattern
-        // appears in the resolver's result and contributes to nonDatasetCount — preventing the
-        // silent-drop where a closed index would disappear from the query and the rewriter would
-        // produce a dataset-only relation. The mixed-FROM rejection fires as expected.
+        // appears in the resolver's result and is bucketed as a non-dataset — preventing the
+        // silent-drop where a closed index would disappear and the rewriter would produce a
+        // dataset-only relation.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
 
@@ -265,33 +293,191 @@ public class DatasetRewriterTests extends ESTestCase {
         );
         ProjectMetadata project = builder.build();
 
-        VerificationException ex = expectThrows(
-            VerificationException.class,
-            () -> DatasetRewriter.rewrite(relationOf("my_closed_index,logs"), project, RESOLVER)
-        );
-        assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), containsString("1 non-dataset(s)"));
-        assertThat(ex.getMessage(), containsString("1 dataset(s)"));
+        LogicalPlan rewritten = rewrite(relationOf("my_closed_index,logs"), project);
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
     }
 
-    public void testWildcardSpanningIndicesAndDatasetsRejected() {
-        // `FROM logs_*` matching both real indices and datasets is mixed-FROM territory — same as a
-        // literal mix. The error surfaces counts only — listing matched names would exfiltrate
-        // index/alias/data-stream names the caller may not have read access to.
+    public void testWildcardSpanningIndicesAndDatasetsProducesUnionAll() {
+        // `FROM logs_*` matching both real indices and datasets produces a heterogeneous
+        // UnionAll instead of rejecting. The index branch is a single UnresolvedRelation whose
+        // pattern holds the concrete resolved index name(s); each dataset becomes its own branch.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("logs_index"));
 
-        VerificationException ex = expectThrows(
-            VerificationException.class,
-            () -> DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER)
-        );
-        assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), containsString("1 non-dataset(s)"));
-        assertThat(ex.getMessage(), containsString("1 dataset(s)"));
-        // The caller may not have access to the matched index name — must not be exfiltrated.
-        assertThat(ex.getMessage(), not(containsString("logs_index")));
-        assertThat(ex.getMessage(), not(containsString("logs_dataset")));
+        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
+    }
+
+    public void testWildcardMatchingDatasetUnderCpsPreservesRemoteHalf() {
+        // `FROM logs_*` matches a local dataset and no local index. With CPS on, the same wildcard may also match
+        // indices in linked projects — mirror views: keep the dataset's external relation AND re-emit the original
+        // wildcard as an UnresolvedRelation so the remote half resolves at field-caps (instead of dropping it).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_*"), project, Set.of("logs_dataset"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        assertThat(children, hasSize(2));
+        assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(children.get(1), instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) children.get(1)).indexPattern().indexPattern(), equalTo("logs_*"));
+    }
+
+    public void testWildcardMatchingDatasetWithoutCpsNotPreserved() {
+        // Same query, CPS off (the shipped config today): the dataset replaces the relation outright, no remote pass.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
+
+        LogicalPlan rewritten = rewriteWithAuthorized(relationOf("logs_*"), project, Set.of("logs_dataset"));
+
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testExplicitDatasetNameUnderCpsEmitsShadow() {
+        // An exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half would never reach
+        // field-caps. Under CPS the rewriter emits a DatasetShadowRelation sibling next to the dataset's external
+        // relation (inside a plain UnionAll) so the lenient linked pass can federate a remote index of the same name —
+        // the dataset analog of ViewResolver's OPTIONAL-shadow branch. The unmatched shadow is later stripped by the
+        // analyzer, returning to the bare external shape; matched, it survives as a sibling EsRelation.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_dataset"), project, Set.of("logs_dataset"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        assertThat(children, hasSize(2));
+        assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(children.get(1), instanceOf(DatasetShadowRelation.class));
+        DatasetShadowRelation shadow = (DatasetShadowRelation) children.get(1);
+        assertThat(shadow.datasetName(), equalTo("logs_dataset"));
+        assertThat(shadow.linkedIndexPattern().pattern().indexPattern(), equalTo("logs_dataset"));
+    }
+
+    public void testExplicitDatasetNameWithoutCpsEmitsNoShadow() {
+        // Same query, CPS off (the shipped config today): the dataset replaces the relation outright, no shadow.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
+
+        LogicalPlan rewritten = rewriteWithAuthorized(relationOf("logs_dataset"), project, Set.of("logs_dataset"));
+
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testExplicitDatasetShadowCarriesTrailingExclusions() {
+        // The shadow's pattern is the exact name plus the relation's trailing exclusions, so the remote half honors the
+        // same exclusions the local FROM did — mirroring ViewResolver.collectExclusionsAfterPosition.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_a,-stale-*"), project, Set.of("logs_a"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        // external(logs_a) + shadow(logs_a,-stale-*); the exclusion-only relation has no positive wildcard so no
+        // UnresolvedRelation is preserved.
+        assertThat(children, hasSize(2));
+        assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
+        DatasetShadowRelation shadow = (DatasetShadowRelation) children.get(1);
+        assertThat(shadow.linkedIndexPattern().pattern().indexPattern(), equalTo("logs_a,-stale-*"));
+    }
+
+    public void testMultipleExactDatasetNamesUnderCpsEmitShadowEach() {
+        // FROM ds1,ds2 (both exact) under CPS: two externals + two shadows in one UnionAll.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds1,ds2"), project, Set.of("ds1", "ds2"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        assertThat(children, hasSize(4));
+        long externalCount = children.stream().filter(c -> c instanceof UnresolvedExternalRelation).count();
+        long shadowCount = children.stream().filter(c -> c instanceof DatasetShadowRelation).count();
+        assertThat(externalCount, equalTo(2L));
+        assertThat(shadowCount, equalTo(2L));
+    }
+
+    public void testInterleavedExclusionAppliesPositionallyToShadows() {
+        // FROM ds1,-x,ds2 — exclusions are positional (ES applies them left-to-right): -x precedes ds2, so only ds1's
+        // shadow carries it. (A global sweep would wrongly narrow ds2's shadow with -x too.)
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds1,-x,ds2"), project, Set.of("ds1", "ds2"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        Set<String> shadowPatterns = rewritten.children()
+            .stream()
+            .filter(c -> c instanceof DatasetShadowRelation)
+            .map(c -> ((DatasetShadowRelation) c).linkedIndexPattern().pattern().indexPattern())
+            .collect(java.util.stream.Collectors.toSet());
+        assertThat(shadowPatterns, equalTo(Set.of("ds1,-x", "ds2")));
+    }
+
+    public void testHeterogeneousFromUnderCpsEmitsShadowForDataset() {
+        // A heterogeneous FROM (local index + local dataset) under CPS must run the same
+        // non-remotable-abstraction rail as a dataset-only FROM. The dataset's exact name gets a DatasetShadowRelation
+        // so a remote index of the same name reads both and a remote dataset/view of the same name fails. Before the
+        // unification the heterogeneous path returned before the CPS rail, silently skipping the dataset's remote check.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("some_idx"));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("some_idx,logs_dataset"), project, Set.of("logs_dataset"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        // external(logs_dataset) + index branch(some_idx) + shadow(logs_dataset)
+        assertThat(children, hasSize(3));
+        assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(children.get(1), instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) children.get(1)).indexPattern().indexPattern(), equalTo("some_idx"));
+        assertThat(children.get(2), instanceOf(DatasetShadowRelation.class));
+        assertThat(((DatasetShadowRelation) children.get(2)).datasetName(), equalTo("logs_dataset"));
+    }
+
+    public void testExactDatasetShadowsDoNotConsumeTheRewriteCap() {
+        // The rewrite-time cap counts real reads (datasets + index branch), not the speculative shadows. A shadow
+        // strips when its exact name has no remote namesake (the common case), so it must not eat the per-FROM budget.
+        // Five exact datasets under CPS = 5 externals + 5 shadows = 10 UnionAll children but only 5 real reads, so it
+        // must NOT be rejected at rewrite -- otherwise the shadows would silently halve the dataset budget.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            datasets.put("ds" + i, new Dataset("ds" + i, new DataSourceReference("s3_parent"), "s3://" + i + "/", null, Map.of()));
+        }
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds0,ds1,ds2,ds3,ds4"), project, datasets.keySet());
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(10)); // 5 externals + 5 shadows
+        assertThat(union.children().stream().filter(c -> c instanceof DatasetShadowRelation).count(), equalTo(5L));
     }
 
     public void testNonStringSettingsArePreservedThroughCarrier() {
@@ -311,7 +497,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of("format", "parquet"));
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
 
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
@@ -328,7 +514,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
 
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         Object accessKey = datasourceParamValue(out, "access_key");
@@ -346,7 +532,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
 
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         Object accessKey = datasourceParamValue(out, "access_key");
@@ -363,7 +549,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         UnresolvedRelation relation = relationOf("metrics_unrelated");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+        assertSame(relation, rewrite(relation, project));
     }
 
     public void testWildcardWithExclusion() {
@@ -373,7 +559,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset test = new Dataset("logs_test", new DataSourceReference("s3_parent"), "s3://test/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_test", test));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*,-logs_test"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs_*,-logs_test"), project);
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         assertThat(tablePathString(out), equalTo("s3://a/"));
@@ -393,7 +579,7 @@ public class DatasetRewriterTests extends ESTestCase {
         }
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
 
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
@@ -415,13 +601,10 @@ public class DatasetRewriterTests extends ESTestCase {
         }
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        VerificationException ex = expectThrows(
-            VerificationException.class,
-            () -> DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER)
-        );
+        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs_*"), project));
         assertThat(ex.getMessage(), containsString("FROM [logs_*]"));
-        assertThat(ex.getMessage(), containsString("matched 9 datasets"));
-        assertThat(ex.getMessage(), containsString("current limit is 8"));
+        assertThat(ex.getMessage(), containsString("resolved to 9 branches"));
+        assertThat(ex.getMessage(), containsString("the current limit of 8"));
         assertThat(ex.getMessage(), containsString("Narrow the pattern"));
     }
 
@@ -433,7 +616,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         UnresolvedRelation relation = relationOf("<metrics-{now/d}>");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+        assertSame(relation, rewrite(relation, project));
     }
 
     public void testLiteralPatternMatchingDatasetWithDateSuffixRewrites() {
@@ -447,7 +630,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs-2026-05-05", dataset));
 
         UnresolvedRelation relation = relationOf("logs-2026-05-05");
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relation, project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relation, project);
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
     }
 
@@ -459,7 +642,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*,-logs_doesnotexist"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs_*,-logs_doesnotexist"), project);
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
@@ -473,7 +656,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset c = new Dataset("logs_c", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b, "logs_c", c));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*,-logs_a,-logs_b"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs_*,-logs_a,-logs_b"), project);
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         assertThat(tablePathString(out), equalTo("s3://c/"));
@@ -487,7 +670,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         UnresolvedRelation relation = relationOf("cluster-1:some_index");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+        assertSame(relation, rewrite(relation, project));
     }
 
     public void testRemoteClusterPatternMatchingLocalDatasetNameBailsOut() {
@@ -499,7 +682,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         UnresolvedRelation relation = relationOf("cluster-1:logs");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+        assertSame(relation, rewrite(relation, project));
     }
 
     public void testRemoteClusterPatternMixedWithLocalDatasetBailsOut() {
@@ -511,7 +694,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         UnresolvedRelation relation = relationOf("cluster-1:remote_idx,logs");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+        assertSame(relation, rewrite(relation, project));
     }
 
     public void testCommaSeparatedDatasetsAndWildcardCombine() {
@@ -523,7 +706,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset m2 = new Dataset("metrics_2", new DataSourceReference("s3_parent"), "s3://m2/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "metrics_1", m1, "metrics_2", m2));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_a,metrics_*"), project, RESOLVER);
+        LogicalPlan rewritten = rewrite(relationOf("logs_a,metrics_*"), project);
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(3));
@@ -532,7 +715,166 @@ public class DatasetRewriterTests extends ESTestCase {
         }
     }
 
+    public void testWildcardSkipsUnauthorizedDataset() {
+        // A wildcard expands only to datasets in the authorized set — an unauthorized dataset is
+        // invisible, like an unauthorized index under a wildcard.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
+
+        LogicalPlan rewritten = rewriteWithAuthorized(relationOf("logs_*"), project, Set.of("logs_a"));
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        assertThat(tablePathString((UnresolvedExternalRelation) rewritten), equalTo("s3://a/"));
+    }
+
+    public void testWildcardAllUnauthorizedLeavesPlanUnchanged() {
+        // Nothing authorized under the wildcard: the relation flows through untouched, so the
+        // analyzer fails it the same way it fails a pattern that matches nothing.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a));
+
+        UnresolvedRelation relation = relationOf("logs_*");
+        assertSame(relation, rewriteWithAuthorized(relation, project, Set.of()));
+    }
+
+    public void testExplicitUnauthorizedDatasetIsUnknownIndex() {
+        // An explicitly named unauthorized dataset must produce the same error a missing index produces — Unknown index
+        // (400) — so an unauthorized dataset is indistinguishable from a nonexistent name (no existence oracle).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> rewriteWithAuthorized(relationOf("logs"), project, Set.of())
+        );
+        assertThat(ex.getMessage(), containsString("Unknown index [logs]"));
+    }
+
+    public void testExplicitUnauthorizedAmongAuthorizedThrows() {
+        // Multi-target FROM with one authorized and one unauthorized dataset errors instead of silently returning
+        // partial data for the authorized one — same Unknown index (400) error as above.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", a, "ds2", b));
+
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> rewriteWithAuthorized(relationOf("ds1,ds2"), project, Set.of("ds1"))
+        );
+        assertThat(ex.getMessage(), containsString("Unknown index [ds2]"));
+    }
+
+    public void testHeterogeneousFromUnauthorizedDatasetDoesNotBleed() {
+        // A readable index co-located in the FROM does not let an unauthorized dataset through: the explicit unauthorized
+        // dataset still fails as Unknown index, exactly as it would alone (no existence oracle). Mirrors
+        // testExplicitUnauthorizedAmongAuthorizedThrows with a plain index in place of the authorized dataset. The
+        // per-target classification this relies on is asserted by testResolveClassifiesIndexAndUnauthorizedDatasetPerTarget
+        // (below).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset secret = new Dataset("secret_ds", new DataSourceReference("s3_parent"), "s3://secret/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("secret_ds", secret), Set.of("some_idx"));
+
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> rewriteWithAuthorized(relationOf("some_idx,secret_ds"), project, Set.of("some_idx"))
+        );
+        assertThat(ex.getMessage(), containsString("Unknown index [secret_ds]"));
+    }
+
+    // ---- resolve(): the engine-side, per-relation expansion that the action body runs ----
+
+    public void testResolveEmptyWithoutDatasets() {
+        // No datasets registered: an explicit name resolves to no authorized datasets and no non-dataset targets.
+        DatasetRewriter.DatasetResolution r = resolve("logs", projectWith(Map.of(), Map.of()), Set.of());
+        assertThat(r.authorizedDatasets(), equalTo(Set.of()));
+        assertTrue(r.nonDatasetNames().isEmpty());
+    }
+
+    public void testResolveExpandsToAuthorizedDatasetNames() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
+
+        // Explicit single dataset.
+        assertThat(resolve("logs_a", project, Set.of("logs_a")).authorizedDatasets(), equalTo(Set.of("logs_a")));
+        // Wildcard, all authorized.
+        assertThat(resolve("logs_*", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), containsInAnyOrder("logs_a", "logs_b"));
+        // Wildcard with exclusion, applied within the relation.
+        assertThat(resolve("logs_*,-logs_b", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of("logs_a")));
+        // No pattern can match a dataset name → empty.
+        assertThat(resolve("metrics", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of()));
+    }
+
+    public void testResolveExclusionStaysPerRelation() {
+        // The exclusion in one relation must not shadow another relation's expansion — each relation is resolved on its
+        // own raw patterns. Here the second relation excludes logs_a; resolving the first still yields it.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
+
+        assertThat(resolve("logs_*", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), containsInAnyOrder("logs_a", "logs_b"));
+        assertThat(resolve("logs_*,-logs_a", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of("logs_b")));
+    }
+
+    public void testResolveFlagsNonDatasetTargets() {
+        // A wildcard spanning a dataset and a real index reports the non-dataset names, driving heterogeneous-FROM UnionAll.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("logs_index"));
+
+        DatasetRewriter.DatasetResolution r = resolve("logs_*", project, Set.of("logs_dataset"));
+        assertThat(r.authorizedDatasets(), equalTo(Set.of("logs_dataset")));
+        assertFalse(r.nonDatasetNames().isEmpty());
+    }
+
+    public void testResolveClassifiesIndexAndUnauthorizedDatasetPerTarget() {
+        // Mixed FROM: the index and the unauthorized dataset are classified independently in one pass — the index is a
+        // readable non-dataset target (drives the heterogeneous-FROM UnionAll index branch), the dataset is flagged
+        // unauthorized. The enforcement of that flag is asserted by testHeterogeneousFromUnauthorizedDatasetDoesNotBleed
+        // (above).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset secret = new Dataset("secret_ds", new DataSourceReference("s3_parent"), "s3://secret/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("secret_ds", secret), Set.of("some_idx"));
+
+        DatasetRewriter.DatasetResolution r = resolve("some_idx,secret_ds", project, Set.of("some_idx"));
+        assertThat(r.nonDatasetNames(), containsInAnyOrder("some_idx"));
+        assertThat(r.explicitUnauthorized(), containsInAnyOrder("secret_ds"));
+    }
+
     // --
+
+    /** Rewrite with every registered dataset authorized — the unsecured-cluster behavior. */
+    private static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata project) {
+        return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER);
+    }
+
+    /**
+     * Rewrite one relation with only {@code authorized} datasets readable — the secured-cluster behavior. Models the
+     * security filter narrowing the request indices to the authorized subset by passing {@code authorized} as the
+     * relation's (filter-narrowed) indices, while the raw FROM pattern stays the un-narrowed mixed-FROM signal.
+     */
+    private static LogicalPlan rewriteWithAuthorized(UnresolvedRelation relation, ProjectMetadata project, Set<String> authorized) {
+        DatasetRewriter.DatasetResolution resolution = resolve(relation.indexPattern().indexPattern(), project, authorized);
+        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), false);
+    }
+
+    /** As {@link #rewriteWithAuthorized}, but with cross-project search (CPS) enabled. */
+    private static LogicalPlan rewriteWithAuthorizedCps(UnresolvedRelation relation, ProjectMetadata project, Set<String> authorized) {
+        DatasetRewriter.DatasetResolution resolution = resolve(relation.indexPattern().indexPattern(), project, authorized);
+        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), true);
+    }
+
+    /** Engine-side resolve of {@code rawPattern} with {@code authorized} as the (filter-narrowed) request indices. */
+    private static DatasetRewriter.DatasetResolution resolve(String rawPattern, ProjectMetadata project, Set<String> authorized) {
+        String[] raw = Strings.splitStringByCommaToArray(rawPattern);
+        return DatasetRewriter.resolve(authorized.toArray(String[]::new), raw, project, RESOLVER);
+    }
 
     private static UnresolvedRelation relationOf(String pattern) {
         return relationOfWithMode(pattern, IndexMode.STANDARD);

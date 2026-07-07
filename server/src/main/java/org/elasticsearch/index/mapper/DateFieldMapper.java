@@ -257,19 +257,20 @@ public final class DateFieldMapper extends FieldMapper {
         return (DateFieldMapper) in;
     }
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        true
-    );
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
+        if (indexSettings.getMode().isStrictColumnar() == false) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
+        }
+
+        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability);
+    }
 
     public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.of(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final DocValuesParameter docValuesParameters;
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -320,6 +321,11 @@ public final class DateFieldMapper extends FieldMapper {
             this.resolution = resolution;
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.docValuesParameters = DocValuesParameter.of(
+                defaultDocValuesParameters(indexSettings),
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
+            );
             this.ignoreMalformed = Parameter.boolParam(
                 "ignore_malformed",
                 true,
@@ -430,7 +436,7 @@ public final class DateFieldMapper extends FieldMapper {
                     return IndexType.skippers();
                 }
                 // Otherwise if field name @timestamp and it is part of index sorting and index mode is either logsdb and tsdb use skippers:
-                if ((indexSettings.getMode() == IndexMode.TIME_SERIES || indexSettings.getMode() == IndexMode.LOGSDB)
+                if ((indexSettings.getMode().isTsdb() || indexSettings.getMode() == IndexMode.LOGSDB)
                     && indexSettings.getIndexSortConfig() != null
                     && indexSettings.getIndexSortConfig().hasSortOnField(fullFieldName)
                     && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName)) {
@@ -1222,6 +1228,11 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean isNullable() {
+        return docValuesParameters.nullability() || nullValueAsString != null;
+    }
+
+    @Override
     public DateFieldType fieldType() {
         return (DateFieldType) super.fieldType();
     }
@@ -1326,12 +1337,7 @@ public final class DateFieldMapper extends FieldMapper {
         if (fieldType().hasDocValuesSkipper()) {
             dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed && docValuesParameters.enabled()) {
-            context.doc()
-                .add(
-                    docValuesParameters.multiValue()
-                        ? new LongField(fieldType().name(), timestamp, Field.Store.NO)
-                        : new SingleValuedLongField(fieldType().name(), timestamp)
-                );
+            context.doc().add(new LongField(fieldType().name(), timestamp, Field.Store.NO));
         } else if (docValuesParameters.enabled()) {
             dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed) {

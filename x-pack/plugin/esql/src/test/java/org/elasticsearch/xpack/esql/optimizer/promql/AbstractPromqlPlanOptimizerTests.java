@@ -13,12 +13,12 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.hamcrest.Matcher;
 
 import java.time.Instant;
@@ -34,8 +34,10 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
 
     protected static TestAnalyzer tsAnalyzer() {
         return analyzerWithEnrichPolicies().addK8s()
+            .addOtelMetrics()
+            .addEmptyIndex()
             .unmappedResolution(UnmappedResolution.NULLIFY)
-            .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
+            .minimumTransportVersion(TimeSeriesCollapse.TS_COLLAPSE);
     }
 
     protected LogicalPlan planPromql(String query) {

@@ -29,13 +29,13 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
@@ -51,29 +51,16 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
 
     @Override
     IVFKnnFloatVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
-        return new IVFKnnFloatSlicedVectorQuery(
-            field,
-            query,
-            k,
-            k,
-            queryFilter,
-            visitRatio,
-            random().nextBoolean(),
-            1.0f,
-            SLICE_FIELD,
-            querySlice
-        );
+        return new IVFKnnFloatSlicedVectorQuery(field, query, k, k, queryFilter, visitRatio, testResolver(), SLICE_FIELD, querySlice);
     }
 
     @Override
     IVFKnnFloatVectorQuery getStableKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
-        return new IVFKnnFloatVectorQuery(field, query, k, k, queryFilter, visitRatio, random().nextBoolean(), 1.0f);
+        return new IVFKnnFloatVectorQuery(field, query, k, k, queryFilter, visitRatio, testResolver());
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setUpIVFKnnFloatSlicedVectorQuery() throws Exception {
         format = new ESNextDiskBBQVectorsFormat(128, 4, SLICE_FIELD);
         // only one slice so it behaves as a normal index
         this.numSlices = 1;
@@ -106,45 +93,14 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
             IndexReader reader = DirectoryReader.open(indexStore)
         ) {
             AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 0.0f, 1.0f }, 10);
-            assertEquals("IVFKnnFloatSlicedVectorQuery:field[0.0,...][10][" + SLICE_FIELD + "=0]", query.toString("ignored"));
+            assertEquals("IVFKnnFloatSlicedVectorQuery:field[0.0,...][10][" + SLICE_FIELD + "=[0]]", query.toString("ignored"));
 
             assertDocScoreQueryToString(query.rewrite(newSearcher(reader)));
 
             // test with filter
             Query filter = new TermQuery(new Term("id", "text"));
             query = getKnnVectorQuery("field", new float[] { 0.0f, 1.0f }, 10, filter);
-            assertEquals("IVFKnnFloatSlicedVectorQuery:field[0.0,...][10][" + SLICE_FIELD + "=0][id:text]", query.toString("ignored"));
-        }
-    }
-
-    /**
-     * Unlike {@link AbstractIVFKnnVectorQueryTestCase#testBitSetQuery()}, sliced search intersects the
-     * filter iterator with the slice doc-id range before materializing accept bits, so it never calls
-     * {@link org.apache.lucene.util.BitSetIterator#getBitSet()} and supports filters that do not allow
-     * bitset reuse.
-     */
-    @Override
-    public void testBitSetQuery() throws IOException {
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        decorateIWC(iwc);
-        try (Directory dir = newDirectoryForTest(); IndexWriter w = new IndexWriter(dir, iwc)) {
-            final int numDocs = 100;
-            final int dim = 30;
-            for (int i = 0; i < numDocs; ++i) {
-                Document d = getDocumentToIndex();
-                d.add(getKnnVectorField("vector", randomVector(dim)));
-                w.addDocument(d);
-            }
-            w.commit();
-
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                // Same fixture as AbstractIVFKnnVectorQueryTestCase#testBitSetQuery(): an empty FixedBitSet
-                // (all bits clear) behind a BitSetIterator; non-sliced search fails fatally in getBitSet().
-                Query filter = new ThrowingBitSetQuery(new FixedBitSet(numDocs));
-                TopDocs topDocs = searcher.search(getKnnVectorQuery("vector", randomVector(dim), 10, filter), numDocs);
-                assertEquals(0, topDocs.scoreDocs.length);
-            }
+            assertEquals("IVFKnnFloatSlicedVectorQuery:field[0.0,...][10][" + SLICE_FIELD + "=[0]][id:text]", query.toString("ignored"));
         }
     }
 
@@ -261,46 +217,79 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
                     filterQuery = new TermQuery(new Term(filterField, filterValue));
                 }
                 for (int iters = 0; iters < 2; iters++) {
+                    // single slice
                     for (int slice = 0; slice < numSlices; slice++) {
                         int expectedDocs = applyFilter ? docsPerSliceFiltered[slice] : docsPerSlice[slice];
-                        int k = 2 * Math.max(1, expectedDocs);
-                        Query kvq = new IVFKnnFloatSlicedVectorQuery(
-                            "vector",
-                            vector,
-                            k,
-                            k,
-                            filterQuery,
-                            1.0f,
-                            random().nextBoolean(),
-                            1.0f,
-                            SLICE_FIELD,
-                            new BytesRef("" + slice)
-                        );
-                        TopDocs topDocs = searcher.search(kvq, k);
-                        assertEquals(expectedDocs, topDocs.scoreDocs.length);
-                        for (int i = 0; i < topDocs.scoreDocs.length; i++) {
-                            Document document = reader.storedFields().document(topDocs.scoreDocs[i].doc);
-                            assertThat(document.getField(SLICE_FIELD).binaryValue().utf8ToString(), equalTo("" + slice));
-                            if (applyFilter) {
-                                assertThat(document.getField(filterField).binaryValue().utf8ToString(), equalTo(filterValue));
-                            }
-                        }
+
+                        TopDocs topDocs = getTopDocs(searcher, expectedDocs, vector, filterQuery, slice);
+                        assertTopDocs(applyFilter, expectedDocs, topDocs, reader, filterField, filterValue, slice);
                     }
-                    Query kvq = new IVFKnnFloatSlicedVectorQuery(
-                        "vector",
-                        vector,
-                        3,
-                        3,
-                        filterQuery,
-                        1.0f,
-                        random().nextBoolean(),
-                        1.0f,
-                        SLICE_FIELD,
-                        new BytesRef("invalid")
-                    );
-                    TopDocs topDocs = searcher.search(kvq, 3);
+                    // multiple slices
+                    for (int i = 0; i < 10; i++) {
+                        int numQuerySlices = random().nextInt(numSlices) + 1;
+                        int[] querySlices = new int[numQuerySlices];
+                        int expectedDocs = 0;
+                        int prevSlice = 0;
+                        for (int j = 0; j < numQuerySlices; j++) {
+                            querySlices[j] = random().nextInt(prevSlice, numSlices - numQuerySlices + j + 1);
+                            expectedDocs += applyFilter ? docsPerSliceFiltered[querySlices[j]] : docsPerSlice[querySlices[j]];
+                            prevSlice = querySlices[j] + 1;
+                        }
+                        Arrays.sort(querySlices);
+                        TopDocs topDocs = getTopDocs(searcher, expectedDocs, vector, filterQuery, querySlices);
+                        assertTopDocs(applyFilter, expectedDocs, topDocs, reader, filterField, filterValue, querySlices);
+                    }
+                    {
+                        // all slices
+                        int expectedDocs = 0;
+                        for (int j = 0; j < numSlices; j++) {
+                            expectedDocs += applyFilter ? docsPerSliceFiltered[j] : docsPerSlice[j];
+                        }
+                        TopDocs topDocs = getTopDocs(searcher, expectedDocs, vector, filterQuery);
+                        assertEquals(expectedDocs, topDocs.scoreDocs.length);
+                    }
+                    // invalid slice
+                    TopDocs topDocs = getTopDocs(searcher, 0, vector, filterQuery, -1);
                     assertEquals(0, topDocs.scoreDocs.length);
                 }
+            }
+        }
+    }
+
+    private TopDocs getTopDocs(IndexSearcher searcher, int expectedDocs, float[] vector, Query filterQuery, int... slices)
+        throws IOException {
+        BytesRef[] sliceRef;
+        int k;
+        if (slices != null) {
+            sliceRef = new BytesRef[slices.length];
+            for (int i = 0; i < slices.length; i++) {
+                sliceRef[i] = new BytesRef("" + slices[i]);
+            }
+            k = 2 * Math.max(1, expectedDocs);
+        } else {
+            sliceRef = null;
+            k = expectedDocs;
+        }
+        Query kvq = new IVFKnnFloatSlicedVectorQuery("vector", vector, k, k, filterQuery, 1.0f, testResolver(), SLICE_FIELD, sliceRef);
+        return searcher.search(kvq, k);
+    }
+
+    private static void assertTopDocs(
+        boolean applyFilter,
+        int expectedDocs,
+        TopDocs topDocs,
+        IndexReader reader,
+        String filterField,
+        String filterValue,
+        int... slices
+    ) throws IOException {
+        assertEquals(expectedDocs, topDocs.scoreDocs.length);
+        for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+            Document document = reader.storedFields().document(topDocs.scoreDocs[i].doc);
+            int docSlice = Integer.parseInt(document.getField(SLICE_FIELD).binaryValue().utf8ToString());
+            assertTrue(Arrays.stream(slices).anyMatch(s -> s == docSlice));
+            if (applyFilter) {
+                assertThat(document.getField(filterField).binaryValue().utf8ToString(), equalTo(filterValue));
             }
         }
     }

@@ -309,7 +309,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         // IN_SUBQUERY is incremented once on the pre-resolution plan (when the InSubquery expression
         // is still in place). WHERE is counted by the post-resolution plan walk via the FeatureMetric.WHERE
-        // matcher, which catches SemiJoin (since SemiJoin/AntiJoin/LeftSemiJoin can only originate
+        // matcher, which catches SemiJoin (since SemiJoin/AntiJoin/MarkJoin can only originate
         // from `WHERE x IN (sub)`). The subquery's stats is also visible in the resulting plan tree.
         Counters c = esql("from employees | where emp_no IN (from employees | stats max(emp_no))");
         assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
@@ -391,9 +391,9 @@ public class VerifierMetricsTests extends ESTestCase {
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
         // Mirror EsqlSession.execute: increment IN_SUBQUERY on the pre-resolution plan (once),
-        // then resolve InSubquery into SemiJoin/AntiJoin/LeftSemiJoin, then analyze.
+        // then resolve InSubquery into SemiJoin/AntiJoin/MarkJoin, then analyze.
         // WHERE is counted by the analyzer/verifier plan walk via FeatureMetric.WHERE matching
-        // SemiJoin/AntiJoin/LeftSemiJoin in the post-resolution plan.
+        // SemiJoin/AntiJoin/MarkJoin in the post-resolution plan.
         var parsed = TEST_PARSER.parseQuery(esql);
         if (metrics != null && InSubqueryResolver.hasInSubqueryInFilter(parsed)) {
             metrics.inc(IN_SUBQUERY);

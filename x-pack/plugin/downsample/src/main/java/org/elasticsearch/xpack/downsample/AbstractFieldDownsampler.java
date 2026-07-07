@@ -11,7 +11,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ProcessedDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -28,7 +27,7 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.MetricType.POSITIO
 /**
  * Base class that reads fields from the source index and produces their downsampled values
  */
-abstract class AbstractFieldDownsampler<T extends ProcessedDocValues> implements DownsampleFieldSerializer {
+abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer {
 
     private final String name;
     protected State state;
@@ -73,25 +72,16 @@ abstract class AbstractFieldDownsampler<T extends ProcessedDocValues> implements
 
     /**
      * Collects the values for this field of the doc ids requested.
+     * IMPORTANT: This method needs to be implemented by subclasses that fix {@code T} to a concrete type to
+     * ensure that JIT will be able to take advantage of devirtualizing or inlining.
      * @param docValues the doc values for this field
      * @param docIdBuffer the doc ids for which we need to retrieve the field values
      * @throws IOException
      */
-    public void collect(T docValues, IntArrayList docIdBuffer) throws IOException {
-        if (isDone()) {
-            return;
-        }
-        for (int i = 0; i < docIdBuffer.size() && isDone() == false; i++) {
-            int docId = docIdBuffer.get(i);
-            if (docValues.advanceExact(docId) == false) {
-                continue;
-            }
-            collectCurrentValues(docValues);
-        }
-    }
+    public abstract void collect(T docValues, IntArrayList docIdBuffer) throws IOException;
 
     /**
-     * Collects the values for this field at the current doc id..
+     * Collects the values for this field at the current doc id.
      * @param docValues the doc values for this field
      * @throws IOException
      */
@@ -148,7 +138,11 @@ abstract class AbstractFieldDownsampler<T extends ProcessedDocValues> implements
             return TDigestHistogramFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
         }
         if (ExponentialHistogramFieldDownsampler.supportsFieldType(fieldType)) {
-            fieldCounts.increaseExponentialHistogramFields();
+            if (ExponentialHistogramFieldDownsampler.isAggregateDownsampler(samplingMethod)) {
+                fieldCounts.increaseAggregateExponentialHistogramFields();
+            } else {
+                fieldCounts.increaseNonAggregateExponentialHistogramFields();
+            }
             return ExponentialHistogramFieldDownsampler.create(fieldName, fieldData, samplingMethod);
         }
         if (NumericMetricFieldDownsampler.supportsFieldType(fieldType)) {
@@ -179,7 +173,8 @@ abstract class AbstractFieldDownsampler<T extends ProcessedDocValues> implements
         private int aggregateCounterFields = 0;
         private int formattedValueFields = 0;
         private int dimensionFields = 0;
-        private int exponentialHistogramFields = 0;
+        private int nonAggregateExponentialHistogramFields = 0;
+        private int aggregateExponentialHistogramFields = 0;
         private int tDigestHistogramFields = 0;
 
         void increaseNumericFields() {
@@ -198,8 +193,12 @@ abstract class AbstractFieldDownsampler<T extends ProcessedDocValues> implements
             dimensionFields++;
         }
 
-        void increaseExponentialHistogramFields() {
-            exponentialHistogramFields++;
+        void increaseNonAggregateExponentialHistogramFields() {
+            nonAggregateExponentialHistogramFields++;
+        }
+
+        void increaseAggregateExponentialHistogramFields() {
+            aggregateExponentialHistogramFields++;
         }
 
         void increaseTDigestHistogramFields() {
@@ -222,8 +221,12 @@ abstract class AbstractFieldDownsampler<T extends ProcessedDocValues> implements
             return dimensionFields;
         }
 
-        int exponentialHistogramFields() {
-            return exponentialHistogramFields;
+        int nonAggregateExponentialHistogramFields() {
+            return nonAggregateExponentialHistogramFields;
+        }
+
+        int aggregateExponentialHistogramFields() {
+            return aggregateExponentialHistogramFields;
         }
 
         int tDigestHistogramFields() {

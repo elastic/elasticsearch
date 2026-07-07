@@ -7,6 +7,7 @@
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.esql-release'
 
@@ -128,4 +129,63 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
   )
+}
+
+dependencies {
+  // Test fixtures and spec reader infrastructure
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
+  javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
+
+  // Test artifact from the gRPC module (provides EmployeeFlightServer)
+  javaRestTestImplementation(testArtifact(project(xpackModule('esql-datasource-grpc'))))
+
+  // Arrow Flight for the in-process test server
+  javaRestTestImplementation('org.apache.arrow:flight-core:18.3.0') {
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    exclude group: 'com.fasterxml.jackson.core'
+    exclude group: 'com.google.guava', module: 'guava'
+  }
+  javaRestTestImplementation('org.apache.arrow:arrow-vector:18.3.0') {
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    exclude group: 'com.fasterxml.jackson.core'
+  }
+  javaRestTestImplementation('org.apache.arrow:arrow-memory-core:18.3.0')
+  javaRestTestImplementation('org.apache.arrow:arrow-memory-unsafe:18.3.0')
+
+  javaRestTestCompileOnly 'com.fasterxml.jackson.core:jackson-annotations:2.19.2'
+  javaRestTestCompileOnly 'com.fasterxml.jackson.core:jackson-databind:2.19.2'
+  javaRestTestCompileOnly 'org.checkerframework:checker-qual:3.42.0'
+
+  javaRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  javaRestTestImplementation "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
+  javaRestTestImplementation 'com.google.guava:guava:33.4.0-jre'
+  javaRestTestImplementation 'com.google.guava:failureaccess:1.0.2'
+
+  clusterPlugins project(':plugins:mapper-size')
+  clusterPlugins project(':plugins:mapper-murmur3')
+
+  // The gRPC datasource plugin under test
+  clusterPlugins project(xpackModule('esql-datasource-grpc'))
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution('esql-datasource-grpc is bundled only in the default distribution')
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+
+  // Arrow's unsafe memory allocator requires access to java.nio internals
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+
+  testLogging {
+    events = ["passed", "skipped", "failed"]
+    exceptionFormat = "full"
+    showStandardStreams = false
+  }
 }

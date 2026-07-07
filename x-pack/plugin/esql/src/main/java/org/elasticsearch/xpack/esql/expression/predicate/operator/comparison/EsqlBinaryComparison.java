@@ -371,6 +371,10 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             if (lit.value() instanceof Collection<?>) {
                 return Translatable.NO;
             }
+            // date_range fields don't support scalar term/range queries; equality must be evaluated in the compute engine
+            if (left().dataType() == DataType.DATE_RANGE) {
+                return Translatable.NO;
+            }
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
                 return Translatable.YES;
             }

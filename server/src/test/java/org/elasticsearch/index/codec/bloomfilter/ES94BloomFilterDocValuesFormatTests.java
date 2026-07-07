@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LogMergePolicy;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.codecs.asserting.AssertingCodec;
@@ -214,7 +215,9 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
                     return (flushCount.getAndIncrement() % 2 == 0) ? smallSize : largeSize;
                 }
             }));
-            conf.setMergePolicy(newLogMergePolicy());
+            LogMergePolicy mergePolicy = newLogMergePolicy();
+            mergePolicy.setMergeFactor(1000);
+            conf.setMergePolicy(mergePolicy);
             conf.setMaxBufferedDocs(10);
             conf.setUseCompoundFile(false);
             try (IndexWriter writer = new IndexWriter(directory, conf)) {

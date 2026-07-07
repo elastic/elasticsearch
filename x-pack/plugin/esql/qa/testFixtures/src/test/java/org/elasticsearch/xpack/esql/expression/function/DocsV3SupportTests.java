@@ -367,6 +367,10 @@ public class DocsV3SupportTests extends ESTestCase {
                 stack: ga 9.1.0
                 ```
 
+
+                :::{include} ../briefSummary/count.md
+                :::
+
                 ## Syntax
 
                 :::{image} /reference/query-languages/esql/images/generated/test-plugin-name/functions/count.svg

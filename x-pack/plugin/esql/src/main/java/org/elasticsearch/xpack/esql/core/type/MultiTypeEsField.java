@@ -112,7 +112,7 @@ public final class MultiTypeEsField extends UnionTypeEsField {
     }
 
     @Override
-    public EsField rewrapWithCast(Expression convertExpression) {
+    public UnionTypeEsField rewrapWithCast(Expression convertExpression) {
         return new MultiTypeEsField(
             getName(),
             convertExpression.dataType(),
@@ -127,7 +127,8 @@ public final class MultiTypeEsField extends UnionTypeEsField {
         return indexToConversionExpressions.get(indexName);
     }
 
-    public MultiTypeEsField withPotentiallyUnmappedExpression(@Nullable Expression potentiallyUnmappedExpression) {
+    @Override
+    public UnionTypeEsField withPotentiallyUnmappedExpression(Expression potentiallyUnmappedExpression) {
         return new MultiTypeEsField(
             getName(),
             getDataType(),

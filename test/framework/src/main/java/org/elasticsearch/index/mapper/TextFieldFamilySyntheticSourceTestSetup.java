@@ -18,10 +18,13 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Cardinality.HIGH;
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Cardinality.LOW;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 
 /**
@@ -29,46 +32,40 @@ import static org.elasticsearch.test.ESTestCase.randomInt;
  */
 public final class TextFieldFamilySyntheticSourceTestSetup {
 
-    public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(String fieldType, boolean supportsCustomIndexConfiguration) {
-        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, true, false);
-    }
-
-    public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(
-        String fieldType,
-        boolean supportsCustomIndexConfiguration,
-        boolean fallbackUsesBinaryDocValues
-    ) {
-        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, fallbackUsesBinaryDocValues, false);
-    }
-
     public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(
         String fieldType,
         boolean supportsCustomIndexConfiguration,
         boolean fallbackUsesBinaryDocValues,
-        boolean supportsDocValues
+        boolean supportsDocValues,
+        boolean isColumnar
     ) {
         return new TextFieldFamilySyntheticSourceSupport(
             fieldType,
             supportsCustomIndexConfiguration,
             fallbackUsesBinaryDocValues,
-            supportsDocValues
+            supportsDocValues,
+            isColumnar
         );
     }
 
-    private static FieldMapper.DocValuesParameter.Values docValuesParams(boolean supportsDocValues) {
+    private static FieldMapper.DocValuesParameter.Values docValuesParams(boolean supportsDocValues, boolean isColumnar) {
         // currently, only text fields support doc values, so if doc_values aren't supported, then there is no reason to generate them
         if (supportsDocValues == false) {
             return FieldMapper.DocValuesParameter.Values.DISABLED;
         }
 
-        // text field doc_values support is behind a feature flag
-        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
-            return FieldMapper.DocValuesParameter.Values.DISABLED;
+        // multi_value=false is only valid in strict-columnar index modes.
+        boolean multiValue = isColumnar == false || randomBoolean();
+
+        // Columnar mode always enables text doc values (see TextFieldMapper.defaultDocValuesParameters) so DISABLED is not valid option
+        // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
+        if (isColumnar) {
+            return new FieldMapper.DocValuesParameter.Values(true, randomFrom(LOW, HIGH), multiValue, true);
         }
 
         return switch (randomInt(2)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true);
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, multiValue, true);
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, multiValue, true);
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };
@@ -91,31 +88,51 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private final Integer ignoreAbove;
         private final boolean fallbackUsesBinaryDocValues;
         private final KeywordFieldSyntheticSourceSupport keywordMultiFieldSyntheticSourceSupport;
+        private final boolean isColumnar;
 
         TextFieldFamilySyntheticSourceSupport(
             String fieldType,
             boolean supportsCustomIndexConfiguration,
             boolean fallbackUsesBinaryDocValues,
-            boolean supportsDocValues
+            boolean supportsDocValues,
+            boolean isColumnar
         ) {
             this.fieldType = fieldType;
-            this.store = randomBoolean();
+            this.isColumnar = isColumnar;
+            this.store = isColumnar == false && randomBoolean();
             this.index = supportsCustomIndexConfiguration == false || randomBoolean();
             this.ignoreAbove = randomBoolean() ? null : between(10, 100);
             this.fallbackUsesBinaryDocValues = fallbackUsesBinaryDocValues;
             this.keywordMultiFieldSyntheticSourceSupport = new KeywordFieldSyntheticSourceSupport(
                 ignoreAbove,
-                randomBoolean(),
+                isColumnar == false && randomBoolean(),
                 null,
                 false,
-                KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false)
+                KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false, isColumnar),
+                isColumnar
             );
-            this.docValues = docValuesParams(supportsDocValues);
+            this.docValues = docValuesParams(supportsDocValues, isColumnar);
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
         public boolean ignoreAbove() {
             return keywordMultiFieldSyntheticSourceSupport.ignoreAbove();
+        }
+
+        @Override
+        public boolean enforcesSingleValue() {
+            if (store) {
+                return false;
+            }
+            if (docValues.enabled()) {
+                return docValues.multiValue() == false;
+            }
+            return keywordMultiFieldSyntheticSourceSupport.enforcesSingleValue();
         }
 
         @Override
@@ -176,25 +193,25 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private MapperTestCase.SyntheticSourceExample docValuesFieldExample(int maxValues) {
             CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
                 b.field("type", fieldType);
-                // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-                if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
-                    b.field("doc_values", true);
-                } else {
+                if (docValues.multiValue() == false) {
                     b.startObject("doc_values");
-                    b.field("cardinality", docValues.cardinality().toString());
+                    b.field("multi_value", false);
                     b.endObject();
+                } else {
+                    b.field("doc_values", true);
                 }
             };
 
-            if (randomBoolean()) {
+            // When multi_value is disabled a document may only have a single value, so never produce a multi-valued example.
+            if (enforcesSingleValue() || randomBoolean()) {
                 var randomString = randomString();
                 return new MapperTestCase.SyntheticSourceExample(randomString, randomString, mapping);
             }
 
             var list = ESTestCase.randomList(1, maxValues, this::randomString);
 
-            // Doc values (both LOW and HIGH cardinality) return sorted and deduplicated values
-            List<String> outputList = new HashSet<>(list).stream().sorted().toList();
+            // columnar mode preserves insertion order and duplicates; non-columnar deduplicates and sorts
+            List<String> outputList = isColumnar ? list : new HashSet<>(list).stream().sorted().toList();
 
             var output = outputList.size() == 1 ? outputList.get(0) : outputList;
             return new MapperTestCase.SyntheticSourceExample(list, output, mapping);

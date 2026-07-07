@@ -257,6 +257,8 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         private final AtomicLong bytesInQueue = new AtomicLong(0);
         private final Object ioLock = new Object();
         private volatile IOControl savedIoControl;
+        // true once shutdownProducer() is called
+        private volatile boolean shutdown = false;
 
         private ApacheClientBackpressure(HttpSettings settings) {
             this.settings = settings;
@@ -269,9 +271,16 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         }
 
         private void pauseProducer(IOControl ioControl) {
-            ioControl.suspendInput();
             synchronized (ioLock) {
-                savedIoControl = ioControl;
+                if (shutdown) {
+                    // shutdownProducer() was called while we were consuming this chunk, before the IOControl
+                    // was saved. Shut down now; otherwise the suspended producer would never be resumed and
+                    // the leased connection would be held indefinitely.
+                    doShutdown(ioControl);
+                } else {
+                    ioControl.suspendInput();
+                    savedIoControl = ioControl;
+                }
             }
         }
 
@@ -296,14 +305,19 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
 
         private void shutdownProducer() {
             synchronized (ioLock) {
+                shutdown = true;
                 if (savedIoControl != null) {
-                    try {
-                        savedIoControl.shutdown();
-                    } catch (IOException e) {
-                        logger.warn("Failed to shut down paused Apache producer after subscription cancellation", e);
-                    }
+                    doShutdown(savedIoControl);
                     savedIoControl = null;
                 }
+            }
+        }
+
+        private void doShutdown(IOControl ioControl) {
+            try {
+                ioControl.shutdown();
+            } catch (IOException e) {
+                logger.warn("Failed to shut down paused Apache producer after subscription cancellation", e);
             }
         }
     }

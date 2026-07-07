@@ -64,7 +64,6 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -109,14 +108,6 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
  * This class encapsulates the steps necessary to convert a data stream backing index to frozen.
  */
 public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
-
-    public static final String DLM_CREATED_SETTING_KEY = IndexMetadata.INDEX_SETTING_PREFIX + "dlm.frozen.created";
-    public static final Setting<Boolean> DLM_CREATED_SETTING = Setting.boolSetting(
-        DLM_CREATED_SETTING_KEY,
-        false,
-        Setting.Property.IndexScope,
-        Setting.Property.InternalIndex
-    );
 
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
     static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
@@ -464,7 +455,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             getRepositoryForFrozen(projectMetadata, indexName),
             snapshotName,
             forceMergeIndex,
-            Settings.builder().put(DLM_CREATED_SETTING_KEY, true).build(),
+            Settings.builder().put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true).build(),
             ignoredIndexSettings,
             true,
             MountSearchableSnapshotRequest.Storage.SHARED_CACHE
@@ -619,7 +610,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .putNull(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
-                .put(DLM_CREATED_SETTING_KEY, true)
+                .put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true)
         );
         return resizeReq;
     }

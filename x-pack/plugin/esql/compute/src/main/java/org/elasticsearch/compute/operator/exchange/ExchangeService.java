@@ -247,13 +247,18 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * Finishes the session early, i.e., before all sources are finished.
      * It is called by async/stop API and should be called on the node that coordinates the async request.
      * It will close all sources and return the results - unlike cancel, this does not discard the results.
+     *
+     * @param listener receives {@code true} when an active exchange source was found and closed by this call,
+     *                 {@code false} when no session was registered (typically because the query already finished).
+     *                 Callers use this to distinguish "STOP actually interrupted execution" from "STOP was a no-op
+     *                 because the query had already completed".
      */
-    public void finishSessionEarly(String sessionId, ActionListener<Void> listener) {
+    public void finishSessionEarly(String sessionId, ActionListener<Boolean> listener) {
         ExchangeSourceHandler exchangeSource = removeExchangeSourceHandler(sessionId);
         if (exchangeSource != null) {
-            exchangeSource.finishEarly(false, listener);
+            exchangeSource.finishEarly(false, listener.map(v -> Boolean.TRUE));
         } else {
-            listener.onResponse(null);
+            listener.onResponse(Boolean.FALSE);
         }
     }
 

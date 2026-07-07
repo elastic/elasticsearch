@@ -3489,7 +3489,7 @@ network.cost:long | x:long
 
 autocast two-legged punk in STATS
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped

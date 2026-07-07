@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -517,6 +518,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                 queryTerms = queryTerms(analyzer);
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
+            }
+            // TODO: use the `zero_terms_query` option, for now we use `none`.
+            if (queryTerms.isEmpty()) {
+                return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
             }
 
             return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), queryTerms, analyzer, context -> new BytesRef());

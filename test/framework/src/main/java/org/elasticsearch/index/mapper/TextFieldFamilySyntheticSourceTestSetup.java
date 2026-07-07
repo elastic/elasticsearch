@@ -60,16 +60,18 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             return FieldMapper.DocValuesParameter.Values.DISABLED;
         }
 
+        // multi_value=false is only valid in strict-columnar index modes.
+        boolean multiValue = isColumnar == false || randomBoolean();
+
         // Columnar mode always enables text doc values (see TextFieldMapper.defaultDocValuesParameters) so DISABLED is not valid option
         // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         if (isColumnar) {
-            return new FieldMapper.DocValuesParameter.Values(true, randomFrom(LOW, HIGH), randomBoolean(), true);
+            return new FieldMapper.DocValuesParameter.Values(true, randomFrom(LOW, HIGH), multiValue, true);
         }
 
-        // multi_value: false enforces single-value semantics and is only meaningful when doc_values is enabled.
         return switch (randomInt(2)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, randomBoolean(), true);
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, randomBoolean(), true);
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, multiValue, true);
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, multiValue, true);
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };
@@ -112,7 +114,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 isColumnar == false && randomBoolean(),
                 null,
                 false,
-                KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false),
+                KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false, isColumnar),
                 isColumnar
             );
             this.docValues = docValuesParams(supportsDocValues, isColumnar);

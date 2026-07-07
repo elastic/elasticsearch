@@ -2720,37 +2720,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     VectorIndexType.BBQ_DISK.name
                 );
             }
-            if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE)) {
+            if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE) && experimentalFeaturesEnabled) {
                 if (autoCalibrate) {
-                    return new ES950DiskBBQVectorsFormat(
-                        QuantEncoding.fromBits((byte) bits),
-                        clusterSize,
-                        ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                        elementType,
-                        onDiskRescore,
-                        mergingExecutorService,
-                        numMergeWorkers,
-                        doPrecondition,
-                        ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                        flatIndexThreshold,
-                        IvfFlushConfigSource.empty(),
-                        IvfAutoCalibration.mergeConfigResolver(clusterSize)
-                    );
-                }
-                return new ES950DiskBBQVectorsFormat(
-                    QuantEncoding.fromBits((byte) bits),
-                    clusterSize,
-                    ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                    elementType,
-                    onDiskRescore,
-                    mergingExecutorService,
-                    numMergeWorkers,
-                    doPrecondition,
-                    ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                    flatIndexThreshold
-                );
-            } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_QUANTIZE_BITS) && experimentalFeaturesEnabled) {
-                if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE) && autoCalibrate) {
                     return new ESNextDiskBBQVectorsFormat(
                         QuantEncoding.fromBits((byte) bits),
                         clusterSize,
@@ -2779,6 +2750,35 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                     flatIndexThreshold,
                     sliceField
+                );
+            } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE)) {
+                if (autoCalibrate) {
+                    return new ES950DiskBBQVectorsFormat(
+                        QuantEncoding.fromBits((byte) bits),
+                        clusterSize,
+                        ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                        elementType,
+                        onDiskRescore,
+                        mergingExecutorService,
+                        numMergeWorkers,
+                        doPrecondition,
+                        ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                        flatIndexThreshold,
+                        IvfFlushConfigSource.empty(),
+                        IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                    );
+                }
+                return new ES950DiskBBQVectorsFormat(
+                    QuantEncoding.fromBits((byte) bits),
+                    clusterSize,
+                    ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                    elementType,
+                    onDiskRescore,
+                    mergingExecutorService,
+                    numMergeWorkers,
+                    doPrecondition,
+                    ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    flatIndexThreshold
                 );
             } else {
                 return new ES940DiskBBQVectorsFormat(

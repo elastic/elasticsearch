@@ -120,11 +120,17 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         assumeTrue("ESNext DiskBBQ format is only used in snapshots", Build.current().isSnapshot());
         final Settings enabledSettings = IndexSettingsModule.newIndexSettings(
             "foo",
-            Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build()
+            Settings.builder()
+                .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+                .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
+                .build()
         ).getSettings();
         final Settings disabledSettings = IndexSettingsModule.newIndexSettings(
             "foo",
-            Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), false).build()
+            Settings.builder()
+                .put(IndexSettings.SLICE_ENABLED.getKey(), false)
+                .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
+                .build()
         ).getSettings();
         MapperService enabledMapperService = createMapperService(getVersion(), enabledSettings, () -> true, fieldMapping(b -> {
             b.field("type", "dense_vector");

@@ -598,7 +598,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.defaultSimilarity = defaultSimilarity;
         }
 
-        public final VectorSimilarity defaultSimilarity() {
+        final VectorSimilarity defaultSimilarity() {
             return defaultSimilarity;
         }
 
@@ -3311,7 +3311,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = nonIndexed
                 ? createDocValuesExactKnnQuery(resolvedQueryVector, effectiveSimilarity)
-                : createIndexedExactKnnQuery(resolvedQueryVector, effectiveSimilarity, similarityOverride != null, useQuantized);
+                : createIndexedExactKnnQuery(resolvedQueryVector, effectiveSimilarity, isSimilarityOverridden, useQuantized);
             if (vectorSimilarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,

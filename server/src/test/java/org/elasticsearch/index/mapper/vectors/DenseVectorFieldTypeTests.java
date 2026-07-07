@@ -50,6 +50,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Elem
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.FLOAT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -361,8 +362,12 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
-                assertTrue(
-                    query instanceof DiversifyingChildrenFloatKnnVectorQuery || query instanceof DiversifyingChildrenIVFKnnFloatVectorQuery
+                assertThat(
+                    query,
+                    anyOf(
+                        instanceOf(DiversifyingChildrenFloatKnnVectorQuery.class),
+                        instanceOf(DiversifyingChildrenIVFKnnFloatVectorQuery.class)
+                    )
                 );
             }
         }
@@ -400,7 +405,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
-                assertTrue(query instanceof DiversifyingChildrenByteKnnVectorQuery);
+                assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
             }
 
             vectorData = VectorData.fromFloats(floatQueryVector);
@@ -419,7 +424,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
-                assertTrue(query instanceof DiversifyingChildrenByteKnnVectorQuery);
+                assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
             }
         }
     }
@@ -446,7 +451,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 queryVector[i] = randomFloat();
             }
             Query query = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null);
-            assertTrue(query instanceof DenseVectorQuery.Floats);
+            assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
         }
         {
             DenseVectorFieldType field = new DenseVectorFieldType(
@@ -465,7 +470,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 queryVector[i] = randomByte();
             }
             Query query = field.createExactKnnQuery(VectorData.fromBytes(queryVector), null);
-            assertTrue(query instanceof DenseVectorQuery.Bytes);
+            assertThat(query, instanceOf(DenseVectorQuery.Bytes.class));
         }
     }
 
@@ -495,11 +500,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         // A non-indexed field has no mapped similarity; without an override it defaults to cosine and produces a
         // doc-values-backed query (no codec/KNN values for a non-indexed field).
         Query defaulted = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, null, false);
-        assertTrue(defaulted instanceof DenseVectorQuery.DocValuesFloats);
+        assertThat(defaulted, instanceOf(DenseVectorQuery.DocValuesFloats.class));
 
         // An explicit similarity_function override is also honored.
         Query overridden = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, VectorSimilarity.COSINE, false);
-        assertTrue(overridden instanceof DenseVectorQuery.DocValuesFloats);
+        assertThat(overridden, instanceOf(DenseVectorQuery.DocValuesFloats.class));
 
         // The exact-knn entry point used by ExactKnnQueryBuilder/inner-hits still requires an indexed field.
         IllegalArgumentException requiresIndexed = expectThrows(
@@ -524,7 +529,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         byte[] bitQuery = new byte[bitDims / Byte.SIZE];
         random().nextBytes(bitQuery);
         Query bitQueryResult = bitField.createExactKnnQuery(VectorData.fromBytes(bitQuery), null, null, false);
-        assertTrue(bitQueryResult instanceof DenseVectorQuery.DocValuesBytes);
+        assertThat(bitQueryResult, instanceOf(DenseVectorQuery.DocValuesBytes.class));
     }
 
     public void testFloatCreateKnnQuery() {
@@ -652,7 +657,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (fieldWith4096dims.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
             } else {
-                assertTrue(query instanceof KnnFloatVectorQuery || query instanceof IVFKnnFloatVectorQuery);
+                assertThat(query, anyOf(instanceOf(KnnFloatVectorQuery.class), instanceOf(IVFKnnFloatVectorQuery.class)));
             }
         }
 
@@ -688,7 +693,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (fieldWith4096dims.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DenseVectorQuery.Bytes.class));
             } else {
-                assertTrue(query instanceof ESKnnByteVectorQuery);
+                assertThat(query, instanceOf(ESKnnByteVectorQuery.class));
             }
         }
     }
@@ -863,7 +868,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         if (fieldType.getIndexOptions().isFlat()) {
             assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
         } else {
-            assertTrue(query instanceof ESKnnFloatVectorQuery);
+            assertThat(query, instanceOf(ESKnnFloatVectorQuery.class));
         }
 
         // verify we can override a `0` to a positive number
@@ -890,7 +895,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
             randomBoolean()
         );
-        assertTrue(query instanceof RescoreKnnVectorQuery);
+        assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
         RescoreKnnVectorQuery rescoreKnnVectorQuery = (RescoreKnnVectorQuery) query;
         assertThat(rescoreKnnVectorQuery.k(), equalTo(10));
         Query innerQuery = rescoreKnnVectorQuery.innerQuery();
@@ -934,7 +939,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             );
             KnnSearchStrategy strategy = tuple.v2().apply(query);
             if (strategy != null) {
-                assertTrue(strategy instanceof KnnSearchStrategy.Hnsw);
+                assertThat(strategy, instanceOf(KnnSearchStrategy.Hnsw.class));
                 assertThat(((KnnSearchStrategy.Hnsw) strategy).filteredSearchThreshold(), equalTo(0));
 
                 query = fieldType.createKnnQuery(

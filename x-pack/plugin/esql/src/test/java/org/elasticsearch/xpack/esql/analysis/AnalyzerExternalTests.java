@@ -25,7 +25,10 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
@@ -34,6 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -121,15 +125,17 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
-     * Match function requires field from index mapping; EXTERNAL fields are rejected.
+     * MATCH function can operate on external (non-index) fields via runtime lexical search.
      */
-    public void testWithMatchFunctionRejected() {
+    public void testWithMatchFunctionAccepted() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        external().error(
-            "EXTERNAL \"" + S3_PATH + "\" | WHERE MATCH(first_name, \"foo\")",
-            containsString("function cannot operate on [first_name], which is not a field from an index mapping")
-        );
+        var plan = external().query("EXTERNAL \"" + S3_PATH + "\" | WHERE MATCH(first_name, \"foo\")");
+        Project project = as(plan, Project.class);
+        Limit limit = as(project.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(Match.class));
+        assertThat(filter.child(), instanceOf(ExternalRelation.class));
     }
 
     /**

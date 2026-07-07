@@ -83,25 +83,15 @@ public final class QuerySettings {
         .build();
 
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
-        Determines how unmapped fields are treated. Possible values are:
+        Determines how unmapped fields are treated.
+        For a conceptual overview and use cases, refer to [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
+
+        Possible values are:
 
         - `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields.
         - `NULLIFY` : Treats unmapped fields as null values.
         - `LOAD` : Loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
         with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`stack: preview 9.4`
-
-        An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried.
-        When querying multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some
-        indices but not others.
-
-        Unmapped fields are different from
-        [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md).
-        Runtime fields are computed fields defined in the index
-        mapping that {{esql}} treats like regular mapped fields.
-        You cannot define new runtime fields at search time in
-        {{esql}}, but you can use the
-        [`EVAL`](/reference/query-languages/esql/commands/eval.md)
-        command to create computed columns instead.
 
         [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
@@ -148,7 +138,6 @@ public final class QuerySettings {
     public static final QuerySettingDef<Boolean> COLUMN_METADATA = QuerySettingDef.bool("column_metadata")
         .withDefault(Boolean.FALSE)
         .withPreview()
-        .withSnapshotOnly()
         .withRequestBody()
         .build();
 

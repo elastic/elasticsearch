@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -15,6 +16,7 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomCompoundCommit;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomTimestampFieldValueRange;
+import static org.hamcrest.Matchers.equalTo;
 
 public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFileRanges> {
 
@@ -53,6 +55,39 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
                 : randomValueOtherThan(instance, BlobFileRangesTests::randomBlobFileRangesFromCommit);
             default -> throw new IllegalStateException("unreachable");
         };
+    }
+
+    public void testMidpointMillisOrUnknownForCache() {
+        assertThat(
+            "a null timestamp range has no representable timestamp, so it resolves to UNKNOWN_TIMESTAMP",
+            BlobFileRanges.midpointMillisOrUnknownForCache(null),
+            equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+        );
+        assertThat(
+            "a positive range resolves to its arithmetic midpoint",
+            BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 3000L)),
+            equalTo(2000L)
+        );
+        assertThat(
+            "a single-point positive range resolves to that point",
+            BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(1L, 1L)),
+            equalTo(1L)
+        );
+        assertThat(
+            "a zero midpoint (content at the epoch) is floored to the oldest representable instant",
+            BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(0L, 0L)),
+            equalTo(1L)
+        );
+        assertThat(
+            "a negative midpoint (content before the epoch) is floored to the oldest representable instant",
+            BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(-3000L, -1000L)),
+            equalTo(1L)
+        );
+        assertThat(
+            "a range whose midpoint would collide with the UNKNOWN_TIMESTAMP sentinel (-1) is floored, not treated as unknown",
+            BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(-2L, 0L)),
+            equalTo(1L)
+        );
     }
 
     private static BlobLocation randomBlobLocation() {

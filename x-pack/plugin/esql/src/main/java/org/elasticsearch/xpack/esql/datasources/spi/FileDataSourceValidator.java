@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
@@ -23,8 +22,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateEnum;
@@ -51,25 +50,14 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
 public class FileDataSourceValidator implements DataSourceValidator {
 
     /**
-     * Gates provisioning data sources that use workload-identity federation (e.g. S3 {@code role_arn},
-     * GCS {@code sts_audience}, Azure {@code tenant_id}/{@code client_id}). A single flag covers every file-based
-     * provider, since they all funnel through this validator and share the
-     * {@link DataSourceConfiguration#hasFederatedAuth()} mechanism. Snapshot-on, release-off; override in release with
-     * {@code -Des.esql_external_datasources_federated_identity_feature_flag_enabled=true}. The federated fields themselves remain
-     * registered on each configuration regardless, so a PUT carrying them produces the explicit
-     * {@link #FEDERATED_IDENTITY_DISABLED_MESSAGE} rather than an "unknown setting" error.
-     */
-    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG = new FeatureFlag(
-        "esql_external_datasources_federated_identity"
-    );
-
-    /**
      * Error shown when a data source is provisioned with federated authentication settings while the
-     * {@link #ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG} feature flag is disabled.
+     * {@code esql.datasource.federated_identity.enabled} cluster setting is disabled. The federated fields
+     * themselves remain registered on each configuration regardless of the setting, so a PUT carrying them
+     * produces this explicit message rather than an "unknown setting" error.
      */
     public static final String FEDERATED_IDENTITY_DISABLED_MESSAGE =
-        "federated authentication settings require the [esql_external_datasources_federated_identity] feature flag to be enabled; "
-            + "it is disabled by default in release builds";
+        "federated authentication settings require the [esql.datasource.federated_identity.enabled] cluster setting to be enabled; "
+            + "it is disabled by default";
 
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
     private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
@@ -123,7 +111,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     private final String type;
-    private final Function<Map<String, Object>, DataSourceConfiguration> configFactory;
+    private final BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory;
     private final Set<String> supportedSchemes;
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
@@ -133,7 +121,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     public FileDataSourceValidator(
         String type,
-        Function<Map<String, Object>, DataSourceConfiguration> configFactory,
+        BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
         this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false);
@@ -141,7 +129,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     private FileDataSourceValidator(
         String type,
-        Function<Map<String, Object>, DataSourceConfiguration> configFactory,
+        BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
         Set<String> compressionExtensions,
@@ -200,9 +188,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     /**
      * Returns a new validator that gates federated workload-identity authentication on the supplied boolean supplier.
-     * The supplier is called on each validation. Wire it to
-     * {@link #ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG} in production; tests pass a fixed supplier to exercise
-     * both states without flipping the process-wide feature flag.
+     * The supplier is called on each validation. Wire it to {@code ExternalSourceSettings#FEDERATED_IDENTITY_ENABLED}
+     * in production; tests pass a fixed supplier to exercise both states without depending on a live cluster setting.
      */
     public FileDataSourceValidator withFederatedIdentityEnabled(BooleanSupplier supplier) {
         return new FileDataSourceValidator(
@@ -223,10 +210,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     @Override
     public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+        return validateDatasource(datasourceSettings, Set.of());
+    }
+
+    @Override
+    public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings, Set<String> existingSecretKeys) {
         if (datasourceSettings == null || datasourceSettings.isEmpty()) {
             return Map.of();
         }
-        DataSourceConfiguration config = configFactory.apply(datasourceSettings);
+        DataSourceConfiguration config = configFactory.apply(datasourceSettings, existingSecretKeys);
         if (config instanceof FileDataSourceConfiguration fc && fc.isManagedIdentity() && managedIdentityEnabled.getAsBoolean() == false) {
             throw new ValidationException().addValidationError(FileDataSourceConfiguration.MANAGED_IDENTITY_DISABLED_MESSAGE);
         }

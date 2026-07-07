@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
@@ -61,6 +63,7 @@ public class FederationExecutionService {
     private final ExchangeService exchangeService;
     private final RemoteClusterService remoteClusterService;
     private final Executor searchExecutor;
+    private final ThreadPool threadPool;
     // Per-leaf child-session id source, mirroring ComputeService.newChildSession: a monotonic suffix off the query
     // session id so each leaf's exchange is distinct. Owned here (not delegated to ComputeService) so this service does
     // not depend back on ComputeService — it is constructed before it, exactly like the lookup services.
@@ -71,6 +74,7 @@ public class FederationExecutionService {
         this.exchangeService = exchangeService;
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.searchExecutor = searchExecutor;
+        this.threadPool = transportService.getThreadPool();
     }
 
     /**
@@ -154,16 +158,23 @@ public class FederationExecutionService {
             bufferSize,
             searchExecutor,
             completion.delegateFailureAndWrap((delegate, unused) -> {
+                // Fan the two home-side legs — the ComputeResponse (the run's completion/failure) and the remote sink
+                // (the drain's completion/failure) — into the single leaf completion, exactly as
+                // startComputeOnRemoteCluster fans them through a ComputeListener. Either leg failing fails the leaf; the
+                // leaf completes only once BOTH acquired sub-listeners complete. This is what surfaces a home-side
+                // failure that arrives on the RESPONSE channel (e.g. a schema-drift reject thrown before any page is
+                // sunk) rather than swallowing it — the sink alone is not a sufficient failure channel.
+                var computeListener = new ComputeListener(threadPool, () -> {}, delegate.map(unused2 -> null));
                 transportService.sendChildRequest(
                     connection,
                     AbstractionComputeHandler.EXECUTE_ABSTRACTION_ACTION_NAME,
                     request,
                     parentTask,
                     TransportRequestOptions.EMPTY,
+                    // The ComputeResponse body (took + shard counts) is metadata; the leaf's correctness is the drained
+                    // pages. Acquire a compute ref so the response's failure — not just the sink's — fails the leaf.
                     new ActionListenerResponseHandler<>(
-                        // The ComputeResponse (took + shard counts) is metadata; correctness of the leaf is proven by the
-                        // drained pages + the sink completion below. Discard the response body but propagate its failure.
-                        ActionListener.noop(),
+                        computeListener.acquireCompute().map(ignored -> DriverCompletionInfo.EMPTY),
                         ComputeResponse::new,
                         searchExecutor
                     )
@@ -171,7 +182,8 @@ public class FederationExecutionService {
                 var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, connection);
                 // failFast=true: federation execution surfaces a home-side failure rather than going silently partial.
                 // concurrentExchangeClients=1: one home cluster, one sink — the leaf is a single remote source.
-                leafExchangeSource.addRemoteSink(remoteSink, true, () -> {}, 1, delegate);
+                leafExchangeSource.addRemoteSink(remoteSink, true, () -> {}, 1, computeListener.acquireAvoid());
+                computeListener.close();
             })
         );
     }

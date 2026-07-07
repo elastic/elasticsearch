@@ -75,6 +75,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -5889,6 +5890,141 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals("scan tms min == stats tms min", scanTmsMin, ((Number) tmsStats.minValue().get()).longValue());
             assertEquals("scan tms max == stats tms max", scanTmsMax, ((Number) tmsStats.maxValue().get()).longValue());
             page.releaseBlocks();
+        }
+    }
+
+    /**
+     * Verifies that Parquet footer statistics for Binary-backed FLOAT16 and DECIMAL columns (logical
+     * types over BINARY/FIXED_LEN_BYTE_ARRAY) are decoded to {@code double}, matching the scan-path
+     * decode. Before the fix, {@code normalizeStatValue} stringified these via
+     * {@code Binary#toStringUsingUTF8}, and the DOUBLE-typed MIN/MAX aggregate would throw
+     * {@code ClassCastException} trying to read the stat as a Double.
+     */
+    public void testBinaryBackedFloat16AndDecimalStatsDecodeToDouble() throws Exception {
+        float f16Lo = -1.0f;
+        float f16Hi = 3.14f;
+        double f16LoExpected = Float.float16ToFloat(Float.floatToFloat16(f16Lo));
+        double f16HiExpected = Float.float16ToFloat(Float.floatToFloat16(f16Hi));
+
+        int decimalScale = 2;
+        long decimalLoUnscaled = -100; // -1.00
+        long decimalHiUnscaled = 1234567; // 12345.67
+        double decimalLoExpected = new BigDecimal(BigInteger.valueOf(decimalLoUnscaled), decimalScale).doubleValue();
+        double decimalHiExpected = new BigDecimal(BigInteger.valueOf(decimalHiUnscaled), decimalScale).doubleValue();
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(2)
+            .as(LogicalTypeAnnotation.float16Type())
+            .named("f16")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.decimalType(decimalScale, 10))
+            .named("dec")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("f16", Binary.fromConstantByteArray(toFloat16Bytes(f16Lo)));
+            g1.add("dec", Binary.fromConstantByteArray(BigInteger.valueOf(decimalLoUnscaled).toByteArray()));
+            Group g2 = factory.newGroup();
+            g2.add("f16", Binary.fromConstantByteArray(toFloat16Bytes(f16Hi)));
+            g2.add("dec", Binary.fromConstantByteArray(BigInteger.valueOf(decimalHiUnscaled).toByteArray()));
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // --- extractStatistics path (metadata) ---
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        var colStats = metadata.statistics().get().columnStatistics().get();
+
+        var f16Stats = colStats.get("f16");
+        assertEquals(Optional.of(f16LoExpected), f16Stats.minValue());
+        assertEquals(Optional.of(f16HiExpected), f16Stats.maxValue());
+        assertThat(f16Stats.minValue().get(), instanceOf(Double.class));
+
+        var decStats = colStats.get("dec");
+        assertEquals(Optional.of(decimalLoExpected), decStats.minValue());
+        assertEquals(Optional.of(decimalHiExpected), decStats.maxValue());
+        assertThat(decStats.minValue().get(), instanceOf(Double.class));
+
+        // --- buildRowGroupStats path (discoverSplitRanges) ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            Object f16Min = stats.get("_stats.columns.f16.min");
+            if (f16Min != null) {
+                assertThat(f16Min, instanceOf(Double.class));
+            }
+            Object decMin = stats.get("_stats.columns.dec.min");
+            if (decMin != null) {
+                assertThat(decMin, instanceOf(Double.class));
+            }
+        }
+    }
+
+    /**
+     * Verifies that Parquet footer statistics for INT32/INT64-backed DECIMAL columns are scale-decoded
+     * to {@code double}, matching the scan-path decode.
+     */
+    public void testInt32AndInt64BackedDecimalStatsDecodeToDouble() throws Exception {
+        int decimalScale = 2;
+        long decimalLoUnscaled = -100; // -1.00
+        long decimalHiUnscaled = 1234567; // 12345.67
+        double decimalLoExpected = new BigDecimal(BigInteger.valueOf(decimalLoUnscaled), decimalScale).doubleValue();
+        double decimalHiExpected = new BigDecimal(BigInteger.valueOf(decimalHiUnscaled), decimalScale).doubleValue();
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.decimalType(decimalScale, 9))
+            .named("dec32")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.decimalType(decimalScale, 18))
+            .named("dec64")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("dec32", (int) decimalLoUnscaled);
+            g1.add("dec64", decimalLoUnscaled);
+            Group g2 = factory.newGroup();
+            g2.add("dec32", (int) decimalHiUnscaled);
+            g2.add("dec64", decimalHiUnscaled);
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // --- extractStatistics path (metadata) ---
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        var colStats = metadata.statistics().get().columnStatistics().get();
+
+        for (String col : List.of("dec32", "dec64")) {
+            var stats = colStats.get(col);
+            assertEquals(col + " min must be scale-decoded, not the raw unscaled value", Optional.of(decimalLoExpected), stats.minValue());
+            assertEquals(col + " max must be scale-decoded, not the raw unscaled value", Optional.of(decimalHiExpected), stats.maxValue());
+        }
+
+        // --- buildRowGroupStats path (discoverSplitRanges) ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            for (String col : List.of("dec32", "dec64")) {
+                Object min = stats.get("_stats.columns." + col + ".min");
+                if (min != null) {
+                    assertEquals(decimalLoExpected, ((Number) min).doubleValue(), 0.0);
+                }
+                Object max = stats.get("_stats.columns." + col + ".max");
+                if (max != null) {
+                    assertEquals(decimalHiExpected, ((Number) max).doubleValue(), 0.0);
+                }
+            }
         }
     }
 

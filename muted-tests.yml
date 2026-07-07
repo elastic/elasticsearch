@@ -590,15 +590,9 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformGetAndGetStatsIT
   method: testGetAndGetBasicStats
   issue: https://github.com/elastic/elasticsearch/issues/152351
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testWatcherWithApiKey {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/152355
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152379
-- class: org.elasticsearch.index.store.BytesReadHeaderIT
-  method: testMultipleIndicesAccumulateBytesRead
-  issue: https://github.com/elastic/elasticsearch/issues/152425
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498
@@ -737,18 +731,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {alltypes_plain.snappy}
   issue: https://github.com/elastic/elasticsearch/issues/153048
-- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
-  method: testAutoFollowing
-  issue: https://github.com/elastic/elasticsearch/issues/153049
-- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
-  method: testUniDirectionalIndexFollowing
-  issue: https://github.com/elastic/elasticsearch/issues/153050
-- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
-  method: testCannotFollowLeaderInUpgradedCluster
-  issue: https://github.com/elastic/elasticsearch/issues/153051
-- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
-  method: testBiDirectionalIndexFollowing
-  issue: https://github.com/elastic/elasticsearch/issues/153052
 - class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
   method: testDefaultSettingsFailsOnCrossFileScalarObjectConflict
   issue: https://github.com/elastic/elasticsearch/issues/153054
@@ -758,9 +740,6 @@ tests:
 - class: org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests
   method: testFetchRegion
   issue: https://github.com/elastic/elasticsearch/issues/153058
-- class: org.elasticsearch.simdvec.Int8VectorScorerFactoryTests
-  method: testScorerWithSNAP
-  issue: https://github.com/elastic/elasticsearch/issues/153060
 - class: org.elasticsearch.xpack.transform.integration.TransformTaskFailedStateIT
   method: testStartFailedTransform
   issue: https://github.com/elastic/elasticsearch/issues/153065
@@ -773,3 +752,15 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/153084
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:inlinestats.doubleShadowingWithEval}
+  issue: https://github.com/elastic/elasticsearch/issues/153096
+- class: org.elasticsearch.search.telemetry.SearchCoordinatorPhaseShardBytesMetricsIT
+  method: testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes
+  issue: https://github.com/elastic/elasticsearch/issues/153109
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:exponential_histogram.allAggsInlineGrouped}
+  issue: https://github.com/elastic/elasticsearch/issues/153123
+- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
+  method: testStoredIgnoredSource
+  issue: https://github.com/elastic/elasticsearch/issues/153124

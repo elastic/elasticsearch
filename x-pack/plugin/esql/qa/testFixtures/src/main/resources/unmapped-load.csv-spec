@@ -667,6 +667,120 @@ s:long       | c:long | unmapped_message:keyword
 14027353     | 3      | Disconnection error
 ;
 
+countUnmappedFieldExistsOnlyInSource
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| STATS c = COUNT(unmapped_message)
+;
+
+c:long
+7
+;
+
+countPartiallyUnmappedKeywordFieldIncludesSourceOnlyValues
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| STATS c = COUNT(message)
+;
+
+c:long
+14
+;
+
+countPartiallyUnmappedPunkCastIncludesSourceOnlyValues
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| EVAL event_duration = event_duration::keyword
+| STATS c = COUNT(event_duration)
+;
+
+c:long
+14
+;
+
+countMultivaluedUnmappedField
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| STATS c = COUNT(unmapped_mv)
+;
+
+c:long
+13
+;
+
+inlineCountUnmappedFieldExistsOnlyInSource
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| INLINE STATS c = COUNT(unmapped_message)
+| KEEP c
+| LIMIT 1
+;
+
+c:long
+7
+;
+
+inlineCountPartiallyUnmappedKeywordFieldIncludesSourceOnlyValues
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| INLINE STATS c = COUNT(message)
+| KEEP c
+| LIMIT 1
+;
+
+c:long
+14
+;
+
+inlineCountPartiallyUnmappedPunkCastIncludesSourceOnlyValues
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| EVAL event_duration = event_duration::keyword
+| INLINE STATS c = COUNT(event_duration)
+| KEEP c
+| LIMIT 1
+;
+
+c:long
+14
+;
+
+inlineCountMultivaluedUnmappedField
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| INLINE STATS c = COUNT(unmapped_mv)
+| KEEP c
+| LIMIT 1
+;
+
+c:long
+13
+;
+
 inlineStatsByUnmappedFieldExistsInSource
 required_capability: optional_fields_v5
 

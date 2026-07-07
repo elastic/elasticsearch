@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
 
-    private static final String[] CASES_INDICES = { ".cases*", ".cases-activity*", ".cases-attachments*" };
+    private static final String[] CASES_INDICES = { ".cases*" };
 
     private final KibanaCasesImplicitPrivilegesProvider contributor = new KibanaCasesImplicitPrivilegesProvider();
 

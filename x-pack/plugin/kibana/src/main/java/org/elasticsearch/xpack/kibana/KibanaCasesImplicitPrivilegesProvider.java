@@ -28,9 +28,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Implicitly grants read access to the Kibana Cases analytics indices ({@code .cases*},
- * {@code .cases-activity*}, {@code .cases-attachments*}) for users whose roles include a
- * solution-scoped Kibana application privilege granting {@code cases:<owner>/getCase}.
+ * Implicitly grants read access to the Kibana Cases analytics indices ({@code .cases},
+ * {@code .cases-activity}, {@code .cases-attachments}, matched via a single {@code .cases*}
+ * pattern) for users whose roles include a solution-scoped Kibana application privilege granting
+ * {@code cases:<owner>/getCase}.
  * <p>
  * Unlike Alerting V2, Cases documents carry two independent scoping dimensions: the Kibana
  * space they live in ({@code space_id}) and the owning solution ({@code owner}: {@code cases},
@@ -44,7 +45,7 @@ import java.util.stream.Collectors;
  * therefore always includes an {@code owner} filter, with an additional {@code space_id} filter
  * unless the role holds the wildcard resource ({@code *}) for that owner.
  * <p>
- * The index patterns are wildcarded so ES|QL queries like {@code FROM .cases-activity*} match.
+ * The index pattern is wildcarded so ES|QL queries like {@code FROM .cases-activity*} match.
  * None of the three indices are data streams today (they are plain indices; {@code .cases} is a
  * {@code index.mode: lookup} index used as the right-hand side of ES|QL {@code LOOKUP JOIN}s from
  * the other two), but the trailing wildcard keeps the pattern resilient to a future
@@ -69,7 +70,7 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
     static final String GET_CASE_ACTION_OBSERVABILITY = "cases:observability/getCase";
     static final String GET_CASE_ACTION_CASES = "cases:cases/getCase";
 
-    static final Map<String, String> GET_CASE_ACTIONS_BY_OWNER = Map.of(
+    static final Map<String, String> OWNER_BY_GET_CASE_ACTION = Map.of(
         GET_CASE_ACTION_SECURITY_SOLUTION,
         OWNER_SECURITY_SOLUTION,
         GET_CASE_ACTION_OBSERVABILITY,
@@ -78,10 +79,12 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
         OWNER_CASES
     );
 
-    // Index/data-stream names mirror the Kibana-side definitions in:
+    // A single ".cases*" pattern covers all three surfaces (.cases, .cases-activity,
+    // .cases-attachments), since the latter two share the ".cases" prefix. Index/data-stream
+    // names mirror the Kibana-side definitions in:
     // x-pack/platform/plugins/shared/cases/server/cases_analytics_v2/constants.ts
-    // Keep this list in sync if those definitions change.
-    static final String[] CASES_INDICES = { ".cases*", ".cases-activity*", ".cases-attachments*" };
+    // Keep this pattern in sync if those definitions change.
+    static final String[] CASES_INDICES = { ".cases*" };
     static final String RESOURCE_PREFIX = "space:";
     static final String ALL_RESOURCES = "*";
     static final String INDEX_READ_PRIVILEGE = "read";
@@ -154,7 +157,7 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
                 continue;
             }
 
-            for (Map.Entry<String, String> actionAndOwner : GET_CASE_ACTIONS_BY_OWNER.entrySet()) {
+            for (Map.Entry<String, String> actionAndOwner : OWNER_BY_GET_CASE_ACTION.entrySet()) {
                 if (privilege.predicate().test(actionAndOwner.getKey())) {
                     resourcesByOwner.computeIfAbsent(actionAndOwner.getValue(), k -> new HashSet<>()).addAll(resolved.resources());
                 }

@@ -26,7 +26,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -191,12 +190,12 @@ public class KibanaCasesImplicitPrivilegesIT extends ESRestTestCase {
 
         final List<Map<String, Object>> implicitEntries = indices.stream()
             .filter(entry -> Boolean.TRUE.equals(entry.get("implicitly_granted")))
-            .filter(entry -> ((List<String>) entry.get("names")).contains(".cases-activity*"))
+            .filter(entry -> ((List<String>) entry.get("names")).contains(".cases*"))
             .toList();
-        assertThat("expected exactly one implicit .cases-activity* grant, got " + indices, implicitEntries, hasSize(1));
+        assertThat("expected exactly one implicit .cases* grant, got " + indices, implicitEntries, hasSize(1));
 
         final Map<String, Object> implicit = implicitEntries.get(0);
-        assertThat((List<String>) implicit.get("names"), hasItem(".cases*"));
+        assertThat((List<String>) implicit.get("names"), equalTo(List.of(".cases*")));
         assertThat((List<String>) implicit.get("privileges"), equalTo(List.of("read")));
 
         final String query = (String) implicit.get("query");

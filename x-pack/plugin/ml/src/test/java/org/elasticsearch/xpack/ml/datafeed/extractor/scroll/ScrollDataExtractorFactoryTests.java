@@ -144,6 +144,15 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
         );
     }
 
+    public void testExcludeProjectShouldAppendNegativeRoutingExpression() {
+        when(datafeedConfig.getProjectRouting()).thenReturn("_alias:*");
+        ScrollDataExtractorFactory factory = newFactory();
+        factory.excludeProject("prod-eu");
+        assertThat(factory.effectiveProjectRouting(), is("_alias:*,-prod-eu:*"));
+        factory.includeProject("prod-eu");
+        assertThat(factory.effectiveProjectRouting(), is("_alias:*"));
+    }
+
     @SuppressWarnings("unchecked")
     public void testCcsOrphanSuccessfullyClearedShouldBeRemovedFromQueue() {
         ScrollDataExtractorFactory factory = newFactory();

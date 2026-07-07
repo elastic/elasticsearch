@@ -394,7 +394,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     listener
                 ),
-                listener::onFailure
+                e -> {
+                    auditor.error(job.getId(), e.getMessage());
+                    listener.onFailure(e);
+                }
             )
         );
     }

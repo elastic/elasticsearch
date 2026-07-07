@@ -26,7 +26,7 @@ public class JoinSerializationTests extends AbstractLogicalPlanSerializationTest
         LogicalPlan left = randomChild(0);
         LogicalPlan right = randomChild(0);
         JoinConfig config = randomJoinConfig();
-        return new Join(source, left, right, config);
+        return new Join(source, left, right, config, false);
     }
 
     private static JoinConfig randomJoinConfig() {
@@ -46,6 +46,6 @@ public class JoinSerializationTests extends AbstractLogicalPlanSerializationTest
             case 1 -> right = randomValueOtherThan(right, () -> randomChild(0));
             case 2 -> config = randomValueOtherThan(config, JoinSerializationTests::randomJoinConfig);
         }
-        return new Join(instance.source(), left, right, config);
+        return new Join(instance.source(), left, right, config, false);
     }
 }

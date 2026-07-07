@@ -778,15 +778,19 @@ public class DataSourceCrudIT extends ESIntegTestCase {
     }
 
     /**
-     * A concrete delete of a name that exists but is not a dataset (here, a real index) is a no-op ack, not a
-     * 404: the type filter drops the non-dataset and the index is never touched. Mirrors view delete.
+     * A concrete delete of a name that exists but is not a dataset (here, a real index) preserves explicit-name
+     * not-found semantics and leaves the index untouched.
      */
-    public void testDeleteConcreteNonDatasetNameIsNoOp() throws Exception {
+    public void testDeleteConcreteNonDatasetNameIsNotFound() throws Exception {
         final String indexName = "not_a_dataset_index";
         assertAcked(client().execute(TransportCreateIndexAction.TYPE, new CreateIndexRequest(indexName)).get(30, TimeUnit.SECONDS));
 
-        // DELETE /_query/dataset/<index>: the name resolves to an index, gets type-filtered out, and acks empty.
-        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(indexName)));
+        ExecutionException err = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(indexName)).get()
+        );
+        assertThat(err.getCause(), instanceOf(ResourceNotFoundException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset [" + indexName + "] not found"));
 
         // The index is untouched.
         assertThat(indexExists(indexName), equalTo(true));

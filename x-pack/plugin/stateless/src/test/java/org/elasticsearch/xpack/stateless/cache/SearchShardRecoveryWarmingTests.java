@@ -36,7 +36,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -61,6 +65,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -110,6 +115,23 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         );
     }
 
+    private static TelemetryProvider telemetryProvider(MeterRegistry meterRegistry) {
+        return new TelemetryProvider() {
+            @Override
+            public Tracer getTracer() {
+                return Tracer.NOOP;
+            }
+
+            @Override
+            public MeterRegistry getMeterRegistry() {
+                return meterRegistry;
+            }
+
+            @Override
+            public void attemptFlush() {}
+        };
+    }
+
     /**
      * {@link SharedBlobCacheWarmingService} with {@link SharedBlobCacheWarmingService#warmCache} stubbed to complete immediately after
      * {@code validateWarmCacheListener} runs (typically Hamcrest assertions on the listener passed from recovery warming).
@@ -118,11 +140,19 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         ThreadPool threadPool,
         Consumer<ActionListener<Void>> validateWarmCacheListener
     ) {
+        return newWarmingServiceWithWarmCacheListenerCheck(threadPool, TelemetryProvider.NOOP, validateWarmCacheListener);
+    }
+
+    private static SharedBlobCacheWarmingService newWarmingServiceWithWarmCacheListenerCheck(
+        ThreadPool threadPool,
+        TelemetryProvider telemetryProvider,
+        Consumer<ActionListener<Void>> validateWarmCacheListener
+    ) {
         ClusterSettings clusterSettings = newClusterSettings();
         return new SharedBlobCacheWarmingService(
             Mockito.mock(StatelessSharedBlobCacheService.class),
             threadPool,
-            TelemetryProvider.NOOP,
+            telemetryProvider,
             clusterSettings,
             new DefaultWarmingRatioProviderFactory().create(clusterSettings)
         ) {
@@ -486,12 +516,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         }
     }
 
-    public void testWarmCacheForSearchShardRecoveryNullEndOffsetsUsesNoopWarmListener() {
+    public void testWarmCacheForSearchShardRecoveryNullEndOffsetsResumesSynchronously() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
-            var service = newWarmingServiceWithWarmCacheListenerCheck(
-                threadPool,
-                l -> assertThat(l, sameInstance(ActionListener.<Void>noop()))
-            );
+            // the warm listener is now wrapped for the search-recovery warm-duration metric, so it is no longer literally
+            // ActionListener.noop(); fire-and-forget behavior is verified instead via the synchronous resume below.
+            var service = newWarmingServiceWithWarmCacheListenerCheck(threadPool, l -> {});
             ClusterState state = clusterStateOneSearchReplica("idx", STARTED);
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
@@ -535,15 +564,12 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
 
     /**
      * Same shard layout as {@link #testSearchRecoverySkipsWhenOnlyPrimaryActive}:
-     * {@link SharedBlobCacheWarmingService#searchRecoveryTimeout} skips;
-     * {@code warmCacheForSearchShardRecovery} uses a noop warm listener even when {@code endOffsetsToWarm} is set.
+     * {@link SharedBlobCacheWarmingService#searchRecoveryTimeout} skips, so {@code warmCacheForSearchShardRecovery} resumes recovery
+     * synchronously (fire-and-forget warming) even when {@code endOffsetsToWarm} is set.
      */
     public void testWarmCacheForSearchShardRecoveryNoOtherActive() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
-            var service = newWarmingServiceWithWarmCacheListenerCheck(
-                threadPool,
-                l -> assertThat(l, sameInstance(ActionListener.<Void>noop()))
-            );
+            var service = newWarmingServiceWithWarmCacheListenerCheck(threadPool, l -> {});
             ClusterState state = clusterStateOneSearchReplica("idx", INITIALIZING);
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
@@ -557,6 +583,67 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 resume
             );
             assertTrue(resume.isDone());
+        }
+    }
+
+    /**
+     * Fire-and-forget path (no active peer to wait on): both the warm-duration and recovery-wait-duration metrics must still be
+     * recorded, even though recovery resumes before warming necessarily completes.
+     */
+    public void testWarmCacheForSearchShardRecoveryRecordsMetricsFireAndForget() {
+        try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+            RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+            var service = newWarmingServiceWithWarmCacheListenerCheck(threadPool, telemetryProvider(meterRegistry), l -> {});
+            ClusterState state = clusterStateOneSearchReplica("idx", INITIALIZING);
+            ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
+            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
+            PlainActionFuture<Void> resume = new PlainActionFuture<>();
+            service.warmCacheForSearchShardRecovery(state, mockIndexShard(self), null, null, null, resume);
+            assertTrue(resume.isDone());
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARM_DURATION_METRIC),
+                hasSize(1)
+            );
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC),
+                hasSize(1)
+            );
+        }
+    }
+
+    /**
+     * Await-warming path (another active search copy exists): both metrics must be recorded once warming completes and
+     * {@code resumeRecoveryListener} is invoked via the race listener.
+     */
+    public void testWarmCacheForSearchShardRecoveryRecordsMetricsWhenAwaitingWarming() {
+        try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+            RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+            var service = newWarmingServiceWithWarmCacheListenerCheck(threadPool, telemetryProvider(meterRegistry), l -> {});
+            ClusterState state = clusterStateInitializingSearchReplicaWithActivePeer("idx");
+            ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
+            ShardRouting self = initializingSearchReplica(state, shardId);
+            PlainActionFuture<Void> resumeFuture = new PlainActionFuture<>();
+            service.warmCacheForSearchShardRecovery(
+                state,
+                mockIndexShard(self),
+                null,
+                null,
+                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), 1L),
+                resumeFuture
+            );
+            safeGet(resumeFuture);
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARM_DURATION_METRIC),
+                hasSize(1)
+            );
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC),
+                hasSize(1)
+            );
         }
     }
 }

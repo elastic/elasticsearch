@@ -40,7 +40,6 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
         .setting("xpack.encryption.key_rotation.check_interval", "1s")
         .keystore("cluster.state.encryption.active_password_id", "v1")
         .keystore("cluster.state.encryption.password.v1", "encryption-test-password")
-        .systemProperty("es.project_encryption_key_feature_flag_enabled", "true")
         .user("test-admin", "x-pack-test-password")
         .build();
 
@@ -57,6 +56,17 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
                 basicAuthHeaderValue("test-admin", new SecureString("x-pack-test-password".toCharArray()))
             )
             .build();
+    }
+
+    /**
+     * The KeyRotationCoordinator submits a begin-project-encryption-key-rotation cluster-state task every ~1 s while the cluster is
+     * alive. ESRestTestCase#waitForClusterStateUpdatesToFinish uses assertBusy with exponential-backoff polling that consistently misses
+     * the ~200 ms clean windows between successive tasks, causing spurious teardown failures. This test creates no persistent cluster
+     * state, so skipping the wipe is safe.
+     */
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
     }
 
     public void testProviderIsDiscoveredAndHandlerIsInvoked() throws Exception {

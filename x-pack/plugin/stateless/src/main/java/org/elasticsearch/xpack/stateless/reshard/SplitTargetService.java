@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
@@ -32,10 +33,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -75,11 +79,20 @@ public class SplitTargetService {
         Setting.Property.NodeScope
     );
 
+    /// Timeout for internal retries when sending start split request to the source shard.
+    /// This setting is only configured in tests and is not registered.
+    public static final Setting<TimeValue> START_SPLIT_RETRY_TIMEOUT = Setting.positiveTimeSetting(
+        "reshard.split.target_shard_start_split_retry_timeout",
+        TimeValue.timeValueSeconds(60),
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(SplitTargetService.class);
 
     private final Client client;
     private final ClusterService clusterService;
     private final ReshardIndexService reshardIndexService;
+    private final TimeValue startSplitRetryTimeout;
     private final TimeValue searchShardsOnlineTimeout;
     private final TimeValue splitStateAppliedTimeout;
 
@@ -89,6 +102,7 @@ public class SplitTargetService {
         this.client = client;
         this.clusterService = clusterService;
         this.reshardIndexService = reshardIndexService;
+        this.startSplitRetryTimeout = START_SPLIT_RETRY_TIMEOUT.get(settings);
         this.searchShardsOnlineTimeout = RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.get(settings);
         this.splitStateAppliedTimeout = RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT.get(settings);
     }
@@ -477,17 +491,25 @@ public class SplitTargetService {
         }
 
         private void initiateSplitWithSourceShard(State.Clone state) {
-            client.execute(TransportReshardSplitAction.TYPE, new TransportReshardSplitAction.SplitRequest(split), new ActionListener<>() {
-                @Override
-                public void onResponse(ActionResponse ignored) {
-                    advance(new State.StartSplitRpcComplete(state.recoveryListener));
-                }
+            var action = new InitiateSplitWithSourceShardAction(
+                clusterService,
+                client,
+                split,
+                cancelled,
+                startSplitRetryTimeout,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void ignored) {
+                        advance(new State.StartSplitRpcComplete(state.recoveryListener));
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    advance(new State.FailedInRecovery(e, state.recoveryListener));
+                    @Override
+                    public void onFailure(Exception e) {
+                        advance(new State.FailedInRecovery(e, state.recoveryListener));
+                    }
                 }
-            });
+            );
+            action.run();
         }
 
         private void changeStateToHandoff(State.HandoffReceived handoffReceived) {
@@ -755,6 +777,80 @@ public class SplitTargetService {
                     timestamps.put(newState.getClass(), nowInMillis);
                 }
             }
+        }
+    }
+
+    // visible for tests
+    RetryableAction<Void> createInitiateSplitWithSourceShardAction(
+        Split split,
+        AtomicBoolean cancelled,
+        TimeValue retryTimeout,
+        ActionListener<Void> listener
+    ) {
+        return new InitiateSplitWithSourceShardAction(clusterService, client, split, cancelled, retryTimeout, listener);
+    }
+
+    private static class InitiateSplitWithSourceShardAction extends RetryableAction<Void> {
+        private final Client client;
+
+        private final Split split;
+        private final AtomicBoolean cancelled;
+
+        InitiateSplitWithSourceShardAction(
+            ClusterService clusterService,
+            Client client,
+            Split split,
+            AtomicBoolean cancelled,
+            TimeValue retryTimeout,
+            ActionListener<Void> listener
+        ) {
+            super(
+                logger,
+                clusterService.threadPool(),
+                TimeValue.timeValueMillis(500),
+                TimeValue.timeValueSeconds(5),
+                // If we haven't made progress in this much time, fail back to allocator.
+                // Maybe the source shard is assigned to a different node now.
+                retryTimeout,
+                listener,
+                clusterService.threadPool().generic()
+            );
+            this.client = client;
+            this.split = split;
+            this.cancelled = cancelled;
+        }
+
+        @Override
+        public void tryAction(ActionListener<Void> listener) {
+            client.execute(
+                TransportReshardSplitAction.TYPE,
+                new TransportReshardSplitAction.SplitRequest(split),
+                listener.map(ignored -> null)
+            );
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            if (cancelled.get()) {
+                return false;
+            }
+
+            /// We apply internal retries if the source shard is not present/started.
+            /// This is because allocation only performs a limited number of retries (at the time of writing)
+            /// when a shard fails in recovery (which is what happens if start split RPC fails).
+            /// As such it is possible to exhaust this limited number of retries if f.e. source shard is relocating.
+            /// Recovering from this state requires manual intervention which is of course undesireable.
+            ///
+            /// Note that it is possible that we observe one of the *NotFound exceptions if the source shard
+            /// was moved from this node.
+            /// This is fine, eventually we'll stop retrying when we reach the retry timeout and retry the entire recovery sequence.
+            /// See corresponding source shard code in
+            /// [SplitSourceService#setupTargetShard(CancellableTask, ShardId, long, long, ActionListener)].
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+
+            return (cause instanceof IndexShardNotStartedException
+                || cause instanceof IndexNotFoundException
+                || cause instanceof ShardNotFoundException);
         }
     }
 

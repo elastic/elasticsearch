@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -84,10 +83,23 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Index-level default for the {@code doc_values.multi_value} field mapping parameter. When {@code false}, all fields in the index
      * default to single-valued doc values (rejecting documents that supply more than one value), unless a field explicitly sets its own
-     * {@code doc_values.multi_value}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled.
+     * {@code doc_values.multi_value}.
      */
     public static final Setting<Boolean> DOC_VALUES_MULTI_VALUE_SETTING = Setting.boolSetting(
         "index.mapping.doc_values.multi_value",
+        true,
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
+    /**
+     * Index-level default for the {@code doc_values.nullability} field mapping parameter. When {@code false}, all fields in the index
+     * default to requiring a non-null value in every document (rejecting documents that omit the field or supply null), unless a field
+     * explicitly sets its own {@code doc_values.nullability}.
+     */
+    public static final Setting<Boolean> DOC_VALUES_NULLABILITY_SETTING = Setting.boolSetting(
+        "index.mapping.doc_values.nullability",
         true,
         Property.IndexScope,
         Property.Final,
@@ -225,6 +237,10 @@ public abstract class FieldMapper extends Mapper {
             if (isSingleValueEnforced()) {
                 context.enforceSingleValue(fullPath());
             }
+            if (isNullable() == false && context.parser().currentToken().isValue()) {
+                // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
+                context.markRequiredSatisfied(fullPath());
+            }
 
             parseCreateField(context);
         } catch (Exception e) {
@@ -301,6 +317,15 @@ public abstract class FieldMapper extends Mapper {
      */
     protected boolean isSingleValueEnforced() {
         return false;
+    }
+
+    /**
+     * Whether this field accepts documents that omit it or supply null (ie. {@code nullability=true}). When {@code false}, every Lucene
+     * doc must carry a non-null value or parsing fails. A configured {@code null_value} always exempts the field (it is never required),
+     * so mappers exposing {@code nullability} override this to {@code return docValuesParameters.nullability() || <hasNullValue>}.
+     */
+    public boolean isNullable() {
+        return true;
     }
 
     /**
@@ -555,6 +580,12 @@ public abstract class FieldMapper extends Mapper {
      * Field mappers must override this method if they provide
      * a more efficient field-specific implementation of synthetic source.
      * </p>
+     * <p>
+     * This also determines columnar support. Columnar index modes ({@code columnar}, {@code logsdb_columnar}) rebuild
+     * {@code _source} from doc-value columns only and keep no generic source fallback: a mapper that returns
+     * {@link SyntheticSourceSupport.Native} (its {@code _source} is reconstructable from its own doc values) is
+     * supported, while one that falls back is rejected at mapping time.
+     * </p>
      * @return {@link SyntheticSourceMode}
      */
     protected SyntheticSourceSupport syntheticSourceSupport() {
@@ -636,10 +667,6 @@ public abstract class FieldMapper extends Mapper {
 
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
-            // True when a keyword multi-field's doc values are a byte-identical, complete copy of the parent's raw values: no normalizer
-            // altering them, no ignore_above omitting long values, and no null_value injecting substitutes.
-            private boolean hasColumnarModeCompatibleKeywordDelegate;
-
             public Builder add(FieldMapper.Builder builder) {
                 fieldBuilders.put(builder.leafName(), builder);
 
@@ -648,23 +675,9 @@ public abstract class FieldMapper extends Mapper {
                         && (kwd.docValuesParameters().enabled || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
-                    if (isColumnarModeCompatibleKeywordDelegate(kwd)) {
-                        hasColumnarModeCompatibleKeywordDelegate = true;
-                    }
                 }
 
                 return this;
-            }
-
-            // A keyword delegate is columnar-mode-compatible when its doc values losslessly mirror the parent's raw values: normalizer is
-            // absent (or skips storing the original), doc values are present, and neither ignore_above nor null_value transforms them.
-            // Normalizes, ignore_above, and null_value all transform indexed values -> original source is changed, which we don't want
-            // if we're using a keyword subfield as a delegate for parent field.
-            private static boolean isColumnarModeCompatibleKeywordDelegate(KeywordFieldMapper.Builder kwd) {
-                return (kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
-                    && kwd.docValuesParameters().enabled
-                    && kwd.hasIgnoreAbove() == false
-                    && kwd.hasNullValue() == false;
             }
 
             private void add(FieldMapper mapper) {
@@ -694,12 +707,6 @@ public abstract class FieldMapper extends Mapper {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
-                    if (kwd.hasNormalizer() == false
-                        && kwd.fieldType().hasDocValues()
-                        && kwd.fieldType().ignoreAbove().valuesPotentiallyIgnored() == false
-                        && kwd.fieldType().hasNullValue() == false) {
-                        hasColumnarModeCompatibleKeywordDelegate = true;
-                    }
                 }
             }
 
@@ -726,9 +733,6 @@ public abstract class FieldMapper extends Mapper {
                         && (kwd.docValuesParameters().enabled || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
-                    if (isColumnarModeCompatibleKeywordDelegate(kwd)) {
-                        hasColumnarModeCompatibleKeywordDelegate = true;
-                    }
                 }
             }
 
@@ -742,14 +746,6 @@ public abstract class FieldMapper extends Mapper {
 
             public boolean hasSyntheticSourceCompatibleKeywordField() {
                 return hasSyntheticSourceCompatibleKeywordField;
-            }
-
-            /**
-             * Returns true when this field has a keyword multi-field whose doc values are a complete, byte-identical copy of the parent's
-             * raw values AND the index mode is strictly columnar, so the parent can skip its own doc values and load via the delegate.
-             */
-            public boolean hasColumnarModeCompatibleKeywordDelegate(IndexMode mode) {
-                return mode != null && mode.isStrictColumnar() && hasColumnarModeCompatibleKeywordDelegate;
             }
 
             public MultiFields build(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
@@ -1442,7 +1438,7 @@ public abstract class FieldMapper extends Mapper {
             if (indexSettings.useDocValuesSkipper() == false) {
                 return false;
             }
-            if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+            if (indexSettings.getMode().isTsdb()) {
                 if (isDimension) {
                     return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
                 }
@@ -1535,7 +1531,7 @@ public abstract class FieldMapper extends Mapper {
     public static final class DocValuesParameter extends Parameter<DocValuesParameter.Values> {
         public static final String PARAMETER_NAME = "doc_values";
 
-        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue) {
+        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue, boolean nullability) {
             public enum Cardinality {
                 LOW,
                 HIGH;
@@ -1546,47 +1542,64 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
-            public static Values DISABLED = new Values(false, Cardinality.LOW, true);
+            public static Values DISABLED = new Values(false, Cardinality.LOW, true, true);
         }
 
         public final Parameter<Boolean> multiValueParameter;
+        public final Parameter<Boolean> nullabilityParameter;
+        private final boolean supportsExtendedDocValues;
 
         /**
          * Factory for field types whose default doc_values configuration is known eagerly at construction time (numerics, dates, booleans,
          * IP, keyword family, etc.).
          */
-        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(defaultValue, initializer);
+        public static DocValuesParameter of(
+            Values defaultValue,
+            Function<FieldMapper, Values> initializer,
+            boolean supportsExtendedDocValues
+        ) {
+            return new DocValuesParameter(defaultValue, initializer, supportsExtendedDocValues);
         }
 
         /**
-         * Variant of {@link #of(Values, Function)} that computes the default value lazily so it can depend on sibling multi-fields, which
-         * are only known after this parameter is constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
+         * Variant of {@link #of(Values, Function, boolean)} that computes the default value lazily
+         * so it can depend on sibling multi-fields, which are only known after this parameter is
+         * constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
          */
         public static DocValuesParameter of(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer
+            Function<FieldMapper, Values> initializer,
+            boolean supportsExtendedDocValues
         ) {
-            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer);
+            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsExtendedDocValues);
         }
 
-        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            this(() -> defaultValue, defaultValue, initializer);
+        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsExtendedDocValues) {
+            this(() -> defaultValue, defaultValue, initializer, supportsExtendedDocValues);
         }
 
         private DocValuesParameter(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer
+            Function<FieldMapper, Values> initializer,
+            boolean supportsExtendedDocValues
         ) {
             super(PARAMETER_NAME, false, defaultValueSupplier, null, initializer, null, Values::toString);
+            this.supportsExtendedDocValues = supportsExtendedDocValues;
 
             multiValueParameter = Parameter.boolParam(
                 "multi_value",
                 false,
                 m -> initializer.apply(m).multiValue,
                 subParameterDefaults.multiValue
+            );
+            // nullability is not updateable in order to maintain density guarantees inside segments
+            nullabilityParameter = Parameter.boolParam(
+                "nullability",
+                false,
+                m -> initializer.apply(m).nullability,
+                subParameterDefaults.nullability
             );
         }
 
@@ -1599,22 +1612,40 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
          *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default)</li>
          *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the field</li>
+         *   <li>{@code "doc_values": { "nullability": true }} - allow documents to omit the field or supply null (default)</li>
+         *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null (sealed)</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * the multi_value setting. Cardinality is decided internally and is not user-configurable.
+         * the multi_value and nullability settings. Cardinality is decided internally and is not user-configurable. The object form
+         * itself is only available in columnar index modes, so any sub-parameter it may carry (e.g. {@code multi_value}) is rejected
+         * together with it.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
-            if (value instanceof Map<?, ?> valueMap && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            if (value instanceof Map<?, ?> valueMap) {
+                if (supportsExtendedDocValues == false) {
+                    throw new MapperParsingException(
+                        "unsupported doc_values configuration for field ["
+                            + field
+                            + "] in non-columnar index; supported values: [true, false]"
+                    );
+                }
                 if (valueMap.containsKey(multiValueParameter.name)) {
                     multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
                 }
+                if (valueMap.containsKey(nullabilityParameter.name)) {
+                    nullabilityParameter.parse(field, context, valueMap.get(nullabilityParameter.name));
+                }
 
-                setValue(new Values(true, getDefaultValue().cardinality(), multiValueParameter.getValue()));
+                setValue(
+                    new Values(true, getDefaultValue().cardinality(), multiValueParameter.getValue(), nullabilityParameter.getValue())
+                );
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
-                    setValue(new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue()));
+                    setValue(
+                        new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue(), getDefaultValue().nullability())
+                    );
                 } else {
                     setValue(Values.DISABLED);
                 }
@@ -1625,6 +1656,7 @@ public abstract class FieldMapper extends Mapper {
         public void setValue(Values value) {
             super.setValue(value);
             multiValueParameter.setValue(value.multiValue);
+            nullabilityParameter.setValue(value.nullability);
         }
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
@@ -1632,16 +1664,19 @@ public abstract class FieldMapper extends Mapper {
             if (includeDefaults || isConfigured()) {
                 if (value.enabled == false) {
                     builder.field(name, false);
-                } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
+                } else if (supportsExtendedDocValues == false) {
+                    // the object form is only available in columnar index modes, so it must never be emitted here
                     builder.field(name, true);
                 } else {
                     boolean multiValueConfigured = multiValueParameter.isConfigured();
-                    if (includeDefaults == false && multiValueConfigured == false) {
+                    boolean nullabilityConfigured = nullabilityParameter.isConfigured();
+                    if (includeDefaults == false && multiValueConfigured == false && nullabilityConfigured == false) {
                         // no sub-parameters were explicitly set; use the boolean shorthand to match the original source
                         builder.field(name, true);
                     } else {
                         builder.startObject(name);
                         builder.field(multiValueParameter.name, value.multiValue);
+                        builder.field(nullabilityParameter.name, value.nullability);
                         builder.endObject();
                     }
                 }
@@ -1997,34 +2032,6 @@ public abstract class FieldMapper extends Mapper {
             return DEPRECATED_PARAMS.contains(propName);
         }
 
-        /**
-         * Ensures that index sort fields don't use binary (non-sortable) doc values. If the default for a columnar index is HIGH
-         * cardinality, it is silently overridden to LOW since sort fields require sortable doc values.
-         */
-        protected static void enforceIndexSortDocValuesCompatibility(
-            String fullFieldName,
-            IndexSortConfig sortConfig,
-            DocValuesParameter docValuesParameters
-        ) {
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-                return;
-            }
-            if (sortConfig == null || sortConfig.hasIndexSort() == false || sortConfig.hasSortOnField(fullFieldName) == false) {
-                return;
-            }
-            DocValuesParameter.Values currentValues = docValuesParameters.getValue();
-            if (currentValues.cardinality() != DocValuesParameter.Values.Cardinality.HIGH) {
-                return;
-            }
-            // Default was HIGH (columnar mode) — override to LOW since sort fields require sortable doc values.
-            docValuesParameters.setValue(
-                new DocValuesParameter.Values(
-                    currentValues.enabled(),
-                    DocValuesParameter.Values.Cardinality.LOW,
-                    currentValues.multiValue()
-                )
-            );
-        }
     }
 
     /**

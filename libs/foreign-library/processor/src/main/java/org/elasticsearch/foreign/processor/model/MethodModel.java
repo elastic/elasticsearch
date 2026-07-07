@@ -88,14 +88,6 @@ public record MethodModel(
                 );
                 return null;
             }
-            if (paramType == NativeType.STRING) {
-                messager.printMessage(
-                    Kind.ERROR,
-                    "String parameter type is not supported on parameter '" + param.getSimpleName() + "'",
-                    param
-                );
-                return null;
-            }
             paramTypes.add(paramType);
         }
 

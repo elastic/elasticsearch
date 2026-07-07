@@ -488,8 +488,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     IndexVersion.current(),
                     true,
                     true,
-                    false,
-                    new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
+                    new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true)
                 );
 
                 // NOTE: "fox brown" has both terms in the index but in the wrong order. A boolean MUST

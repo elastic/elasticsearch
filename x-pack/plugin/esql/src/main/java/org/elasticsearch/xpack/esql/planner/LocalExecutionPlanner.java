@@ -40,6 +40,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
+import org.elasticsearch.compute.operator.HighlightConfig;
+import org.elasticsearch.compute.operator.HighlightOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -81,6 +83,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -124,6 +127,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -145,7 +149,10 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
@@ -207,6 +214,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -248,6 +256,10 @@ public class LocalExecutionPlanner {
     private final ProjectResolver projectResolver;
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
+    @Nullable
+    private final Executor parallelWorkerExecutor;
+    private final int esqlWorkerPoolSize;
+    private final MatcherWatchdog grokMatcherWatchdog;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -266,7 +278,10 @@ public class LocalExecutionPlanner {
         IpLocationService ipLocationService,
         ProjectResolver projectResolver,
         AbstractPhysicalOperationProviders physicalOperationProviders,
-        OperatorFactoryRegistry operatorFactoryRegistry
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        @Nullable Executor parallelWorkerExecutor,
+        int esqlWorkerPoolSize,
+        MatcherWatchdog grokMatcherWatchdog
     ) {
 
         this.sessionId = sessionId;
@@ -286,6 +301,12 @@ public class LocalExecutionPlanner {
         this.projectResolver = projectResolver;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.parallelWorkerExecutor = parallelWorkerExecutor;
+        this.esqlWorkerPoolSize = esqlWorkerPoolSize;
+        // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
+        // by every GROK matcher this planner builds — MatcherWatchdog.Default is a stateless, immutable
+        // wrapper around a single timeout value.
+        this.grokMatcherWatchdog = grokMatcherWatchdog;
     }
 
     /**
@@ -373,8 +394,8 @@ public class LocalExecutionPlanner {
             return planMvExpand(mvExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
-        } else if (node instanceof HighlightExec) {
-            throw new UnsupportedOperationException("HIGHLIGHT is not implemented yet");
+        } else if (node instanceof HighlightExec highlight) {
+            return planHighlight(highlight, context);
         } else if (node instanceof RerankExec rerank) {
             return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {
@@ -661,15 +682,32 @@ public class LocalExecutionPlanner {
         layoutBuilder.append(exec.attributesToExtract());
         Layout newLayout = layoutBuilder.build();
 
+        // Deferred columns are pulled from the source file by name, and a columnar extractor resolves them against the
+        // FILE's own (physical) schema — so a declared `path` rename must be applied here too, exactly as the eager
+        // projection is. Physicalize through the same PhysicalNames chokepoint the source reader used; without this a
+        // deferred renamed column (not in the eager projection) fails at extract time with "column [x] is missing".
+        Map<String, String> deferredRenames = Map.of();
+        for (PhysicalPlan p = exec.child(); p != null; p = (p instanceof UnaryExec u) ? u.child() : null) {
+            if (p instanceof ExternalSourceExec ese) {
+                deferredRenames = ese.declaredReadSpec().renames();
+                break;
+            }
+        }
         List<String> deferredColumnNames = new ArrayList<>(exec.attributesToExtract().size());
+        // The declared/planner type per deferred column: extraction decodes the file's own type and
+        // coerces to this exactly like the eager decode paths (DeclaredTypeCoercions), so a coerced
+        // column reads the same whether it was scanned eagerly or materialized after TopN.
+        List<DataType> deferredColumnTypes = new ArrayList<>(exec.attributesToExtract().size());
         for (Attribute a : exec.attributesToExtract()) {
-            deferredColumnNames.add(a.name());
+            deferredColumnNames.add(PhysicalNames.translate(a.name(), deferredRenames));
+            deferredColumnTypes.add(a.dataType());
         }
 
         ExternalFieldExtractOperator.Factory factory = new ExternalFieldExtractOperator.Factory(
             rowPositionChannel,
             passThroughChannels,
             deferredColumnNames,
+            deferredColumnTypes,
             capable::sourceExtractorsFor
         );
         return source.with(factory, newLayout);
@@ -759,6 +797,16 @@ public class LocalExecutionPlanner {
             return source.with(numericFactory, source.layout);
         }
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
+        TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
+        if (parallelWorkerExecutor != null && TopNOperator.PARALLEL_TOPN_FEATURE_FLAG.isEnabled()) {
+            int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
+            parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
+                parallelWorkerExecutor,
+                workerCount,
+                2 * workerCount,
+                context.plannerSettings.parallelTopNPromotionThresholdRows()
+            );
+        }
         // For a single keyword/text sort key directly over an external source, publish the generic
         // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
         // can skip row groups/stripes that cannot contain a globally competitive row. This is the
@@ -775,7 +823,8 @@ public class LocalExecutionPlanner {
                 context.pageSize(topNExec, rowSize),
                 context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNExec.inputOrdering(),
-                minCompetitive
+                minCompetitive,
+                parallelWorkerConfig
             ),
             source.layout
         );
@@ -1183,11 +1232,14 @@ public class LocalExecutionPlanner {
         }
 
         Layout layout = layoutBuilder.build();
+        // Rebind the matcher to this node's own grok.watchdog.max_execution_time setting instead of the
+        // no-op watchdog it was parsed/deserialized with, since the pattern is about to run against real data.
+        org.elasticsearch.grok.Grok watchdogGrok = Grok.pattern(grok.source(), grok.pattern().pattern(), grokMatcherWatchdog).grok();
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout, context.analysisRegistry()),
-                new GrokEvaluatorExtracter.Factory(grok.pattern().grok(), grok.pattern().pattern(), fieldToPos, fieldToType)
+                new GrokEvaluatorExtracter.Factory(watchdogGrok, grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
         );
@@ -1254,6 +1306,42 @@ public class LocalExecutionPlanner {
             ),
             outputLayout
         );
+    }
+
+    // TODO: when highlighting can run directly against shard data, use real index offsets and per-field analyzers
+    // instead of re-analyzing each row in a MemoryIndex.
+    private PhysicalOperation planHighlight(HighlightExec highlight, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(highlight.child(), context);
+
+        Expression queryExpr = highlight.query();
+        if (queryExpr == null) {
+            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
+        }
+        String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
+        // TODO: honour boundary_scanner*, order, max_analyzed_offset, and phrase_limit once HighlightOptions exposes them.
+        HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
+        HighlightConfig config = new HighlightConfig(
+            queryText,
+            options.preTag(),
+            options.postTag(),
+            options.encoder(),
+            options.numberOfFragments(),
+            options.fragmentSize(),
+            options.noMatchSize()
+        );
+
+        List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
+            .stream()
+            .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
+            .toList();
+
+        // Append one keyword column per highlighted field.
+        // The generated attributes are appended in the same order as the ON fields,
+        // so the operator's appended blocks line up with these layout channels.
+        Layout.Builder layoutBuilder = source.layout.builder();
+        layoutBuilder.append(highlight.generatedFields());
+
+        return source.with(new HighlightOperator.Factory(config, fieldEvaluators), layoutBuilder.build());
     }
 
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {
@@ -1704,7 +1792,7 @@ public class LocalExecutionPlanner {
     private MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
         Map<String, MappingLookup> mappingsByIndex = new HashMap<>();
         for (ShardContext shard : shardContexts.iterable()) {
-            if (shard.indexSettings().getMode() == IndexMode.TIME_SERIES) {
+            if (shard.indexSettings().getMode().isTsdb()) {
                 mappingsByIndex.putIfAbsent(shard.indexSettings().getIndex().getName(), shard.mappingLookup());
             }
         }
@@ -1820,6 +1908,14 @@ public class LocalExecutionPlanner {
                 virtualColumnNames.addAll(pm.partitionColumns().keySet());
             }
         }
+        // On a data node the resolved FileList is not serialized (see the slice-queue note above), so the
+        // partition columns above are absent there. Their names ARE serialized via the PARTITION_COLUMNS_KEY
+        // stamp in sourceMetadata — the same stamp the aggregate fold reads
+        // (ExternalSourceAggregatePushdown.partitionColumnNames). Union them in so VirtualColumnIterator
+        // materialises the partition column as a constant block even when ONLY a partition column is projected
+        // (e.g. COUNT(p) that safe-missed to a scan): otherwise the operator treats it as a data column, the
+        // reader emits a 0-block page, and the downstream aggregator reads a non-existent block.
+        virtualColumnNames.addAll(ExternalSourceAggregatePushdown.partitionColumnNames(externalSource.sourceMetadata()));
         for (Attribute attr : externalSource.output()) {
             if (FileMetadataColumns.isFileMetadataColumn(attr.name())) {
                 virtualColumnNames.add(attr.name());
@@ -1837,6 +1933,7 @@ public class LocalExecutionPlanner {
             .executor(operatorFactoryRegistry.executor())
             .fileReadExecutor(operatorFactoryRegistry.fileReadExecutor())
             .config(externalSource.config())
+            .declaredReadSpec(externalSource.declaredReadSpec())
             .sourceMetadata(externalSource.sourceMetadata())
             .pushedFilter(externalSource.pushedFilter())
             .pushedExpressions(externalSource.pushedExpressions())

@@ -152,7 +152,11 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
             return TDigestHistogramFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
         }
         if (ExponentialHistogramFieldDownsampler.supportsFieldType(fieldType)) {
-            fieldCounts.increaseExponentialHistogramFields();
+            if (ExponentialHistogramFieldDownsampler.isAggregateDownsampler(samplingMethod)) {
+                fieldCounts.increaseAggregateExponentialHistogramFields();
+            } else {
+                fieldCounts.increaseNonAggregateExponentialHistogramFields();
+            }
             return ExponentialHistogramFieldDownsampler.create(fieldName, fieldData, samplingMethod);
         }
         if (NumericMetricFieldDownsampler.supportsFieldType(fieldType)) {
@@ -183,7 +187,8 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         private int aggregateCounterFields = 0;
         private int formattedValueFields = 0;
         private int dimensionFields = 0;
-        private int exponentialHistogramFields = 0;
+        private int nonAggregateExponentialHistogramFields = 0;
+        private int aggregateExponentialHistogramFields = 0;
         private int tDigestHistogramFields = 0;
 
         void increaseNumericFields() {
@@ -202,8 +207,12 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
             dimensionFields++;
         }
 
-        void increaseExponentialHistogramFields() {
-            exponentialHistogramFields++;
+        void increaseNonAggregateExponentialHistogramFields() {
+            nonAggregateExponentialHistogramFields++;
+        }
+
+        void increaseAggregateExponentialHistogramFields() {
+            aggregateExponentialHistogramFields++;
         }
 
         void increaseTDigestHistogramFields() {
@@ -226,8 +235,12 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
             return dimensionFields;
         }
 
-        int exponentialHistogramFields() {
-            return exponentialHistogramFields;
+        int nonAggregateExponentialHistogramFields() {
+            return nonAggregateExponentialHistogramFields;
+        }
+
+        int aggregateExponentialHistogramFields() {
+            return aggregateExponentialHistogramFields;
         }
 
         int tDigestHistogramFields() {

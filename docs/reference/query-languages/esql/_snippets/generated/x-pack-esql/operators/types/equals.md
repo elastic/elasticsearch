@@ -11,10 +11,12 @@
 | date | date_nanos | boolean |
 | date_nanos | date | boolean |
 | date_nanos | date_nanos | boolean |
+| date_range {applies_to}`stack: preview 9.5.0` | date_range {applies_to}`stack: preview 9.5.0` | boolean |
 | dense_vector | dense_vector | boolean |
 | double | double | boolean |
 | double | integer | boolean |
 | double | long | boolean |
+| flattened {applies_to}`stack: preview 9.5.0` | flattened {applies_to}`stack: preview 9.5.0` | boolean |
 | geo_point | geo_point | boolean |
 | geo_shape | geo_shape | boolean |
 | geohash | geohash | boolean |

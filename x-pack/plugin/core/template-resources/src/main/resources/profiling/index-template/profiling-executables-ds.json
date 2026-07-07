@@ -10,7 +10,8 @@
   },
   "composed_of": [
     "profiling-executables",
-    "profiling-executables@custom"
+    "profiling-executables@custom",
+    "profiling-hot-tier"
   ],
   "ignore_missing_component_templates": [
     "profiling-executables@custom"

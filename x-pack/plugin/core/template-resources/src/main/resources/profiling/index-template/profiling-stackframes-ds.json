@@ -10,7 +10,8 @@
   },
   "composed_of": [
     "profiling-stackframes",
-    "profiling-stackframes@custom"
+    "profiling-stackframes@custom",
+    "profiling-hot-tier"
   ],
   "ignore_missing_component_templates": [
     "profiling-stackframes@custom"

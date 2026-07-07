@@ -10,7 +10,8 @@
   },
   "composed_of": [
     "profiling-stacktraces",
-    "profiling-stacktraces@custom"
+    "profiling-stacktraces@custom",
+    "profiling-hot-tier"
   ],
   "ignore_missing_component_templates": [
     "profiling-stacktraces@custom"

@@ -361,10 +361,16 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
     }
 
     private void assertKeepMask(B block, List<List<V>> expected) {
-        try (BooleanVector mask = block.blockFactory().newConstantBooleanVector(true, expected.size()); Block masked = block.keepMask(mask)) {
+        try (
+            BooleanVector mask = block.blockFactory().newConstantBooleanVector(true, expected.size());
+            Block masked = block.keepMask(mask)
+        ) {
             assertValues(castBlock(masked), expected);
         }
-        try (BooleanVector mask = block.blockFactory().newConstantBooleanVector(false, expected.size()); Block masked = block.keepMask(mask)) {
+        try (
+            BooleanVector mask = block.blockFactory().newConstantBooleanVector(false, expected.size());
+            Block masked = block.keepMask(mask)
+        ) {
             assertValues(castBlock(masked), allNull(expected.size()));
         }
         if (expected.size() > 1) {

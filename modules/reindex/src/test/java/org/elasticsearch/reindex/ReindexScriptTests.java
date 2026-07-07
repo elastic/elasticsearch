@@ -142,7 +142,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
             IllegalArgumentException.class,
             () -> applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.PARAM_NAME, "slice1"))
         );
-        assertThat(e.getMessage(), containsString(SliceIndexing.PARAM_NAME + " cannot be updated"));
+        assertThat(e.getMessage(), containsString("Cannot put key [" + SliceIndexing.PARAM_NAME + "]"));
     }
 
     @Override

@@ -405,6 +405,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 v -> managedIdentityEnabled.set(isStateless == false && v)
             );
 
+        // Disabled by default; an operator can enable it dynamically;
+        AtomicBoolean federatedIdentityEnabled = new AtomicBoolean(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings));
+        services.clusterService()
+            .getClusterSettings()
+            .addSettingsUpdateConsumer(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED, federatedIdentityEnabled::set);
+
         // Local-disk gate: parsed once at startup (NodeScope setting — no update consumer needed).
         LocalFileAccess localFileAccess = LocalFileAccess.create(settings);
 
@@ -512,9 +518,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 DataSourceValidator effective = v;
                 if (effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get)
-                        .withFederatedIdentityEnabled(
-                            FileDataSourceValidator.ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG::isEnabled
-                        );
+                        .withFederatedIdentityEnabled(federatedIdentityEnabled::get);
                 }
                 if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);

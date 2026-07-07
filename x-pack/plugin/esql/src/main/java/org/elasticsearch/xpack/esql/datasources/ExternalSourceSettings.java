@@ -204,6 +204,24 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * Gates provisioning data sources that use workload-identity federation (e.g. S3 {@code role_arn},
+     * GCS {@code sts_audience}, Azure {@code tenant_id}/{@code client_id}). A single setting covers every
+     * file-based provider, since they all funnel through {@code FileDataSourceValidator} and share the
+     * {@code DataSourceConfiguration#hasFederatedAuth()} mechanism.
+     * <p>
+     * Disabled by default. This is an operator-dynamic setting: changes take effect immediately without a node
+     * restart, and it can only be changed by an operator (e.g. via file-based settings), not by an end user
+     * through the public {@code _cluster/settings} API — so it can be enabled fleet-wide (or per-deployment) via
+     * gitops without exposing a customer-facing toggle.
+     */
+    public static final Setting<Boolean> FEDERATED_IDENTITY_ENABLED = Setting.boolSetting(
+        "esql.datasource.federated_identity.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
+    /**
      * Allowlist of local filesystem root paths from which ES|QL {@code file://} external sources are permitted to read.
      * Mirrors {@code path.repo}: the list <em>is</em> the enable — an empty list (the default) disables local-disk reads
      * entirely. When non-empty, a {@code file://} path is allowed only if it normalizes to a location under one of the
@@ -224,6 +242,7 @@ public final class ExternalSourceSettings {
             MAX_GLOB_EXPANSION,
             WORKLOAD_IDENTITY_ENABLED,
             MANAGED_IDENTITY_ENABLED,
+            FEDERATED_IDENTITY_ENABLED,
             LOCAL_ALLOWED_PATHS
         );
     }

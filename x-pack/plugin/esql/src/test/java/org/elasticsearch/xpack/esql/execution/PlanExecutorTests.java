@@ -61,7 +61,8 @@ public class PlanExecutorTests extends ESTestCase {
                 Settings.EMPTY,
                 null,
                 () -> false,
-                fanOut
+                fanOut,
+                threadPool.getThreadContext()
             );
 
             assertEquals("fan-out permit must be the shared blob-store access concurrency", fanOut, resolver.metadataReadConcurrency());

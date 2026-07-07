@@ -36,8 +36,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     def setup() {
-        // TestClusterPlugin with adding task listeners is not cc compatible
-        configurationCacheCompatible = false
+        disableConfigurationCache("TestClustersPlugin with adding task listeners is not cc compatible")
         buildFile << """
             import org.elasticsearch.gradle.testclusters.TestClustersAware
             import org.elasticsearch.gradle.testclusters.ElasticsearchCluster

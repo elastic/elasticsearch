@@ -97,10 +97,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed;
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.of(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final FieldMapper.DocValuesParameter docValuesParameters;
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
@@ -145,6 +142,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         public Builder(String name, IndexSettings indexSettings) {
             super(name);
+            this.docValuesParameters = FieldMapper.DocValuesParameter.of(
+                DEFAULT_DOC_VALUES_PARAMS,
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
+            );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,

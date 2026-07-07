@@ -13,6 +13,7 @@ import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -30,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Coordinator-only, in-memory cache service for external source metadata.
@@ -147,6 +149,19 @@ public class ExternalSourceCacheService implements Closeable {
         if (enabled == false || contributionsPerFile == null || contributionsPerFile.isEmpty()) {
             return;
         }
+        // Snapshot every contribution path's matching entries in ONE pass BEFORE any commit writes.
+        // A cold scan longer than the schema TTL (multi-minute external scans vs the 5m default)
+        // reconciles into a cache whose entries for the scanned glob have ALL expired. Expired
+        // entries are still forEach-visible (expiry is evicted lazily), but the FIRST
+        // schemaCache.put() below prunes every expired entry from the LRU tail
+        // (Cache.promote -> evict -> isExpired). Without this snapshot, file #1's commit evicts
+        // files #2..N's entries before their deltas are applied; those deltas then match nothing
+        // and are silently dropped, aggregateFileStatistics goes null -> STATS_PARTIAL, and the
+        // warm aggregate re-scans the whole multi-file source. A single-file source self-heals
+        // (no sibling to evict) — which is why only multi-file scans longer than the TTL lost the
+        // warm short-circuit. The appliers prefer the live cache and fall back to this snapshot
+        // only when the live match is empty.
+        Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preMatched = snapshotEntriesByPath(contributionsPerFile.keySet());
         Map<String, Map<String, Object>> merged = new HashMap<>(contributionsPerFile.size());
         for (Map.Entry<String, List<Map<String, Object>>> e : contributionsPerFile.entrySet()) {
             List<Map<String, Object>> contributions = e.getValue();
@@ -194,9 +209,27 @@ public class ExternalSourceCacheService implements Closeable {
                 logger.debug("dropping captured stats for [{}]: no complete stripe among fragments", e.getKey());
                 continue;
             }
-            commitStripeDelta(e.getKey(), delta);
+            commitStripeDelta(e.getKey(), delta, preMatched.get(e.getKey()));
         }
-        reconcileSourceStats(merged);
+        reconcileSourceStats(merged, preMatched);
+    }
+
+    /**
+     * One {@code Cache.forEach} pass collecting, per contribution path, every schema-cache entry whose
+     * canonical path matches. Taken BEFORE the first commit write of a reconcile so that entries the
+     * commit's own LRU expiry sweep evicts (a scan longer than the schema TTL leaves the whole glob's
+     * entries expired) remain applicable as a fallback. Freshness (mtime) and config-fingerprint
+     * discrimination are NOT applied here — the appliers re-check both, exactly as they do for live
+     * matches.
+     */
+    private Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> snapshotEntriesByPath(Set<String> paths) {
+        Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> byPath = new HashMap<>();
+        schemaCache.forEach((key, entry) -> {
+            if (paths.contains(key.canonicalPath())) {
+                byPath.computeIfAbsent(key.canonicalPath(), p -> new ArrayList<>()).add(Map.entry(key, entry));
+            }
+        });
+        return byPath;
     }
 
     /**
@@ -400,7 +433,7 @@ public class ExternalSourceCacheService implements Closeable {
      * making the short-circuit deterministic: complete knowledge implies enrichment, possibly
      * assembled across queries.
      */
-    private void commitStripeDelta(String path, StripeDelta delta) {
+    private void commitStripeDelta(String path, StripeDelta delta, @Nullable List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> fallback) {
         if (enabled == false || path == null) {
             return;
         }
@@ -411,7 +444,7 @@ public class ExternalSourceCacheService implements Closeable {
         // same file would otherwise each copy the same entry snapshot and the later put would drop the
         // earlier stripe (lost update). Commits are coordinator-side and infrequent.
         try (Releasable ignored = stripeCommitLocks.acquire(path)) {
-            applyStripeDelta(path, delta);
+            applyStripeDelta(path, delta, fallback);
         }
     }
 
@@ -419,8 +452,14 @@ public class ExternalSourceCacheService implements Closeable {
      * The locked read-modify-write of {@link #commitStripeDelta}: collect matching entries under the
      * {@code Cache.forEach} segment readLock (see {@code reconcileSourceStats} for that contract), then
      * enrich and re-put each. Must run holding the per-path {@link #stripeCommitLocks} lock.
+     * {@code fallback} carries the pre-reconcile snapshot (see {@link #snapshotEntriesByPath}); it is
+     * consulted only when the live cache has NO match — the case where a sibling path's earlier commit
+     * swept this path's expired entry out of the cache before this delta could be applied. A fallback
+     * entry is filtered by the same mtime + fingerprint predicate as a live one, and re-putting it
+     * re-inserts the entry with a fresh write time — the same revive the first-committed path already
+     * gets today.
      */
-    private void applyStripeDelta(String path, StripeDelta delta) {
+    private void applyStripeDelta(String path, StripeDelta delta, @Nullable List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> fallback) {
         // Same matching + concurrency discipline as reconcileSourceStats: collect under forEach
         // (segment readLock), mutate after (see that method's javadoc for the Cache.forEach contract).
         List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matchingEntries = new ArrayList<>();
@@ -434,6 +473,18 @@ public class ExternalSourceCacheService implements Closeable {
             }
             matchingEntries.add(Map.entry(key, existing));
         });
+        if (matchingEntries.isEmpty() && fallback != null) {
+            for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> candidate : fallback) {
+                if (candidate.getKey().lastModifiedEpochMillis() != delta.mtimeMillis()) {
+                    continue;
+                }
+                Object candidateFingerprint = candidate.getValue().safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
+                if (Objects.equals(candidateFingerprint, delta.fingerprint()) == false) {
+                    continue;
+                }
+                matchingEntries.add(candidate);
+            }
+        }
         for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
             SchemaCacheKey key = match.getKey();
             SchemaCacheEntry existing = match.getValue();
@@ -732,6 +783,22 @@ public class ExternalSourceCacheService implements Closeable {
         if (enabled == false || mergedStatsPerFile == null || mergedStatsPerFile.isEmpty()) {
             return;
         }
+        reconcileSourceStats(mergedStatsPerFile, snapshotEntriesByPath(mergedStatsPerFile.keySet()));
+    }
+
+    /**
+     * Snapshot-aware body of {@link #reconcileSourceStats}. {@code preMatched} is the pre-reconcile
+     * per-path entry snapshot (see {@link #snapshotEntriesByPath}), consulted only when the live cache
+     * has no match — the sibling-commit expiry-sweep case described there. Same discipline as
+     * {@link #applyStripeDelta}.
+     */
+    private void reconcileSourceStats(
+        Map<String, Map<String, Object>> mergedStatsPerFile,
+        Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preMatched
+    ) {
+        if (enabled == false || mergedStatsPerFile == null || mergedStatsPerFile.isEmpty()) {
+            return;
+        }
         for (Map.Entry<String, Map<String, Object>> entry : mergedStatsPerFile.entrySet()) {
             String path = entry.getKey();
             Map<String, Object> mergedStats = entry.getValue();
@@ -776,6 +843,19 @@ public class ExternalSourceCacheService implements Closeable {
                     }
                     matchingEntries.add(Map.entry(key, existing));
                 });
+                List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> fallback = preMatched.get(path);
+                if (matchingEntries.isEmpty() && fallback != null) {
+                    for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> candidate : fallback) {
+                        if (candidate.getKey().lastModifiedEpochMillis() != mtimeMillis) {
+                            continue;
+                        }
+                        Object candidateFingerprint = candidate.getValue().safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
+                        if (Objects.equals(candidateFingerprint, contributionFingerprint) == false) {
+                            continue;
+                        }
+                        matchingEntries.add(candidate);
+                    }
+                }
                 for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
                     SchemaCacheKey key = match.getKey();
                     SchemaCacheEntry existing = match.getValue();

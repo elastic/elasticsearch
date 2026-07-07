@@ -219,7 +219,7 @@ public class InlineJoin extends Join implements SortPreserving {
     }
 
     public InlineJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
-        super(source, left, right, config);
+        super(source, left, right, config, false);
     }
 
     public InlineJoin(

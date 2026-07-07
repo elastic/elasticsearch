@@ -69,7 +69,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 public abstract class AbstractSubqueryJoin extends Join implements SortPreserving, ExecutesOn.Coordinator {
 
     protected AbstractSubqueryJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
-        super(source, left, right, config);
+        super(source, left, right, config, false);
     }
 
     protected AbstractSubqueryJoin(
@@ -183,7 +183,7 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         Source source,
         boolean rightHadNulls
     ) {
-        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig);
+        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig, false);
         Filter filter = new Filter(source, leftJoin, sentinelFilterCondition(source, sentinelAttr));
         List<NamedExpression> leftOutput = new ArrayList<>(left().output());
         return new Project(source, filter, leftOutput);

@@ -97,8 +97,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Like the canonical constructor, but the supplied data may narrow any declared type to {@code NULL} at runtime —
-     * the shape a nullified unmapped field has, where the declared signature stays that of the mapped case.
+     * Like the canonical constructor, but the supplied data may narrow any declared type to {@code NULL} at runtime,
+     * like a field nullified by {@code unmapped_fields="nullify"}. The narrowed signature cannot be declared up front:
+     * which positions narrow is only known once the data is built, and data is built after signatures are fixed.
      */
     public static TestCaseSupplier nullNarrowing(String name, List<DataType> types, Supplier<TestCase> supplier) {
         return new TestCaseSupplier(name, types, supplier, true);

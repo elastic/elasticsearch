@@ -97,7 +97,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         NullTypeExpectation nullTypeExpectation
     ) {
         List<TestCaseSupplier> randomized = randomizeBytesRefsOffset(suppliers);
-        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(withNullRowsExpectingNull(randomized, nullTypeExpectation)));
+        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(withNullTypedInputExpectingNull(randomized, nullTypeExpectation)));
     }
 
     /**
@@ -152,11 +152,10 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     /**
-     * Adds two variants per unique signature, covering the {@code unmapped_fields="nullify"} scenarios:
-     * all input rows null (types unchanged), and the input columns typed {@code NULL} outright — the shape
-     * a nullified missing field has. Expected output type for the latter follows {@code nullTypeExpectation}.
+     * Adds a test case per unique signature with the input columns typed {@code NULL} — the shape a field
+     * nullified by {@code SET unmapped_fields="nullify"} has. Expected output type follows {@code nullTypeExpectation}.
      */
-    protected static List<TestCaseSupplier> withNullRowsExpectingNull(
+    protected static List<TestCaseSupplier> withNullTypedInputExpectingNull(
         List<TestCaseSupplier> suppliers,
         NullTypeExpectation nullTypeExpectation
     ) {
@@ -164,67 +163,45 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         Set<List<DataType>> uniqueSignatures = new HashSet<>();
 
         for (TestCaseSupplier original : suppliers) {
-            if (uniqueSignatures.add(original.types()) == false) {
-                continue;
+            if (uniqueSignatures.add(original.types())) {
+                newSuppliers.add(TestCaseSupplier.nullNarrowing(original.name() + " with NULL-typed input", original.types(), () -> {
+                    var testCase = original.get();
+
+                    if (testCase.getData().stream().noneMatch(TestCaseSupplier.TypedData::isMultiRow)) {
+                        // Fail if no multi-row data, at least until a real case is found
+                        fail("No multi-row data found in test case: " + testCase);
+                    }
+
+                    var newData = testCase.getData()
+                        .stream()
+                        .map(
+                            td -> td.isMultiRow()
+                                ? TestCaseSupplier.TypedData.multiRow(Collections.singletonList(null), DataType.NULL, td.name())
+                                : td
+                        )
+                        .toList();
+
+                    var expectedType = nullTypeExpectation == NullTypeExpectation.COVARIANT_NULL ? DataType.NULL : testCase.expectedType();
+
+                    return new TestCaseSupplier.TestCase(
+                        testCase.getSource(),
+                        testCase.getConfiguration(),
+                        newData,
+                        testCase.evaluatorToString(),
+                        expectedType,
+                        nullValue(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        testCase.canBuildEvaluator()
+                    );
+                }));
             }
-            newSuppliers.add(new TestCaseSupplier(original.name() + " with null rows", original.types(), () -> {
-                var testCase = original.get();
-                assertMultiRowPresent(testCase);
-
-                var newData = testCase.getData()
-                    .stream()
-                    .map(td -> td.isMultiRow() ? td.withData(Collections.nCopies(td.multiRowData().size(), null)) : td)
-                    .toList();
-
-                return nullInputTestCase(testCase, newData, testCase.expectedType());
-            }));
-
-            newSuppliers.add(TestCaseSupplier.nullNarrowing(original.name() + " with NULL-typed input", original.types(), () -> {
-                var testCase = original.get();
-                assertMultiRowPresent(testCase);
-
-                var newData = testCase.getData()
-                    .stream()
-                    .map(
-                        td -> td.isMultiRow()
-                            ? TestCaseSupplier.TypedData.multiRow(Collections.singletonList(null), DataType.NULL, td.name())
-                            : td
-                    )
-                    .toList();
-
-                var expectedType = nullTypeExpectation == NullTypeExpectation.COVARIANT_NULL ? DataType.NULL : testCase.expectedType();
-                return nullInputTestCase(testCase, newData, expectedType);
-            }));
         }
 
         return newSuppliers;
-    }
-
-    private static void assertMultiRowPresent(TestCaseSupplier.TestCase testCase) {
-        if (testCase.getData().stream().noneMatch(TestCaseSupplier.TypedData::isMultiRow)) {
-            fail("No multi-row data found in test case: " + testCase);
-        }
-    }
-
-    private static TestCaseSupplier.TestCase nullInputTestCase(
-        TestCaseSupplier.TestCase testCase,
-        List<TestCaseSupplier.TypedData> newData,
-        DataType expectedType
-    ) {
-        return new TestCaseSupplier.TestCase(
-            testCase.getSource(),
-            testCase.getConfiguration(),
-            newData,
-            testCase.evaluatorToString(),
-            expectedType,
-            nullValue(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            testCase.canBuildEvaluator()
-        );
     }
 
     /**

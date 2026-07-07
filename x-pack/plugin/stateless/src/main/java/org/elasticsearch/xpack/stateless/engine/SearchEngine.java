@@ -684,7 +684,6 @@ public class SearchEngine extends Engine {
             private void doUpdateInternalState(NewCommitNotification latestNotification, SegmentInfos current) throws IOException {
                 final StatelessCompoundCommit latestCommit = latestNotification.compoundCommit();
                 final SegmentInfos next = Lucene.readSegmentInfos(directory);
-                setSequenceNumbers(next);
 
                 assert next.getGeneration() == latestCommit.generation();
                 final SegmentInfosAndCommit previousSegmentInfosAndCommitSnapshot = segmentInfosAndCommit;
@@ -710,6 +709,12 @@ public class SearchEngine extends Engine {
                     scheduleDeferredRefreshRetry(latestNotification);
                     return;
                 }
+
+                // Only now that the refresh actually applied is it safe to advance the cached max seq no /
+                // local checkpoint: doing this earlier (before knowing whether the reader-heap breaker would
+                // defer the refresh) would leave getMaxSeqNo()/getProcessedLocalCheckpoint() ahead of what is
+                // actually visible via segmentInfosAndCommit and getSeqNoStats().
+                setSequenceNumbers(next);
 
                 // must be after refresh for `addOrExecuteSegmentGenerationListener to work.
                 currentPrimaryTermGeneration = new PrimaryTermAndGeneration(

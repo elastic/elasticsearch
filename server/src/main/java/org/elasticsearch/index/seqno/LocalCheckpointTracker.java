@@ -166,12 +166,17 @@ public class LocalCheckpointTracker {
     }
 
     /**
-     * constructs a {@link SeqNoStats} object, using local state and the supplied global checkpoint
+     * Constructs a {@link SeqNoStats} object, using local state and the supplied global checkpoint
      *
      * This is needed to make sure the persisted local checkpoint and max seq no are consistent
      */
-    public synchronized SeqNoStats getStats(final long globalCheckpoint) {
-        return new SeqNoStats(getMaxSeqNo(), getPersistedCheckpoint(), globalCheckpoint);
+    public SeqNoStats getStats(final long globalCheckpoint) {
+        // Writers always advance maxSeqNo before persistedCheckpoint (see markSeqNo), so reading
+        // persistedCheckpoint first guarantees the maxSeqNo we read next is at least as fresh,
+        // preserving the persistedCheckpoint <= maxSeqNo invariant.
+        final long localCheckpoint = getPersistedCheckpoint();
+        final long maxSeqNo = getMaxSeqNo();
+        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
     }
 
     /**

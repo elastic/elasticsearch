@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -280,7 +281,13 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             try {
                 close();
             } catch (Exception e) {
-                logger.error("[LookupJoinServer] Exception during close after successful driver completion", e);
+                logExchangeFailure(
+                    logger,
+                    Level.ERROR,
+                    e,
+                    "[LookupJoinServer] Exception during close after successful driver completion",
+                    e
+                );
                 closeException = e;
             }
             // Release driver ref - success if close() succeeded, failure if close() threw
@@ -302,7 +309,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             try {
                 close();
             } catch (Exception e) {
-                logger.error("[LookupJoinServer] Exception during close after driver failure", e);
+                logExchangeFailure(logger, Level.ERROR, e, "[LookupJoinServer] Exception during close after driver failure", e);
             }
             // Release driver ref with failure - the response coordinator's FailureCollector
             // will pick the best error across driver and sink channels
@@ -385,7 +392,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         try (EsqlRefCountingListener responseCoordinator = new EsqlRefCountingListener(ActionListener.wrap(v -> {
             sendBatchExchangeStatusResponse(null);
         }, e -> {
-            logger.error("[LookupJoinServer] Server failed, propagating failure to exchange sink handler", e);
+            logExchangeFailure(logger, Level.ERROR, e, "[LookupJoinServer] Server failed, propagating failure to exchange sink handler", e);
             try {
                 serverToClientSinkHandler.onFailure(e);
             } catch (Exception ex) {
@@ -494,7 +501,14 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 try {
                     close();
                 } catch (Exception e) {
-                    logger.error("[LookupJoinServer] Exception during timeout cleanup for exchangeId={}: {}", serverToClientId, e);
+                    logExchangeFailure(
+                        logger,
+                        Level.ERROR,
+                        e,
+                        "[LookupJoinServer] Exception during timeout cleanup for exchangeId={}: {}",
+                        serverToClientId,
+                        e
+                    );
                 }
             }
         }, CLIENT_READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -543,7 +557,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 releasable.close();
                 logger.debug("[LookupJoinServer] Releasable resources closed successfully");
             } catch (Exception e) {
-                logger.warn("[LookupJoinServer] Exception closing releasable", e);
+                logExchangeFailure(logger, Level.WARN, e, "[LookupJoinServer] Exception closing releasable", e);
             }
         } else {
             logger.warn("[LookupJoinServer] No releasable to close (releasableRef was null)");

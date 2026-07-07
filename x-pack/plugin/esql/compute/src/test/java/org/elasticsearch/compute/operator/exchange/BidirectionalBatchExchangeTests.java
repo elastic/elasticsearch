@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -377,32 +378,39 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             new TaskCancelledException("parent task was cancelled"),
             new RemoteTransportException("node", new TaskCancelledException("task cancelled before starting"))
         )) {
-            assertExchangeFailureLoggedAt(Level.DEBUG, cancellation);
+            // A cancellation is logged at DEBUG regardless of the non-cancellation level the caller asked for.
+            assertExchangeFailureLoggedAt(Level.ERROR, cancellation);
+            assertExchangeFailureLoggedAt(Level.WARN, cancellation);
         }
     }
 
     /**
-     * A genuine (non-cancellation) failure must still be logged at ERROR.
+     * A genuine (non-cancellation) failure must still be logged at the non-cancellation level the caller asked
+     * for: ERROR by default, or WARN for the warn-level sites.
      */
-    public void testGenuineFailuresAreLoggedAtError() {
+    public void testGenuineFailuresAreLoggedAtRequestedLevel() {
         for (Exception failure : List.of(
             new IllegalStateException("boom"),
             new CircuitBreakingException("over", CircuitBreaker.Durability.PERMANENT)
         )) {
             assertExchangeFailureLoggedAt(Level.ERROR, failure);
+            assertExchangeFailureLoggedAt(Level.WARN, failure);
         }
     }
 
     /**
-     * Asserts that {@link BidirectionalBatchExchangeClient#logExchangeFailure} logs the given failure at
-     * {@code expectedLevel} and not at the other level.
+     * Asserts that {@link BidirectionalBatchExchangeClient#logExchangeFailure}, called with
+     * {@code nonCancellationLevel}, logs the given failure at {@code nonCancellationLevel} for a genuine failure,
+     * or at DEBUG for a cancellation (which is downgraded), and not at the other of those two levels.
      */
-    private static void assertExchangeFailureLoggedAt(Level expectedLevel, Exception failure) {
-        Level unexpectedLevel = expectedLevel == Level.DEBUG ? Level.ERROR : Level.DEBUG;
+    private static void assertExchangeFailureLoggedAt(Level nonCancellationLevel, Exception failure) {
+        boolean cancellation = ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null;
+        Level expectedLevel = cancellation ? Level.DEBUG : nonCancellationLevel;
+        Level unexpectedLevel = cancellation ? nonCancellationLevel : Level.DEBUG;
         Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
         String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
         MockLog.assertThatLogger(
-            () -> BidirectionalBatchExchangeClient.logExchangeFailure(clientLogger, failure, "failure: {}", "msg"),
+            () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, nonCancellationLevel, failure, "failure: {}", "msg"),
             BidirectionalBatchExchangeClient.class,
             new MockLog.SeenEventExpectation("logged at " + expectedLevel, loggerName, expectedLevel, "failure: msg"),
             new MockLog.UnseenEventExpectation("not logged at " + unexpectedLevel, loggerName, unexpectedLevel, "*")

@@ -7,14 +7,12 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Page;
@@ -315,7 +313,14 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     connectToServerSink(worker);
                     worker.setupReadyListener.onResponse(null);
                 } catch (Exception e) {
-                    logger.error("[LookupJoinClient] Server setup callback failed for worker={}: {}", worker.workerId, e.getMessage());
+                    logExchangeFailure(
+                        logger,
+                        Level.ERROR,
+                        e,
+                        "[LookupJoinClient] Server setup callback failed for worker={}: {}",
+                        worker.workerId,
+                        e.getMessage()
+                    );
                     onWorkerConnectionComplete(worker, "Setup callback failed");
                     // Release both refs. connectToServerSink was never called for this worker.
                     worker.sinkRef.onFailure(e);
@@ -323,7 +328,14 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     worker.setupReadyListener.onFailure(e);
                 }
             }, e -> {
-                logExchangeFailure(logger, e, "[LookupJoinClient] Server setup failed for worker={}: {}", worker.workerId, e.getMessage());
+                logExchangeFailure(
+                    logger,
+                    Level.ERROR,
+                    e,
+                    "[LookupJoinClient] Server setup failed for worker={}: {}",
+                    worker.workerId,
+                    e.getMessage()
+                );
                 onWorkerConnectionComplete(worker, "Setup failed");
                 worker.sinkRef.onFailure(e);
                 worker.statusRef.onFailure(e);
@@ -385,7 +397,10 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         worker.statusRef.onResponse(null);
                     } else {
                         Exception failure = response.getFailure();
-                        logger.warn(
+                        logExchangeFailure(
+                            logger,
+                            Level.WARN,
+                            failure,
                             "[LookupJoinClient] Batch exchange status response indicates failure for worker={}: {}",
                             worker.workerId,
                             failure != null ? failure.getMessage() : "unknown"
@@ -397,6 +412,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     responseHeadersCollector.collect();
                     logExchangeFailure(
                         logger,
+                        Level.ERROR,
                         failure,
                         "[LookupJoinClient] Failed to receive batch exchange status response for worker={}: {}",
                         worker.workerId,
@@ -422,7 +438,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private void notifyFailure(Exception failure) {
         setPrimaryFailure(failure);
         if (failureTriggered.compareAndSet(false, true)) {
-            logExchangeFailure(logger, failure, "[LookupJoinClient] Notifying failure: {}", failure.getMessage());
+            logExchangeFailure(logger, Level.ERROR, failure, "[LookupJoinClient] Notifying failure: {}", failure.getMessage());
             // Notify the operator's failure listener FIRST, before unblocking the driver.
             // This ensures that when the driver thread unblocks, the operator's failure field
             // is already set, so getOutput() will throw the real error immediately.
@@ -434,33 +450,15 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             // proceed to checkFailureAndMaybeThrow() which will see the real error.
             failureNotified.onResponse(null);
         } else {
-            logger.warn("[LookupJoinClient] Additional failure (primary={}): {}", primaryFailure.get() == failure, failure.getMessage());
+            logExchangeFailure(
+                logger,
+                Level.WARN,
+                failure,
+                "[LookupJoinClient] Additional failure (primary={}): {}",
+                primaryFailure.get() == failure,
+                failure.getMessage()
+            );
         }
-    }
-
-    /**
-     * Logs an exchange failure at ERROR, unless it is a cancellation. Cancellations are expected
-     * teardown (for example the query reached its LIMIT and the exchange was closed early via a
-     * synthesized "client stopped" error, or the task was cancelled), so they are logged at DEBUG
-     * to keep genuine failures visible. Shared by the client and the operator driving it, so the
-     * caller supplies its own logger.
-     *
-     * @param logger  the logger to log to (the caller's own logger)
-     * @param failure the failure that decides the log level (ERROR unless it is a cancellation)
-     * @param message a parameterized log message template
-     * @param params  the parameters for the message template; a trailing {@link Throwable} is logged with its stack trace
-     */
-    @SuppressLoggerChecks(reason = "safely delegates to logger with a caller-supplied message and params")
-    public static void logExchangeFailure(Logger logger, Exception failure, String message, Object... params) {
-        if (isCancellation(failure)) {
-            logger.debug(message, params);
-        } else {
-            logger.error(message, params);
-        }
-    }
-
-    private static boolean isCancellation(Exception e) {
-        return ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
     }
 
     /**
@@ -837,7 +835,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         try {
             finish();
         } catch (Exception e) {
-            logger.error("[LookupJoinClient] Error calling finish()", e);
+            logExchangeFailure(logger, Level.ERROR, e, "[LookupJoinClient] Error calling finish()", e);
         }
 
         // Drain all sink handler buffers to release any pages, then explicitly remove the sink handler
@@ -856,7 +854,13 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     worker.clientToServerSinkHandler.onFailure(new TaskCancelledException("client stopped"));
                 }
             } catch (Exception e) {
-                logger.error("[LookupJoinClient] Error draining sink handler for worker=" + worker.workerId, e);
+                logExchangeFailure(
+                    logger,
+                    Level.ERROR,
+                    e,
+                    "[LookupJoinClient] Error draining sink handler for worker=" + worker.workerId,
+                    e
+                );
             }
             try {
                 exchangeService.finishSinkHandler(worker.clientToServerId, new TaskCancelledException("client stopped"));
@@ -904,7 +908,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 serverToClientSourceHandler.finishEarly(true, ActionListener.noop());
             }
         } catch (Exception e) {
-            logger.error("[LookupJoinClient] Error finishing server-to-client source handler", e);
+            logExchangeFailure(logger, Level.ERROR, e, "[LookupJoinClient] Error finishing server-to-client source handler", e);
         }
 
         // Close the sorted source to release any buffered pages
@@ -914,7 +918,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 sortedSource.close();
             }
         } catch (Exception e) {
-            logger.error("[LookupJoinClient] Error closing sorted source", e);
+            logExchangeFailure(logger, Level.ERROR, e, "[LookupJoinClient] Error closing sorted source", e);
         }
 
         // Remove the source handler from the exchange service
@@ -924,7 +928,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 exchangeService.removeExchangeSourceHandler(sharedExchangeId);
             }
         } catch (Exception e) {
-            logger.error("[LookupJoinClient] Error removing server-to-client source handler", e);
+            logExchangeFailure(logger, Level.ERROR, e, "[LookupJoinClient] Error removing server-to-client source handler", e);
         }
 
         logger.debug("[LookupJoinClient] BidirectionalBatchExchangeClient closed");

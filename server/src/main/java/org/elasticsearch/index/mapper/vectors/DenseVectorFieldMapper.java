@@ -881,7 +881,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = ESVectorUtil.dotProduct(vector, vector);
                 checkVectorMagnitude(effectiveSimilarity, errorElementsAppender(vector), squaredMagnitude);
             }
-            return elementType() == ElementType.BIT ? new ResolvedVector.Bits(vector) : new ResolvedVector.Bytes(vector);
+            return new ResolvedVector.Bytes(vector);
         }
 
         @Override
@@ -1523,6 +1523,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public ElementType elementType() {
             return ElementType.BIT;
+        }
+
+        @Override
+        public ResolvedVector resolveAndValidate(
+            VectorData queryVector,
+            Integer dims,
+            VectorSimilarity effectiveSimilarity,
+            boolean isOverridden,
+            boolean isNormalized
+        ) {
+            byte[] vector = queryVector.asByteVector();
+            checkDimensions(dims, vector.length);
+            return new ResolvedVector.Bits(vector);
         }
 
         @Override

@@ -785,9 +785,6 @@ tests:
 - class: org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests
   method: testFetchRegion
   issue: https://github.com/elastic/elasticsearch/issues/153058
-- class: org.elasticsearch.simdvec.Int8VectorScorerFactoryTests
-  method: testScorerWithSNAP
-  issue: https://github.com/elastic/elasticsearch/issues/153060
 - class: org.elasticsearch.xpack.transform.integration.TransformTaskFailedStateIT
   method: testStartFailedTransform
   issue: https://github.com/elastic/elasticsearch/issues/153065

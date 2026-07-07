@@ -154,7 +154,7 @@ public class CsvProvenProbeTests extends ESTestCase {
     }
 
     public void testRandomizedDifferential() throws IOException {
-        for (int iter = 0; iter < 40; iter++) {
+        for (int iter = 0; iter < 20; iter++) {
             CsvFormatOptions options = randomFrom(quoted(), escaped(), both());
             byte[] buf = bytes(randomCsv(options));
             assertExactWalkMatchesOracle(options, buf);
@@ -163,10 +163,26 @@ public class CsvProvenProbeTests extends ESTestCase {
         }
     }
 
+    /**
+     * Caps how many byte offsets the per-offset oracle sweeps ({@link #assertExactWalkMatchesOracle},
+     * {@link #assertProbeInvariants}) visit. The exact walk is O(minSkip) per call, so an every-offset sweep is
+     * O(n^2); on the multi-KB randomized files that is minutes. Small hand-crafted buffers (shorter than the cap)
+     * keep {@code step == 1}, i.e. the exhaustive sweep, so their coverage is unchanged; large randomized files
+     * are sampled at {@value} evenly spaced offsets. The whole-file, every-record correctness of large files is
+     * covered exhaustively (and cheaply, O(n)) by {@link #assertSplitReconstruction}.
+     */
+    private static final int MAX_SAMPLED_OFFSETS = 512;
+
+    /** Even stride over {@code buf} so the per-offset oracles visit at most {@link #MAX_SAMPLED_OFFSETS} offsets. */
+    private static long offsetStep(byte[] buf) {
+        return Math.max(1, buf.length / MAX_SAMPLED_OFFSETS);
+    }
+
     private void assertExactWalkMatchesOracle(CsvFormatOptions options, byte[] buf) throws IOException {
         RecordSplitter splitter = splitter(options);
         TreeSet<Long> trueStarts = trueRecordStarts(splitter, buf);
-        for (long minSkip = 1; minSkip < buf.length; minSkip++) {
+        long step = offsetStep(buf);
+        for (long minSkip = 1; minSkip < buf.length; minSkip += step) {
             long expected = firstAtOrAfter(trueStarts, minSkip);
             long actual = splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(buf), minSkip, () -> false);
             assertEquals("exact walk mismatch at minSkip=" + minSkip, expected, actual);
@@ -176,7 +192,8 @@ public class CsvProvenProbeTests extends ESTestCase {
     private void assertProbeInvariants(CsvFormatOptions options, byte[] buf) throws IOException {
         RecordSplitter splitter = splitter(options);
         TreeSet<Long> trueStarts = trueRecordStarts(splitter, buf);
-        for (long t = 1; t < buf.length; t++) {
+        long step = offsetStep(buf);
+        for (long t = 1; t < buf.length; t += step) {
             long consumed = splitter.findProvenRecordBoundary(
                 new BufferedInputStream(new ByteArrayInputStream(buf, (int) t, buf.length - (int) t))
             );
@@ -219,7 +236,7 @@ public class CsvProvenProbeTests extends ESTestCase {
 
     private String randomCsv(CsvFormatOptions options) {
         StringBuilder sb = new StringBuilder("h1,h2,h3\n");
-        int rows = randomIntBetween(4, 30);
+        int rows = randomIntBetween(10, 10000);
         for (int r = 0; r < rows; r++) {
             int cols = randomIntBetween(1, 4);
             for (int c = 0; c < cols; c++) {
@@ -350,6 +367,7 @@ public class CsvProvenProbeTests extends ESTestCase {
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
             true,
+            false,
             false
         );
     }
@@ -369,7 +387,8 @@ public class CsvProvenProbeTests extends ESTestCase {
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
             false,
-            true
+            true,
+            false
         );
     }
 
@@ -388,7 +407,8 @@ public class CsvProvenProbeTests extends ESTestCase {
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
             true,
-            true
+            true,
+            false
         );
     }
 

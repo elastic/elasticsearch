@@ -190,6 +190,105 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
     }
 
     /**
+     * Randomized end-to-end oracle: a fresh random quoted CSV per run, queried at a random
+     * {@code target_split_size}, {@code parsing_parallelism} and {@code error_mode}, so the split fan-out and
+     * parse concurrency vary from run to run. Column {@code a} is the row index {@code 0..rows-1}, so the trio
+     * {@code COUNT(*) == rows}, {@code MIN(a) == 0}, {@code MAX(a) == rows-1} is an exact oracle: any boundary
+     * cut inside a quoted field (which carries embedded newlines, commas, doubled {@code ""} quotes, and mixed
+     * LF/CRLF) would either inflate the count with interior lines parsed as standalone rows, drop or duplicate a
+     * row (shifting {@code MIN}/{@code MAX}), or throw under {@code strict}. A correct proven-boundary read must
+     * reproduce the trio for every seed.
+     * <p>
+     * The seed is logged so a failure reproduces deterministically via the standard {@code -Dtests.seed}.
+     */
+    public void testRandomizedQuotedCsvCountsExactlyAcrossSplits() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        Path csvFile = createTempDir().resolve("random-quoted.csv");
+        long rows = writeRandomQuotedCsv(csvFile);
+        try {
+            // Vary the split fan-out (target_split_size, some below and some above the 1 MiB segment floor), the
+            // in-node parse concurrency, and the error mode. The oracle must hold across every combination. A
+            // null error_mode omits the option so the reader keeps its default (strict / fail_fast), the mode
+            // under which a mis-split throws; the explicit lenient modes are where a mis-split would miscount
+            // silently instead. Every valid file must count exactly under all of them.
+            String targetSplitSize = randomFrom("512kb", "1mb", "2mb", "4mb");
+            int parallelism = between(1, 4);
+            String errorMode = randomFrom((String) null, "fail_fast", "null_field", "skip_row");
+            logger.info(
+                "randomized quoted CSV: rows={} target_split_size={} parsing_parallelism={} error_mode={}",
+                rows,
+                targetSplitSize,
+                parallelism,
+                errorMode == null ? "<default strict>" : errorMode
+            );
+
+            String errorModeOption = errorMode == null ? "" : ",\"error_mode\":\"" + errorMode + "\"";
+            String query = "EXTERNAL \""
+                + StoragePath.fileUri(csvFile)
+                + "\" WITH {\"target_split_size\":\""
+                + targetSplitSize
+                + "\""
+                + errorModeOption
+                + "} | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
+
+            var request = syncEsqlQueryRequest(query);
+            request.pragmas(new QueryPragmas(Settings.builder().put("parsing_parallelism", parallelism).build()));
+
+            try (var response = run(request, TimeValue.timeValueMinutes(5))) {
+                List<List<Object>> values = getValuesList(response);
+                assertThat(values.size(), equalTo(1));
+                assertThat("COUNT(*) must equal the true row count", ((Number) values.get(0).get(0)).longValue(), equalTo(rows));
+                assertThat("MIN(a) must be the first row index", ((Number) values.get(0).get(1)).longValue(), equalTo(0L));
+                assertThat("MAX(a) must be the last row index", ((Number) values.get(0).get(2)).longValue(), equalTo(rows - 1));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /**
+     * Writes a random quoted CSV to {@code file} and returns its row count. A header {@code a,b} names the two
+     * columns; column {@code a} is the numeric row index {@code 0..rows-1} (the oracle key) and column {@code b}
+     * is a fully quoted value carrying a random mix of embedded newlines (LF and CRLF), commas, and doubled
+     * {@code ""} quotes, exactly the constructs a quote-blind stride probe misreads. The file is grown past
+     * {@code 2 x} {@code minimumSegmentSize} (1 MiB) to a random size so macro-splits reliably form, while each
+     * value stays small enough that schema inference (which samples only ~1 KB) sees the first row close.
+     */
+    private long writeRandomQuotedCsv(Path file) throws Exception {
+        int targetBytes = between(2_500_000, 5_000_000);
+        StringBuilder sb = new StringBuilder(targetBytes + 1024);
+        sb.append("a,b\n");
+        long rows = 0;
+        while (sb.length() < targetBytes) {
+            sb.append(rows).append(",\"").append(randomQuotedFieldBody()).append('"');
+            sb.append(randomBoolean() ? "\n" : "\r\n");
+            rows++;
+        }
+        Files.writeString(file, sb);
+        return rows;
+    }
+
+    /**
+     * A random quoted-field body (the bytes between the surrounding {@code "..."}): a handful of tokens joined by
+     * separators that are legal only inside a quoted field, so a correct parser keeps the whole thing as one
+     * value while a mid-quote split would split it into bogus records. Never emits a lone {@code "} (only doubled
+     * {@code ""}) so the field stays well-formed.
+     */
+    private String randomQuotedFieldBody() {
+        int tokens = between(1, 6);
+        StringBuilder body = new StringBuilder();
+        for (int t = 0; t < tokens; t++) {
+            if (t > 0) {
+                // A separator that is in-field content only because we are inside quotes.
+                body.append(randomFrom("\n", "\r\n", ",", " ", "\"\""));
+            }
+            body.append(randomAlphaOfLengthBetween(1, 20));
+        }
+        return body.toString();
+    }
+
+    /**
      * Single-column CSV of {@value #ROWS} rows (no header line: {@code header_row=false}), each a small
      * quoted value spanning {@value #LINES_PER_ROW} embedded lines of {@value #LINE_WIDTH} chars (~190 B
      * per row, ~3 MB total). The sizing balances two opposing constraints:

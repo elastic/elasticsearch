@@ -2560,6 +2560,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         maxConcurrentOpenSegments,
                         captureSink,
                         maxRecordBytes,
+                        statsStripeSize,
+                        statsColumnScope,
+                        splitIsFileFinal,
                         externalSourceMetrics
                     );
                 }
@@ -2604,6 +2607,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         baseFileOffset,
                         maxRecordBytes,
                         captureSink,
+                        statsStripeSize,
+                        statsColumnScope,
                         partialResultsWarningSink
                     );
                 } catch (Exception e) {

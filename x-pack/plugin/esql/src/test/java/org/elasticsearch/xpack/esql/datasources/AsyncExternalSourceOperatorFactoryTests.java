@@ -2703,6 +2703,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 recordAlignedMacroSplit,
                 splitIncludesFileLeader,
+                false,
                 null,
                 baseFileOffset,
                 null,

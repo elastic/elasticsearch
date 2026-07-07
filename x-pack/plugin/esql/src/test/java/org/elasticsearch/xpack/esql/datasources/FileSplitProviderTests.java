@@ -857,7 +857,8 @@ public class FileSplitProviderTests extends ESTestCase {
             ExternalSchema.EMPTY,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false
+            () -> false,
+            DeclaredReadSpec.NONE
         );
         return splitter.discoverSplits(ctx).splits();
     }

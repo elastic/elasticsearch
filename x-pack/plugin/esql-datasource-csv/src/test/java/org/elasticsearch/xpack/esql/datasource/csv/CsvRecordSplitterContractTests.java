@@ -107,6 +107,7 @@ public class CsvRecordSplitterContractTests extends ESTestCase {
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
             true,
+            false,
             false
         );
     }

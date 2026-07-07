@@ -123,6 +123,7 @@ public class CsvRecordSplitterTests extends ESTestCase {
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
             true,
+            false,
             false
         );
     }
@@ -142,7 +143,8 @@ public class CsvRecordSplitterTests extends ESTestCase {
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
             false,
-            true
+            true,
+            false
         );
     }
 

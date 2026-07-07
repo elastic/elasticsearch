@@ -145,7 +145,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
-    /** Keyword used by the HIGHLIGHT prefix modifier. */
     private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
 
     public LogicalPlanBuilder(ParsingContext context) {
@@ -1456,7 +1455,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) {
         Source source = source(ctx);
         // `prefix = "..."` renames generated highlight columns; default is "highlight_".
-        // We parse it as an identifier so `prefix` remains a valid field name in other contexts.
         final String prefix = highlightPrefix(ctx);
         // TODO: support the bare form by deriving the query from a preceding full-text WHERE, stopping at row-shaping
         // commands such as STATS, INLINESTATS, and LOOKUP JOIN.

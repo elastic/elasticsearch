@@ -3281,8 +3281,8 @@ public class EsqlCapabilities {
         PROMQL_SUM_ON_HISTOGRAM,
 
         /**
-         * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes the
-         * generated {@code highlight_*} columns. Snapshot-only.
+         * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes
+         * generated columns named {@code <prefix><field>} ({@code highlight_} by default). Snapshot-only.
          */
         HIGHLIGHT_V3(Build.current().isSnapshot()),
 

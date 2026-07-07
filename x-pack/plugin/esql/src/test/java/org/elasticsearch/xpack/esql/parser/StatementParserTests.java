@@ -1295,7 +1295,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testHighlightFieldNamedPrefix() {
         assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
-        // `prefix` remains a regular identifier and can still be used as a field name.
+        // `prefix` can be used as a field name and is not a reserved keyword.
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1305,7 +1305,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testPrefixIsNotAReservedKeyword() {
-        // Guard that `prefix` is not treated as a reserved keyword.
         as(query("FROM foo | EVAL prefix = 1"), Eval.class);
         as(query("FROM foo | STATS x = COUNT(*) BY prefix"), Aggregate.class);
         as(query("ROW prefix = 1"), Row.class);
@@ -1315,7 +1314,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testHighlightRejectsUnknownModifier() {
         assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
-        // Only `prefix = ...` is accepted as a modifier.
         expectThrows(
             ParsingException.class,
             containsString("Invalid modifier [bogus] in HIGHLIGHT, expected [prefix]"),

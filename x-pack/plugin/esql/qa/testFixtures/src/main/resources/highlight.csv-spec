@@ -26,7 +26,7 @@ The quick brown <em>fox</em> jumps over the lazy dog.
 ;
 
 
-# If <prefix><field> collides with an existing column, HIGHLIGHT overwrites that name.
+# If prefix + column collides with an existing column, HIGHLIGHT will replace the column.
 highlightCustomPrefixShadowsExistingColumn
 required_capability: highlight_v3
 
@@ -42,7 +42,6 @@ The quick brown <em>fox</em> jumps over the lazy dog.
 
 
 # Empty prefix overwrites the source column name instead of creating highlight_<field>.
-# KEEP keeps the assertion stable even though overwritten columns are appended at the end.
 highlightEmptyPrefix
 required_capability: highlight_v3
 
@@ -95,6 +94,21 @@ ROW content = "The quick brown fox jumps over the lazy dog."
 
 hl_content:keyword
 The quick brown <b>fox</b> jumps over the lazy dog.
+;
+
+
+# A prefix containing whitespace 
+highlightWhitespacePrefix
+required_capability: highlight_v3
+
+ROW content = "The quick brown fox jumps over the lazy dog."
+| EVAL `label 1` = "match"
+| HIGHLIGHT prefix = "hl " "fox" ON content
+| KEEP `label 1`, `hl content`
+;
+
+label 1:keyword | hl content:keyword
+match           | The quick brown <em>fox</em> jumps over the lazy dog.
 ;
 
 

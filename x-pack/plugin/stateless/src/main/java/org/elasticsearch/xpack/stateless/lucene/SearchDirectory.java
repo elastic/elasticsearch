@@ -197,7 +197,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     /**
      * Builds a map of file names to {@link BlobFileRanges} for the given commit.
      *
-     * If {@code commitFilesRangesOverride} is provided, its ranges take precedence over the
+     * If the ranges of a file exist in the {@code commitFilesRangesOverride}, the ranges take precedence over the
      * default ranges derived from the commit; otherwise, default ranges (with timestamp metadata
      * for internal files) are used.
      *

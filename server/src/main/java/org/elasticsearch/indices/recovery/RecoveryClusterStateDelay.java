@@ -21,27 +21,25 @@ import org.elasticsearch.logging.Logger;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
-public class PeerRecoverySourceClusterStateDelay {
-    private PeerRecoverySourceClusterStateDelay() {}
+public class RecoveryClusterStateDelay {
+    private RecoveryClusterStateDelay() {}
 
-    private static final Logger logger = LogManager.getLogger(PeerRecoverySourceClusterStateDelay.class);
+    private static final Logger logger = LogManager.getLogger(RecoveryClusterStateDelay.class);
 
-    /**
-     * Waits for the given cluster state version to be applied locally before proceeding with recovery
-     */
+    /// Waits for the given cluster state version to be applied locally before proceeding with recovery.
     public static <T> void ensureClusterStateVersion(
         long clusterStateVersion,
         ClusterService clusterService,
         Executor executor,
         ThreadContext threadContext,
         ActionListener<T> listener,
-        Consumer<ActionListener<T>> proceedWithRecovery
+        Consumer<ActionListener<T>> proceed
     ) {
         if (clusterStateVersion <= clusterService.state().version()) {
             // either our locally-applied cluster state is already fresh enough, or request.clusterStateVersion() == 0 for bwc
-            proceedWithRecovery.accept(listener);
+            proceed.accept(listener);
         } else {
-            logger.debug("delaying {} until application of cluster state version {}", proceedWithRecovery, clusterStateVersion);
+            logger.debug("delaying {} until application of cluster state version {}", proceed, clusterStateVersion);
             final var waitListener = new SubscribableListener<Void>();
             final var clusterStateVersionListener = new ClusterStateListener() {
                 @Override
@@ -53,7 +51,7 @@ public class PeerRecoverySourceClusterStateDelay {
 
                 @Override
                 public String toString() {
-                    return "ClusterStateListener for " + proceedWithRecovery;
+                    return "ClusterStateListener for " + proceed;
                 }
             };
             clusterService.addListener(clusterStateVersionListener);
@@ -61,11 +59,7 @@ public class PeerRecoverySourceClusterStateDelay {
             if (clusterStateVersion <= clusterService.state().version()) {
                 waitListener.onResponse(null);
             }
-            waitListener.addListener(
-                listener.delegateFailureAndWrap((l, ignored) -> proceedWithRecovery.accept(l)),
-                executor,
-                threadContext
-            );
+            waitListener.addListener(listener.delegateFailureAndWrap((l, ignored) -> proceed.accept(l)), executor, threadContext);
             // NB no timeout. If we never apply the fresh cluster state then eventually we leave the cluster which removes the recovery
             // from the routing table so the target shard will fail.
         }

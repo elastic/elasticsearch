@@ -251,13 +251,23 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         // index data at 2024-11-26; the filter will cover 2020-12-13 to 2020-12-14 where no data exists
         indexTimestampData(3, "test1", "2024-11-26", "id1");
 
+        // Bucket metadata is opt-in via the (snapshot-only) column_metadata query setting; only request it
+        // when the coordinating node supports it, otherwise the SET command itself would be rejected.
+        boolean supportsColumnMetadata = RestEsqlTestCase.hasCapabilities(
+            adminClient(),
+            List.of(EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET_V2.capabilityName())
+        );
+        String query = from("test*") + " | STATS count = COUNT(*) BY bucket = TBUCKET(10) | SORT bucket";
+        if (supportsColumnMetadata) {
+            query = "SET column_metadata=true;\n" + query;
+        }
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
             b.startObject("range");
             {
                 b.startObject("@timestamp").field("gte", "2020-12-13").field("lt", "2020-12-14").endObject();
             }
             b.endObject();
-        }).query(from("test*") + " | STATS count = COUNT(*) BY bucket = TBUCKET(10) | SORT bucket");
+        }).query(query);
 
         Map<String, Object> result = runEsql(builder);
         boolean hasBounds = RestEsqlTestCase.hasCapabilities(

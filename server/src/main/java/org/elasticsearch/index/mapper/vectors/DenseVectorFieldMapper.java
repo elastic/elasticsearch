@@ -629,16 +629,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
     );
 
     /**
-     * A query vector already known to be a float or byte array — never a string — validated against the
-     * field's dimensions/bounds/magnitude and, for floats, normalized to match indexed unit vectors.
-     * Resolving a {@link VectorData} into one of these, via {@link Element#resolveAndValidate}, replaces ad
-     * hoc calls to {@link VectorData#asFloatVector()}/{@link VectorData#asByteVector()} (which silently
-     * narrow or widen between float and byte on demand, rather than validating against the field's actual
-     * element type) with a single virtual call that performs every check once, in one place per element type.
+     * A query vector already known to be a float or byte array.
      *
-     * <p>{@code denormalize} is {@code true} when a non-cosine similarity override is being scored against a
-     * normalized-cosine field's KNN-indexed vectors, meaning the query must be compared against the
-     * originals rather than the unit-normalized stored representation; see
+     * <p>{@code denormalize} is {@code true} when a non-cosine similarity override is used against cosine; see
      * {@link DenseVectorQuery.Floats#rawScored}.
      */
     sealed interface ResolvedVector permits ResolvedVector.Floats, ResolvedVector.Bytes, ResolvedVector.Bits {
@@ -753,12 +746,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public abstract ElementType elementType();
 
-        /**
-         * Extracts this element type's expected representation from a resolved (non-string) query vector,
-         * validating dimensions/bounds/magnitude and, for floats, normalizing/computing {@code denormalize}
-         * — see {@link ResolvedVector}. {@code isOverridden} and {@code isNormalized} only affect floats;
-         * pass {@code false} for both from doc-values callers, which have no override/normalization concept.
-         */
         abstract ResolvedVector resolveAndValidate(
             VectorData queryVector,
             Integer dims,
@@ -767,7 +754,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean isNormalized
         );
 
-        /** Resolves, validates, and builds the doc-values exact-KNN query in one call; see {@link #resolveAndValidate}. */
         Query createDocValuesExactKnnQuery(
             VectorData queryVector,
             Integer dims,
@@ -3231,13 +3217,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
          *                                  in the user-domain are filtered out
          * @param similarityOverride optional override of the scoring metric; if {@code null}, the field's
          *                           configured similarity is used
-         * @param useQuantized when {@code true} and {@code similarityOverride} is {@code null}, scoring uses
-         *                     the codec-bound scorer (which on quantized fields scores against the quantized
-         *                     representation). When {@code false} or an override is set, scoring iterates the
-         *                     raw vectors and applies the resolved {@link VectorSimilarityFunction} directly,
-         *                     producing full-precision scores regardless of index type.
-         *                     {@code useQuantized=true} combined with a non-{@code null} {@code similarityOverride}
-         *                     is illegal and throws {@link IllegalArgumentException}.
+         * @param useQuantized indicates if quantized vectors should be used for scoring. Cannot be true when {@code similarityOverride} is
+         *                     provided
          */
         public Query createExactKnnQuery(
             VectorData queryVector,

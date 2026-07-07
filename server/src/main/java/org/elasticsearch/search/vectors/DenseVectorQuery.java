@@ -124,14 +124,7 @@ public abstract class DenseVectorQuery extends Query {
     abstract VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException;
 
     /**
-     * Whether this query's results for {@code leafReaderContext} are safe to cache across search requests.
-     * Per {@link org.apache.lucene.search.SegmentCacheable}, queries that depend only on segment-immutable
-     * structures (points, postings, codec-native KNN vector values) can unconditionally return {@code true};
-     * queries that read doc values must defer to {@link DocValues#isCacheable} instead, since doc values —
-     * unlike vector values — can be updated in place on an existing segment (e.g. via
-     * {@code IndexWriter#updateBinaryDocValue}) without changing the {@link LeafReaderContext} identity that
-     * the cache keys on. The default here covers {@link Floats#codecScored}/{@link Bytes#codecScored} and
-     * {@link Bytes#rawScored}, none of which read doc values.
+     * Indicates if weight is cacheable given the query. Doc values require a careful override due to them being updatable.
      */
     boolean isCacheable(LeafReaderContext leafReaderContext) {
         return true;

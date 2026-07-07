@@ -40,11 +40,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 /**
  * A user-facing query that performs exact (brute-force) scoring over every document with a
- * {@code dense_vector} field. Unlike the approximate {@code knn} query, this iterates the entire
- * field — there is no {@code k} or {@code num_candidates}.
+ * {@code dense_vector} field.
  * <p>
- * By default, scoring is computed against the original full-precision vectors regardless of the
- * field's index options, so quantized indexes (INT8/INT4/BBQ) still produce raw scores. Setting
+ * By default, scoring is computed against the original full-precision vectors. Setting
  * {@code quantized: true} switches to the codec's quantized scorer (a no-op on non-quantized
  * fields). The {@code similarity_function} parameter can override the scoring metric per query;
  * by default the field's mapped similarity is used.

@@ -110,8 +110,8 @@ class PostRecoveryMerger {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                recoveryListener.onRecoveryFailure(e, sendShardFailure);
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+                recoveryListener.onRecoveryFailure(e, failureStrategy);
             }
 
             @Override

@@ -1188,8 +1188,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-            handleRecoveryFailure(shardRouting, sendShardFailure, e);
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            assert failureStrategy.retry() == false; // Not yet implemented
+            handleRecoveryFailure(shardRouting, failureStrategy.sendShardFailure(), e);
         }
 
         @Override

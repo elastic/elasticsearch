@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,6 +31,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
 /// released when the recovery's [RecoveryListener] completes.
@@ -76,6 +79,11 @@ public final class ThrottlingRecoveryService implements Closeable {
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
     }
 
+    /// Enqueues a PendingRecovery again, used to retry on failure
+    private void retry(PendingRecovery pending) {
+        enqueue(pending.projectId, pending.listener, pending.recoveryState, pending.stats, pending.task);
+    }
+
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
     public void enqueue(
         ProjectId projectId,
@@ -88,7 +96,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         final PendingRecovery pendingRecovery;
         synchronized (this) {
             if (closed == false) {
-                pendingRecovery = new PendingRecovery(recoveryState, stats, task, recoveryListener, context);
+                pendingRecovery = new PendingRecovery(recoveryState, stats, task, recoveryListener, projectId, context);
                 pendingRecoveries.add(pendingRecovery);
                 stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             } else {
@@ -153,7 +161,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
             final RecoveryListener wrapped = RecoveryListener.wrapPreservingContext(
-                RecoveryListener.runAfter(recovery.listener, () -> releaseSlot(recovery)),
+                RecoveryListener.assertOnce(new DispatchedRecoveryListener(recovery)),
                 recovery.context
             );
             try (var ignored = recovery.context.get()) {
@@ -203,11 +211,11 @@ public final class ThrottlingRecoveryService implements Closeable {
         RecoveryStats stats,
         Consumer<RecoveryListener> task,
         RecoveryListener listener,
+        ProjectId projectId,
         Supplier<ThreadContext.StoredContext> context
     ) {}
 
-    /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped
-    /// with `runAfter` (to release a recovery slot on completion) and `assertOnce` (to ensure there is only one terminal callback).
+    /// Executable wrapper for a dispatched recovery
     private static class RecoveryRunnable extends AbstractRunnable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;
@@ -216,17 +224,62 @@ public final class ThrottlingRecoveryService implements Closeable {
         private RecoveryRunnable(PendingRecovery pending, RecoveryListener listener) {
             this.recoveryState = pending.recoveryState;
             this.task = pending.task;
-            this.listener = RecoveryListener.assertOnce(listener);
+            this.listener = listener;
         }
 
         @Override
         public void onFailure(Exception e) {
-            listener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true);
+            listener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND);
         }
 
         @Override
         protected void doRun() {
             task.accept(listener);
+        }
+    }
+
+    /// RecoveryListener that release slot when notified and enqueues recovery again on retriable failure
+    private class DispatchedRecoveryListener implements RecoveryListener {
+        private final RecoveryListener delegate;
+        private final PendingRecovery pending;
+
+        private DispatchedRecoveryListener(PendingRecovery pending) {
+            this.delegate = pending.listener;
+            this.pending = pending;
+        }
+
+        @Override
+        public void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
+            try {
+                delegate.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+            } finally {
+                releaseSlot(pending);
+            }
+        }
+
+        @Override
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy fs) {
+            try {
+                delegate.onRecoveryFailure(e, fs);
+            } finally {
+                releaseSlot(pending);
+                if (fs.retry()) {
+                    retry(pending);
+                }
+            }
+        }
+
+        @Override
+        public void onRecoveryAborted() {
+            try {
+                delegate.onRecoveryAborted();
+            } finally {
+                releaseSlot(pending);
+            }
         }
     }
 }

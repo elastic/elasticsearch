@@ -148,7 +148,6 @@ public final class QuerySettings {
     public static final QuerySettingDef<Boolean> COLUMN_METADATA = QuerySettingDef.bool("column_metadata")
         .withDefault(Boolean.FALSE)
         .withPreview()
-        .withSnapshotOnly()
         .withRequestBody()
         .build();
 

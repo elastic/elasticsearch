@@ -27,7 +27,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -99,7 +98,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testDynamicStringMappingWithoutAutoTextSubfield() {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         internalCluster().ensureAtLeastNumDataNodes(1);
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         FeatureService featureService = internalCluster().getInstance(FeatureService.class);

@@ -118,9 +118,8 @@ public abstract class AbstractPhysicalOperationProviders {
             List<GroupingAggregator.Factory> aggregatorFactories = new ArrayList<>();
             List<GroupSpec> groupSpecs = new ArrayList<>(aggregateExec.groupings().size());
             // Look once for a transient Top-N grouping hint pushed onto an ExternalSourceExec by
-            // PushTopNIntoExternalSource. The rule only fires when there is a single grouping key, so we only
-            // forward the hint in that case.
-            BlockHash.TopNDef pushedTopN = aggregateExec.groupings().size() == 1 ? extractPushedTopN(aggregateExec.child()) : null;
+            // PushTopNIntoExternalSource. The hint may cover one or more grouping keys.
+            BlockHash.TopNDef pushedTopN = extractPushedTopN(aggregateExec.child());
             for (Expression group : aggregateExec.groupings()) {
                 Attribute groupAttribute = Expressions.attribute(group);
                 // In case of `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)` the actual source attribute is different.

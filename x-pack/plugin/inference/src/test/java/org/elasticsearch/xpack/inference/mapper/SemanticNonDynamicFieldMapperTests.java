@@ -39,17 +39,6 @@ public class SemanticNonDynamicFieldMapperTests extends NonDynamicFieldMapperTes
         )
     );
 
-    private enum FieldType {
-        SEMANTIC(SemanticFieldMapper.CONTENT_TYPE),
-        SEMANTIC_TEXT(SemanticTextFieldMapper.CONTENT_TYPE);
-
-        public final String typeName;
-
-        FieldType(String typeName) {
-            this.typeName = typeName;
-        }
-    }
-
     @ParametersFactory(argumentFormatting = "type=%s")
     public static List<Object[]> parameters() {
         return List.of(new Object[] { SemanticFieldMapper.CONTENT_TYPE }, new Object[] { SemanticTextFieldMapper.CONTENT_TYPE });

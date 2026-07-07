@@ -24,7 +24,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.ErrorScalingFit;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.ExpectedRecall;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.ManifoldModel;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.QuantizationErrorStdModel;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -140,7 +140,7 @@ public class IvfAutoCalibration {
     private final int k;
 
     public IvfAutoCalibration(int vectorsPerCluster) {
-        this(vectorsPerCluster, ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION);
+        this(vectorsPerCluster, ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION);
     }
 
     public IvfAutoCalibration(int vectorsPerCluster, int blockDimension) {

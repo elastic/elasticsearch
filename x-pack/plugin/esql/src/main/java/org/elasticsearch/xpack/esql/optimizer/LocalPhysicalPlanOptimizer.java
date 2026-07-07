@@ -108,9 +108,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         var fieldExtraction = new Batch<>(
             "Field extraction",
             Limiter.ONCE,
-            // Runs first in this batch, after the "Push to ES" batch has stabilized, so it observes
-            // the residual EvalExec that PushFiltersToSource leaves behind and drops eval fields that
-            // pushdown made dead, before field extraction is inserted for them.
             new PruneUnusedEvalFields(),
             new PushExpressionsToFieldLoad(), // It's important for this to run after Query and Tags
             new ExtractDimensionFieldsAfterAggregation(),

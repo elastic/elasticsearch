@@ -117,6 +117,9 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     }
 
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
+      // Stage tasks share a live cluster across the whole build invocation; that state does not survive between
+      // CI retries, so smart retry must never skip them, even when a previous attempt recorded success.
+      ext.neverSkipOnSmartRetry = true
       useCluster baseCluster
       mustRunAfter("precommit")
       // Pass feature metadata so that YAML test cluster_features skip conditions work correctly.

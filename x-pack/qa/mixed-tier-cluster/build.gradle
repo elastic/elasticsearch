@@ -38,6 +38,9 @@ buildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.9.0") &&
   }
 
   tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
+    // Stage tasks share a live cluster across the whole build invocation; that state does not survive between
+    // CI retries, so smart retry must never skip them, even when a previous attempt recorded success.
+    ext.neverSkipOnSmartRetry = true
     useCluster baseCluster
     mustRunAfter("precommit")
     def beforeEndpoints = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }

@@ -39,6 +39,9 @@ esqlCsvSpecTests {
 def currentVersion = buildParams.bwcVersions.currentVersion
 
 def currentToCurrent = tasks.register("v${currentVersion}#csvSpecTests", StandaloneRestIntegTestTask) {
+  // Stage tasks share a live cluster across the whole build invocation; that state does not survive between
+  // CI retries, so smart retry must never skip them, even when a previous attempt recorded success.
+  ext.neverSkipOnSmartRetry = true
   systemProperty("tests.version.remote_cluster", currentVersion)
   systemProperty("tests.version.local_cluster", currentVersion)
   maxParallelForks = 1
@@ -60,6 +63,7 @@ def supportedVersion = bwcVersion -> {
 
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   def newToOld = tasks.register("${baseName}#newToOld", StandaloneRestIntegTestTask) {
+    ext.neverSkipOnSmartRetry = true
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.remote_cluster", bwcVersion)
     systemProperty("tests.version.local_cluster", currentVersion)
@@ -67,6 +71,7 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
   }
 
   def oldToNew = tasks.register("${baseName}#oldToNew", StandaloneRestIntegTestTask) {
+    ext.neverSkipOnSmartRetry = true
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.local_cluster", bwcVersion)
     systemProperty("tests.version.remote_cluster", currentVersion)
@@ -74,6 +79,7 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
   }
 
   def csvSpecTestsNewToOld = tasks.register("v${bwcVersion}#csvSpecTests#newToOld", StandaloneRestIntegTestTask) {
+    ext.neverSkipOnSmartRetry = true
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.remote_cluster", bwcVersion)
     systemProperty("tests.version.local_cluster", currentVersion)
@@ -84,6 +90,7 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
   }
 
   def csvSpecTestsOldToNew = tasks.register("v${bwcVersion}#csvSpecTests#oldToNew", StandaloneRestIntegTestTask) {
+    ext.neverSkipOnSmartRetry = true
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.local_cluster", bwcVersion)
     systemProperty("tests.version.remote_cluster", currentVersion)

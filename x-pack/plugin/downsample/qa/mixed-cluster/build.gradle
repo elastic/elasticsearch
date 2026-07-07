@@ -31,6 +31,9 @@ def supportedVersion = bwcVersion -> {
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
+    // Stage tasks share a live cluster across the whole build invocation; that state does not survive between
+    // CI retries, so smart retry must never skip them, even when a previous attempt recorded success.
+    ext.neverSkipOnSmartRetry = true
     usesDefaultDistribution("BWC tests require full distribution for now")
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

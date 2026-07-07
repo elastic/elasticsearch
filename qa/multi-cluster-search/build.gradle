@@ -39,6 +39,9 @@ def ccsSupportedVersion = bwcVersion -> {
 buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
 
   tasks.register("${baseName}#multi-cluster", RestIntegTestTask) {
+    // Stage tasks share a live cluster across the whole build invocation; that state does not survive between
+    // CI retries, so smart retry must never skip them, even when a previous attempt recorded success.
+    ext.neverSkipOnSmartRetry = true
     usesBwcDistribution(bwcVersion)
     maxParallelForks = 1
     testClassesDirs = sourceSets.javaRestTest.output.classesDirs
@@ -52,6 +55,7 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
   // Reverse version: old local coordinator + new remote.
 
   tasks.register("${baseName}#multi-cluster-reverse", RestIntegTestTask) {
+    ext.neverSkipOnSmartRetry = true
     usesBwcDistribution(bwcVersion)
     maxParallelForks = 1
     testClassesDirs = sourceSets.javaRestTest.output.classesDirs

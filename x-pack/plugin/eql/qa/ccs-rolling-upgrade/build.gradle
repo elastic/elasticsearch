@@ -47,6 +47,9 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
+    // Stage tasks share a live cluster across the whole build invocation; that state does not survive between
+    // CI retries, so smart retry must never skip them, even when a previous attempt recorded success.
+    ext.neverSkipOnSmartRetry = true
     dependsOn "processTestResources"
     mustRunAfter("precommit")
     doFirst {
@@ -55,6 +58,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   }
 
   tasks.register("${baseName}#oneThirdUpgraded", StandaloneRestIntegTestTask) {
+    ext.neverSkipOnSmartRetry = true
     dependsOn "${baseName}#oldClusterTest"
     doFirst {
       getRegistry().get().nextNodeToNextVersion(remoteCluster)
@@ -62,6 +66,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   }
 
   tasks.register("${baseName}#twoThirdUpgraded", StandaloneRestIntegTestTask) {
+    ext.neverSkipOnSmartRetry = true
     dependsOn "${baseName}#oneThirdUpgraded"
     doFirst {
       getRegistry().get().nextNodeToNextVersion(remoteCluster)
@@ -69,6 +74,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   }
 
   tasks.register("${baseName}#fullUpgraded", StandaloneRestIntegTestTask) {
+    ext.neverSkipOnSmartRetry = true
     dependsOn "${baseName}#twoThirdUpgraded"
     doFirst {
       getRegistry().get().nextNodeToNextVersion(remoteCluster)

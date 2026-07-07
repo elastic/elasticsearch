@@ -34,12 +34,6 @@ tasks.register("bwcTest") {
   }
 }
 
-// BWC stage tasks share a live cluster across the whole build invocation; that state is not preserved between CI
-// retries. Mark every stage task so smart retry never skips them, even when a previous attempt recorded success.
-tasks.withType(StandaloneRestIntegTestTask).matching { it.name ==~ /v[0-9\.]+#.*/ }.configureEach {
-  ext.neverSkipOnSmartRetry = true
-}
-
 plugins.withType(ElasticsearchTestBasePlugin) {
   tasks.withType(Test).matching { it.name ==~ /v[0-9\.]+#.*/ }.configureEach {
     boolean bwcEnabled = project.bwc_tests_enabled

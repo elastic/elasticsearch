@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -64,9 +65,12 @@ public class FederationExecutionService {
     private final RemoteClusterService remoteClusterService;
     private final Executor searchExecutor;
     private final ThreadPool threadPool;
-    // Per-leaf child-session id source, mirroring ComputeService.newChildSession: a monotonic suffix off the query
-    // session id so each leaf's exchange is distinct. Owned here (not delegated to ComputeService) so this service does
-    // not depend back on ComputeService — it is constructed before it, exactly like the lookup services.
+    // Per-leaf child-session id source: a monotonic suffix off the query session id so each leaf's exchange is distinct.
+    // Owned here (not delegated to ComputeService) so this service does not depend back on ComputeService — it is
+    // constructed before it, exactly like the lookup services. Crucially the ids are namespaced "<sessionId>/abstraction/<n>"
+    // so they stay disjoint from ComputeService.newChildSession, which mints "<sessionId>/<n>" from a SEPARATE counter for
+    // the plan's own fragments: two independent counters share one exchange-id space, so only the differing key shape
+    // ("/abstraction/" vs "/") keeps them from colliding.
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
 
     FederationExecutionService(TransportService transportService, ExchangeService exchangeService, Executor searchExecutor) {
@@ -89,8 +93,9 @@ public class FederationExecutionService {
      * {@code completion} exceptionally, so the leaf drain terminates loud rather than silently returning fewer rows
      * (partial/skip-unavailable parity with CCS is a follow-up — see the Inc-1 review's S4).
      *
-     * @param sessionId          the coordinator's query session id; a fresh child session id is derived from it so this
-     *                           leaf's exchange never collides with the plan's main exchange or a sibling leaf
+     * @param sessionId          the coordinator's query session id; a namespaced child session id
+     *                           ("&lt;sessionId&gt;/abstraction/&lt;n&gt;") is derived from it so this leaf's exchange collides with
+     *                           neither the plan's own fragment sessions ("&lt;sessionId&gt;/&lt;n&gt;") nor a sibling abstraction leaf
      * @param parentTask         the query's root task; the child request and remote sink are parented to it so
      *                           cancellation propagates to the home cluster
      * @param configuration      the coordinator configuration, carried in the request (today only the
@@ -139,7 +144,7 @@ public class FederationExecutionService {
         }
 
         final int bufferSize = configuration.pragmas().exchangeBufferSize();
-        final String childSessionId = sessionId + "/" + childSessionIdGenerator.incrementAndGet();
+        final String childSessionId = sessionId + "/abstraction/" + childSessionIdGenerator.incrementAndGet();
         final ExecuteAbstractionRequest request = new ExecuteAbstractionRequest(
             handle,
             childSessionId,
@@ -158,32 +163,41 @@ public class FederationExecutionService {
             bufferSize,
             searchExecutor,
             completion.delegateFailureAndWrap((delegate, unused) -> {
+                // On any leg failing, cancel the query task + descendants so an orphaned home-side sink — e.g. the home
+                // executor rejecting the request before its handler wired failure -> finishSinkHandler — fails the leaf
+                // fast rather than stalling the drain until the inactive-sink reaper fires. This is the failFast branch of
+                // startComputeOnRemoteCluster, which passes cancelQueryOnFailure as the ComputeListener's failure hook.
+                Runnable cancelOnFailure = new RunOnce(
+                    () -> transportService.getTaskManager()
+                        .cancelTaskAndDescendants(parentTask, "cancelled on federation execution failure", false, ActionListener.noop())
+                );
                 // Fan the two home-side legs — the ComputeResponse (the run's completion/failure) and the remote sink
                 // (the drain's completion/failure) — into the single leaf completion, exactly as
                 // startComputeOnRemoteCluster fans them through a ComputeListener. Either leg failing fails the leaf; the
                 // leaf completes only once BOTH acquired sub-listeners complete. This is what surfaces a home-side
                 // failure that arrives on the RESPONSE channel (e.g. a schema-drift reject thrown before any page is
-                // sunk) rather than swallowing it — the sink alone is not a sufficient failure channel.
-                var computeListener = new ComputeListener(threadPool, () -> {}, delegate.map(unused2 -> null));
-                transportService.sendChildRequest(
-                    connection,
-                    AbstractionComputeHandler.EXECUTE_ABSTRACTION_ACTION_NAME,
-                    request,
-                    parentTask,
-                    TransportRequestOptions.EMPTY,
-                    // The ComputeResponse body (took + shard counts) is metadata; the leaf's correctness is the drained
-                    // pages. Acquire a compute ref so the response's failure — not just the sink's — fails the leaf.
-                    new ActionListenerResponseHandler<>(
-                        computeListener.acquireCompute().map(ignored -> DriverCompletionInfo.EMPTY),
-                        ComputeResponse::new,
-                        searchExecutor
-                    )
-                );
-                var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, connection);
-                // failFast=true: federation execution surfaces a home-side failure rather than going silently partial.
-                // concurrentExchangeClients=1: one home cluster, one sink — the leaf is a single remote source.
-                leafExchangeSource.addRemoteSink(remoteSink, true, () -> {}, 1, computeListener.acquireAvoid());
-                computeListener.close();
+                // sunk) rather than swallowing it — the sink alone is not a sufficient failure channel. try-with-resources
+                // so a throw between acquiring the refs and adding the sink still releases the listener's initial ref.
+                try (var computeListener = new ComputeListener(threadPool, cancelOnFailure, delegate.map(unused2 -> null))) {
+                    transportService.sendChildRequest(
+                        connection,
+                        AbstractionComputeHandler.EXECUTE_ABSTRACTION_ACTION_NAME,
+                        request,
+                        parentTask,
+                        TransportRequestOptions.EMPTY,
+                        // The ComputeResponse body (took + shard counts) is metadata; the leaf's correctness is the drained
+                        // pages. Acquire a compute ref so the response's failure — not just the sink's — fails the leaf.
+                        new ActionListenerResponseHandler<>(
+                            computeListener.acquireCompute().map(ignored -> DriverCompletionInfo.EMPTY),
+                            ComputeResponse::new,
+                            searchExecutor
+                        )
+                    );
+                    var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, connection);
+                    // failFast=true: federation execution surfaces a home-side failure rather than going silently partial.
+                    // concurrentExchangeClients=1: one home cluster, one sink — the leaf is a single remote source.
+                    leafExchangeSource.addRemoteSink(remoteSink, true, () -> {}, 1, computeListener.acquireAvoid());
+                }
             })
         );
     }

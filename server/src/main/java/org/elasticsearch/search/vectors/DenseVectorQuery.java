@@ -603,12 +603,7 @@ public abstract class DenseVectorQuery extends Query {
             private final boolean isBit;
             private final byte[] decoded;
 
-            DocValuesByteVectorScorer(
-                BinaryDocValues values,
-                byte[] target,
-                VectorSimilarityFunction function,
-                boolean isBit
-            ) {
+            DocValuesByteVectorScorer(BinaryDocValues values, byte[] target, VectorSimilarityFunction function, boolean isBit) {
                 this.values = values;
                 this.target = target;
                 this.function = function;

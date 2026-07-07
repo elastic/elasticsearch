@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -128,7 +129,13 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         );
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", API_KEY))
+            containsString(
+                Strings.format(
+                    "[%s] Invalid value empty string. [%s] must be a non-empty string",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    API_KEY
+                )
+            )
         );
     }
 
@@ -140,7 +147,13 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         );
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", ENTRA_ID))
+            containsString(
+                Strings.format(
+                    "[%s] Invalid value empty string. [%s] must be a non-empty string",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    ENTRA_ID
+                )
+            )
         );
     }
 
@@ -160,7 +173,14 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         var thrownException = expectThrows(ValidationException.class, () -> initialSettings.newSecretSettings(new HashMap<>(request)));
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("only [%s] can be updated for this secret, received: %s", allowedField, expectedDisallowed))
+            containsString(
+                Strings.format(
+                    "[%s] only the field [%s] can be updated for this secret, received: %s",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    allowedField,
+                    expectedDisallowed
+                )
+            )
         );
     }
 

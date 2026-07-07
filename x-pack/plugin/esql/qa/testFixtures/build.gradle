@@ -19,6 +19,7 @@ dependencies {
   api project(':test:framework')
   api(testArtifact(project(xpackModule('esql-core'))))
   implementation project(':server')
+  implementation project(':modules:ip-location')
   implementation project(xpackModule('kql'))
   implementation "net.sf.supercsv:super-csv:${versions.supercsv}"
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"

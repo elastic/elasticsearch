@@ -74,6 +74,7 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
 
     @FunctionInfo(
         returnType = "ip",
+        briefSummary = "Converts a string to an IP value.",
         description = "Converts an input string to an IP value.",
         examples = {
             @Example(file = "ip", tag = "to_ip", explanation = """

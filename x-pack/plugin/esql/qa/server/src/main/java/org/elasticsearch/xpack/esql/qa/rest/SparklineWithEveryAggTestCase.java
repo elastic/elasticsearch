@@ -161,7 +161,7 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
         params.add(new AggTestCase(invocation, Mode.INSIDE_BY, typeError, capabilitiesRequired));
         if (name.equals("weighted_avg") || name.equals("avg")) {
             // https://github.com/elastic/elasticsearch/issues/150224
-            return;
+            capabilitiesRequired.add("fn_sparkline_duplicate_surrogates");
         }
         params.add(new AggTestCase(invocation, Mode.INSIDE_AND_ALONGSIDE, typeError, capabilitiesRequired));
         params.add(new AggTestCase(invocation, Mode.INSIDE_AND_ALONGSIDE_BY, typeError, capabilitiesRequired));

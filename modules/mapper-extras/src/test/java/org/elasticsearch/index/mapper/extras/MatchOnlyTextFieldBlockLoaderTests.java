@@ -27,10 +27,10 @@ public class MatchOnlyTextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestC
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        // match_only_text only enables doc values when the single-value handler forces them on, in which case the document is
-        // single-valued; doc values come back in sorted order, which for a single value is also its source order.
-        if (hasDocValues(fieldMapping, false)) {
-            return valuesInSortedOrder(value);
+        // match_only_text enables doc values either when the single-value handler forces them on or by default in strict-columnar mode
+        boolean strictColumnar = params.indexMode().isStrictColumnar();
+        if (hasDocValues(fieldMapping, strictColumnar)) {
+            return strictColumnar ? valuesInSourceOrder(value) : valuesInSortedOrder(value);
         }
 
         // Without doc values, a genuinely synthetic source reconstructs the field from a per-field fallback. Multi fields don't get that

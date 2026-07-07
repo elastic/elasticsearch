@@ -43,6 +43,13 @@ public class TextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
         TestContext testContext,
         boolean useBinaryDocValues
     ) {
+        // In strict-columnar mode either path yields the raw values in source order: a text field that keeps its own doc values reads them
+        // back via the offsets sidecar, and one that skips them in favour of a plain keyword delegate loads that delegate's columnar doc
+        // values, which also preserve arrival order. The delegate is only skipped when it is a byte-identical copy, so they never diverge.
+        if (params.indexMode().isStrictColumnar()) {
+            return valuesInSourceOrder(value);
+        }
+
         if (fieldMapping.getOrDefault("store", false).equals(true)) {
             return valuesInSourceOrder(value);
         }

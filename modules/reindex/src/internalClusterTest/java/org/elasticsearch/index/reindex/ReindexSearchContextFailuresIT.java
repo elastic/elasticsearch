@@ -91,7 +91,7 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
         );
 
         String source = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
-        String dest = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
+        String dest = randomValueOtherThan(source, () -> randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT));
         assertAcked(prepareCreate(source));
         assertAcked(prepareCreate(dest));
         indexRandom(
@@ -136,7 +136,7 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
         );
 
         String source = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
-        String dest = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
+        String dest = randomValueOtherThan(source, () -> randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT));
         assertAcked(prepareCreate(source));
         assertAcked(prepareCreate(dest));
         indexRandom(

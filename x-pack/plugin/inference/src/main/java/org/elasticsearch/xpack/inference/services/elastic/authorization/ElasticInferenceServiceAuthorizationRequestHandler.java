@@ -19,6 +19,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
@@ -60,13 +62,15 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     private final AuthenticationFactory authFactory;
     private final CCMFeature ccmFeature;
     private final CCMService ccmService;
+    private final InferencePreferencesCache inferencePreferencesCache;
 
     public ElasticInferenceServiceAuthorizationRequestHandler(
         @Nullable String baseUrl,
         ThreadPool threadPool,
         AuthenticationFactory authFactory,
         CCMFeature ccmFeature,
-        CCMService ccmService
+        CCMService ccmService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         this(
             baseUrl,
@@ -74,7 +78,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             LogManager.getLogger(ElasticInferenceServiceAuthorizationRequestHandler.class),
             authFactory,
             ccmFeature,
-            ccmService
+            ccmService,
+            inferencePreferencesCache
         );
     }
 
@@ -85,7 +90,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         Logger logger,
         AuthenticationFactory authFactory,
         CCMFeature ccmFeature,
-        CCMService ccmService
+        CCMService ccmService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         this.baseUrl = baseUrl;
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -93,6 +99,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         this.authFactory = Objects.requireNonNull(authFactory);
         this.ccmFeature = Objects.requireNonNull(ccmFeature);
         this.ccmService = Objects.requireNonNull(ccmService);
+        this.inferencePreferencesCache = Objects.requireNonNull(inferencePreferencesCache);
     }
 
     /**
@@ -164,12 +171,22 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             authModelListener.onFailure(e);
         });
 
-        SubscribableListener.newForked(authFactory::getAuthenticationApplier)
-            .<InferenceServiceResults>andThen((authListener, authApplier) -> {
-                var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
-                var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo(), requestMetadata, authApplier);
-                sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);
-            })
+        SubscribableListener.<InferencePreferences>newForked(inferencePreferencesCache::get)
+            .<InferenceServiceResults>andThen(
+                (resultListener, preferences) -> authFactory.getAuthenticationApplier(
+                    resultListener.delegateFailureAndWrap((authListener, authApplier) -> {
+                        var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
+                        var request = new ElasticInferenceServiceAuthorizationRequest(
+                            baseUrl,
+                            getCurrentTraceInfo(),
+                            requestMetadata,
+                            authApplier,
+                            preferences
+                        );
+                        sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);
+                    })
+                )
+            )
             .andThenApply(authResult -> {
                 if (authResult instanceof ElasticInferenceServiceAuthorizationResponseEntity authResponseEntity) {
                     logger.debug(() -> Strings.format("Received authorization information from gateway %s", authResponseEntity));

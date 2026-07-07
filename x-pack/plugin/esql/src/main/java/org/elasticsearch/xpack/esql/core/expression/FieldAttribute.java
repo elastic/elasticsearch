@@ -63,7 +63,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         EsField.TimeSeriesFieldType.DIMENSION
     );
 
-    static EsField timeSeriesField() {
+    public static EsField timeSeriesField() {
         return TIMESERIES_FIELD;
     }
 
@@ -198,7 +198,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
                 && MetadataAttribute.isTimeSeriesAttributeName(name())) {
                 if (this instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
                     out.writeBoolean(true);
-                    out.writeStringCollection(timeSeriesMetadataAttribute.withoutFields());
+                    out.writeStringCollection(timeSeriesMetadataAttribute.excludedFields());
                 } else {
                     out.writeBoolean(false);
                 }
@@ -319,6 +319,10 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
     @Override
     protected int innerHashCode(boolean ignoreIds) {
         return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
+    }
+
+    public FieldAttribute withField(EsField field) {
+        return new FieldAttribute(source(), parentName(), qualifier(), name(), field, nullable(), id(), synthetic());
     }
 
     @Override

@@ -475,6 +475,20 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
+    /**
+     * Returns {@code true} if the current flush was initiated by a refresh (e.g. an external refresh API call or a
+     * scheduled periodic refresh), {@code false} for standalone flushes (e.g. the relocation pre-flush or an explicit
+     * flush API call).
+     * <p>
+     * This is only meaningful when called from within {@link #afterFlush} — the value is stored in a thread-local and
+     * reflects the flush context of the calling thread, which is guaranteed to be the same thread that initiated the
+     * flush.
+     */
+    // protected for testing override
+    protected boolean isFlushByRefresh() {
+        return IS_FLUSH_BY_REFRESH.get();
+    }
+
     @Override
     public IndexResult index(Index index) throws IOException {
         checkNoNewOperationsWhileHollow();

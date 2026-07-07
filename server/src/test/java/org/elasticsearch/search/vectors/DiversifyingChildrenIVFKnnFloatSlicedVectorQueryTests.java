@@ -50,7 +50,6 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static org.hamcrest.Matchers.equalTo;
 
 /** Tests for {@link DiversifyingChildrenIVFKnnFloatSlicedVectorQuery}. */
@@ -70,9 +69,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setUpDiversifyingChildrenIVFKnnFloatSlicedVectorQuery() throws Exception {
         format = new ESNextDiskBBQVectorsFormat(128, 4, RoutingFieldMapper.NAME);
     }
 
@@ -86,8 +83,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             childFilter,
             parentBitSet,
             0,
-            random().nextBoolean(),
-            1f,
+            testResolver(),
             RoutingFieldMapper.NAME,
             SLICE_ZERO
         );
@@ -226,15 +222,15 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
                 IndexSearcher searcher = new IndexSearcher(reader);
                 BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
                 Query query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" }, 2, 0.001f);
 
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, null, 3, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.001f);
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 20, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.001f);
 
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 1, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1, 0.001f);
             }
         }
     }
@@ -242,7 +238,10 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
     @Override
     public void testSkewedIndex() throws IOException {
         try (Directory d = newDirectory()) {
-            try (IndexWriter w = new IndexWriter(d, slicedIndexWriterConfig())) {
+            IndexWriterConfig iwc = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
+                .setIndexSort(new Sort(new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING)))
+                .setParentField(Engine.ROOT_DOC_FIELD_NAME);
+            try (IndexWriter w = new IndexWriter(d, iwc)) {
                 int r = 0;
                 for (int i = 0; i < 5; i++) {
                     for (int j = 0; j < 5; j++) {
@@ -446,7 +445,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
         }
     }
 
-    private static TopDocs getTopDocs(
+    private TopDocs getTopDocs(
         int expectedDocs,
         float[] vector,
         Query filterQuery,
@@ -467,8 +466,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             filterQuery,
             parents,
             1.0f,
-            random().nextBoolean(),
-            1f,
+            testResolver(),
             RoutingFieldMapper.NAME,
             sliceRef
         );
@@ -513,8 +511,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             null,
             parent -> null,
             0.1f,
-            false,
-            1f,
+            testResolver(),
             RoutingFieldMapper.NAME,
             SLICE_ZERO
         );

@@ -50,6 +50,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Calculates the median absolute deviation of a multi-value field.",
         description = "Converts a multivalued field into a single valued field containing the median absolute deviation."
             + "\n\n"
             + "It is calculated as the median of each data point’s deviation from the median of "

@@ -83,6 +83,8 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
     public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
     public static final NodeFeature SEMANTIC_TEXT_EMBEDDING_TASK = new NodeFeature("semantic_text.inference_using_embedding_task");
+    public static final NodeFeature INFERENCE_INFERENCE_INDEX_DOC_TYPE = new NodeFeature("inference.inference_index_doc_type");
+    public static final NodeFeature INFERENCE_CLEAR_PREFERENCES_CACHE = new NodeFeature("inference.clear_preferences_cache");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -93,7 +95,9 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_AUTH_POLLER_PERSISTENT_TASK,
             INFERENCE_CCM_ENABLEMENT_SERVICE,
             EMBEDDING_TASK_TYPE,
-            ENDPOINT_METADATA_FIELD
+            ENDPOINT_METADATA_FIELD,
+            INFERENCE_INFERENCE_INDEX_DOC_TYPE,
+            INFERENCE_CLEAR_PREFERENCES_CACHE
         );
     }
 
@@ -150,12 +154,11 @@ public class InferenceFeatures implements FeatureSpecification {
                 EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE,
                 SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS,
                 SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES,
-                SEMANTIC_TEXT_EMBEDDING_TASK
+                SEMANTIC_TEXT_EMBEDDING_TASK,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES,
+                SemanticFieldMapper.SEMANTIC_FIELD_MAPPER
             )
         );
-        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
-            testFeatures.add(SemanticFieldMapper.SEMANTIC_FIELD_MAPPER);
-        }
         testFeatures.addAll(getFeatures());
         return testFeatures;
     }

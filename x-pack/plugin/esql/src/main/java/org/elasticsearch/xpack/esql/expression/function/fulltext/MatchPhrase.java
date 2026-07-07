@@ -77,6 +77,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     @FunctionInfo(
         returnType = "boolean",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        briefSummary = "Performs a match_phrase query on the specified field.",
         description = """
             Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
             specified field.
@@ -100,7 +101,12 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     public MatchPhrase(
         Source source,
         @Param(name = "field", type = { "keyword", "text" }, description = "Field that the query will target.") Expression field,
-        @Param(name = "query", type = { "keyword" }, description = "Value to find in the provided field.") Expression matchPhraseQuery,
+        @Param(
+            name = "query",
+            type = { "keyword" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "Value to find in the provided field."
+        ) Expression matchPhraseQuery,
         @MapParam(
             name = "options",
             params = {

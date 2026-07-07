@@ -75,11 +75,7 @@ public class BasicBlockTests extends ESTestCase {
         assertZeroPositionsAndRelease(blockFactory.newIntBlockBuilder(0).build());
         assertZeroPositionsAndRelease(blockFactory.newIntArrayVector(new int[] {}, 0));
         assertZeroPositionsAndRelease(blockFactory.newIntVectorBuilder(0).build());
-        assertZeroPositionsAndRelease(blockFactory.newLongArrayBlock(new long[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
         assertZeroPositionsAndRelease(blockFactory.newIntRangeVector(0, 0));
-        assertZeroPositionsAndRelease(blockFactory.newLongBlockBuilder(0).build());
-        assertZeroPositionsAndRelease(blockFactory.newLongArrayVector(new long[] {}, 0));
-        assertZeroPositionsAndRelease(blockFactory.newLongVectorBuilder(0).build());
         assertZeroPositionsAndRelease(blockFactory.newFloatArrayBlock(new float[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
         assertZeroPositionsAndRelease(blockFactory.newFloatBlockBuilder(0).build());
         assertZeroPositionsAndRelease(blockFactory.newFloatArrayVector(new float[] {}, 0));
@@ -134,17 +130,6 @@ public class BasicBlockTests extends ESTestCase {
             try (var blockBuilder = blockFactory.newIntBlockBuilder(initialSize)) {
                 IntStream.range(0, 10).forEach(blockBuilder::appendInt);
                 IntBlock block = blockBuilder.build();
-                assertSingleValueDenseBlock(block);
-                block.close();
-            }
-        }
-    }
-
-    public void testSmallSingleValueDenseGrowthLong() {
-        for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
-            try (var blockBuilder = blockFactory.newLongBlockBuilder(initialSize)) {
-                IntStream.range(0, 10).forEach(blockBuilder::appendLong);
-                LongBlock block = blockBuilder.build();
                 assertSingleValueDenseBlock(block);
                 block.close();
             }
@@ -419,67 +404,6 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
-    public void testLongBlock() {
-        for (int i = 0; i < 1000; i++) {
-            assertThat(breaker.getUsed(), is(0L));
-            int positionCount = randomIntBetween(1, 16 * 1024);
-            LongBlock block;
-            if (randomBoolean()) {
-                final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-                LongBlock.Builder blockBuilder = blockFactory.newLongBlockBuilder(builderEstimateSize);
-                LongStream.range(0, positionCount).forEach(blockBuilder::appendLong);
-                block = blockBuilder.build();
-            } else {
-                block = blockFactory.newLongArrayVector(LongStream.range(0, positionCount).toArray(), positionCount).asBlock();
-            }
-
-            assertThat(positionCount, is(block.getPositionCount()));
-            assertThat(0L, is(block.getLong(0)));
-            assertThat((long) positionCount - 1, is(block.getLong(positionCount - 1)));
-            int pos = (int) block.getLong(randomPosition(positionCount));
-            assertThat((long) pos, is(block.getLong(pos)));
-            assertSingleValueDenseBlock(block);
-            if (positionCount > 2) {
-                assertLookup(block, positions(blockFactory, 1, 2, new int[] { 1, 2 }), List.of(List.of(1L), List.of(2L), List.of(1L, 2L)));
-            }
-            assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
-            assertEmptyLookup(blockFactory, block);
-            assertThat(block.valueMaxByteSize(), equalTo(Long.BYTES));
-
-            try (LongBlock.Builder blockBuilder = blockFactory.newLongBlockBuilder(1)) {
-                LongBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
-                assertThat(copy, equalTo(block));
-                assertInsertNulls(block);
-                assertDeepCopy(block);
-                releaseAndAssertBreaker(block, copy);
-            }
-
-            if (positionCount > 1) {
-                assertNullValues(
-                    positionCount,
-                    blockFactory::newLongBlockBuilder,
-                    LongBlock.Builder::appendLong,
-                    position -> (long) position,
-                    LongBlock.Builder::build,
-                    (randomNonNullPosition, b) -> {
-                        assertThat((long) randomNonNullPosition, is(b.getLong(randomNonNullPosition.intValue())));
-                    }
-                );
-            }
-
-            LongVector.Builder vectorBuilder = blockFactory.newLongVectorBuilder(
-                randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
-            );
-            LongStream.range(0, positionCount).forEach(vectorBuilder::appendLong);
-            LongVector vector = vectorBuilder.build();
-            assertSingleValueDenseBlock(vector.asBlock());
-            assertThat(vector.valueMaxByteSize(), equalTo(Long.BYTES));
-            assertInsertNulls(vector.asBlock());
-            assertDeepCopy(vector.asBlock());
-            releaseAndAssertBreaker(vector.asBlock());
-        }
-    }
-
     public void testLongRangeBlock() {
         try (LongRangeBlockBuilder blockBuilder = blockFactory.newLongRangeBlockBuilder(5)) {
             blockBuilder.appendNull();
@@ -500,45 +424,6 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(block.getValueCount(4), equalTo(1));
             assertThat(block.getTotalValueCount(), equalTo(4));
             assertValueCounts(block);
-            releaseAndAssertBreaker(block);
-        }
-    }
-
-    public void testConstantLongBlock() {
-        for (int i = 0; i < 1000; i++) {
-            assertThat(breaker.getUsed(), is(0L));
-            int positionCount = randomIntBetween(1, 16 * 1024);
-            long value = randomLong();
-            LongBlock block = blockFactory.newConstantLongBlockWith(value, positionCount);
-            assertThat(positionCount, is(block.getPositionCount()));
-            assertThat(value, is(block.getLong(0)));
-            assertThat(value, is(block.getLong(positionCount - 1)));
-            assertThat(value, is(block.getLong(randomPosition(positionCount))));
-            assertThat(block.isNull(randomPosition(positionCount)), is(false));
-            assertSingleValueDenseBlock(block);
-            if (positionCount > 2) {
-                assertLookup(
-                    block,
-                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(value), List.of(value), List.of(value, value))
-                );
-                assertLookup(
-                    block,
-                    positions(blockFactory, 1, 2),
-                    List.of(List.of(value), List.of(value)),
-                    b -> assertThat(b.asVector(), instanceOf(ConstantLongVector.class))
-                );
-            }
-            assertLookup(
-                block,
-                positions(blockFactory, positionCount + 1000),
-                singletonList(null),
-                b -> assertThat(b, instanceOf(ConstantNullBlock.class))
-            );
-            assertEmptyLookup(blockFactory, block);
-            assertThat(block.valueMaxByteSize(), equalTo(Long.BYTES));
-            assertInsertNulls(block);
-            assertDeepCopy(block);
             releaseAndAssertBreaker(block);
         }
     }
@@ -1217,39 +1102,6 @@ public class BasicBlockTests extends ESTestCase {
                     // assertThat(block.getInt(i), is(0)); // Q: do we wanna allow access to the default value
                 } else {
                     assertThat(block.getInt(i), is(values[i]));
-                }
-            }
-            assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
-            block.close();
-        }
-    }
-
-    public void testSingleValueSparseLong() {
-        int positionCount = randomIntBetween(2, 16 * 1024);
-        final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-        try (var blockBuilder = blockFactory.newLongBlockBuilder(builderEstimateSize)) {
-
-            int actualValueCount = 0;
-            long[] values = new long[positionCount];
-            for (int i = 0; i < positionCount; i++) {
-                if (randomBoolean()) {
-                    values[i] = randomLong();
-                    blockBuilder.appendLong(values[i]);
-                    actualValueCount++;
-                } else {
-                    blockBuilder.appendNull();
-                }
-            }
-            LongBlock block = blockBuilder.build();
-
-            assertThat(block.getPositionCount(), is(positionCount));
-            assertThat(block.getTotalValueCount(), is(actualValueCount));
-            int nullCount = 0;
-            for (int i = 0; i < positionCount; i++) {
-                if (block.isNull(i)) {
-                    nullCount++;
-                } else {
-                    assertThat(block.getLong(i), is(values[i]));
                 }
             }
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));

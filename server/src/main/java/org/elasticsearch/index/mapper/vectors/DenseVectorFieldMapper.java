@@ -795,7 +795,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ) {
             return resolveAndValidate(queryVector, dims, effectiveSimilarity, false, false).createDocValuesExactKnnQuery(
                 field,
-                effectiveSimilarity.rawVectorSimilarityFunction(),
+                effectiveSimilarity.vectorSimilarityFunction(null, elementType()),
                 elementType(),
                 indexVersion
             );
@@ -1643,6 +1643,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             public VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType) {
+                if (indexVersion == null) return VectorSimilarityFunction.COSINE;
+
                 return indexVersion.onOrAfter(NORMALIZE_COSINE) && (elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16)
                     ? VectorSimilarityFunction.DOT_PRODUCT
                     : VectorSimilarityFunction.COSINE;
@@ -1685,23 +1687,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         abstract float score(float similarity, ElementType elementType, int dim);
 
-        public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
-
-        /**
-         * The Lucene {@link VectorSimilarityFunction} for scoring stored vectors directly, used by a per-query
-         * similarity override and by non-indexed fields. Unlike {@link #vectorSimilarityFunction}, it does not
-         * apply the {@code NORMALIZE_COSINE} optimization (which maps {@code COSINE} to {@code DOT_PRODUCT} and
-         * assumes unit-normalized vectors): the literal {@code COSINE} normalizes both operands itself, so it is
-         * correct whether or not the stored vectors are normalized.
-         */
-        public VectorSimilarityFunction rawVectorSimilarityFunction() {
-            return switch (this) {
-                case L2_NORM -> VectorSimilarityFunction.EUCLIDEAN;
-                case COSINE -> VectorSimilarityFunction.COSINE;
-                case DOT_PRODUCT -> VectorSimilarityFunction.DOT_PRODUCT;
-                case MAX_INNER_PRODUCT -> VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
-            };
-        }
+        /** Pass a null {@code indexVersion} for raw scoring, e.g. per-query overrides or non-indexed fields. */
+        public abstract VectorSimilarityFunction vectorSimilarityFunction(@Nullable IndexVersion indexVersion, ElementType elementType);
     }
 
     public abstract static class DenseVectorIndexOptions extends IndexOptions {
@@ -3310,7 +3297,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 : element.elementType().defaultSimilarity();
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = nonIndexed
-                ? createDocValuesExactKnnQuery(resolvedQueryVector, effectiveSimilarity)
+                ? element.createDocValuesExactKnnQuery(resolvedQueryVector, dims, effectiveSimilarity, name(), indexVersionCreated)
                 : createIndexedExactKnnQuery(resolvedQueryVector, effectiveSimilarity, isSimilarityOverridden, useQuantized);
             if (vectorSimilarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -3329,10 +3316,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean useQuantized
         ) {
             assert !(useQuantized && isSimilarityOverridden) : "Use quantized cannot be combined with overridden similarity function";
-            // if useQuantized, function ignored. Otherwise, raw scoring with this function.
-            final VectorSimilarityFunction function = isSimilarityOverridden
-                ? effectiveSimilarity.rawVectorSimilarityFunction()
-                : effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType());
+            // if useQuantized is true, function parameter is ignored.
+            final VectorSimilarityFunction function = effectiveSimilarity.vectorSimilarityFunction(
+                isSimilarityOverridden ? null : indexVersionCreated,
+                element.elementType()
+            );
             return element.createExactKnnQuery(
                 resolvedQueryVector,
                 dims,
@@ -3343,17 +3331,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 useQuantized,
                 name()
             );
-        }
-
-        /**
-         * Scores a non-indexed (index:false) field, whose vectors are stored as binary doc values rather than
-         * KNN vector values, by decoding each document's vector. Float and byte vectors apply the
-         * {@link VectorSimilarity#rawVectorSimilarityFunction literal} similarity function — the query's
-         * {@code similarity_function} override, falling back to cosine since a non-indexed field has no mapped
-         * similarity. Bit vectors are scored by Hamming distance (their only metric), matching the indexed path.
-         */
-        private Query createDocValuesExactKnnQuery(VectorData resolvedQueryVector, VectorSimilarity effectiveSimilarity) {
-            return element.createDocValuesExactKnnQuery(resolvedQueryVector, dims, effectiveSimilarity, name(), indexVersionCreated);
         }
 
         public boolean isNormalized() {

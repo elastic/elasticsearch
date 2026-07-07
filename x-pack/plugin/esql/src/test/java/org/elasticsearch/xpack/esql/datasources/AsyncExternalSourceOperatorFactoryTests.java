@@ -273,6 +273,38 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertEquals(500, factory.batchSize());
         assertEquals(15, factory.maxBufferSize());
         assertSame(executor, factory.executor());
+        // No distinct consumer executor supplied: the drain shares the read/parse executor (prior single-pool behavior).
+        assertSame(executor, factory.producerExecutor());
+    }
+
+    public void testProducerExecutorWiredDistinctFromReadExecutor() {
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        FormatReader formatReader = mock(FormatReader.class);
+        StoragePath path = StoragePath.of("file:///test.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "col1",
+                new EsField("col1", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        Executor readExecutor = Runnable::run;
+        Executor producerExecutor = Runnable::run;
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            500,
+            15,
+            readExecutor
+        ).producerExecutor(producerExecutor).build();
+
+        // Production wires the drain onto a distinct pool (esql_worker) from the read/parse pool (esql_external_io);
+        // the two accessors must return the two distinct executors, not collapse onto one.
+        assertSame(readExecutor, factory.executor());
+        assertSame(producerExecutor, factory.producerExecutor());
     }
 
     public void testSyncWrapperModeCreatesOperator() throws Exception {
@@ -2535,6 +2567,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 false,
                 true,
+                true,
                 null,
                 0L,
                 null,
@@ -2561,6 +2594,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 List.of("a"),
                 ErrorPolicy.STRICT,
                 false,
+                true,
                 true,
                 null,
                 0L,
@@ -2594,7 +2628,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         IOException thrown = expectThrows(
             IOException.class,
-            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, null, 0L, null, null)
+            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null, null)
         );
         assertEquals("decompress failed", thrown.getMessage());
         assertTrue("raw stream must be aborted when decompression fails", tracking.aborted.get());
@@ -2617,6 +2651,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 List.of("a"),
                 ErrorPolicy.STRICT,
                 false,
+                true,
                 true,
                 null,
                 0L,

@@ -71,6 +71,16 @@ redirects:
   # Custom plugins and bundles moved to docs-content (narrative ECH deployment docs)
   'reference/elasticsearch-plugins/cloud/ec-custom-bundles.md': 'docs-content://deploy-manage/deploy/elastic-cloud/upload-custom-plugins-bundles.md'
 
+  # ECE and ECH plugin management procedures moved to docs-content (see elastic/docs-content#7101)
+  'reference/elasticsearch-plugins/plugin-management.md':
+    to: 'reference/elasticsearch-plugins/plugin-management.md'
+    anchors: {}
+    many:
+      - to: 'docs-content://deploy-manage/deploy/elastic-cloud/add-plugins-extensions.md'
+        anchors: {'ec-adding-plugins', 'managing-plugins-for-ech', 'ec-adding-elastic-plugins', 'ec_before_you_begin_6'}
+      - to: 'docs-content://deploy-manage/deploy/cloud-enterprise/add-plugins.md'
+        anchors: {'ece-adding-plugins', 'managing-plugins-for-ece'}
+
   # https://github.com/elastic/elasticsearch/pull/131385
   'reference/elasticsearch/rest-apis/retrievers.md':
     to: 'reference/elasticsearch/rest-apis/retrievers.md'

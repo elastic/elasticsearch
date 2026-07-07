@@ -95,6 +95,11 @@ public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     }
 
     @Override
+    public void testWriterByteVectorRamEstimate() {
+        // No bytes support
+    }
+
+    @Override
     protected boolean supportsFloatVectorFallback() {
         return false;
     }

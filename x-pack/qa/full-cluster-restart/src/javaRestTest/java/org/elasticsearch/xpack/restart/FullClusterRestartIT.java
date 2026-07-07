@@ -46,6 +46,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -248,7 +249,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
         } else {
             logger.info("testing against {}", getOldClusterVersion());
-            final long testStartTime = System.currentTimeMillis();
             try {
                 waitForYellow(".watches,.watcher-history*");
             } catch (ResponseException e) {
@@ -260,7 +260,44 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             // Wait for watcher to actually start....
             startWatcher();
             try {
-                waitForWatchExecutedSince("watch_with_api_key", testStartTime);
+                final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
+                final int version = (int) status.get("version");
+
+                final AtomicBoolean versionIncreased = new AtomicBoolean();
+                final AtomicBoolean executed = new AtomicBoolean();
+                // A healthy watch reaches execution_state "executed" within a firing or two and stays there: with a 1s
+                // schedule and a 500ms throttle period a single trigger engine can never throttle it. A status stuck at
+                // "throttled" while the version keeps increasing therefore indicates a scheduling anomaly, e.g. the watch
+                // firing on more than one node at once, or being dropped from the trigger engine after a throttled firing
+                // (see #152355). Dump the recent watcher history on failure so those cases can be told apart.
+                try {
+                    assertBusy(() -> {
+                        final Map<String, Object> newGetWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                        final Map<String, Object> newStatus = (Map<String, Object>) newGetWatchStatusResponse.get("status");
+                        if (false == versionIncreased.get() && version < (int) newStatus.get("version")) {
+                            versionIncreased.set(true);
+                        }
+                        if (false == executed.get() && "executed".equals(newStatus.get("execution_state"))) {
+                            executed.set(true);
+                        }
+                        logger.debug("new watch status: {}", newStatus);
+                        assertThat(
+                            "version increased: ["
+                                + versionIncreased.get()
+                                + "], executed: ["
+                                + executed.get()
+                                + "], execution state: ["
+                                + newStatus.get("execution_state")
+                                + "]",
+                            versionIncreased.get() && executed.get(),
+                            is(true)
+                        );
+                    }, 30, TimeUnit.SECONDS);
+                } catch (AssertionError e) {
+                    logRecentWatchHistory("watch_with_api_key");
+                    throw e;
+                }
             } finally {
                 stopWatcher();
             }
@@ -729,56 +766,25 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     /**
-     * Polls .watcher-history* until at least one {@code executed} record for {@code watchId} with
-     * {@code trigger_event.triggered_time >= sinceEpochMillis} appears, timing out after 30 seconds.
-     * On timeout, dumps the 10 most recent history entries for {@code watchId} to the log to aid diagnosis.
+     * Logs the most recent watcher history records for {@code watchId}, newest first. Used to diagnose failures:
+     * the mix of {@code state} values and their {@code trigger_event.triggered_time} spacing distinguishes a watch
+     * firing on multiple nodes (interleaved executed/throttled records) from one dropped from the trigger engine
+     * (records stop entirely). Never throws — this runs on a failure path where the original error must propagate.
      */
-    private void waitForWatchExecutedSince(String watchId, long sinceEpochMillis) throws Exception {
+    private void logRecentWatchHistory(String watchId) {
         try {
-            assertBusy(() -> {
-                final int executionsSinceRestart = countWatcherHistoryRecordsWithStatusSince(watchId, sinceEpochMillis, "executed");
-                assertThat(executionsSinceRestart, greaterThanOrEqualTo(1));
-            }, 30, TimeUnit.SECONDS);
-        } catch (AssertionError e) {
             final Request dumpRequest = new Request("GET", ".watcher-history*/_search");
             dumpRequest.addParameter("ignore_unavailable", "true");
             dumpRequest.setJsonEntity(Strings.format("""
                 {
                   "query": { "term": { "watch_id": "%s" } },
                   "sort": [ { "trigger_event.triggered_time": "desc" } ],
-                  "size": 10
+                  "size": 20
                 }""", watchId));
-            try {
-                logger.warn(
-                    "waitForWatchExecutedSince timed out; recent history for {}:\n{}",
-                    watchId,
-                    toStr(client().performRequest(dumpRequest))
-                );
-            } catch (Exception dumpException) {
-                logger.warn("failed to dump watcher history for {}", watchId, dumpException);
-            }
-            throw e;
+            logger.warn("recent watcher history for [{}]:\n{}", watchId, toStr(client().performRequest(dumpRequest)));
+        } catch (Exception dumpException) {
+            logger.warn("failed to dump watcher history for [{}]", watchId, dumpException);
         }
-    }
-
-    private int countWatcherHistoryRecordsWithStatusSince(String watchId, long sinceEpochMillis, String status) throws IOException {
-        final Request historyRequest = new Request("GET", ".watcher-history*/_search");
-        historyRequest.addParameter("ignore_unavailable", "true");
-        historyRequest.setJsonEntity(Strings.format("""
-            {
-              "query": {
-                "bool": {
-                  "filter": [
-                    { "term": { "watch_id": "%s" } },
-                    { "term": { "state": "%s" } },
-                    { "range": { "trigger_event.triggered_time": { "gte": %s } } }
-                  ]
-                }
-              }
-            }""", watchId, status, sinceEpochMillis));
-        final Map<String, Object> historyResponse = entityAsMap(client().performRequest(historyRequest));
-        final Map<?, ?> hits = (Map<?, ?>) historyResponse.get("hits");
-        return ((Number) ((Map<?, ?>) hits.get("total")).get("value")).intValue();
     }
 
     static String toStr(Response response) throws IOException {

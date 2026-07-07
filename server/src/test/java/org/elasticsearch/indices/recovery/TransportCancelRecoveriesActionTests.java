@@ -33,6 +33,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.index.shard.ShardRecoveryNotCancellableException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -49,6 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -83,7 +85,6 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             new ActionFilters(Set.of()),
             clusterService,
             indicesService,
-            mock(PeerRecoveryTargetService.class),
             throttlingRecoveryService
         );
     }
@@ -356,7 +357,50 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
     }
 
     @TestLogging(reason = "test asserts DEBUG log", value = "org.elasticsearch.indices.recovery.TransportCancelRecoveriesAction:DEBUG")
-    public void testReshardSplitCancellationIsNotSupported() throws Exception {
+    public void testCancellationOfStartedPeerRecoveryIsNotSupported() throws Exception {
+        final var indexName = randomIndexName();
+        final var shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), 0);
+        final var allocationId = UUIDs.randomBase64UUID();
+        final var indexService = mock(IndexService.class);
+        final var indexShard = mock(IndexShard.class);
+        final var routing = ShardRouting.newUnassigned(
+            shardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
+            ShardRouting.Role.DEFAULT
+        ).initialize(randomIdentifier(), allocationId, 0L);
+
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.routingEntry()).thenReturn(routing);
+        when(indexShard.state()).thenReturn(IndexShardState.RECOVERING);
+
+        try (var mockLog = MockLog.capture(TransportCancelRecoveriesAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "debug log for unsupported PEER cancellation",
+                    TransportCancelRecoveriesAction.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*cancellation flag cannot be set on*PEER recoveries do not currently support "
+                        + "direct cancellation of started recoveries*"
+                )
+            );
+            final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
+            final var request = new CancelRecoveriesAction.Request(
+                0L,
+                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            );
+            action.execute(mock(Task.class), request, responseFuture);
+            final var response = responseFuture.actionGet();
+            assertTrue(response.cancelledInQueue().isEmpty());
+            mockLog.assertAllExpectationsMatched();
+        }
+        indexShard.ensureRecoveryNotCancelled();
+    }
+
+    @TestLogging(reason = "test asserts DEBUG log", value = "org.elasticsearch.indices.recovery.TransportCancelRecoveriesAction:DEBUG")
+    public void testCancellationOfStartedReshardSplitRecoveriesIsNotSupported() throws Exception {
         final var indexName = randomIndexName();
         final var shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), 0);
         final var allocationId = UUIDs.randomBase64UUID();
@@ -381,7 +425,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
                     "debug log for unsupported RESHARD_SPLIT cancellation",
                     TransportCancelRecoveriesAction.class.getCanonicalName(),
                     Level.DEBUG,
-                    "*cancellation flag cannot be set on*RESHARD_SPLIT recoveries do not currently support direct cancellation*"
+                    "*cancellation flag cannot be set on*RESHARD_SPLIT recoveries do not currently support "
+                        + "direct cancellation of started recoveries*"
                 )
             );
             final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();

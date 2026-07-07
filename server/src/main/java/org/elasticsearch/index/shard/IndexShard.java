@@ -2014,12 +2014,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ///
     /// In `CREATED` state the flag is stored and checked when the recovery begins.
     /// In `RECOVERING` state, `StoreRecovery` checks via [#ensureRecoveryNotCancelled] at phase boundaries for non-PEER
-    /// recoveries. For PEER recoveries the flag is checked immediately after [#markAsRecovering].
-    /// To cancel an active PEER recovery transfer, use [RecoveriesCollection#directCancelRecovery] instead.
+    /// recoveries. Note that `PEER` and `RESHARD_SPLIT` recoveries are currently not supported
+    /// (support will be added in a follow-up, see: elasticsearch-team#2801).
     ///
     /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
     /// @throws IllegalStateException if the ongoing recovery is not of a supported type
-    /// @throws ShardRecoveryNotCancellableException if called for a PEER recovery after the primary handover has already occurred
     public void requestRecoveryCancellation(RecoveryCancelledException cause) throws ShardRecoveryNotCancellableException {
         synchronized (mutex) {
             if (state == IndexShardState.CREATED) {
@@ -2035,12 +2034,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final RecoverySource.Type recoveryType = currentRecoveryState.getRecoverySource().getType();
             switch (recoveryType) {
                 case LOCAL_SHARDS, SNAPSHOT, EXISTING_STORE, EMPTY_STORE -> recoveryCancellationRequest = cause;
-                case PEER -> {
-                    if (replicationTracker.isPrimaryMode()) {
-                        throw new ShardRecoveryNotCancellableException(shardId, "primary handover already happened");
-                    }
-                    recoveryCancellationRequest = cause;
-                }
                 default -> throw new IllegalStateException(
                     "requestRecoveryCancellation called for an unsupported recovery type " + recoveryType + " on shard " + shardId
                 );
@@ -2064,11 +2057,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             recoverySchedulingListener.onStartedRecoveryCancelled(currentRecoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
             throw cancellation;
         }
-    }
-
-    /// Returns true if a direct cancellation has been requested via [#requestRecoveryCancellation].
-    public boolean recoveryIsCancelled() {
-        return recoveryCancellationRequest != null;
     }
 
     public void postRecovery(String reason, ActionListener<Void> listener) throws IndexShardStartedException, IndexShardRelocatedException,
@@ -3469,10 +3457,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC
             : "local checkpoint [" + getLocalCheckpoint() + "] does not match checkpoint from primary context [" + primaryContext + "]";
         synchronized (mutex) {
-            final RecoveryCancelledException cancellation = recoveryCancellationRequest;
-            if (cancellation != null) {
-                throw cancellation;
-            }
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
         ensurePeerRecoveryRetentionLeasesExist();

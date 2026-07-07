@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -226,13 +225,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
-    /// Attempts to cancel and fail a specific recovery by allocation ID. The master will be notified.
-    public void directCancelRecovery(ShardId shardId, String allocationId) {
-        if (onGoingRecoveries.directCancelRecovery(shardId, allocationId, clusterService.localNode())) {
-            recoverySchedulingListener.onStartedRecoveryCancelled(RecoverySource.Type.PEER, RecoveryRole.TARGET);
-        }
-    }
-
     public void startRecovery(
         final IndexShard indexShard,
         final DiscoveryNode sourceNode,
@@ -249,10 +241,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             listener,
             snapshotFileDownloadsPermit
         );
-        if (indexShard.recoveryIsCancelled()) {
-            directCancelRecovery(indexShard.shardId(), indexShard.routingEntry().allocationId().getId());
-            return;
-        }
         // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause
         // assertions to trip if we executed it on the same thread hence we fork off to the generic threadpool.
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
@@ -827,15 +815,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     new RecoveryFailedException(request, "source has canceled the recovery", cause),
                     false
                 );
-                return;
-            }
-            if (cause instanceof RecoveryCancelledException) {
-                /// `START_RECOVERY` is a single request/response pair held open by the source until the whole
-                /// recovery finishes, including the primary relocation handoff (if relevant).
-                /// If [IndexShard#activateWithPrimaryContext] throws on this node due to a master cancellation request
-                /// (see [TransportCancelRecoveriesAction]), the failure flows back through the source's handling of
-                /// the `START_RECOVERY` request and lands here. Delegate to directCancelRecovery.
-                directCancelRecovery(request.shardId(), request.targetAllocationId());
                 return;
             }
             if (cause instanceof RecoveryEngineException) {

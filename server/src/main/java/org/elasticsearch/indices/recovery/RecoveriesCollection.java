@@ -202,27 +202,6 @@ public class RecoveriesCollection {
         }
     }
 
-    /// Cancels and fails a specific ongoing recovery by shard ID and allocation ID, if exists. The master will be notified.
-    public boolean directCancelRecovery(ShardId shardId, String allocationId, DiscoveryNode localNode) {
-        List<RecoveryTarget> matchedRecoveries = removeRecoveryTargets(
-            rt -> rt.shardId().equals(shardId) && rt.indexShard().routingEntry().allocationId().getId().equals(allocationId)
-        );
-        assert matchedRecoveries.size() <= 1
-            : "found more than one recovery target with given shardId and allocationId: " + matchedRecoveries;
-        if (matchedRecoveries.isEmpty() == false) {
-            final RecoveryTarget removed = matchedRecoveries.stream().findFirst().get();
-            logger.trace(
-                "{} cancelled and failed recovery from {}, id [{}].",
-                removed.shardId(),
-                removed.sourceNode(),
-                removed.recoveryId()
-            );
-            removed.fail(new RecoveryCancelledException(removed.shardId(), removed.sourceNode(), localNode), true);
-            return true;
-        }
-        return false;
-    }
-
     /// Marks the recovery with the given id as done (if found)
     public void markRecoveryAsDone(long id) {
         RecoveryTarget removed = removeRecoveryTarget(id);

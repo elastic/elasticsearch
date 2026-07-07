@@ -48,7 +48,6 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final PeerRecoveryTargetService peerRecoveryTargetService;
     private final ThrottlingRecoveryService throttlingRecoveryService;
     private final ExecutorService executor;
 
@@ -58,7 +57,6 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         ActionFilters actionFilters,
         ClusterService clusterService,
         IndicesService indicesService,
-        PeerRecoveryTargetService peerRecoveryTargetService,
         ThrottlingRecoveryService throttlingRecoveryService
     ) {
         super(
@@ -70,7 +68,6 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         );
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.peerRecoveryTargetService = peerRecoveryTargetService;
         this.throttlingRecoveryService = throttlingRecoveryService;
         this.executor = transportService.getThreadPool().executor(ThreadPool.Names.GENERIC);
     }
@@ -95,8 +92,6 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         }
         final Set<String> cancelledInQueue = throttlingRecoveryService.cancelRecoveries(toCancel);
 
-        // TODO: consider batching started recovery cancellation. For PEER recoveries, each call below independently
-        // re-scans RecoveriesCollection#onGoingRecoveries under lock instead of doing a single combined pass.
         for (CancelRecoveriesAction.ShardRecoveryCancellation cancellation : request.cancellations()) {
             if (cancelledInQueue.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
                 tryCancelStartedRecovery(cancellation.shardId(), cancellation.allocationId());
@@ -147,23 +142,12 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
 
         try {
             switch (recoveryType) {
-                case PEER -> {
-                    // [IndexShard#requestRecoveryCancellation] is used for primary relocation. It sets the pre-handover
-                    // cancellation flag to block the potential handover if it hasn't happened yet.
-                    // If this is a primary relocation, and the primary handover is already done,
-                    // [IndexShard#requestRecoveryCancellation] throws an ShardRecoveryNotCancellableException and the
-                    // cancellation is skipped.
-                    // Both this flag and directCancelRecovery below may independently trigger a shard-failure notification
-                    // to the master, but the master handles duplicate failures for the same allocation ID gracefully.
-                    indexShard.requestRecoveryCancellation(new RecoveryCancelledException(shardId, null, clusterService.localNode()));
-                    peerRecoveryTargetService.directCancelRecovery(shardId, allocationId);
-                }
                 case EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, EMPTY_STORE -> indexShard.requestRecoveryCancellation(
                     new RecoveryCancelledException(shardId, null, clusterService.localNode())
                 );
-                case RESHARD_SPLIT -> throw new ShardRecoveryNotCancellableException(
+                case PEER, RESHARD_SPLIT -> throw new ShardRecoveryNotCancellableException(
                     shardId,
-                    "RESHARD_SPLIT recoveries do not currently support direct cancellation"
+                    recoveryType + " recoveries do not currently support direct cancellation of started recoveries"
                 );
             }
         } catch (ShardRecoveryNotCancellableException e) {

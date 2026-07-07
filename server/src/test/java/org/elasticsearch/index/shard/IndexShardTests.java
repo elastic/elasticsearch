@@ -3694,65 +3694,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testRequestRecoveryCancellationSetsFlagForPeerRecovery() throws Exception {
-        final IndexMetadata metadata = newTestIndexMetadata();
-        final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
-        recoverShardFromStore(primary);
-        final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
-        final DiscoveryNode node1 = getFakeDiscoNode(primary.routingEntry().currentNodeId());
-        final DiscoveryNode node2 = getFakeDiscoNode(replica.routingEntry().currentNodeId());
-        replica.markAsRecovering("peer", new RecoveryState(replica.routingEntry(), node1, node2));
-
-        final RecoveryCancelledException cause = new RecoveryCancelledException(replica.shardId(), node1, node2);
-        replica.requestRecoveryCancellation(cause);
-        expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
-        closeShards(primary, replica);
-    }
-
-    public void testRequestRecoveryCancellationThrowsAfterPrimaryHandover() throws Exception {
-        final IndexShard source = newStartedShard(true);
-        IndexShardTestCase.updateRoutingEntry(source, ShardRoutingHelper.relocate(source.routingEntry(), randomAlphaOfLength(10)));
-        final IndexShard target = newShard(source.routingEntry().getTargetRelocatingShard());
-        updateMappings(target, source.indexSettings().getIndexMetadata());
-
-        final CountDownLatch handoverComplete = new CountDownLatch(1);
-        final CountDownLatch proceedWithDone = new CountDownLatch(1);
-        final Thread recoveryThread = new Thread(() -> {
-            try {
-                recoverReplica(
-                    target,
-                    source,
-                    (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, 0L, null, null, recoveryListener) {
-                        @Override
-                        public void markAsDone() {
-                            handoverComplete.countDown();
-                            safeAwait(proceedWithDone);
-                            super.markAsDone();
-                        }
-                    },
-                    true,
-                    false
-                );
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        });
-        recoveryThread.start();
-        safeAwait(handoverComplete);
-
-        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        final RecoveryCancelledException cause = new RecoveryCancelledException(target.shardId(), null, localNode);
-        final ShardRecoveryNotCancellableException e = expectThrows(
-            ShardRecoveryNotCancellableException.class,
-            () -> target.requestRecoveryCancellation(cause)
-        );
-        assertThat(e.getMessage(), containsString("Unable to direct cancel recovery for shard"));
-
-        proceedWithDone.countDown();
-        safeJoin(recoveryThread);
-        closeShards(source, target);
-    }
-
     public void testCancellationFlagSetInCreatedStateCancelsNonPeerRecovery() throws Exception {
         final IndexShard shard = reinitShard(newStartedShard(true));
         assertThat(shard.state(), equalTo(IndexShardState.CREATED));

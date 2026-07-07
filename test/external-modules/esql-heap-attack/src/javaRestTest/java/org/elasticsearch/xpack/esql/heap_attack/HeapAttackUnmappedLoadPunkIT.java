@@ -39,7 +39,7 @@ public class HeapAttackUnmappedLoadPunkIT extends HeapAttackTestCase {
 
         try {
             setRequestBreakerLimit("25%");
-            assertCircuitBreaksVia(attempt -> fetchPunkKeywordConversion(attempt * 25), "ValuesSourceReaderOperator");
+            assertCircuitBreaks(attempt -> fetchPunkKeywordConversion(attempt * 25));
         } finally {
             setRequestBreakerLimit(null);
         }

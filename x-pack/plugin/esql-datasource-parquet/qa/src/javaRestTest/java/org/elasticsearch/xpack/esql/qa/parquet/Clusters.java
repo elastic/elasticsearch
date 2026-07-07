@@ -50,6 +50,7 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.ml.enabled", "false")
             .setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
+            .setting("esql.datasource.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             .jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED")
             .jvmArg("-Darrow.allocation.manager.type=Unsafe")
             .build();
@@ -72,6 +73,7 @@ public class Clusters {
             // Allow the LOCAL storage backend to read fixture files from the test resources directory.
             // The esql-datasource-http plugin's entitlement policy uses shared_repo for file read access.
             .setting("path.repo", FixtureUtils.pathRepoRootForFixtures(Clusters.class))
+            .setting("esql.datasource.local_allowed_paths", FixtureUtils.pathRepoRootForFixtures(Clusters.class))
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
             // S3 credentials must be stored in keystore, not as regular settings

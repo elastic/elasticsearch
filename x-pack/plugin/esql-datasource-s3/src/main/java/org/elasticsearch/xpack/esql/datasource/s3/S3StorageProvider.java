@@ -78,7 +78,7 @@ import java.util.NoSuchElementException;
  *   <li><b>Async client</b> — used exclusively for {@code readBytesAsync} range reads in
  *       {@link S3StorageObject}. When multiple concurrent range reads are dispatched, the Netty
  *       event loop handles them without blocking a thread per request, reducing thread-pool
- *       pressure under load. The pool is sized by {@code esql.external.max_connections}.</li>
+ *       pressure under load. The pool is sized by {@code esql.external.max_concurrent_requests}.</li>
  * </ul>
  * <p>
  * Both clients share the same credentials, region, and endpoint configuration. The Netty
@@ -92,13 +92,14 @@ import java.util.NoSuchElementException;
 public class S3StorageProvider implements StorageProvider {
     private static final Logger LOGGER = LogManager.getLogger(S3StorageProvider.class);
     private static final String DEFAULT_ROLE_SESSION_NAME = "elasticsearch-esql-datasource";
+    private static final String DEFAULT_JWT_AUDIENCE = "sts.amazonaws.com";
 
     private static final Duration CONNECTION_ACQUISITION_TIMEOUT = Duration.ofSeconds(60);
 
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final S3Configuration config;
-    // Owned only on the keyless workload-identity path; null otherwise. Closed by close().
+    // Owned only on the federated (keyless) workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
     private final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
     /**
@@ -112,17 +113,17 @@ public class S3StorageProvider implements StorageProvider {
 
     /**
      * Test-friendly constructor: no IRSA web-identity provider available, async pool sized at the
-     * {@code esql.external.max_connections} default. Equivalent to production behavior on a node where
+     * {@code esql.external.max_concurrent_requests} default. Equivalent to production behavior on a node where
      * {@code AWS_WEB_IDENTITY_TOKEN_FILE} is unset.
      */
     public S3StorageProvider(S3Configuration config) {
-        this(config, null, ExternalSourceSettings.MAX_CONNECTIONS.get(Settings.EMPTY));
+        this(config, null, ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY));
     }
 
     /**
      * Production constructor. {@code maxConnections} sizes the async client's Netty connection pool and is the
-     * value of the {@code esql.external.max_connections} node setting, read at the plugin's construction path
-     * (which holds node {@link Settings}).
+     * value of the {@code esql.external.max_concurrent_requests} node setting, read at the plugin's construction
+     * path (which holds node {@link Settings}).
      */
     @SuppressWarnings("this-escape")
     public S3StorageProvider(
@@ -230,7 +231,7 @@ public class S3StorageProvider implements StorageProvider {
         // Pass the builder (not a pre-built client) so the SDK takes ownership of the Netty client
         // and closes it when S3AsyncClient.close() is called. A pre-built client passed via
         // .httpClient() is wrapped in NonManagedSdkAsyncHttpClient whose close() is a no-op.
-        // Size the connection pool from the single esql.external.max_connections setting; the circuit breaker
+        // Size the connection pool from the single esql.external.max_concurrent_requests knob; the circuit breaker
         // bounds memory and reactive 503 backoff handles throttling. The SDK's default maxConcurrency is 50,
         // which caps a single query's read parallelism well below what S3 serves happily — S3 throttles per
         // key-prefix request rate, not per per-machine connection count, and pushes back with 503/backoff when it
@@ -292,7 +293,9 @@ public class S3StorageProvider implements StorageProvider {
     private static WorkloadIdentityIssuerClient enabledWorkloadIdentityIssuerClient() {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException("S3 keyless authentication requires the workload-identity feature to be enabled on this node");
+            throw new IllegalStateException(
+                "S3 federated authentication requires the workload-identity feature to be enabled on this node"
+            );
         }
         return issuerClient;
     }
@@ -377,10 +380,11 @@ public class S3StorageProvider implements StorageProvider {
         StsAsyncClient stsAsyncClient
     ) {
         String roleSessionName = Strings.hasText(config.roleSessionName()) ? config.roleSessionName() : DEFAULT_ROLE_SESSION_NAME;
+        String jwtAudience = Strings.hasText(config.jwtAudience()) ? config.jwtAudience() : DEFAULT_JWT_AUDIENCE;
         return AsyncWebIdentityCredentialsProvider.builder()
             .roleArn(config.roleArn())
             .roleSessionName(roleSessionName)
-            .tokenSupplier(new S3WorkloadIdentityTokenSupplier(issuerClient, config.jwtAudience()))
+            .tokenSupplier(new S3WorkloadIdentityTokenSupplier(issuerClient, jwtAudience))
             .stsAsyncClient(stsAsyncClient)
             .build();
     }
@@ -507,7 +511,7 @@ public class S3StorageProvider implements StorageProvider {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public bucket, set auth=anonymous. "
                 + "Otherwise, provide credentials via access_key and secret_key, "
-                + "or configure keyless authentication with role_arn and jwt_audience";
+                + "or configure federated authentication with role_arn";
         }
         return "";
     }

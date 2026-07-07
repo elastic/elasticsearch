@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -41,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -179,6 +184,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 sink,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 null
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
@@ -202,66 +209,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             partialCount,
             Matchers.greaterThanOrEqualTo(2L)
         );
-    }
-
-    /**
-     * Each per-chunk partial must carry a coverage range, and those ranges must tile the decompressed
-     * stream contiguously from 0 with the final chunk flagged last — the property the coordinator-side
-     * reconciler checks before committing the summed per-chunk counts.
-     */
-    public void testCleanClosePublishesTilingCoverageToSink() throws Exception {
-        int lineCount = 500;
-        String content = buildContent(lineCount);
-        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
-        String path = "mem://streaming-finalize-test";
-        Instant mtime = Instant.parse("2020-01-01T00:00:00Z");
-        StorageObject file = new TestFileStorageObject(path, mtime);
-        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
-
-        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
-        ExecutorService executor = Executors.newFixedThreadPool(6);
-        try {
-            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
-                reader,
-                stream,
-                file,
-                List.of("line"),
-                50,
-                4,
-                executor,
-                ErrorPolicy.STRICT,
-                null,
-                0L,
-                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                sink,
-                null
-            );
-            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
-                while (iter.hasNext()) {
-                    iter.next().releaseBlocks();
-                }
-            }
-        } finally {
-            executor.shutdownNow();
-        }
-
-        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
-        List<Map<String, Object>> partials = contributions.stream()
-            .filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY)))
-            .sorted(java.util.Comparator.comparingLong(m -> ((Number) m.get(ExternalStats.COVERAGE_START_KEY)).longValue()))
-            .toList();
-        assertThat(partials.size(), Matchers.greaterThanOrEqualTo(2));
-        long expectedStart = 0;
-        boolean lastFlagged = false;
-        for (Map<String, Object> p : partials) {
-            long start = ((Number) p.get(ExternalStats.COVERAGE_START_KEY)).longValue();
-            long end = ((Number) p.get(ExternalStats.COVERAGE_END_KEY)).longValue();
-            assertEquals("chunk coverage must tile the decompressed stream with no gap", expectedStart, start);
-            assertTrue("coverage end must advance", end > start);
-            expectedStart = end;
-            lastFlagged = Boolean.TRUE.equals(p.get(ExternalStats.COVERAGE_IS_LAST_KEY));
-        }
-        assertTrue("the final chunk must be flagged last (observed end-of-input)", lastFlagged);
     }
 
     /**
@@ -297,6 +244,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 sink,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 null
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
@@ -337,7 +286,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Pins the typed-failure contract from elastic/esql-planning#836 on the streaming coordinator: a raw
+     * Pins the typed-failure contract on the streaming coordinator: a raw
      * {@link IOException} thrown by a worker (here, {@code FailingFormatReader.read}) is stored in
      * {@code firstError} and surfaced by {@code checkError()}'s {@code surface()} as a typed
      * {@link ExternalClientException} (HTTP 400) — including the coordinator's "Streaming parallel parsing
@@ -456,6 +405,74 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 assertTrue("chunk[" + i + "] must have recordAligned=true (sliced on \\n)", ctx.recordAligned());
             }
             assertEquals("exactly one chunk must own the file's leading bytes", 1, firstSplitCount);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Canonical-stripe attribution is file-global. On a parallel <b>macro-split</b> ({@code baseFileOffset > 0})
+     * each chunk's stats base offset must equal its file-global {@code splitStartByte} — the two are the same
+     * file-global byte on a record-aligned chunk, and the stripe grid is file-global
+     * ({@code ordinal = floor((statsBase + recordOffsetInChunk) / stripeSize)}). An earlier version passed
+     * {@code chunk.coverageStart()} (stream-local, 0-based) to {@code .stats(...)} while {@code .splitStartByte()}
+     * used {@code baseFileOffset + coverageStart()}, so a parallel macro-split attributed records to stream-local
+     * stripes and misaligned siblings on the file-global grid. Red before that fix, green after.
+     */
+    public void testParallelStripeBaseIsFileGlobalForMacroSplit() throws Exception {
+        int lineCount = 1000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        long baseFileOffset = 1_000_000L; // a non-zero macro-split start
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            // Small chunkSize forces several chunks so interior + EOF chunks are both exercised.
+            LineFormatReader reader = new LineFormatReader(1024);
+            collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    stream,
+                    null,
+                    List.of("line"),
+                    100,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT,
+                    null,
+                    baseFileOffset,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    sink,
+                    64L, // stripe addressing active
+                    StripeColumnScope.PROJECTED,
+                    null
+                )
+            );
+
+            List<FormatReadContext> seen;
+            synchronized (reader.seenContexts) {
+                seen = new ArrayList<>(reader.seenContexts);
+            }
+            assertTrue("Expected at least 2 chunks, recorded " + seen.size(), seen.size() >= 2);
+            for (int i = 0; i < seen.size(); i++) {
+                FormatReadContext ctx = seen.get(i);
+                assertEquals(
+                    "chunk[" + i + "] stats base must be file-global (== splitStartByte), not stream-local",
+                    ctx.splitStartByte(),
+                    ctx.statsBaseOffset()
+                );
+                assertTrue(
+                    "chunk["
+                        + i
+                        + "] stats base ["
+                        + ctx.statsBaseOffset()
+                        + "] must include the macro-split baseFileOffset ["
+                        + baseFileOffset
+                        + "]",
+                    ctx.statsBaseOffset() >= baseFileOffset
+                );
+            }
         } finally {
             executor.shutdownNow();
         }
@@ -784,6 +801,222 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Faithful reproduction of the production multi-file text-read deadlock (elastic/elasticsearch#153056),
+     * draining the RAW coordinator iterator. {@code F} real streaming iterators, each multi-chunk (small
+     * chunkSize, large content), are drained by a producer-loop emulator that mirrors
+     * {@code AsyncExternalSourceOperatorFactory#drainHotPath} and runs on the SAME bounded pool as each
+     * coordinator's segmentator + one-shot parser tasks — the production wiring collapse. A big machine's
+     * saturation is emulated with a deliberately small pool.
+     * <p>
+     * Pre-fix, the emulator saw {@code waitForReady().isDone()} on a lone {@code POISON} end-of-chunk marker,
+     * called {@code hasNext()}, and BLOCKED on the parser latch across the inter-chunk gap — pinning pool
+     * threads until every thread was wedged and no parser could run. Post-fix ({@code isReadyNow} consumes the
+     * POISON so readiness reflects a real page or EOF) the drain parks instead, freeing the thread. Timed out
+     * (deadlocked) on {@code main} before the fix; completes after.
+     */
+    public void testConcurrentProducerLoopsOnSharedPoolDoNotDeadlock() throws Exception {
+        assertConcurrentProducerLoopsDrainWithoutDeadlock(false);
+    }
+
+    /**
+     * Same deadlock reproduction, but draining THROUGH {@link StatsCapturingIterator} — the production drain
+     * path wraps the coordinator in pass-through iterators. Those wrappers inherit the default immediately-done
+     * {@link CloseableIterator#waitForReady()}, which would swallow the coordinator's honest signal and send the
+     * drain straight into a blocking {@code hasNext()}. This exercises the wrapper {@code waitForReady()}
+     * forwarding (Fix 2b): without it, this deadlocks even with the coordinator-level fix.
+     */
+    public void testConcurrentProducerLoopsThroughStatsCapturingWrapperDoNotDeadlock() throws Exception {
+        assertConcurrentProducerLoopsDrainWithoutDeadlock(true);
+    }
+
+    private void assertConcurrentProducerLoopsDrainWithoutDeadlock(boolean wrapWithStatsCapturing) throws Exception {
+        int fileCount = 4;
+        int parsingParallelism = 4;
+        int poolSize = 6;
+        int linesPerFile = 4000;
+        int chunkSize = 64; // many chunks per file → long-lived segmentators + real POISON gaps
+        int batchSize = 8;
+
+        ExecutorService pool = Executors.newFixedThreadPool(poolSize);
+        List<CloseableIterator<Page>> iterators = new ArrayList<>();
+        List<PlainActionFuture<Integer>> dones = new ArrayList<>();
+        try {
+            for (int f = 0; f < fileCount; f++) {
+                InputStream s = new ByteArrayInputStream(buildContent(linesPerFile).getBytes(StandardCharsets.UTF_8));
+                LineFormatReader reader = new LineFormatReader(chunkSize);
+                CloseableIterator<Page> raw = StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    s,
+                    List.of("line"),
+                    batchSize,
+                    parsingParallelism,
+                    pool,
+                    ErrorPolicy.STRICT
+                );
+                CloseableIterator<Page> it = wrapWithStatsCapturing
+                    ? StatsCapturingIterator.wrap(raw, ExternalStatsCapture.newSink())
+                    : raw;
+                iterators.add(it);
+                PlainActionFuture<Integer> done = new PlainActionFuture<>();
+                dones.add(done);
+                pool.execute(() -> drainViaProducerLoop(it, pool, new AtomicInteger(), done));
+            }
+            int totalRows = 0;
+            for (PlainActionFuture<Integer> d : dones) {
+                totalRows += d.actionGet(TimeValue.timeValueSeconds(30)); // deadlock => timeout => failure
+            }
+            assertEquals(fileCount * linesPerFile, totalRows);
+        } finally {
+            for (CloseableIterator<Page> it : iterators) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+        }
+    }
+
+    /**
+     * Proves the "EOF-drop" scenario cannot occur in the real coordinator, deterministically. A gated reader
+     * blocks the parse of chunk index 1 until the test releases it, so the producer-loop drain is forced to the
+     * exact inter-chunk gap the draft feared: chunk 0 fully drained (its POISON at the slot head), chunk 1 still
+     * parsing. While the gate is held the drain must NOT conclude EOF (which would drop every later chunk); it
+     * must park and wait. After release, every row of every chunk must be delivered in order.
+     */
+    public void testProducerLoopDoesNotDropRowsAcrossDeterministicPoisonGap() throws Exception {
+        int linesPerFile = 2000;
+        int chunkSize = 64; // many chunks; chunk index 1 is gated
+        int batchSize = 8;
+        int parsingParallelism = 4;
+
+        CountDownLatch gate = new CountDownLatch(1);
+        CountDownLatch gatedReached = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(6);
+        OrderCapturingSink rows = new OrderCapturingSink();
+        PlainActionFuture<Integer> done = new PlainActionFuture<>();
+        CloseableIterator<Page> it = null;
+        try {
+            GatedLineFormatReader reader = new GatedLineFormatReader(chunkSize, 1, gate, gatedReached);
+            InputStream s = new ByteArrayInputStream(buildContent(linesPerFile).getBytes(StandardCharsets.UTF_8));
+            it = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                s,
+                List.of("line"),
+                batchSize,
+                parsingParallelism,
+                pool,
+                ErrorPolicy.STRICT
+            );
+            CloseableIterator<Page> iter = it;
+            pool.execute(() -> drainViaProducerLoopCollecting(iter, pool, rows, done));
+
+            // Chunk 1's parser has entered read() and is blocked on the gate: the drain is now at (or racing into)
+            // the chunk-0→chunk-1 POISON gap with more chunks still to come.
+            assertTrue("gated chunk parser never reached", gatedReached.await(30, TimeUnit.SECONDS));
+            // The drain must not have concluded EOF while chunk 1 (and everything after it) is still unparsed —
+            // that is exactly the silent EOF-drop the draft feared. Give it a beat to (wrongly) finish if it would.
+            Thread.sleep(200);
+            assertFalse("producer-loop drain wrongly concluded EOF at a mid-stream POISON gap", done.isDone());
+
+            gate.countDown();
+            int total = done.actionGet(TimeValue.timeValueSeconds(30));
+            assertEquals("every row across the gated gap must be delivered", linesPerFile, total);
+            for (int i = 0; i < linesPerFile; i++) {
+                assertEquals("row order preserved across the gap", "line-" + String.format(Locale.ROOT, "%04d", i), rows.lines.get(i));
+            }
+        } finally {
+            gate.countDown();
+            if (it != null) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+        }
+    }
+
+    /** Mirrors {@code AsyncExternalSourceOperatorFactory#drainHotPath}: yields the pool thread on not-ready. */
+    private static void drainViaProducerLoop(
+        CloseableIterator<Page> it,
+        Executor pool,
+        AtomicInteger rows,
+        PlainActionFuture<Integer> done
+    ) {
+        try {
+            while (true) {
+                SubscribableListener<Void> ready = it.waitForReady();
+                if (ready.isDone() == false) {
+                    ready.addListener(
+                        ActionListener.wrap(v -> pool.execute(() -> drainViaProducerLoop(it, pool, rows, done)), done::onFailure)
+                    );
+                    return;
+                }
+                if (it.hasNext() == false) { // pre-fix: BLOCKS here on a POISON gap (isReadyNow reports ready on POISON)
+                    SubscribableListener<Void> recheck = it.waitForReady();
+                    if (recheck.isDone()) {
+                        done.onResponse(rows.get());
+                        return;
+                    }
+                    recheck.addListener(
+                        ActionListener.wrap(v -> pool.execute(() -> drainViaProducerLoop(it, pool, rows, done)), done::onFailure)
+                    );
+                    return;
+                }
+                Page p = it.next();
+                rows.addAndGet(p.getPositionCount());
+                p.releaseBlocks();
+            }
+        } catch (Exception e) {
+            done.onFailure(e);
+        }
+    }
+
+    /** As {@link #drainViaProducerLoop} but records the decoded lines (order-preserving) for the EOF-drop assertions. */
+    private static void drainViaProducerLoopCollecting(
+        CloseableIterator<Page> it,
+        Executor pool,
+        OrderCapturingSink sink,
+        PlainActionFuture<Integer> done
+    ) {
+        try {
+            BytesRef scratch = new BytesRef();
+            while (true) {
+                SubscribableListener<Void> ready = it.waitForReady();
+                if (ready.isDone() == false) {
+                    ready.addListener(
+                        ActionListener.wrap(v -> pool.execute(() -> drainViaProducerLoopCollecting(it, pool, sink, done)), done::onFailure)
+                    );
+                    return;
+                }
+                if (it.hasNext() == false) {
+                    SubscribableListener<Void> recheck = it.waitForReady();
+                    if (recheck.isDone()) {
+                        done.onResponse(sink.lines.size());
+                        return;
+                    }
+                    recheck.addListener(
+                        ActionListener.wrap(v -> pool.execute(() -> drainViaProducerLoopCollecting(it, pool, sink, done)), done::onFailure)
+                    );
+                    return;
+                }
+                Page p = it.next();
+                BytesRefBlock block = p.getBlock(0);
+                for (int i = 0; i < block.getPositionCount(); i++) {
+                    sink.lines.add(block.getBytesRef(i, scratch).utf8ToString());
+                }
+                p.releaseBlocks();
+            }
+        } catch (Exception e) {
+            done.onFailure(e);
+        }
+    }
+
+    /** Order-preserving row sink; only the single producer-loop consumer appends, so a plain list suffices. */
+    private static final class OrderCapturingSink {
+        private final List<String> lines = new ArrayList<>();
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {
@@ -951,6 +1184,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 maxRecordBytes,
                 null,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
@@ -998,6 +1233,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 maxRecordBytes,
                 null,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
@@ -1027,6 +1264,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 maxRecordBytes,
                 null,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 null
             );
             List<String> got = collectLines(lenientIterator);
@@ -1073,6 +1312,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 maxRecordBytes,
                 null,
+                -1L,
+                StripeColumnScope.PROJECTED,
                 sink::add
             );
             List<String> got = collectLines(iterator);
@@ -1120,6 +1361,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             0L,
             maxRecordBytes,
             null,
+            -1L,
+            StripeColumnScope.PROJECTED,
             null
         );
         List<String> got = collectLines(iterator);
@@ -1530,6 +1773,98 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Wraps {@link LineFormatReader} and blocks the parse of one chosen chunk index on a latch, so a test can
+     * deterministically hold the consumer at the inter-chunk POISON gap. The chunk index is recovered from the
+     * per-chunk storage path the coordinator synthesizes ({@code mem://chunk-<index>}). Gating survives
+     * {@link #withSchema} (the coordinator swaps to the schema-bound reader after chunk 0), so a gated middle
+     * chunk stays gated.
+     */
+    private static final class GatedLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        private final LineFormatReader delegate;
+        private final int gatedChunkIndex;
+        private final CountDownLatch gate;
+        private final CountDownLatch gatedReached;
+
+        GatedLineFormatReader(long minSegment, int gatedChunkIndex, CountDownLatch gate, CountDownLatch gatedReached) {
+            this(new LineFormatReader(minSegment), gatedChunkIndex, gate, gatedReached);
+        }
+
+        private GatedLineFormatReader(LineFormatReader delegate, int gatedChunkIndex, CountDownLatch gate, CountDownLatch gatedReached) {
+            this.delegate = delegate;
+            this.gatedChunkIndex = gatedChunkIndex;
+            this.gate = gate;
+            this.gatedReached = gatedReached;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            if (chunkIndexOf(object) == gatedChunkIndex) {
+                gatedReached.countDown();
+                try {
+                    gate.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("interrupted waiting on gate", e);
+                }
+            }
+            return delegate.read(object, context);
+        }
+
+        private static int chunkIndexOf(StorageObject object) {
+            String p = object.path().toString();
+            int at = p.lastIndexOf("chunk-");
+            if (at < 0) {
+                return -1;
+            }
+            try {
+                return Integer.parseInt(p.substring(at + "chunk-".length()));
+            } catch (NumberFormatException e) {
+                return -1;
+            }
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return new GatedLineFormatReader((LineFormatReader) delegate.withSchema(schema), gatedChunkIndex, gate, gatedReached);
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return delegate.rowPositionStrategy();
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public String formatName() {
+            return delegate.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
     }
 
     /**

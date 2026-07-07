@@ -3069,6 +3069,14 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Same as {@link #runInParallel(Runnable...)} but also attempts to start all tasks at the same time by blocking execution on a
+     * barrier until all threads are started and ready to execute their task.
+     */
+    public static void startInParallel(Runnable... tasks) {
+        startInParallel(tasks.length, i -> tasks[i].run());
+    }
+
+    /**
      * Same as {@link #runInParallel(int, IntConsumer)} but also attempts to start all tasks at the same time by blocking execution on a
      * barrier until all threads are started and ready to execute their task.
      */

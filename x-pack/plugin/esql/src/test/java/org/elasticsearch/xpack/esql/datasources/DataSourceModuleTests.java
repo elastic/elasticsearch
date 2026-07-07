@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
@@ -56,6 +57,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.mockito.Mockito.mock;
+
 /**
  * Integration tests for DataSourceModule verifying SPI discovery and registration.
  * These tests ensure all data sources work correctly via the plugin discovery mechanism.
@@ -65,6 +68,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * spawn daemon threads which are difficult to clean up in unit tests.
  */
 public class DataSourceModuleTests extends ESTestCase {
+
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
 
     private BlockFactory blockFactory;
 
@@ -135,7 +140,7 @@ public class DataSourceModuleTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
         assertFalse("plugin must not be closed before module close", plugin.closed.get());
@@ -443,7 +448,7 @@ public class DataSourceModuleTests extends ESTestCase {
             settings,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
     }

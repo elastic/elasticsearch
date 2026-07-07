@@ -14,9 +14,10 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -31,6 +32,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -109,7 +111,6 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testDocValuesEnabledIfIndexModeIsColumnar() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         var mapperService = createMapperService(Settings.builder().put("index.mode", "columnar").build(), topMapping(b -> {}));
         DocumentMapper docMapper = mapperService.documentMapper();
         RoutingFieldMapper mapper = (RoutingFieldMapper) docMapper.mappers().getMapper("_routing");
@@ -270,6 +271,47 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             assertRoutingStoredAsDocValues(doc.docs().get(i), "routing_value");
         }
         assertRoutingStoredAsDocValues(doc.rootDoc(), "routing_value");
+    }
+
+    public void testBlockLoaderStoredField() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        MappedFieldType ft = mapperService.fieldType("_routing");
+        assertNotNull("RoutingFieldType should provide a non-null BlockLoader", ft.blockLoader(new DummyBlockLoaderContext("test")));
+        assertThat(
+            "stored-field routing should use BytesFromStringsBlockLoader",
+            ft.blockLoader(new DummyBlockLoaderContext("test")),
+            instanceOf(BlockStoredFieldsReader.BytesFromStringsBlockLoader.class)
+        );
+    }
+
+    public void testBlockLoaderDocValues() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_routing").field("doc_values", true).endObject()));
+        MappedFieldType ft = mapperService.fieldType("_routing");
+        assertNotNull(
+            "doc-values RoutingFieldType should provide a non-null BlockLoader",
+            ft.blockLoader(new DummyBlockLoaderContext("test"))
+        );
+        assertThat(
+            "doc-values routing should use BytesRefsFromOrdsBlockLoader",
+            ft.blockLoader(new DummyBlockLoaderContext("test")),
+            instanceOf(org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader.class)
+        );
+    }
+
+    public void testDocValuesWildcardQueryUsesDvRewrite() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_routing").field("doc_values", true).endObject()));
+        MappedFieldType ft = mapperService.fieldType("_routing");
+        SearchExecutionContext ctx = createSearchExecutionContext(mapperService);
+        Query q = ft.wildcardQuery("s1*", MultiTermQuery.DOC_VALUES_REWRITE, false, ctx);
+        assertNotNull("wildcardQuery on doc-values routing must not be null", q);
+    }
+
+    public void testDocValuesRegexpQueryUsesDvRewrite() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_routing").field("doc_values", true).endObject()));
+        MappedFieldType ft = mapperService.fieldType("_routing");
+        SearchExecutionContext ctx = createSearchExecutionContext(mapperService);
+        Query q = ft.regexpQuery("s.*", 0, 0, 10000, MultiTermQuery.DOC_VALUES_REWRITE, ctx);
+        assertNotNull("regexpQuery on doc-values routing must not be null", q);
     }
 
     private static void assertRoutingStoredAsDocValues(LuceneDocument document, String routing) {

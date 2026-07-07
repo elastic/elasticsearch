@@ -70,7 +70,6 @@ public class Similarities {
         DataType.INT8,
         Operation.BULK_OFFSETS
     );
-    static final MethodHandle COSINE_I8_BULK8 = DISTANCE_FUNCS.getHandle(Function.COSINE, DataType.INT8, Operation.BULK8);
     static final MethodHandle DOT_PRODUCT_I8 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.INT8, Operation.SINGLE);
     static final MethodHandle DOT_PRODUCT_I8_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.INT8, Operation.BULK);
     static final MethodHandle DOT_PRODUCT_I8_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
@@ -78,7 +77,6 @@ public class Similarities {
         DataType.INT8,
         Operation.BULK_OFFSETS
     );
-    static final MethodHandle DOT_PRODUCT_I8_BULK8 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.INT8, Operation.BULK8);
     static final MethodHandle SQUARE_DISTANCE_I8 = DISTANCE_FUNCS.getHandle(Function.SQUARE_DISTANCE, DataType.INT8, Operation.SINGLE);
     static final MethodHandle SQUARE_DISTANCE_I8_BULK = DISTANCE_FUNCS.getHandle(Function.SQUARE_DISTANCE, DataType.INT8, Operation.BULK);
     static final MethodHandle SQUARE_DISTANCE_I8_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
@@ -97,8 +95,6 @@ public class Similarities {
         DataType.INT8,
         Operation.BULK_SPARSE
     );
-    static final MethodHandle SQUARE_DISTANCE_I8_BULK8 = DISTANCE_FUNCS.getHandle(Function.SQUARE_DISTANCE, DataType.INT8, Operation.BULK8);
-
     static final MethodHandle DOT_PRODUCT_D1Q4 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.SINGLE);
     static final MethodHandle DOT_PRODUCT_D1Q4_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.BULK);
     static final MethodHandle DOT_PRODUCT_D1Q4_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
@@ -221,18 +217,11 @@ public class Similarities {
         DataType.FLOAT32,
         Operation.BULK_SPARSE
     );
-    static final MethodHandle DOT_PRODUCT_F32_BULK8 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK8);
-
     static final MethodHandle SQUARE_DISTANCE_F32 = DISTANCE_FUNCS.getHandle(Function.SQUARE_DISTANCE, DataType.FLOAT32, Operation.SINGLE);
     static final MethodHandle SQUARE_DISTANCE_F32_BULK_SPARSE = DISTANCE_FUNCS.getHandle(
         Function.SQUARE_DISTANCE,
         DataType.FLOAT32,
         Operation.BULK_SPARSE
-    );
-    static final MethodHandle SQUARE_DISTANCE_F32_BULK8 = DISTANCE_FUNCS.getHandle(
-        Function.SQUARE_DISTANCE,
-        DataType.FLOAT32,
-        Operation.BULK8
     );
 
     private static RuntimeException rethrow(Throwable t) {

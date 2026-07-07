@@ -658,7 +658,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testIgnoredSourceAlwaysLoadedRegardlessOfSourceFilter() throws IOException {
-        assumeTrue("feature under test must be enabled", IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled());
         MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("kwd").field("type", "keyword").field("ignore_above", 1).endObject();
             b.startObject("other").field("type", "keyword").field("ignore_above", 1).endObject();
@@ -824,7 +823,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesAutoFlattenSubobjects() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -846,7 +844,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesRejectSubobjectsParam() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
@@ -864,7 +861,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesRejectRuntimeDynamic() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
@@ -882,7 +878,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModesRejectSyntheticSourceKeepOnObject() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             for (String value : List.of("all", "arrays", "none")) {
                 Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
@@ -911,7 +906,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModesRejectStoreArraySourceOnObject() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
@@ -934,7 +928,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesAllowNested() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -961,7 +954,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesRejectNestedWithinNested() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             // Columnar supports a single level of nesting only; subobjects:false still allows multiple levels
@@ -990,7 +982,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesRejectEnabledFalseInsideNested() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             // Columnar's per-prefix flattening facets (enabled:false, heterogeneous dynamic) are captured on the root
@@ -1021,7 +1012,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesRejectMismatchedDynamicInsideNested() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             // Same boundary for a per-prefix dynamic override: accepted at the root
@@ -1051,7 +1041,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesNestedInsideFlattenedObject() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -1085,7 +1074,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesNestedInteriorIsFlat() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -1115,7 +1103,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesFieldResolutionFlatFirstThenNested() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -1142,7 +1129,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesNestedSyntheticSourceRoundTrip() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // Scoped to COLUMNAR: LOGSDB_COLUMNAR's default mapping requires a @timestamp value on every document.
         // The synthetic source reconstruction path is identical for both modes (both are strict columnar and default
         // to synthetic source); the mapping-acceptance tests above already cover LOGSDB_COLUMNAR.
@@ -1176,7 +1162,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesDynamicFieldInsideNestedConverges() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // A nested object is a real document boundary even under the columnar subobjects:false default, so a dynamic field inside it
         // must be added inside the nested mapper ([n.ndyn]). If it were flattened to a root leaf ([ndyn]), the proposed mapping update
         // would target the wrong path and re-parsing the same document would keep proposing it, tripping the indexing-time
@@ -1204,7 +1189,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesDynamicFieldInsideNestedInObjectConverges() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // Same as above but the nested object is declared inside a (flattened) object, so its full path is [obj.n]: the dynamic
         // field must still land inside the nested mapper ([obj.n.ndyn]) rather than as a flat leaf, so the mapping converges.
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
@@ -1266,7 +1250,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesNestedLeafArrayRoundTrip() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("comments");
@@ -1298,7 +1281,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     private void assertNestedLeafArrayRoundTrip(String leafType, CheckedConsumer<XContentBuilder, IOException> doc, String expected)
         throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("comments");
@@ -1351,7 +1333,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesRejectPassThroughInsideNested() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             // A pass-through object's priority/alias is captured only at the columnar root, so inside a nested scope it is
@@ -1381,7 +1362,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesAllowHeterogeneousDynamic() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             // Root dynamic=true, attributes dynamic=false, resource dynamic=strict
@@ -1417,7 +1397,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesHeterogeneousDynamicNestedPrefixes() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             // foo dynamic=false, foo.bar dynamic=true (overrides parent)
@@ -1458,7 +1437,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesAllowEnabledFalse() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {

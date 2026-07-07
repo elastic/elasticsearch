@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.core.Strings.format;
@@ -97,6 +98,8 @@ final class CanMatchPreFilterSearchPhase {
      * from iterators and counted in {@link CanMatchResult#skippedByClusterAlias()}.
      */
     private final boolean includeSkippedShardsInIterators;
+    private final LongAdder canMatchResultBytesRead = new LongAdder();
+    private final LongAdder canMatchRequestBytesWritten = new LongAdder();
 
     private CanMatchPreFilterSearchPhase(
         Logger logger,
@@ -198,7 +201,7 @@ final class CanMatchPreFilterSearchPhase {
             @Override
             protected void doRun() {
                 assert assertSearchCoordinationThread();
-                new CanMatchPreFilterSearchPhase(
+                CanMatchPreFilterSearchPhase phase = new CanMatchPreFilterSearchPhase(
                     logger,
                     searchTransportService,
                     nodeIdToConnection,
@@ -213,7 +216,27 @@ final class CanMatchPreFilterSearchPhase {
                     coordinatorRewriteContextProvider,
                     includeSkippedShardsInIterators,
                     listener
-                ).runCoordinatorRewritePhase();
+                );
+                listener.addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(CanMatchResult canMatchResult) {
+                        long resultBytes = phase.canMatchResultBytesRead.sumThenReset();
+                        long requestBytes = phase.canMatchRequestBytesWritten.sumThenReset();
+                        if (resultBytes > 0) {
+                            assert requestBytes > 0 : "successful responses from remote nodes must have corresponding request bytes set";
+                            searchResponseMetrics.recordSearchPhaseShardResultBytes(PHASE_NAME, resultBytes, searchRequestAttributes);
+                        }
+                        if (requestBytes > 0) {
+                            searchResponseMetrics.recordSearchPhaseShardRequestBytes(PHASE_NAME, requestBytes, searchRequestAttributes);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // do not record bytes of failed phases
+                    }
+                });
+                phase.runCoordinatorRewritePhase();
             }
         });
         return listener;
@@ -376,7 +399,9 @@ final class CanMatchPreFilterSearchPhase {
                                     onOperationFailed(shard.getShardRequestIndex(), e);
                                 }
                             }
-                        }
+                        },
+                        canMatchResultBytesRead::add,
+                        canMatchRequestBytesWritten::add
                     );
                 } catch (Exception e) {
                     for (CanMatchNodeRequest.Shard shard : shardLevelRequests) {

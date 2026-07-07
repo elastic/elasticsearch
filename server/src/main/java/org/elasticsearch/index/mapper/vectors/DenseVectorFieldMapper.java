@@ -767,24 +767,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean isNormalized
         );
 
-        /** Resolves, validates, and builds the indexed exact-KNN query in one call; see {@link #resolveAndValidate}. */
-        Query createExactKnnQuery(
-            VectorData queryVector,
-            Integer dims,
-            VectorSimilarity effectiveSimilarity,
-            boolean isOverridden,
-            boolean isNormalized,
-            VectorSimilarityFunction function,
-            boolean useQuantized,
-            String field
-        ) {
-            return resolveAndValidate(queryVector, dims, effectiveSimilarity, isOverridden, isNormalized).createExactKnnQuery(
-                field,
-                function,
-                useQuantized
-            );
-        }
-
         /** Resolves, validates, and builds the doc-values exact-KNN query in one call; see {@link #resolveAndValidate}. */
         Query createDocValuesExactKnnQuery(
             VectorData queryVector,
@@ -3291,10 +3273,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (useQuantized && isSimilarityOverridden) {
                 throw new IllegalArgumentException("[similarity_function] cannot be used when [quantized] is true");
             }
-            // similarity is null when a field is not indexed
-            VectorSimilarity effectiveSimilarity = isSimilarityOverridden ? similarityOverride
-                : similarity != null ? similarity
-                : element.elementType().defaultSimilarity();
+            VectorSimilarity effectiveSimilarity = effectiveSimilarity(similarityOverride);
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = nonIndexed
                 ? element.createDocValuesExactKnnQuery(resolvedQueryVector, dims, effectiveSimilarity, name(), indexVersionCreated)
@@ -3309,6 +3288,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
+        private VectorSimilarity effectiveSimilarity(@Nullable VectorSimilarity similarityOverride) {
+            if (similarityOverride != null) return similarityOverride;
+            if (similarity != null) return similarity;
+            return element.elementType().defaultSimilarity();
+        }
+
         private Query createIndexedExactKnnQuery(
             VectorData resolvedQueryVector,
             VectorSimilarity effectiveSimilarity,
@@ -3321,16 +3306,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 isSimilarityOverridden ? null : indexVersionCreated,
                 element.elementType()
             );
-            return element.createExactKnnQuery(
-                resolvedQueryVector,
-                dims,
-                effectiveSimilarity,
-                isSimilarityOverridden,
-                isNormalized(),
-                function,
-                useQuantized,
-                name()
-            );
+            return element.resolveAndValidate(resolvedQueryVector, dims, effectiveSimilarity, isSimilarityOverridden, isNormalized())
+                .createExactKnnQuery(name(), function, useQuantized);
         }
 
         public boolean isNormalized() {

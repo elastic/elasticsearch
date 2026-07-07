@@ -14,10 +14,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -915,9 +917,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "Requires unmapped_fields=LOAD support",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
         );
+        // The text field [partial] is unmapped in some of the queried indices and cannot be implicitly loaded, so a non-loadable
+        // field warning is emitted. That warning is covered elsewhere; here we just ignore it.
         Response resp = runESQLCommand(
             "fls_user",
-            "SET unmapped_fields=\"load\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value"
+            "SET unmapped_fields=\"load\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value",
+            WarningsHandler.PERMISSIVE
         );
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
@@ -1325,9 +1330,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(json));
         request.addParameter("error_trace", "true");
         // EXPLAIN queries may trigger a default limit warning, so ignore warnings
-        request.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(warnings -> false)
-        );
+        request.setOptions(runAsUserOptions(user, WarningsHandler.PERMISSIVE));
         return client().performRequest(request);
     }
 
@@ -2150,6 +2153,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     protected Response runESQLCommand(String user, String command) throws IOException {
+        return runESQLCommand(user, command, null);
+    }
+
+    protected Response runESQLCommand(String user, String command, @Nullable WarningsHandler warningsHandler) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit
             command += " | limit 10000000";
@@ -2161,14 +2168,21 @@ public class EsqlSecurityIT extends ESRestTestCase {
         json.endObject();
         Request request = new Request("POST", "_query");
         request.setJsonEntity(Strings.toString(json));
-        setUser(request, user);
+        request.setOptions(runAsUserOptions(user, warningsHandler));
         request.addParameter("error_trace", "true");
         return client().performRequest(request);
     }
 
     private static void setUser(Request request, String user) {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        request.setOptions(runAsUserOptions(user, null));
+    }
 
+    static RequestOptions.Builder runAsUserOptions(String user, @Nullable WarningsHandler warningsHandler) {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user);
+        if (warningsHandler != null) {
+            options.setWarningsHandler(warningsHandler);
+        }
+        return options;
     }
 
     static void addRandomPragmas(XContentBuilder builder) throws IOException {

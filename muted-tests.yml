@@ -593,9 +593,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152379
-- class: org.elasticsearch.index.store.BytesReadHeaderIT
-  method: testMultipleIndicesAccumulateBytesRead
-  issue: https://github.com/elastic/elasticsearch/issues/152425
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498
@@ -770,3 +767,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/153084
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:inlinestats.doubleShadowingWithEval}
+  issue: https://github.com/elastic/elasticsearch/issues/153096

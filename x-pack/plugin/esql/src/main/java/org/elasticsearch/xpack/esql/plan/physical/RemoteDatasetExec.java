@@ -32,7 +32,7 @@ import java.util.Objects;
  * this leaf to an exchange-source operator (a later increment), open an exchange to {@link #handle}, dispatch
  * {@code ExecuteAbstractionRequest} carrying only the dataset's {@link #datasetName}, and poll result pages back.
  */
-public class RemoteDatasetExec extends LeafExec {
+public class RemoteDatasetExec extends LeafExec implements RemoteAbstractionExec {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
@@ -64,6 +64,12 @@ public class RemoteDatasetExec extends LeafExec {
         return datasetName;
     }
 
+    @Override
+    public String abstractionName() {
+        return datasetName;
+    }
+
+    @Override
     public String handle() {
         return handle;
     }

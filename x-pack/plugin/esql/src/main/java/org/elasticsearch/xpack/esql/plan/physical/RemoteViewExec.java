@@ -33,7 +33,7 @@ import java.util.Objects;
  * locally, and sinks the pages into the exchange. This is the execution half of federation, the sibling of
  * {@code resolve_schema}'s schema half — both name-based, both resolved on the remote.
  */
-public class RemoteViewExec extends LeafExec {
+public class RemoteViewExec extends LeafExec implements RemoteAbstractionExec {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
@@ -65,6 +65,12 @@ public class RemoteViewExec extends LeafExec {
         return viewName;
     }
 
+    @Override
+    public String abstractionName() {
+        return viewName;
+    }
+
+    @Override
     public String handle() {
         return handle;
     }

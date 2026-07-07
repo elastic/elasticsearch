@@ -82,6 +82,17 @@ public class FederationExecutionService {
     }
 
     /**
+     * Creates the per-leaf {@link ExchangeSourceHandler} the leaf owns and drains, sized to {@code bufferSize} and fed by
+     * this service's search executor. The leaf's operator factory creates exactly one of these and dispatches
+     * {@link #fetchAbstraction} into it once (see the once-per-leaf contract above); parallel operator instances only
+     * {@link ExchangeSourceHandler#createExchangeSource} from it. Keeping the executor here rather than exposing it to the
+     * planner keeps this service the single owner of the federation dispatch plumbing.
+     */
+    public ExchangeSourceHandler newLeafExchangeSource(int bufferSize) {
+        return new ExchangeSourceHandler(bufferSize, searchExecutor);
+    }
+
+    /**
      * Dispatches one remote-abstraction leaf: opens an exchange to {@code handle}'s home cluster, sends an
      * {@link ExecuteAbstractionRequest} carrying only {@code abstractionName} + {@code expectedAttributes}, and adds a
      * single remote sink into {@code leafExchangeSource}. When the sink finishes draining, {@code completion} completes;

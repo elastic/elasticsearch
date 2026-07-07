@@ -1259,6 +1259,7 @@ public class ComputeService {
                 context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
+                federationExecutionService,
                 inferenceService,
                 userAgentParserRegistry,
                 ipLocationService,

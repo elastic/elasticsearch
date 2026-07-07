@@ -825,14 +825,15 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 .put(Node.NODE_NAME_SETTING.getKey(), "node-1")
                 .build(),
             config(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
+            null, // exchangeSourceSupplier
+            null, // exchangeSinkSupplier
+            null, // enrichLookupService
+            null, // lookupFromIndexService
+            null, // federationExecutionService
+            null, // inferenceService
+            null, // userAgentParserRegistry
+            null, // ipLocationService
+            null, // projectResolver
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry,
             null, // parallelWorkerExecutor - not needed for these tests

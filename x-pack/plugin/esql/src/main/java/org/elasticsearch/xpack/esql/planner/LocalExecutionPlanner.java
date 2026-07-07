@@ -184,6 +184,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteAbstractionExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
@@ -199,7 +200,9 @@ import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.FederationExecutionService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.plugin.RemoteAbstractionSourceOperator;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
@@ -248,6 +251,7 @@ public class LocalExecutionPlanner {
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final FederationExecutionService federationExecutionService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
@@ -271,6 +275,7 @@ public class LocalExecutionPlanner {
         Supplier<ExchangeSink> exchangeSinkSupplier,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
+        FederationExecutionService federationExecutionService,
         InferenceService inferenceService,
         UserAgentParserRegistry userAgentParserRegistry,
         IpLocationService ipLocationService,
@@ -293,6 +298,7 @@ public class LocalExecutionPlanner {
         this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
+        this.federationExecutionService = federationExecutionService;
         this.inferenceService = inferenceService;
         this.userAgentParserRegistry = userAgentParserRegistry;
         this.ipLocationService = ipLocationService;
@@ -429,6 +435,8 @@ public class LocalExecutionPlanner {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
+        } else if (node instanceof RemoteAbstractionExec remoteAbstraction) {
+            return planRemoteAbstraction(remoteAbstraction, context);
         } else if (node instanceof ExternalSourceExec externalSource) {
             return planExternalSource(externalSource, context);
         }
@@ -760,6 +768,41 @@ public class LocalExecutionPlanner {
         var layout = exchangeSource.isIntermediateAgg() ? new ExchangeLayout(l) : l;
 
         return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchangeSourceSupplier), layout);
+    }
+
+    /**
+     * Lowers a {@code REMOTE} view/dataset leaf ({@code RemoteViewExec}/{@code RemoteDatasetExec}) to a per-leaf
+     * source operator that dispatches the abstraction to its home cluster through {@link FederationExecutionService} and
+     * drains the pages the home cluster sinks back — kind-blind across the two exec kinds via {@link RemoteAbstractionExec}.
+     * <p>
+     * Unlike {@link #planExchangeSource}, this does NOT reuse the plan's single main exchange source (its result funnel).
+     * Each leaf owns its own {@link org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler} and child session, so
+     * N remote-abstraction leaves coexist in one plan without contending on one source. The
+     * {@link RemoteAbstractionSourceOperator.Factory} owns the single once-per-leaf dispatch; parallel operator instances
+     * only take fresh source views of the already-dispatched handler.
+     * <p>
+     * The layout is built from the resolved {@link RemoteAbstractionExec#output()} exactly as {@link #planExchangeSource}
+     * builds it — no {@code intermediateAgg} decoration, because a remote abstraction sinks final rows, not intermediate
+     * aggregation state.
+     */
+    private PhysicalOperation planRemoteAbstraction(RemoteAbstractionExec remoteAbstraction, LocalExecutionPlannerContext context) {
+        Objects.requireNonNull(federationExecutionService, "FederationExecutionService wasn't provided");
+
+        var builder = new Layout.Builder();
+        builder.append(remoteAbstraction.output());
+        var layout = builder.build();
+
+        var factory = new RemoteAbstractionSourceOperator.Factory(
+            federationExecutionService,
+            sessionId,
+            parentTask,
+            configuration,
+            remoteAbstraction.handle(),
+            remoteAbstraction.abstractionName(),
+            remoteAbstraction.output(),
+            context.queryPragmas().exchangeBufferSize()
+        );
+        return PhysicalOperation.fromSource(factory, layout);
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {

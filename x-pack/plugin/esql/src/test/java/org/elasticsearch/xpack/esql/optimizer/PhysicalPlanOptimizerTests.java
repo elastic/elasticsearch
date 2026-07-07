@@ -9835,12 +9835,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             config,
             new ExchangeSourceHandler(10, null)::createExchangeSource,
             () -> exchangeSinkHandler.createExchangeSink(() -> {}),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
+            null, // enrichLookupService
+            null, // lookupFromIndexService
+            null, // federationExecutionService
+            null, // inferenceService
+            null, // userAgentParserRegistry
+            null, // ipLocationService
+            null, // projectResolver
             new EsPhysicalOperationProviders(
                 FoldContext.small(),
                 EmptyIndexedByShardId.instance(),

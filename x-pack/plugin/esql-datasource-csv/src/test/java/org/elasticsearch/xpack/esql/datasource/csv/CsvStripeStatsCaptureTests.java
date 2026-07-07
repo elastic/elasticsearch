@@ -507,6 +507,40 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         assertFalse("PROJECTED+COUNT(*) commits no column b", hasAnyColumnStat(projFrags, "b"));
     }
 
+    /**
+     * B1 stats regression: under the no-trim default an ALL-scope read routes through the house per-record
+     * tokenizer (Jackson's grammar does not apply), and stripe capture must still compose correctly over a
+     * padded-quoted file. A padded quote ({@code  "Alice, PhD"}) is ONE field, so the following integer
+     * column keeps its real values; the Jackson bug would mis-split it and corrupt {@code val}'s min/max.
+     * The captured min/max/count are stripe-layout invariant, so they equal the hand-computed truth
+     * regardless of the (deliberately small) stripe grid.
+     */
+    public void testAllScopeCaptureCorrectOnPaddedQuotedNoTrim() throws Exception {
+        byte[] full = "name:keyword,val:integer\n \"Alice, PhD\", 10\n \"Bob, MD\", 20\n \"Carol, PhD\", 30\n".getBytes(
+            StandardCharsets.UTF_8
+        );
+        long stripe = 20; // several stripes across the file, exercising per-stripe emit + reconcile fold
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD, Nullability.TRUE, null, false),
+            intCol("val")
+        );
+        Map<String, Object> meta = reconcileToMetadata(
+            captureScoped(full, 0, true, true, 1000, stripe, List.of("val"), StripeColumnScope.ALL),
+            schema
+        );
+        assertEquals(
+            "row count over the padded-quoted file",
+            3L,
+            ((Number) meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+        );
+        assertEquals(
+            "val min (padding must not corrupt the integer column)",
+            10,
+            ((Number) SourceStatisticsSerializer.extractColumnMin(meta, "val")).intValue()
+        );
+        assertEquals("val max", 30, ((Number) SourceStatisticsSerializer.extractColumnMax(meta, "val")).intValue());
+    }
+
     // header "a,b\n" + rows "i,100+i\n"; both columns inferred INTEGER.
     private static byte[] twoColumnCsv(int count) {
         StringBuilder sb = new StringBuilder("a,b\n");
@@ -1105,7 +1139,15 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         }
     }
 
-    /** Capture variant that also overrides the read encoding, to steer onto the plain Jackson bulk path. */
+    /**
+     * Capture variant that also overrides the read encoding, to steer onto the plain Jackson bulk path.
+     * {@code trim_spaces} is forced on so the read actually reaches that path: under the no-trim default,
+     * Jackson's grammar does not apply (padded-quoted mis-split, col-0 whitespace eating), so a
+     * non-direct read routes through the house per-record tokenizer on {@code CsvLogicalRecordReader}
+     * instead — which supplies byte-exact per-record offsets for any encoding and therefore captures
+     * stripes correctly rather than safe-missing. Trimming restores the Jackson bulk path this variant
+     * is meant to probe.
+     */
     private List<Map<String, Object>> captureScopedWithEncoding(
         byte[] bytes,
         long baseOffset,
@@ -1133,7 +1175,130 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         try (
             var handle = ExternalStatsCapture.bind(sink);
             CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
-                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, headerRow, CsvFormatReader.CONFIG_ENCODING, encoding)
+                Map.of(
+                    CsvFormatReader.CONFIG_HEADER_ROW,
+                    headerRow,
+                    CsvFormatReader.CONFIG_ENCODING,
+                    encoding,
+                    CsvFormatReader.CONFIG_TRIM_SPACES,
+                    true
+                )
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
+    /**
+     * B1 counterpart to {@link #testAllScopePlainJacksonBulkPathSafeMissesNoBogusStripes}: under the no-trim
+     * DEFAULT a non-UTF-8 read does NOT route onto the plain Jackson bulk path (Jackson's grammar does not
+     * apply — see {@code jacksonGrammarApplies}), so it flows through the house per-record tokenizer on
+     * {@link CsvLogicalRecordReader}, which supplies byte-exact per-record offsets for ANY encoding. Stripe
+     * capture must therefore SUCCEED here (not safe-miss), and differently-chunked scans of the same non-UTF-8
+     * file must fold to the exact row count. Exercised with a single-byte ISO-8859-1 file whose {@code é}
+     * (0xE9) is one byte in the read encoding but two in UTF-8, so char and byte cursors genuinely diverge.
+     */
+    /**
+     * B1 counterpart to {@link #testAllScopePlainJacksonBulkPathSafeMissesNoBogusStripes}: under the no-trim
+     * DEFAULT a non-UTF-8 read does NOT route onto the plain Jackson bulk path (Jackson's grammar does not
+     * apply — see {@code jacksonGrammarApplies}), so it flows through the house per-record tokenizer on
+     * {@link CsvLogicalRecordReader}, which supplies byte-exact per-record offsets for ANY encoding. Stripe
+     * capture must therefore SUCCEED here (not safe-miss), and differently-chunked scans of the same non-UTF-8
+     * file must fold to the exact row count. Exercised headerless (so a non-first split re-infers rather than
+     * eating a data row as a header) with single-byte encodings whose {@code é} (0xE9) is one byte in the read
+     * encoding but two in UTF-8, so char and byte cursors genuinely diverge — the case the byte tracker must
+     * get right. ALL scope, COUNT(*) projection: the fold checks the harvested per-stripe row counts.
+     */
+    public void testNonUtf8NoTrimHousePathCapturesStripesCorrectly() throws Exception {
+        for (String encoding : List.of("ISO-8859-1", "windows-1252")) {
+            byte[] full = latin1DataNoHeader(encoding, 10);
+            long stripe = 4; // many stripes across the file, so a collapsed/skewed offset would misattribute
+            int cut = latin1RecordBytes(encoding) * 4; // a record boundary partway through
+            List<Map<String, Object>> whole = captureScopedWithEncodingNoTrim(
+                full,
+                0,
+                true,
+                true,
+                1000,
+                stripe,
+                null,
+                StripeColumnScope.ALL,
+                encoding
+            );
+            assertFoldsTo(whole, 10, "encoding=" + encoding + " whole-file");
+            // Differently-chunked scan of the same file must fold to the SAME exact count.
+            List<Map<String, Object>> split = new ArrayList<>();
+            split.addAll(
+                captureScopedWithEncodingNoTrim(slice(full, 0, cut), 0, true, false, 1000, stripe, null, StripeColumnScope.ALL, encoding)
+            );
+            split.addAll(
+                captureScopedWithEncodingNoTrim(
+                    slice(full, cut, full.length),
+                    cut,
+                    false,
+                    true,
+                    1000,
+                    stripe,
+                    null,
+                    StripeColumnScope.ALL,
+                    encoding
+                )
+            );
+            assertFoldsTo(split, 10, "encoding=" + encoding + " two-chunk fold");
+        }
+    }
+
+    // Headerless single-column file: 'count' records, each a lone high-byte 'é' encoded in 'encoding'.
+    private static byte[] latin1DataNoHeader(String encoding, int count) {
+        java.nio.charset.Charset cs = java.nio.charset.Charset.forName(encoding);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            sb.append('é').append('\n');
+        }
+        return sb.toString().getBytes(cs);
+    }
+
+    // Bytes per data record ("é\n") in the given single-byte encoding: 'é' is one byte, '\n' one byte.
+    private static int latin1RecordBytes(String encoding) {
+        return "é\n".getBytes(java.nio.charset.Charset.forName(encoding)).length;
+    }
+
+    /**
+     * Encoding-overriding capture that leaves {@code trim_spaces} at its no-trim default (house per-record path)
+     * and reads headerless (synthetic column names) so a non-first split re-infers from its own rows rather than
+     * consuming a data row as a header. A {@code null} projection is a COUNT(*) read.
+     */
+    private List<Map<String, Object>> captureScopedWithEncodingNoTrim(
+        byte[] bytes,
+        long baseOffset,
+        boolean firstSplit,
+        boolean fileFinal,
+        int batchSize,
+        long stripeSize,
+        List<String> projectedColumns,
+        StripeColumnScope scope,
+        String encoding
+    ) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(batchSize)
+            .recordAligned(true)
+            .firstSplit(firstSplit)
+            .lastSplit(true)
+            .splitStartByte(baseOffset)
+            .stats(baseOffset, stripeSize, fileFinal)
+            .statsColumnScope(scope)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false, CsvFormatReader.CONFIG_ENCODING, encoding)
             ).read(o, ctx)
         ) {
             while (it.hasNext()) {

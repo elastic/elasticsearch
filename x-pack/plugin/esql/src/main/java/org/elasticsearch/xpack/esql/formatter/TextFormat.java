@@ -304,7 +304,25 @@ public enum TextFormat implements MediaType {
 
         @Override
         boolean hasHeader(RestRequest request) {
-            if (PARAM_HEADER_ABSENT.equalsIgnoreCase(request.param(URL_PARAM_HEADER))) {
+            String header = request.param(URL_PARAM_HEADER);
+            if (header == null) {
+                List<String> values = request.getAllHeaderValues("Accept");
+                if (values != null) {
+                    // header values are separated by `;` so try breaking it down
+                    for (String value : values) {
+                        String[] params = Strings.tokenizeToStringArray(value, ";");
+                        for (String param : params) {
+                            if (param.toLowerCase(Locale.ROOT).equals(URL_PARAM_HEADER + "=" + PARAM_HEADER_ABSENT)) {
+                                throw new IllegalArgumentException(
+                                    "[header=absent] is not supported for the [md] format; markdown tables require a header row"
+                                );
+                            }
+                        }
+                    }
+                }
+                return true;
+            }
+            if (PARAM_HEADER_ABSENT.equalsIgnoreCase(header)) {
                 throw new IllegalArgumentException(
                     "[header=absent] is not supported for the [md] format; markdown tables require a header row"
                 );

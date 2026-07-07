@@ -390,7 +390,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
                 ).execute()
             );
 
-            DataStreamLifecycleService dlm = internalCluster().getAnyMasterNodeInstance(DataStreamLifecycleService.class);
+            DataStreamLifecycleService dlm = internalCluster().getCurrentMasterNodeInstance(DataStreamLifecycleService.class);
             DataStreamLifecycleErrorStore dlmErrorStore = dlm.getErrorStore();
             String dataStreamName = "metrics-foo";
 

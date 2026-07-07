@@ -110,9 +110,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         this.clusterName = clusterName;
         this.targetLeaderNodesUpgraded = leaderNodesUpgraded;
         this.targetFollowerNodesUpgraded = followerNodesUpgraded;
-        this.upgradeState = UpgradeState.fromNodesUpgraded(
-            clusterName == ClusterName.LEADER ? leaderNodesUpgraded : followerNodesUpgraded
-        );
+        this.upgradeState = UpgradeState.fromNodesUpgraded(clusterName == ClusterName.LEADER ? leaderNodesUpgraded : followerNodesUpgraded);
     }
 
     @Before

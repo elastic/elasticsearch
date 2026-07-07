@@ -2,6 +2,9 @@ setup:
   - do:
       indices.create:
           index:  test
+          body:
+            settings:
+              index.search.idle.after: "24h"
   - do:
       index:
           index:  test

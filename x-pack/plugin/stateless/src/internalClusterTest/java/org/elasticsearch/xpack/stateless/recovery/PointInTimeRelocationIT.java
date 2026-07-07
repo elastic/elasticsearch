@@ -203,10 +203,9 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         var pitId2 = testDataSetup.pitId2;
         var numDocs_pit2 = testDataSetup.numDocs_pit2;
 
-        // open 300 more PITs on same index state
-        int lotsOfPits = 600;
+        int lotsOfPits = 2000;
         Set<BytesReference> lotsOfPitsIds = new HashSet<>(lotsOfPits);
-        for (int i = 0; i < lotsOfPits/2; i++) {
+        for (int i = 0; i < lotsOfPits / 2; i++) {
             var pointInTimeId = openPointInTime(indexName, TimeValue.timeValueMinutes(5)).getPointInTimeId();
             lotsOfPitsIds.add(pointInTimeId);
         }
@@ -216,8 +215,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         indexDocs(indexName, additionalDocs);
         flushAndRefresh(indexName);
 
-        // open 300 more PITs on same index state
-        for (int i = 0; i < lotsOfPits/2; i++) {
+        for (int i = 0; i < lotsOfPits / 2; i++) {
             var pointInTimeId = openPointInTime(indexName, TimeValue.timeValueMinutes(5)).getPointInTimeId();
             lotsOfPitsIds.add(pointInTimeId);
         }
@@ -293,11 +291,11 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             updated_pit2.set(resp.pointInTimeId());
         });
 
-//        assertBusy(
-//            () -> assertEquals("Expected all PIT contexts to be relocated.", 12012, searchService2.getActivePITContexts()),
-//            15,
-//            TimeUnit.SECONDS
-//        );
+        assertBusy(
+            () -> assertEquals("Expected all PIT contexts to be relocated.", lotsOfPits * 6 + 12, searchService2.getActivePITContexts()),
+            15,
+            TimeUnit.SECONDS
+        );
 
         logger.info("---> after relocation. 1min to take heap dump.");
         Thread.sleep(60000);
@@ -1011,26 +1009,36 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         ensureGreen(indexName);
 
         // Wait for all PIT contexts to be established on B and cleared from A.
+        // A's cleanup happens asynchronously after B confirms each handoff, so both checks need assertBusy.
         assertBusy(
             () -> assertEquals("All PIT contexts should be on searchNodeB.", (long) numPits, searchServiceB.getActivePITContexts()),
-            5,
+            10,
             TimeUnit.SECONDS
         );
-        assertEquals(0L, searchServiceA.getActivePITContexts());
+        assertBusy(
+            () -> assertEquals("Source node should have no PIT contexts after relocation.", 0L, searchServiceA.getActivePITContexts()),
+            10,
+            TimeUnit.SECONDS
+        );
 
-        // Verify current behaviour: each relocated PIT opens its own reader even though all PITs
-        // point to the same commit. After the SharedPITCommitReader fix this should be 1.
+        // All PITs point to the same commit, so they share one SharedPITCommitReader.
         var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         assertEquals(
-            "Each relocated PIT currently opens its own reader for the same commit (O(PITs x segments) memory).",
-            numPits,
-            searchEngine.getOpenReaderCount()
+            "All relocated PITs at the same commit should share one SharedPITCommitReader.",
+            1,
+            searchEngine.getSharedPITCommitReaderCount()
         );
 
         // Verify all PITs still return correct results after relocation.
+        // After relocation the search response carries an updated PIT ID encoding searchNodeB; use
+        // that updated ID for the close request so it routes to B, not the old A node ID.
         for (var pitId : pitIds) {
-            assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> assertHitCount(resp, numDocs));
-            closePointInTime(pitId);
+            var updatedPitId = new BytesReference[] { pitId };
+            assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertHitCount(resp, numDocs);
+                updatedPitId[0] = resp.pointInTimeId();
+            });
+            closePointInTime(updatedPitId[0]);
         }
         assertEquals(0L, searchServiceB.getActivePITContexts());
     }

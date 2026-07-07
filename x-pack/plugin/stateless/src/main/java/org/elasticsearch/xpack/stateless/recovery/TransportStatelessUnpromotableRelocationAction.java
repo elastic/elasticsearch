@@ -404,7 +404,12 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         }
     }
 
-    private void fetchOpenPitContextInfo(ShardId shardId, PitReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener, AtomicLong warningCounter) {
+    private void fetchOpenPitContextInfo(
+        ShardId shardId,
+        PitReaderContext context,
+        ActionListener<Optional<OpenPITContextInfo>> listener,
+        AtomicLong warningCounter
+    ) {
         // In case of a failure we want just to ignore this PIT and continue with the relocation process
         listener = listener.delegateResponse((l, e) -> {
             logger.warn(

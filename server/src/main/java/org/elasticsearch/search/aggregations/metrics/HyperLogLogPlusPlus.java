@@ -156,6 +156,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         Releasables.close(hllBuckets, hll, lc);
     }
 
+    long ramBytesUsed() {
+        return hllBuckets.ramBytesUsed() + hll.ramBytesUsed() + lc.ramBytesUsed();
+    }
+
     void addRunLen(long bucketOrd, int register, int runLen) {
         long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) - 1 : -1;
         if (hllBucket < 0) {
@@ -294,6 +298,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         @Override
         public void close() {
             Releasables.close(runLens);
+        }
+
+        long ramBytesUsed() {
+            return runLens.ramBytesUsed();
         }
     }
 
@@ -514,6 +522,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         public void close() {
             breaker.addWithoutBreaking(-bytesUsed);
             Releasables.close(cells);
+        }
+
+        long ramBytesUsed() {
+            return cells.ramBytesUsed() + bytesUsed;
         }
     }
 }

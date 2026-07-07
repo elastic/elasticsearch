@@ -14,30 +14,24 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
-import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,40 +41,11 @@ import static org.hamcrest.Matchers.equalTo;
  * When pushdown fires, the data driver uses a LocalSourceExec (no Async operators)
  * instead of scanning all row groups through AsyncExternalSourceOperatorFactory.
  */
-public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
-
-    /**
-     * Re-enables extension loading that {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses.
-     * Without this, DataSourcePlugin implementations (Parquet, HTTP) are not discovered.
-     */
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
+public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(ParquetDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesEnabled() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(ParquetDataSourcePlugin.class);
     }
 
     @Override
@@ -89,12 +54,11 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testCountStarPushdown() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 300;
         Path parquetFile = writeParquetFile(totalRows, 100);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*)";
+            String dataset = registerDataset("count_pushdown", StoragePath.fileUri(parquetFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
@@ -116,12 +80,11 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testCountStarPushdownSingleRowGroup() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 50;
         Path parquetFile = writeParquetFile(totalRows, totalRows + 1);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*)";
+            String dataset = registerDataset("count_pushdown", StoragePath.fileUri(parquetFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
@@ -138,13 +101,12 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testCountStarPushdownManyRowGroups() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 1000;
         // rowGroupSize=50 bytes forces ~20 row groups for 1000 rows
         Path parquetFile = writeParquetFile(totalRows, 50);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*)";
+            String dataset = registerDataset("count_pushdown", StoragePath.fileUri(parquetFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
@@ -162,17 +124,16 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testCountStarPushdownCoordinatorOnly() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 500;
         Path parquetFile = writeParquetFile(totalRows, 80);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*)";
+            String dataset = registerDataset("count_pushdown", StoragePath.fileUri(parquetFile), Map.of());
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
             // Force the coordinator-only distribution strategy via the dedicated query pragma
-            // (the EXTERNAL command's WITH-clause does not bridge into pragmas).
+            // (distribution is a query pragma, independent of the dataset's settings).
             request.pragmas(
                 new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "coordinator_only").build())
             );
@@ -196,18 +157,18 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
      * proving the {@code ExternalSourceFactory.validateConfig} SPI hook fires before any read.
      */
     public void testUnknownConfigKeyIsRejectedAtPlanningTime() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         Path parquetFile = writeParquetFile(10, 100);
         try {
-            String query = "EXTERNAL \""
-                + StoragePath.fileUri(parquetFile)
-                + "\" WITH { \"obviously_not_a_real_key\": \"x\" } | STATS c = COUNT(*)";
+            // The typo'd key lives in the dataset's settings (the FROM-path equivalent of the EXTERNAL
+            // WITH-clause); DatasetRewriter forwards it into the source config, where validateConfig
+            // rejects it at planning time — before any read — exactly as the WITH-clause did.
+            String dataset = registerDataset("count_pushdown", StoragePath.fileUri(parquetFile), Map.of("obviously_not_a_real_key", "x"));
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
             var request = syncEsqlQueryRequest(query);
 
             Exception e = expectThrows(Exception.class, () -> { run(request).close(); });
-            // The validator's IllegalArgumentException is wrapped twice on the way up
-            // (resolveSingleSource → ExternalSourceResolver). Walk the cause chain to find it.
+            // The validator's IllegalArgumentException is wrapped on the way up
+            // (DatasetRewriter → resolveSingleSource → ExternalSourceResolver). Walk the cause chain to find it.
             Throwable validatorIae = null;
             for (Throwable t = e; t != null; t = t.getCause()) {
                 if (t instanceof IllegalArgumentException
@@ -235,17 +196,15 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
      * {@code COUNT(*)} is unaffected.
      */
     public void testCountOverAllNullColumnWithoutNullCountStatFallsBackToZero() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int totalRows = 200;
         int rareNonNull = 4;
         Path parquetFile = writeNullableParquetFile(totalRows, rareNonNull);
         try {
-            String uri = StoragePath.fileUri(parquetFile);
+            String dataset = registerDataset("null_count_pushdown", StoragePath.fileUri(parquetFile), Map.of());
 
             // COUNT(always_null): null_count stat absent -> pushdown must decline and scan the column,
             // returning the true non-null count of 0 (the bug returned the row count, 200).
-            try (var response = runCount(uri, "non_null = COUNT(always_null)")) {
+            try (var response = runCount(dataset, "non_null = COUNT(always_null)")) {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
                 assertPushdownBypassed(response);
@@ -253,14 +212,14 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
 
             // COUNT(rare): 196 of 200 null, null_count stat present -> pushdown fires from statistics
             // and returns rowCount - nullCount = 4.
-            try (var response = runCount(uri, "c = COUNT(rare)")) {
+            try (var response = runCount(dataset, "c = COUNT(rare)")) {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo((long) rareNonNull));
                 assertPushdownFired(response);
             }
 
             // COUNT(*) is answered from the row count regardless and stays pushed down.
-            try (var response = runCount(uri, "c = COUNT(*)")) {
+            try (var response = runCount(dataset, "c = COUNT(*)")) {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo((long) totalRows));
                 assertPushdownFired(response);
@@ -270,8 +229,8 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private EsqlQueryResponse runCount(String uri, String statsClause) {
-        var request = syncEsqlQueryRequest("EXTERNAL \"" + uri + "\" | STATS " + statsClause);
+    private EsqlQueryResponse runCount(String dataset, String statsClause) {
+        var request = syncEsqlQueryRequest("FROM " + dataset + " | STATS " + statsClause);
         request.profile(true);
         return run(request);
     }
@@ -411,48 +370,5 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
         Path tempFile = createTempDir().resolve("null_count_test.parquet");
         Files.write(tempFile, baos.toByteArray());
         return tempFile;
-    }
-
-    private static OutputFile createOutputFile(ByteArrayOutputStream baos) {
-        return new OutputFile() {
-            @Override
-            public PositionOutputStream create(long blockSizeHint) {
-                return new PositionOutputStream() {
-                    private long position = 0;
-
-                    @Override
-                    public long getPos() {
-                        return position;
-                    }
-
-                    @Override
-                    public void write(int b) throws IOException {
-                        baos.write(b);
-                        position++;
-                    }
-
-                    @Override
-                    public void write(byte[] b, int off, int len) throws IOException {
-                        baos.write(b, off, len);
-                        position += len;
-                    }
-                };
-            }
-
-            @Override
-            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
-                return create(blockSizeHint);
-            }
-
-            @Override
-            public boolean supportsBlockSize() {
-                return false;
-            }
-
-            @Override
-            public long defaultBlockSize() {
-                return 0;
-            }
-        };
     }
 }

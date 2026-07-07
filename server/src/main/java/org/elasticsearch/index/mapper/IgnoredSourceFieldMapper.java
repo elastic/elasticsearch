@@ -80,7 +80,6 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     );
 
     public static final FeatureFlag COALESCE_IGNORED_SOURCE_ENTRIES = new FeatureFlag("ignored_source_fields_per_entry");
-    public static final FeatureFlag IGNORED_SOURCE_AS_DOC_VALUES_FF = new FeatureFlag("ignored_source_as_doc_values");
 
     /*
         Setting to disable encoding and writing values for this field.
@@ -612,9 +611,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static IgnoredSourceFormat ignoredSourceFormat(IndexSettings indexSettings) {
         IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         // we need TSDB doc values format to use binary doc values for ignored source, otherwise the source will be uncompressed
-        if (IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
-            && indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES)
-            && indexSettings.useTimeSeriesDocValuesFormat()) {
+        if (indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES) && indexSettings.useTimeSeriesDocValuesFormat()) {
             return IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
         }
 

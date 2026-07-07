@@ -1387,7 +1387,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
 
         // Some indices merge away the _id field
-        final var pruneIdField = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+        final var pruneIdField = engineConfig.getIndexSettings().getMode().isTsdb();
         final var idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
 
         // Some integration tests merge away the _seq_no field, in which case this method sets all _seq_no to UNASSIGNED_SEQ_NO
@@ -2839,7 +2839,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomizeColumnarIdMode()) {
+        if (randomizeColumnarIdMode()) {
             mocks.add(RandomizeColumnarIdModePlugin.class);
         }
         return Collections.unmodifiableList(mocks);
@@ -2910,7 +2910,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     combinedTemplateMappings,
                     indexVersion,
                     additionalSettings) -> {
-                    if (templateIndexMode == IndexMode.TIME_SERIES) {
+                    if (IndexMode.isTsdb(templateIndexMode)) {
                         // Don't randomly enable columnar id mode, if time series index mode has been enabled.
                         // Enabling columnar id isn't possible because tsdb always uses synthetic id.
                         return;

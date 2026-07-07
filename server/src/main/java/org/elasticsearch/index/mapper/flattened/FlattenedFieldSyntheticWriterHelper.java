@@ -15,8 +15,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * A helper class that reconstructs the field including keys and values
@@ -413,6 +416,35 @@ public class FlattenedFieldSyntheticWriterHelper {
         for (final String object : objects) {
             b.startObject(object);
             openObjects.add(object);
+        }
+    }
+
+    /**
+     * A {@link KeyedValueProducer} for the document-order (columnar) path. Iterates per-key slot lists in ascending
+     * key order, preserving document order, duplicates, and nulls without sorting or deduplication. Ignored values
+     * (from {@code ignore_above}) are tail-appended per key in sorted order.
+     */
+    public static final class ArrayOrderKeyedValueProducer implements KeyedValueProducer {
+
+        private final List<OrderedField> fields;
+        private int idx = 0;
+
+        public ArrayOrderKeyedValueProducer(TreeMap<String, List<String>> slotsByKey, TreeMap<String, List<String>> ignoredByKey) {
+            TreeSet<String> allKeys = new TreeSet<>(slotsByKey.keySet());
+            allKeys.addAll(ignoredByKey.keySet());
+            fields = new ArrayList<>(allKeys.size());
+            for (String key : allKeys) {
+                List<String> values = new ArrayList<>();
+                values.addAll(slotsByKey.getOrDefault(key, Collections.emptyList()));
+                // ignoredByKey values come from a TreeSet iteration so they are already sorted.
+                values.addAll(ignoredByKey.getOrDefault(key, Collections.emptyList()));
+                fields.add(new OrderedField(new FlattenedKey(key), values));
+            }
+        }
+
+        @Override
+        public OrderedField next() {
+            return idx < fields.size() ? fields.get(idx++) : null;
         }
     }
 

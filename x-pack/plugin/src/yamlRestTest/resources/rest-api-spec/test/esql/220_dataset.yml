@@ -88,6 +88,75 @@ setup:
           settings: { }
 
 ---
+"mappings-unknown-keys-rejected":
+  # The declared-mapping vocabulary is strict: keys outside the deliberate index-mapping subset are
+  # rejected at parse time (before any cluster interaction), naming the offending key.
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/dataset/{name}
+          capabilities: [dataset_declared_schema]
+      test_runner_features: capabilities
+      reason: "declared mappings block on datasets"
+
+  # Unknown mappings-level key (core mapping keys outside our subset are rejected too, e.g. runtime).
+  - do:
+      catch: /unknown mappings field \[runtime\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            dynamic: "true"
+            runtime: { }
+
+  # _id supports only [path].
+  - do:
+      catch: /unknown \[_id\] field \[type\]; only \[path\] is supported/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            _id: { type: keyword }
+
+  # _source supports only [enabled].
+  - do:
+      catch: /unknown \[_source\] field \[mode\]; only \[enabled\] is supported/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            _source: { mode: synthetic }
+
+  # Field parameters outside {type, path, copy_to} are rejected (index-mapping params we don't model).
+  - do:
+      catch: /\[analyzer\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            properties:
+              msg: { type: keyword, analyzer: standard }
+
+  # Unknown dynamic value: only true/false (the read-applicable subset of the index-mapping enum).
+  - do:
+      catch: /unknown dynamic value \[strict\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            dynamic: "strict"
+
+---
 "delete-missing":
   - do:
       catch: missing

@@ -128,6 +128,13 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    public void testEvalReplacesUnmappedFieldFromEmptyMapping() throws Exception {
+        runTestsLoadOnly("""
+            FROM no_mapping_date_extract_fields
+            | EVAL date_string = date_string::date
+            """, STAGES);
+    }
+
     public void testMultipleEval() throws Exception {
         runTests("""
             FROM employees

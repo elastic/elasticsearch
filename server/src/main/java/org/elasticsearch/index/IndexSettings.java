@@ -1245,14 +1245,7 @@ public final class IndexSettings {
             boolean disableAutoTextByDefault = mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR;
             return Boolean.toString(disableAutoTextByDefault == false);
         },
-        value -> {
-            if (value == false && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-                throw new IllegalArgumentException(
-                    "[index.mapping.dynamic_strings.auto_text] can only be disabled when the"
-                        + " columnar_index_mode feature flag is enabled"
-                );
-            }
-        },
+        value -> {},
         Property.Dynamic,
         Property.IndexScope
     );
@@ -1573,8 +1566,8 @@ public final class IndexSettings {
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
-        indexDisabledByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
-        useColumnarIdByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(USE_COLUMNAR_ID_BY_DEFAULT);
+        indexDisabledByDefault = scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
+        useColumnarIdByDefault = scopedSettings.get(USE_COLUMNAR_ID_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);

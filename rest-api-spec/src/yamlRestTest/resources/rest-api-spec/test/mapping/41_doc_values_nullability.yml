@@ -1,4 +1,22 @@
 ---
+"doc_values object form rejected outside columnar mode":
+  - requires:
+      cluster_features: ["mapper.doc_values.extended_form_only_in_columnar", "mapper.doc_values.nullability"]
+      reason: "doc_values object form is rejected outside columnar index modes starting with this feature"
+
+  - do:
+      catch: /unsupported doc_values configuration/
+      indices.create:
+        index: test_non_columnar_rejected
+        body:
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+
+---
 "nullability=false rejects missing field and null but accepts a value":
   - requires:
       cluster_features: ["mapper.doc_values.nullability"]
@@ -113,8 +131,7 @@
         index: test_nullability_nested
         body:
           settings:
-            # Strict columnar modes flatten subobjects and reject nested objects, so this case uses plain logsdb instead.
-            index.mode: logsdb
+            index.mode: logsdb_columnar
           mappings:
             properties:
               a:

@@ -126,7 +126,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             .<RegionPolicyDocWithSeqNo>andThen(
                 (l, existingRegionPolicy) -> checkForDeniedInUseEndpoints(
                     request,
-                    ActionListener.wrap(ignored -> l.onResponse(existingRegionPolicy), l::onFailure)
+                    l.delegateFailureAndWrap((delegate, ignored) -> delegate.onResponse(existingRegionPolicy))
                 )
             )
             .<RegionPolicyResponse>andThen((l, existingRegionPolicy) -> putRegionPolicy(existingRegionPolicy, request.regionPolicy(), l))

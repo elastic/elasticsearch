@@ -100,7 +100,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;
     private final SnapshotFilesProvider snapshotFilesProvider;
-    private final RecoverySchedulingListener recoverySchedulingListener;
 
     // visible for testing
     final RecoveriesCollection onGoingRecoveries;
@@ -111,8 +110,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         TransportService transportService,
         RecoverySettings recoverySettings,
         ClusterService clusterService,
-        SnapshotFilesProvider snapshotFilesProvider,
-        RecoverySchedulingListener recoverySchedulingListener
+        SnapshotFilesProvider snapshotFilesProvider
     ) {
         this.client = client;
         this.threadPool = threadPool;
@@ -120,7 +118,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
         this.snapshotFilesProvider = snapshotFilesProvider;
-        this.recoverySchedulingListener = recoverySchedulingListener;
         this.onGoingRecoveries = new RecoveriesCollection(logger);
 
         transportService.registerRequestHandler(

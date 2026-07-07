@@ -1408,8 +1408,7 @@ class NodeConstruction {
                         transportService,
                         recoverySettings,
                         clusterService,
-                        snapshotFilesProvider,
-                        recoverySchedulingListeners
+                        snapshotFilesProvider
                     )
                 );
         });

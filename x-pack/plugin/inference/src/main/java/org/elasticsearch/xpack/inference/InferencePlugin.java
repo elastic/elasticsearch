@@ -420,18 +420,21 @@ public class InferencePlugin extends Plugin
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
 
+        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var ccmRelatedComponents = createCCMDependentComponents(
             services,
             inferenceServiceSettings,
             serviceComponents.get(),
             elasticInferenceServiceFactory.get().createSender(),
             modelRegistry.get(),
-            ccmFeature.get()
+            ccmFeature.get(),
+            inferenceFeatureService,
+            inferencePreferencesCache
         );
         components.addAll(ccmRelatedComponents.components());
 
         inferenceServices.add(() -> List.of(context -> {
-            var eisService = new ElasticInferenceService(
+            var eisService = ElasticInferenceService.create(
                 elasticInferenceServiceFactory.get(),
                 serviceComponents.get(),
                 inferenceServiceSettings,
@@ -465,7 +468,8 @@ public class InferencePlugin extends Plugin
             services.threadPool(),
             services.clusterService(),
             settings,
-            inferenceStats
+            inferenceStats,
+            services.featureService()
         );
 
         // Both oauth2TokenCache and projectResolver must be set before InferenceServiceRegistry is
@@ -535,7 +539,9 @@ public class InferencePlugin extends Plugin
         ServiceComponents serviceComponents,
         Sender sender,
         ModelRegistry modelRegistry,
-        CCMFeature ccmFeature
+        CCMFeature ccmFeature,
+        InferenceFeatureService inferenceFeatureService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
@@ -561,10 +567,12 @@ public class InferencePlugin extends Plugin
             services.threadPool(),
             ccmAuthApplierFactory,
             ccmFeature,
-            ccmService
+            ccmService,
+            services.clusterService(),
+            services.featureService(),
+            inferencePreferencesCache
         );
 
-        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
             services.featureService(),
@@ -876,9 +884,7 @@ public class InferencePlugin extends Plugin
         Map<String, Mapper.TypeParser> mappers = new HashMap<>();
         mappers.put(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.parser(getModelRegistry()));
         mappers.put(OffsetSourceFieldMapper.CONTENT_TYPE, OffsetSourceFieldMapper.PARSER);
-        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
-            mappers.put(SemanticFieldMapper.CONTENT_TYPE, SemanticFieldMapper.parser(getModelRegistry()));
-        }
+        mappers.put(SemanticFieldMapper.CONTENT_TYPE, SemanticFieldMapper.parser(getModelRegistry()));
         return Collections.unmodifiableMap(mappers);
     }
 

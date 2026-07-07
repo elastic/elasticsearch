@@ -388,6 +388,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertTrue(escaped.formatConfig().contains("mode=escaped"));
     }
 
+    public void testSchemaCacheKeySeparatesTrimSpaces() {
+        // trim_spaces changes stored string values (and the null-ness of whitespace-only cells) on the
+        // same bytes, so two configs differing only in it must not share a cached schema/stats fingerprint.
+        SchemaCacheKey base = SchemaCacheKey.build("s3://b/f.csv", 1000L, ".csv", Map.of("format", "csv"));
+        SchemaCacheKey trimmed = SchemaCacheKey.build("s3://b/f.csv", 1000L, ".csv", Map.of("format", "csv", "trim_spaces", true));
+        assertNotEquals(base.formatConfig(), trimmed.formatConfig());
+        assertTrue(trimmed.formatConfig().contains("trim_spaces=true"));
+    }
+
     /**
      * Bare {@code multi_value_syntax: brackets} resolves the mode to quoted on a no-quote
      * baseline (and selects the bracket-aware record scanner everywhere), so two configs differing

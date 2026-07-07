@@ -59,6 +59,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -118,6 +119,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
     private final Supplier<DiscoveryNodes> discoveryNodes;
+    private final LongAdder phaseResultBytesRead = new LongAdder();
+    private final LongAdder phaseRequestBytesWritten = new LongAdder();
 
     AbstractSearchAsyncAction(
         String name,
@@ -378,6 +381,21 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
                 return;
             }
+            long resultBytes = phaseResultBytesRead.sumThenReset();
+            long requestBytes = phaseRequestBytesWritten.sumThenReset();
+            // bytes tracked is 0 in the following scenarios:
+            // - all requests/responses were local
+            // - for the expand phase whose sub-searches are tracked separately
+            // - for the result side if all shards failed, which is the only case where remote requests track bytes but results don't
+            if (resultBytes > 0) {
+                assert requestBytes > 0 : "successful responses from remote nodes must have corresponding request bytes set";
+                searchResponseMetrics.recordSearchPhaseShardResultBytes(currentPhase, resultBytes, searchRequestAttributes);
+            }
+            if (requestBytes > 0) {
+                searchResponseMetrics.recordSearchPhaseShardRequestBytes(currentPhase, requestBytes, searchRequestAttributes);
+            }
+            assert currentPhase.equals(ExpandSearchPhase.NAME) == false || (requestBytes == 0 && resultBytes == 0)
+                : "bytes should not be tracked for the expand phase, whose sub-searches are tracked individually";
             var nextPhase = nextPhaseSupplier.get();
             if (logger.isTraceEnabled()) {
                 final String resultsFrom = results.getSuccessfulResults()
@@ -533,6 +551,22 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             successfulOps.incrementAndGet();
             finishOneShard();
         });
+    }
+
+    /**
+     * Adds the wire-format byte count of a shard result to the running total for the current phase.
+     * Called once per shard result, from the transport response handler's read path.
+     */
+    void trackPhaseResultBytesRead(long bytes) {
+        phaseResultBytesRead.add(bytes);
+    }
+
+    /**
+     * Adds the wire-format byte count of a shard request to the running total for the current phase.
+     * Called once per shard request, before sending it to the data node.
+     */
+    void trackPhaseRequestBytesWritten(long bytes) {
+        phaseRequestBytesWritten.add(bytes);
     }
 
     /**

@@ -489,6 +489,7 @@ ROW x = [1, 2]
 | MV_EXPAND x
 | SORT foo
 ;
+ignoreOrder:true
 
 x:integer | foo:null
 2         | null
@@ -536,13 +537,12 @@ COUNT(*):long
 100
 ;
 
-# TODO. FROMx: this fails in parsing with just FROM even if -Ignore'd(!), in bwc tests only(!)
-subqueryNoMainIndex-Ignore
+subqueryNoMainIndex
 required_capability: optional_fields_nullify_tech_preview
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="nullify"\;
-FROMx
+FROM
     (FROM employees
      | EVAL emp_no_plus = emp_no_foo::LONG + 1
      | WHERE emp_no < 10003)
@@ -555,7 +555,7 @@ emp_no:integer | emp_no_foo:null | emp_no_plus:long
 10002          | null            | null
 ;
 
-subqueryInFromWithStatsInMainQuery-Ignore
+subqueryInFromWithStatsInMainQuery
 required_capability: optional_fields_nullify_tech_preview
 required_capability: subquery_in_from_command
 
@@ -600,6 +600,23 @@ emp_no:integer | x:long         | y:long         | xyz:keyword    | _fork:keywor
 10003          | null           | null           | null           | fork1
 10001          | null           | null           | def            | fork2
 null           | 1985           | null           | abc            | fork3
+;
+
+forkRightAfterFrom
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fork_v9
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| FORK (WHERE emp_no == 10001 | EVAL x = does_not_exist)
+       (WHERE emp_no == 10002)
+| KEEP emp_no, x, _fork
+| SORT _fork, emp_no
+;
+
+emp_no:integer | x:null         | _fork:keyword
+10001          | null           | fork1
+10002          | null           | fork2
 ;
 
 inlinestatsCount

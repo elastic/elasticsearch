@@ -1,0 +1,5 @@
+pr: 149380
+summary: Aggregate metadata pushdown for external text formats
+area: ES|QL
+type: enhancement
+issues: []

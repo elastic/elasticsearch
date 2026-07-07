@@ -24,18 +24,29 @@ import java.util.stream.Collectors;
 
 /**
  * Test metrics exported by Elasticsearch directly using the OTel SDK. Runs with
- * {@code telemetry.otel.metrics.disk_buffer_size=0b} so the inherited baseline assertions
+ * {@code telemetry.metrics.buffer.disk_size=0b} so the inherited baseline assertions
  * also exercise the buffering-disabled bypass in {@code OtelSdkExportMeterSupplier}.
  */
 public class OtelMetricsIT extends AbstractMetricsIT {
+
+    private static final String EXPECTED_PROJECT_ID = "integ-test-project";
+    private static final String EXPECTED_PROJECT_TYPE = "elasticsearch";
+    private static final String EXPECTED_NODE_TIER = "index";
 
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
-        .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
-        .setting("telemetry.otel.metrics.interval", "10m") // one giant batch instead of multiple small ones with deltas we need to sum
-        .setting("telemetry.otel.metrics.disk_buffer_size", "0b")
+        .systemProperty("telemetry.metrics.otel_jvm.enabled", "true")
+        .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
+        .setting("telemetry.export.interval", "1000ms")
+        .setting("telemetry.export.send_timeout", "200ms")
+        .setting("telemetry.metrics.buffer.disk_size", "0b")
+        // Mirrors the three labels ServerlessServerCli writes via telemetry.agent.global_labels.* on the APM-agent path,
+        // bridged here to the OTel resource via the telemetry.resource.* affix.
+        .setting("telemetry.resource.elasticsearch.project.id", EXPECTED_PROJECT_ID)
+        .setting("telemetry.resource.elasticsearch.project.type", EXPECTED_PROJECT_TYPE)
+        .setting("telemetry.resource.elasticsearch.node.tier", EXPECTED_NODE_TIER)
         .build();
 
     @ClassRule
@@ -82,5 +93,9 @@ public class OtelMetricsIT extends AbstractMetricsIT {
         boolean completed = finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
         String missing = remaining.stream().sorted().collect(Collectors.joining(", "));
         assertTrue("Timeout waiting for OTel SDK health metrics. Missing: " + missing, completed && remaining.isEmpty());
+    }
+
+    public void testResourceCarriesAffix() throws Exception {
+        assertSdkResourceAttributes(EXPECTED_PROJECT_ID, EXPECTED_PROJECT_TYPE, EXPECTED_NODE_TIER);
     }
 }

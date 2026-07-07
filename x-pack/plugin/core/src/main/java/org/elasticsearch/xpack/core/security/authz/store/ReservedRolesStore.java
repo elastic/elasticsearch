@@ -766,11 +766,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     private static RoleDescriptor buildViewerRoleDescriptor() {
         return new RoleDescriptor(
             "viewer",
-            new String[] {},
+            new String[] { "monitor_inference" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // Stack
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("/~(([.]|ilm-history-|traces-agent_builder\\.otel-|logs-agent_builder\\.otel-).*)/")
+                    .indices("/~(([.]|ilm-history-).*)/")
                     .privileges("read", "view_index_metadata")
                     .build(),
                 // Observability
@@ -830,11 +830,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     private static RoleDescriptor buildEditorRoleDescriptor() {
         return new RoleDescriptor(
             "editor",
-            new String[] {},
+            new String[] { "monitor_inference" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // Stack
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("/~(([.]|ilm-history-|traces-agent_builder\\.otel-|logs-agent_builder\\.otel-).*)/")
+                    .indices("/~(([.]|ilm-history-).*)/")
                     .privileges("read", "view_index_metadata")
                     .build(),
                 // Observability

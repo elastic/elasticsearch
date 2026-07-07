@@ -1,6 +1,0 @@
-area: Inference
-issues: []
-pr: 149636
-summary: "[Inference API] Fix NPE for Inference usage when referencing a embedding\
-  \ task type"
-type: bug

@@ -14,12 +14,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 
+import java.util.Map;
 import java.util.Optional;
 
 public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
 
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";
-    public static final String FILTER_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.filter";
 
     @Override
     public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
@@ -36,7 +36,17 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 }
             }
         });
-        context.getFilter().ifPresent(filter -> msg.field(FILTER_FIELD, filter));
+        context.getFilter().ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
+
+        var namedParams = context.namedParams();
+        if (namedParams.isEmpty()) {
+            var params = context.params();
+            if (params.isEmpty() == false) {
+                msg.field(QueryLogging.QUERY_FIELD_PARAMS, Map.of(QueryLogging.QUERY_FIELD_PARAM_POSITIONAL, params));
+            }
+        } else {
+            msg.field(QueryLogging.QUERY_FIELD_PARAMS, namedParams);
+        }
 
         // Query-level rollup counters from the response root, surfaced unconditionally so the slow
         // log carries the same I/O / row / CPU cost signal that {@code profile=true} would show

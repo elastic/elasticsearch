@@ -1,5 +1,0 @@
-area: Security
-issues: []
-pr: 149994
-summary: "Hide agent builder traces indices from editor and viewer built-in roles"
-type: enhancement

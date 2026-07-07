@@ -33,6 +33,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
 * `dense_vector` {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
+* `flattened` {applies_to}`stack: preview 9.5.0`
 * `ip`
 * `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
@@ -65,16 +66,11 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
    * `gauge`
    * `aggregate_metric_double`
 
-* Date/time
-
-    * `date_range`
-
 * Other types
 
     * `binary`
     * `completion`
     * `double_range`
-    * `flattened`
     * `float_range`
     * `histogram`
     * `integer_range`
@@ -150,7 +146,7 @@ Note that if you return both the original `location` and the extracted `x` and `
 
 {{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping and treats them like regular mapped fields. However, you cannot define new runtime fields at search time in {{esql}}. Use the [`EVAL`](/reference/query-languages/esql/commands/eval.md) command to create computed columns instead.
 
-Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/commands/set.md#esql-unmapped_fields) directive.
+Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) directive.
 
 ## _source availability [esql-_source-availability]
 
@@ -163,6 +159,18 @@ like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functi
 in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command directly after the
 [`FROM`](/reference/query-languages/esql/commands/from.md) source command, or close enough to it.
 Otherwise, the query will fail with a validation error.
+
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+This restriction does not apply when `MATCH` targets an expression rather
+than an indexed field (for example, a column produced by `EVAL` or `STATS`).
+In that case, `MATCH` evaluates by scanning values row by row instead of
+using the index, and can appear anywhere in the query.
+When searching expressions:
+
+* [Function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+  (match query options) are not supported.
+* `MATCH` on an expression does not contribute to the relevance score when
+  using `METADATA _score`.
 
 For example, this query is valid:
 
@@ -242,7 +250,7 @@ The `DISSECT` command does not support reference keys.
 
 ## Grok limitations [esql-limitations-grok]
 
-The `GROK` command does not support configuring [custom patterns](/reference/enrich-processor/grok-processor.md#custom-patterns), or [multiple patterns](/reference/enrich-processor/grok-processor.md#trace-match). The `GROK` command is not subject to [Grok watchdog settings](/reference/enrich-processor/grok-processor.md#grok-watchdog).
+The `GROK` command does not support configuring [custom patterns](/reference/ingest-processor/grok-processor.md#custom-patterns), or [multiple patterns](/reference/ingest-processor/grok-processor.md#trace-match). The `GROK` command is not subject to [Grok watchdog settings](/reference/ingest-processor/grok-processor.md#grok-watchdog).
 
 
 ## Multivalue limitations [esql-limitations-mv]

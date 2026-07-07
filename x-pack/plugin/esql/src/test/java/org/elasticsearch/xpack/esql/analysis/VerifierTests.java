@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -411,6 +412,41 @@ public class VerifierTests extends ESTestCase {
             "from test* METADATA _id, _index, _score | FORK (where true) (where true) | FUSE",
             equalTo("1:76: cannot use [double] as an input of FUSE. Consider using [DROP double] before FUSE.")
         );
+
+        // Testing the combo of FORK w/ an unsupported and multi-typed field
+        analyzer.error(
+            "from test* | FORK (where true) | eval x = multi_typed",
+            equalTo(
+                "1:43: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
+            )
+        );
+    }
+
+    public void testForkUnsupportedFields() {
+        // After FORK, unsupported-type fields should still produce "Cannot use field [...] with unsupported type [...]",
+        // not the degraded "found value [...] type [unsupported]" message (#147603).
+        TestAnalyzer agesAnalyzer = analyzer().addIndex("ages", "mapping-ages.json").stripErrorPrefix(true);
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | eval x = concat(age_range, \"abc\")",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | eval x = mv_slice(age_range, 2, 3)",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | eval x = age_range",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | sort age_range asc",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | where age_range is null",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
     }
 
     public void testRoundFunctionInvalidInputs() {
@@ -696,7 +732,7 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(hire_date, 5, 1 day, 1 month)",
             containsString(
-                "third argument of [bucket(hire_date, 5, 1 day, 1 month)] must be [datetime or string], "
+                "third argument of [bucket(hire_date, 5, 1 day, 1 month)] must be [datetime, date_nanos or string], "
                     + "found value [1 day] type [date_period]"
             )
         );
@@ -704,7 +740,7 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\", 1 month)",
             containsString(
-                "fourth argument of [bucket(hire_date, 5, \"2000-01-01\", 1 month)] must be [datetime or string], "
+                "fourth argument of [bucket(hire_date, 5, \"2000-01-01\", 1 month)] must be [datetime, date_nanos or string], "
                     + "found value [1 month] type [date_period]"
             )
         );
@@ -845,14 +881,7 @@ public class VerifierTests extends ESTestCase {
             );
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
-            .error(
-                "FROM decades | LIMIT 1 BY date_range",
-                equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
-                        ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
-                        : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
-                )
-            );
+            .error("FROM decades | LIMIT 1 BY date_range", equalTo("1:27: cannot group by on [date_range] type for grouping [date_range]"));
         tsdb().error(
             "FROM test | LIMIT 1 BY network.bytes_in",
             equalTo("1:24: cannot group by on [counter_long] type for grouping [network.bytes_in]")
@@ -876,11 +905,7 @@ public class VerifierTests extends ESTestCase {
             .stripErrorPrefix(true)
             .error(
                 "FROM decades | STATS count(*) BY date_range",
-                equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
-                        ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
-                        : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
-                )
+                equalTo("1:34: cannot group by on [date_range] type for grouping [date_range]")
             );
         analyzer().addIndex("test", "mapping-all-types.json")
             .stripErrorPrefix(true)
@@ -1580,13 +1605,13 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFlattenedSorting() {
+        assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
         index.error("FROM flattened_otel_logs | SORT attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
         index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
     }
 
     public void testDateRangeSorting() {
-        assumeTrue("Requires DATE_RANGE_FIELD_TYPE_V6 capability", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
@@ -1651,7 +1676,7 @@ public class VerifierTests extends ESTestCase {
             "FROM test | STATS count(network.bytes_out)",
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, histogram, or date_range],"
+                    + " [any type except counter types or histogram],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -1755,13 +1780,13 @@ public class VerifierTests extends ESTestCase {
 
     public void testRenameOrDropTimestampWithTBucket() {
         k8s().error(
-            "TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)",
-            equalTo("1:95: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+            "TS k8s | RENAME @timestamp AS newTs | STATS max(variance_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)",
+            equalTo("1:100: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         k8s().error(
-            "TS k8s | DROP @timestamp | STATS max(max_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)",
-            equalTo("1:83: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+            "TS k8s | DROP @timestamp | STATS max(variance_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)",
+            equalTo("1:88: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -1813,16 +1838,17 @@ public class VerifierTests extends ESTestCase {
 
     public void testTimeseriesAggregate() {
         tsdb().error("TS test  | STATS max(avg(rate(network.bytes_in)))", equalTo("""
-            1:22: nested aggregations [avg(rate(network.bytes_in))] \
-            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
-            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
-            inside over-time aggregation function [rate(network.bytes_in)]"""));
+            1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
+            inside aggregation function [max(avg(rate(network.bytes_in)))];\
+            only time-series aggregation function can be used inside another aggregation function"""));
 
-        tsdb().error("TS test  | STATS max(avg(rate(network.bytes_in)))", equalTo("""
-            1:22: nested aggregations [avg(rate(network.bytes_in))] \
-            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
-            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
-            inside over-time aggregation function [rate(network.bytes_in)]"""));
+        tsdb().error("TS test  | STATS max(avg_over_time(rate(network.bytes_in)))", equalTo("""
+            1:12: cannot use aggregate function [rate(network.bytes_in)] \
+            inside over-time aggregation function [avg_over_time(rate(network.bytes_in))]"""));
+
+        tsdb().error("TS test  | STATS avg_over_time(rate(network.bytes_in))", equalTo("""
+            1:12: cannot use aggregate function [rate(network.bytes_in)] \
+            inside over-time aggregation function [avg_over_time(rate(network.bytes_in))]"""));
 
         tsdb().error(
             "TS test  | STATS COUNT(*)",
@@ -1832,8 +1858,38 @@ public class VerifierTests extends ESTestCase {
         tsdb().error(
             "TS test  | STATS SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")",
             equalTo(
-                "1:18: sparkline [SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")]" + " can't be used with TS command"
+                "1:18: sparkline [SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")] can't be used with TS command\n"
+                    + "line 1:12: cannot use aggregate function [COUNT(*)] inside aggregation function "
+                    + "[SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")];"
+                    + "only time-series aggregation function can be used inside another aggregation function"
             )
+        );
+
+        // should not throw
+        tsdb().addK8s().query("""
+            TS k8s
+            | STATS `event_shape` = count_distinct(network.eth0.currently_connected_clients)
+            BY event_log, fMGjtTxPiPQV = bucket(@timestamp,1hour)""");
+    }
+
+    public void testSparklineRejectsMultiValuedAggs() {
+        String sparklineArgs = "hire_date, 10, \"2024-01-01\", \"2024-02-01\"";
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(TOP(avg_worked_seconds, 3, \"asc\"), " + sparklineArgs + ")",
+            containsString(
+                "first argument of [SPARKLINE(TOP(avg_worked_seconds, 3, \"asc\"), "
+                    + sparklineArgs
+                    + ")] "
+                    + "must be a single-valued aggregate function, found [TOP(avg_worked_seconds, 3, \"asc\")]"
+            )
+        );
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(SAMPLE(avg_worked_seconds, 3), " + sparklineArgs + ")",
+            containsString("must be a single-valued aggregate function, found [SAMPLE(avg_worked_seconds, 3)]")
+        );
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(VALUES(avg_worked_seconds), " + sparklineArgs + ")",
+            containsString("must be a single-valued aggregate function, found [VALUES(avg_worked_seconds)]")
         );
     }
 
@@ -1871,28 +1927,33 @@ public class VerifierTests extends ESTestCase {
     public void testMatchInsideEval() throws Exception {
         defaultAnalyzer().error(
             "row title = \"brown fox\" | eval x = title:\"fox\" ",
-            equalTo(
-                "1:36: [:] operator is only supported in WHERE and STATS commands or in EVAL within score(.) function"
-                    + "\n"
-                    + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping"
-            )
+            equalTo("1:36: [:] operator is only supported in WHERE and STATS commands or in EVAL within score(.) function")
         );
     }
 
     public void testFieldBasedFullTextFunctions() throws Exception {
-        checkFieldBasedWithNonIndexedColumn("MATCH", "match(text, \"cat\")", "function");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
+        // MATCH and : support runtime search; after mv_expand on the same field, the expanded attribute is no
+        // longer a direct FieldAttribute so isRuntimeSearch()=true and command restrictions are bypassed.
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")", true);
 
-        checkFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
-        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
+        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"", true);
 
         checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")");
+        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", false);
 
-        checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
+        checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
     }
 
     private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
+        checkFieldBasedFunctionNotAllowedAfterCommands(functionName, functionType, functionInvocation, false);
+    }
+
+    private void checkFieldBasedFunctionNotAllowedAfterCommands(
+        String functionName,
+        String functionType,
+        String functionInvocation,
+        boolean supportsRuntimeSearch
+    ) {
         fullText().error(
             "from test | limit 10 | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
@@ -1914,14 +1975,20 @@ public class VerifierTests extends ESTestCase {
             "from test | sort id | limit 1 by id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
         );
-        fullText().stripErrorPrefix(false)
-            .error(
-                "from test | mv_expand " + fieldName + " | where " + functionInvocation,
-                allOf(
-                    containsString("Found 1 problem"),
-                    containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
-                )
-            );
+        if (supportsRuntimeSearch) {
+            // After mv_expand on the searched field, the expanded attribute is no longer a direct FieldAttribute,
+            // so runtime search takes over and command restrictions are bypassed.
+            fullText().query("from test | mv_expand " + fieldName + " | where " + functionInvocation);
+        } else {
+            fullText().stripErrorPrefix(false)
+                .error(
+                    "from test | mv_expand " + fieldName + " | where " + functionInvocation,
+                    allOf(
+                        containsString("Found 1 problem"),
+                        containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+                    )
+                );
+        }
         if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
             fullText().error(
                 "from test | dedup | where " + functionInvocation,
@@ -1955,19 +2022,13 @@ public class VerifierTests extends ESTestCase {
         fullText().stripErrorPrefix(false)
             .error(
                 "from test metadata _id, _index, _score "
-                    + "| fork (where true) (where true | EVAL title = \"abc\") "
+                    + "| fork (where true) (where true | EVAL title = to_text(\"abc\")) "
                     + "| keep title "
                     + "| where title : \"data\"",
-                allOf(
-                    containsString("Found 3 problems"),
-                    containsString("[:] operator cannot be used after FORK"),
-                    containsString("[:] operator cannot operate on [title], which is not a field from an index mapping"),
-                    containsString("Column [title] has conflicting data types in FORK branches: [KEYWORD] and [TEXT]")
-                )
+                allOf(containsString("Found 1 problem"), containsString("[:] operator cannot be used after FORK"))
             );
     }
 
-    // These should pass eventually once we lift some restrictions on match function
     private void checkFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
         fullText().error(
             "from test | eval text = substring(title, 1) | where " + functionInvocation,
@@ -2277,14 +2338,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsRejectEvalColumns() throws Exception {
-        fullText().error(
-            "from test | eval name = title | where match(name, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [name], which is not a field from an index mapping")
-        );
-        fullText().error(
-            "from test | eval name = title | where name : \"Meditation\"",
-            containsString("[:] operator cannot operate on [name], which is not a field from an index mapping")
-        );
+        // match and : support runtime search and can operate on EVAL columns
+        fullText().query("from test | eval name = title | where match(name, \"Meditation\")");
+        fullText().query("from test | eval name = title | where name : \"Meditation\"");
+        // match_phrase still requires an index field
         fullText().error(
             "from test | eval name = title | where match_phrase(name, \"Meditation\")",
             containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
@@ -2292,26 +2349,35 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsRejectRenamedNonIndexFields() throws Exception {
+        // MATCH supports runtime search and can operate on renamed non-index fields
+        fullText().query("from test | eval text = concat(title, body) | rename text as content | where match(content, \"Meditation\")");
+        fullText().query("from test | eval name = title | rename name as x | where match(x, \"Meditation\")");
+        fullText().query("from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match(x, \"Meditation\")");
+        fullText().query("from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")");
+        fullText().query("from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")");
+
+        // MATCH_PHRASE still requires an argument that is a field from an index mapping
         fullText().error(
-            "from test | eval text = concat(title, body) | rename text as content | where match(content, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [content], which is not a field from an index mapping")
+            "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")",
+            containsString("[MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
         );
         fullText().error(
-            "from test | eval name = title | rename name as x | where match(x, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+            "from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")",
+            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
         );
         fullText().error(
-            "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match(x, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+            "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
+            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
         );
         fullText().error(
-            "from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+            "from test | dissect title \"%{extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
+            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
         );
         fullText().error(
-            "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")",
-            containsString("[MATCH] function cannot operate on [y], which is not a field from an index mapping")
+            "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match_phrase(y, \"Meditation\")",
+            containsString("[MatchPhrase] function cannot operate on [y], which is not a field from an index mapping")
         );
+
     }
 
     public void testConditionalFunctionsWithMixedNumericTypes() {
@@ -2580,8 +2646,8 @@ public class VerifierTests extends ESTestCase {
             "row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")",
             equalTo(
                 "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, flattened, geo_point, "
-                    + "geo_shape, geohash, geohex, geotile, integer, ip, keyword, "
+                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, flattened, "
+                    + "geo_point, geo_shape, geohash, geohex, geotile, integer, ip, keyword, "
                     + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]"
             )
         );
@@ -3687,7 +3753,10 @@ public class VerifierTests extends ESTestCase {
         );
         tsdb().error(
             "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, network.bytes_in",
-            equalTo("1:84: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+            equalTo(
+                "1:84: cannot group by a metric field [network.bytes_in] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
         );
         tsdb().error(
             "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, to_long(network.bytes_in)",
@@ -3939,6 +4008,14 @@ public class VerifierTests extends ESTestCase {
             containsString(
                 "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
                     + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+            )
+        );
+
+        defaultAnalyzer().error(
+            randomFrom(sourceCommands) + "LIMIT 5 BY gender | INLINE STATS max(salary) BY gender",
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5 BY gender] [@"
             )
         );
 
@@ -4297,7 +4374,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMetricsInfoCannotBeUsedAfterStats() {
-        k8s().error("TS k8s | STATS c = count(*) | METRICS_INFO", containsString("METRICS_INFO cannot be used after STATS command"));
+        k8s().error("TS k8s | STATS c = count(1) | METRICS_INFO", containsString("METRICS_INFO cannot be used after STATS command"));
     }
 
     public void testMetricsInfoCannotBeUsedAfterLimit() {
@@ -4317,7 +4394,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTsInfoCannotBeUsedAfterStats() {
-        k8s().error("TS k8s | STATS c = count(*) | TS_INFO", containsString("TS_INFO cannot be used after STATS command"));
+        k8s().error("TS k8s | STATS c = count(1) | TS_INFO", containsString("TS_INFO cannot be used after STATS command"));
     }
 
     public void testTsInfoCannotBeUsedAfterLimit() {
@@ -4485,7 +4562,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     private static TestAnalyzer tsdb() {
-        return analyzer().addIndex("test", "tsdb-mapping.json").stripErrorPrefix(true);
+        return analyzer().addIndex("test", "tsdb-mapping.json")
+            .stripErrorPrefix(true)
+            .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
     private static TestAnalyzer k8s() {

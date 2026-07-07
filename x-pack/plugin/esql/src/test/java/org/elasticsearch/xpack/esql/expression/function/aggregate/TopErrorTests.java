@@ -80,17 +80,17 @@ public class TopErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 return equalTo(
                     "fourth argument of ["
                         + sourceForSignature(signature)
-                        + "] must be [date or numeric except unsigned_long or counter types], found value [] type ["
+                        + "] must be [date, numeric except unsigned_long or counter types or string], found value [] type ["
                         + signature.get(3).typeName()
                         + "]"
                 );
             }
             DataType first = signature.getFirst();
-            if (first != DataType.DATETIME && first.isNumeric() == false) {
+            if (first != DataType.DATETIME && first.isNumeric() == false && DataType.isString(first) == false) {
                 return equalTo(
                     "when fourth argument is set, first argument of ["
                         + sourceForSignature(signature)
-                        + "] must be [date or numeric except unsigned_long or counter types], found value [] type ["
+                        + "] must be [date, numeric except unsigned_long or counter types or string], found value [] type ["
                         + first.typeName()
                         + "]"
                 );

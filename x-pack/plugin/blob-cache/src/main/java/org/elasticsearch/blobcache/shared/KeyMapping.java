@@ -81,13 +81,12 @@ class KeyMapping<Key1, Key2, Value> {
     long countMatchingKey2s(Predicate<Key2> predicate) {
         long count = 0;
         for (ConcurrentHashMap<Key2, Value> map : mapping.values()) {
-            count += countMatchingKey2s(map, predicate);
+            for (Key2 key : map.keySet()) {
+                if (predicate.test(key)) {
+                    count++;
+                }
+            }
         }
         return count;
-    }
-
-    private static <Key2, Value> long countMatchingKey2s(ConcurrentHashMap<Key2, Value> map, Predicate<Key2> predicate) {
-        int parallelismThreshold = 500; // we don't want to overwhelm the JVM with too many threads
-        return map.reduceToLong(parallelismThreshold, (key, value) -> predicate.test(key) ? 1L : 0L, 0, Long::sum);
     }
 }

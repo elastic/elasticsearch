@@ -153,6 +153,7 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
             for (CurrentWork field : current) {
                 field.columnAtATime = field.field.columnAtATime(ctx);
                 if (field.columnAtATime != null) {
+                    field.rowStride = null;
                     columnAtATime.add(field);
                 } else {
                     field.rowStride = field.field.rowStride(ctx);

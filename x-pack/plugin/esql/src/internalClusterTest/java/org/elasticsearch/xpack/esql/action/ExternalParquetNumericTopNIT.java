@@ -15,14 +15,11 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
-import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -35,9 +32,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -69,25 +66,13 @@ import static org.hamcrest.Matchers.equalTo;
  * {@link #testSortLongAscPinsAsyncReadCallsite()} for the explicit pin.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
-public class ExternalParquetNumericTopNIT extends AbstractEsqlIntegTestCase {
+public class ExternalParquetNumericTopNIT extends AbstractExternalDataSourceIT {
 
     private static final TimeValue LONG_TIMEOUT = TimeValue.timeValueMinutes(2);
 
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(ParquetDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(ParquetDataSourcePlugin.class);
     }
 
     @Override
@@ -110,12 +95,11 @@ public class ExternalParquetNumericTopNIT extends AbstractEsqlIntegTestCase {
      * {@code AsyncExternalSourceOperatorFactory}.
      */
     public void testSortLongAscPinsAsyncReadCallsite() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         int totalRows = 400;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 50);
         try {
-            String uri = StoragePath.fileUri(file);
-            String query = "EXTERNAL \"" + uri + "\" | SORT id ASC | LIMIT 25 | KEEP id, name, value, payload";
+            String dataset = registerDataset("numeric_topn", StoragePath.fileUri(file), Map.of());
+            String query = "FROM " + dataset + " | SORT id ASC | LIMIT 25 | KEEP id, name, value, payload";
             assertNumericTopNAgainstReference(query, totalRows, byIdAsc(), 25);
         } finally {
             Files.deleteIfExists(file);
@@ -123,14 +107,13 @@ public class ExternalParquetNumericTopNIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSortIntAsc() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         int totalRows = 400;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 50);
         try {
-            String uri = StoragePath.fileUri(file);
+            String dataset = registerDataset("numeric_topn", StoragePath.fileUri(file), Map.of());
             // value = id * 10, so ASC on value is the same as ASC on id, but the runtime path is
             // the INT branch in NumericTopNOperator (rather than LONG via the id sort key).
-            String query = "EXTERNAL \"" + uri + "\" | SORT value ASC | LIMIT 25 | KEEP id, name, value, payload";
+            String query = "FROM " + dataset + " | SORT value ASC | LIMIT 25 | KEEP id, name, value, payload";
             assertNumericTopNAgainstReference(query, totalRows, byValueAsc(), 25);
         } finally {
             Files.deleteIfExists(file);
@@ -138,16 +121,15 @@ public class ExternalParquetNumericTopNIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSortDoubleDesc() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         int totalRows = 400;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 50);
         try {
-            String uri = StoragePath.fileUri(file);
+            String dataset = registerDataset("numeric_topn", StoragePath.fileUri(file), Map.of());
             // score = 100.0 - id * 0.25, monotonically decreasing — DESC asks for the highest
             // scores, which correspond to the smallest ids. Exercises NumericTopNOperator's
             // DOUBLE branch with the {@code doubleToSortableLong} round-trip on both encode and
             // decode (decode is needed when the sort-key column is also a projected output).
-            String query = "EXTERNAL \"" + uri + "\" | SORT score DESC | LIMIT 25 | KEEP id, name, value, score";
+            String query = "FROM " + dataset + " | SORT score DESC | LIMIT 25 | KEEP id, name, value, score";
             assertNumericTopNAgainstReference(query, totalRows, byScoreDesc(), 25);
         } finally {
             Files.deleteIfExists(file);
@@ -167,12 +149,11 @@ public class ExternalParquetNumericTopNIT extends AbstractEsqlIntegTestCase {
      * (wide-column id, name, value, payload).
      */
     public void testSortMultiValuedTagAsc() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         int totalRows = 400;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 50);
         try {
-            String uri = StoragePath.fileUri(file);
-            String query = "EXTERNAL \"" + uri + "\" | SORT tag ASC | LIMIT 25 | KEEP id, name, value, payload";
+            String dataset = registerDataset("numeric_topn", StoragePath.fileUri(file), Map.of());
+            String query = "FROM " + dataset + " | SORT tag ASC | LIMIT 25 | KEEP id, name, value, payload";
             try (var response = run(syncEsqlQueryRequest(query), LONG_TIMEOUT)) {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat("returned row count", rows.size(), equalTo(25));
@@ -209,11 +190,10 @@ public class ExternalParquetNumericTopNIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSortBooleanAsc() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         int totalRows = 400;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 50);
         try {
-            String uri = StoragePath.fileUri(file);
+            String dataset = registerDataset("numeric_topn", StoragePath.fileUri(file), Map.of());
             // flag = id % 2 == 0; ASC means false-rows first. Half the file has flag=false, so
             // a LIMIT 25 is comfortably within the all-false bucket. We don't pin the specific
             // ids returned — cross-driver / cross-row-group merges may break the tie either
@@ -224,7 +204,7 @@ public class ExternalParquetNumericTopNIT extends AbstractEsqlIntegTestCase {
             // {@code flag == true} rows or mismatched (id, flag) pairs, both caught here.
             // Project wide columns (name, payload) alongside the sort key so the deferred-
             // extraction rule fires and the source is narrowed to {@code [flag, _rowPosition]}.
-            String query = "EXTERNAL \"" + uri + "\" | SORT flag ASC | LIMIT 25 | KEEP id, flag, name, value, payload";
+            String query = "FROM " + dataset + " | SORT flag ASC | LIMIT 25 | KEEP id, flag, name, value, payload";
             try (var response = run(syncEsqlQueryRequest(query), LONG_TIMEOUT)) {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat("returned row count", rows.size(), equalTo(25));
@@ -258,7 +238,7 @@ public class ExternalParquetNumericTopNIT extends AbstractEsqlIntegTestCase {
      * coordinator, not that {@code NumericTopNOperator} was actually selected over the generic
      * {@code TopNOperator}. An attempt was made to assert on {@code response.profile()}, but in
      * this IT harness only the coordinator's reduce driver shows up in {@code profile.drivers()}
-     * for the {@code EXTERNAL ... | SORT | LIMIT} shape (whose data-side driver — the one that
+     * for the {@code FROM <dataset> ... | SORT | LIMIT} shape (whose data-side driver — the one that
      * actually runs the specialised operator — does not appear). A planner-time change that
      * inadvertently causes {@code tryBuildNumericTopN} to return null would still produce the
      * same row-level answers via the generic operator (which is the deliberate fallback) and
@@ -425,48 +405,5 @@ public class ExternalParquetNumericTopNIT extends AbstractEsqlIntegTestCase {
         }
         Files.write(tempFile, baos.toByteArray());
         return tempFile;
-    }
-
-    private static OutputFile createOutputFile(ByteArrayOutputStream baos) {
-        return new OutputFile() {
-            @Override
-            public PositionOutputStream create(long blockSizeHint) {
-                return new PositionOutputStream() {
-                    private long position = 0;
-
-                    @Override
-                    public long getPos() {
-                        return position;
-                    }
-
-                    @Override
-                    public void write(int b) throws IOException {
-                        baos.write(b);
-                        position++;
-                    }
-
-                    @Override
-                    public void write(byte[] b, int off, int len) throws IOException {
-                        baos.write(b, off, len);
-                        position += len;
-                    }
-                };
-            }
-
-            @Override
-            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
-                return create(blockSizeHint);
-            }
-
-            @Override
-            public boolean supportsBlockSize() {
-                return false;
-            }
-
-            @Override
-            public long defaultBlockSize() {
-                return 0;
-            }
-        };
     }
 }

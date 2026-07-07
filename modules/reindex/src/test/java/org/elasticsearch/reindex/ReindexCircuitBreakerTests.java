@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * bulk request that would have pushed the node toward OOM.
  *
  * <p>The reservation/release lifecycle of the hooks themselves is covered by unit tests in
- * {@code AsyncBulkByScrollActionTests}; this class verifies the production wiring (CircuitBreakerService →
+ * {@code AsyncBulkByPaginatedSearchActionTests}; this class verifies the production wiring (CircuitBreakerService →
  * Reindexer → AsyncIndexBySearchAction) actually fires against a real breaker.
  */
 public class ReindexCircuitBreakerTests extends ESSingleNodeTestCase {

@@ -1561,6 +1561,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: union_types
 required_capability: enrich_load
 FROM sample_data, sample_data_ts_long

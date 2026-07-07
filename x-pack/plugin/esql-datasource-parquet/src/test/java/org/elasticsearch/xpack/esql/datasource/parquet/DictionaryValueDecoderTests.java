@@ -264,6 +264,8 @@ public class DictionaryValueDecoderTests extends ESTestCase {
     }
 
     public void testInvalidBitWidthThrowsIllegalArgumentException() {
+        // An out-of-range bit width is read from the file's dictionary page — malformed input, so it
+        // surfaces as a client-class IllegalArgumentException (HTTP 400), not a server error.
         ByteBuffer buf = ByteBuffer.allocate(1);
         buf.put((byte) 254);
         buf.flip();

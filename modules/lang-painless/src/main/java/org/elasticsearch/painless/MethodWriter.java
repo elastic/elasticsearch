@@ -27,7 +27,10 @@ import java.util.BitSet;
 import java.util.Deque;
 import java.util.List;
 
+import static org.elasticsearch.painless.WriterConstants.CANCELLATION_POLL_INTERVAL;
+import static org.elasticsearch.painless.WriterConstants.CANCEL_POLL_FIELD;
 import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
+import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_BOOLEAN;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_BYTE_EXPLICIT;
@@ -138,25 +141,33 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     /**
-     * Emits an amortized per-loop cancellation check. Hot path: {@code iinc; iload; ifgt skip}.
-     * Cold path (every {@code pollInterval} iters): {@code aload; invokeinterface Runnable.run; reset counter}.
-     * The runnable throws an unchecked exception when execution should abort.
+     * Emits a decrement of the script's persistent {@code $cancelPoll} counter and, when it reaches
+     * zero, invokes the cancel {@link Runnable} and resets the counter to {@link
+     * WriterConstants#CANCELLATION_POLL_INTERVAL}. This is the low-level counterpart to {@link
+     * #writeLoopCounter(int, Location)}: the caller is responsible for resolving the slots and for
+     * guarding against a null runnable. The script receiver in {@code scriptThisSlot} must already
+     * hold a {@code $cancelPoll} field of type {@code int}.
+     *
+     * @param scriptThisSlot slot holding the script receiver that owns the {@code $cancelPoll} field
+     * @param runnableSlot   slot holding the non-null cancel {@link Runnable}
      */
-    public void writeCancellationCheck(int runnableSlot, int pollSlot, int pollInterval, Location location) {
-        assert runnableSlot != -1;
-        assert pollSlot != -1;
-        writeDebugInfo(location);
-        final Label skip = new Label();
+    public void writeCancellationPoll(int scriptThisSlot, int runnableSlot) {
+        Label skip = new Label();
 
-        iinc(pollSlot, -1);
-        visitVarInsn(Opcodes.ILOAD, pollSlot);
-        push(0);
-        ifICmp(GeneratorAdapter.GT, skip);
+        visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
+        dup();
+        getField(CLASS_TYPE, CANCEL_POLL_FIELD, Type.INT_TYPE);
+        push(-1);
+        math(MethodWriter.ADD, Type.INT_TYPE);
+        dupX1();
+        putField(CLASS_TYPE, CANCEL_POLL_FIELD, Type.INT_TYPE);
+        ifZCmp(MethodWriter.GT, skip);
 
         visitVarInsn(Opcodes.ALOAD, runnableSlot);
         invokeInterface(RUNNABLE_TYPE, RUNNABLE_RUN);
-        push(pollInterval);
-        visitVarInsn(Opcodes.ISTORE, pollSlot);
+        visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
+        push(CANCELLATION_POLL_INTERVAL);
+        putField(CLASS_TYPE, CANCEL_POLL_FIELD, Type.INT_TYPE);
 
         mark(skip);
     }

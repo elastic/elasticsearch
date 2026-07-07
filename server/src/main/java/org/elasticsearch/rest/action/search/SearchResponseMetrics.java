@@ -44,10 +44,12 @@ public class SearchResponseMetrics {
 
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";
+    public static final String STORE_BYTES_READ_HISTOGRAM_NAME = "es.search_response.store_bytes_read.histogram";
     private static final String SEARCH_PHASE_METRIC_FORMAT = "es.search_response.took_durations.%s.histogram";
 
     private final LongHistogram tookDurationTotalMillisHistogram;
     private final LongCounter responseCountTotalCounter;
+    private final LongHistogram storeBytesReadHistogram;
 
     private final Map<String, LongHistogram> phaseNameToDurationHistogram;
 
@@ -63,6 +65,11 @@ public class SearchResponseMetrics {
                 + "success, partial failure, or failure, expressed as a single total counter and individual "
                 + "attribute counters",
             "count"
+        );
+        this.storeBytesReadHistogram = meterRegistry.registerLongHistogram(
+            STORE_BYTES_READ_HISTOGRAM_NAME,
+            "The number of bytes read from the store while serving a search request, expressed as a histogram",
+            "bytes"
         );
 
         phaseNameToDurationHistogram = Map.of(
@@ -133,5 +140,9 @@ public class SearchResponseMetrics {
         LongHistogram queryPhaseDurationHistogram = phaseNameToDurationHistogram.get(phaseName);
         assert queryPhaseDurationHistogram != null;
         queryPhaseDurationHistogram.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attributes);
+    }
+
+    public void recordStoreBytesRead(long bytesRead, Map<String, Object> attributes) {
+        storeBytesReadHistogram.record(bytesRead, attributes);
     }
 }

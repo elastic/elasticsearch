@@ -514,6 +514,8 @@ public class DefinitionLevelDecoderTests extends ESTestCase {
     }
 
     public void testTruncatedPayloadThrowsIllegalArgumentException() {
+        // A truncated definition-level payload is malformed input (a corrupt/truncated file), so it
+        // surfaces as a client-class IllegalArgumentException (HTTP 400), not a server error.
         ByteBuffer buf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
         buf.putInt(999);
         buf.flip();

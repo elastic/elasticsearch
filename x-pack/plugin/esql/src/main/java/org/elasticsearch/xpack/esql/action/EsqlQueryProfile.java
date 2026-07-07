@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Tracks profiling for the planning phase
@@ -57,6 +58,21 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     /** Time elapsed for plan analysis */
     private final TimeSpanMarker analysisMarker;
     private final AtomicInteger fieldCapsCalls;
+    /** Distinct external files scanned after coordinator-side pruning (file-based sources only). */
+    private final AtomicInteger filesScanned;
+    /** Total external splits scanned across all external sources. */
+    private final AtomicInteger splitsScanned;
+    /** Estimated bytes scanned across the discovered external splits. */
+    private final AtomicLong bytesScanned;
+    /**
+     * Number of external relations whose ungrouped aggregate was served <em>warm</em> — answered purely
+     * from canonical-stripe / whole-file statistics with the data scan short-circuited away (split
+     * discovery skipped, {@code AggregateExec -> ExternalSourceExec} rewritten to a constant
+     * {@code LocalSourceExec}). A positive value is the affirmative "served from stripes" profiling
+     * signal: it lets a profile reader distinguish a warm short-circuit (this counter {@code > 0},
+     * scan counters zero) from a cold scan (scan counters {@code > 0}) without inferring from latency.
+     */
+    private final AtomicInteger externalWarmAggregates;
 
     private static final TransportVersion ESQL_QUERY_PLANNING_PROFILE = TransportVersion.fromName("esql_query_planning_profile");
     private static final TransportVersion ESQL_QUERY_PROFILE_VIEW_RESOLUTION = TransportVersion.fromName(
@@ -66,9 +82,13 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private static final TransportVersion ESQL_SEPARATE_DEPENDENCY_RESOLUTION = TransportVersion.fromName(
         "esql_separate_dependency_resolution"
     );
+    private static final TransportVersion ESQL_EXTERNAL_SCAN_PROFILE = TransportVersion.fromName("esql_external_scan_profile");
+    private static final TransportVersion ESQL_EXTERNAL_WARM_AGGREGATE_PROFILE = TransportVersion.fromName(
+        "esql_external_warm_aggregate_profile"
+    );
 
     public EsqlQueryProfile() {
-        this(null, null, null, null, null, null, null, null, null, null, 0);
+        this(null, null, null, null, null, null, null, null, null, null, 0, 0, 0, 0L, 0);
     }
 
     // For testing
@@ -83,7 +103,11 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         TimeSpan enrichResolution,
         TimeSpan inferenceResolution,
         TimeSpan analysis,
-        int fieldCapsCalls
+        int fieldCapsCalls,
+        int filesScanned,
+        int splitsScanned,
+        long bytesScanned,
+        int externalWarmAggregates
     ) {
         this.totalMarker = new TimeSpanMarker(QUERY, true, query);
         this.planningMarker = new TimeSpanMarker(PLANNING, false, planning);
@@ -96,6 +120,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         this.inferenceResolutionMarker = new TimeSpanMarker(INFERENCE_RESOLUTION, true, inferenceResolution);
         this.analysisMarker = new TimeSpanMarker(ANALYSIS, true, analysis);
         this.fieldCapsCalls = new AtomicInteger(fieldCapsCalls);
+        this.filesScanned = new AtomicInteger(filesScanned);
+        this.splitsScanned = new AtomicInteger(splitsScanned);
+        this.bytesScanned = new AtomicLong(bytesScanned);
+        this.externalWarmAggregates = new AtomicInteger(externalWarmAggregates);
     }
 
     public static EsqlQueryProfile readFrom(StreamInput in) throws IOException {
@@ -129,6 +157,18 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         if (in.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION)) {
             fieldCapsCalls = in.readVInt();
         }
+        int filesScanned = 0;
+        int splitsScanned = 0;
+        long bytesScanned = 0L;
+        if (in.getTransportVersion().supports(ESQL_EXTERNAL_SCAN_PROFILE)) {
+            filesScanned = in.readVInt();
+            splitsScanned = in.readVInt();
+            bytesScanned = in.readVLong();
+        }
+        int externalWarmAggregates = 0;
+        if (in.getTransportVersion().supports(ESQL_EXTERNAL_WARM_AGGREGATE_PROFILE)) {
+            externalWarmAggregates = in.readVInt();
+        }
         return new EsqlQueryProfile(
             query,
             planning,
@@ -140,7 +180,11 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             enrichResolution,
             inferenceResolution,
             analysis,
-            fieldCapsCalls
+            fieldCapsCalls,
+            filesScanned,
+            splitsScanned,
+            bytesScanned,
+            externalWarmAggregates
         );
     }
 
@@ -175,6 +219,14 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION)) {
             out.writeVInt(fieldCapsCalls.get());
         }
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SCAN_PROFILE)) {
+            out.writeVInt(filesScanned.get());
+            out.writeVInt(splitsScanned.get());
+            out.writeVLong(bytesScanned.get());
+        }
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_WARM_AGGREGATE_PROFILE)) {
+            out.writeVInt(externalWarmAggregates.get());
+        }
     }
 
     @Override
@@ -191,7 +243,11 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             && Objects.equals(enrichResolutionMarker, that.enrichResolutionMarker)
             && Objects.equals(inferenceResolutionMarker, that.inferenceResolutionMarker)
             && Objects.equals(analysisMarker, that.analysisMarker)
-            && Objects.equals(fieldCapsCalls.get(), that.fieldCapsCalls.get());
+            && Objects.equals(fieldCapsCalls.get(), that.fieldCapsCalls.get())
+            && filesScanned.get() == that.filesScanned.get()
+            && splitsScanned.get() == that.splitsScanned.get()
+            && bytesScanned.get() == that.bytesScanned.get()
+            && externalWarmAggregates.get() == that.externalWarmAggregates.get();
     }
 
     @Override
@@ -207,7 +263,11 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             enrichResolutionMarker,
             inferenceResolutionMarker,
             analysisMarker,
-            fieldCapsCalls.get()
+            fieldCapsCalls.get(),
+            filesScanned.get(),
+            splitsScanned.get(),
+            bytesScanned.get(),
+            externalWarmAggregates.get()
         );
     }
 
@@ -236,6 +296,14 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             + analysisMarker
             + ", fieldCapsCalls="
             + fieldCapsCalls.get()
+            + ", filesScanned="
+            + filesScanned.get()
+            + ", splitsScanned="
+            + splitsScanned.get()
+            + ", bytesScanned="
+            + bytesScanned.get()
+            + ", externalWarmAggregates="
+            + externalWarmAggregates.get()
             + '}';
     }
 
@@ -318,6 +386,43 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         fieldCapsCalls.incrementAndGet();
     }
 
+    public int filesScanned() {
+        return filesScanned.get();
+    }
+
+    public int splitsScanned() {
+        return splitsScanned.get();
+    }
+
+    public long bytesScanned() {
+        return bytesScanned.get();
+    }
+
+    public int externalWarmAggregates() {
+        return externalWarmAggregates.get();
+    }
+
+    /**
+     * Records the post-prune external scan accounting discovered for the query. Adds to any
+     * previously recorded counts so multiple split-discovery paths can contribute.
+     */
+    public void addExternalScanStats(int files, int splits, long bytes) {
+        filesScanned.addAndGet(files);
+        splitsScanned.addAndGet(splits);
+        bytesScanned.addAndGet(bytes);
+    }
+
+    /**
+     * Records that {@code count} external relations were served warm — their ungrouped aggregate was
+     * answered from canonical-stripe / whole-file statistics with the data scan short-circuited away.
+     * Recorded at split-discovery time on the coordinator, where the short-circuit decision is made
+     * (see {@code ComputeService.canSkipSplitDiscovery}); no scan operator runs for a warm relation, so
+     * this is the only place the "served from stripes" signal is observable.
+     */
+    public void addExternalWarmAggregates(int count) {
+        externalWarmAggregates.addAndGet(count);
+    }
+
     public Collection<TimeSpanMarker> timeSpanMarkers() {
         return List.of(
             totalMarker,
@@ -349,6 +454,29 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             builder.field(timeSpanMarker.name(), timeSpanMarker.timeSpan());
         }
         builder.field("field_caps_calls", fieldCapsCalls.get());
+        // Only emit external scan accounting for queries that actually scanned an external source.
+        // files_scanned and bytes_scanned are source-specific; omit them when the source cannot
+        // report them (e.g. connector sources like Arrow Flight have no file or byte accounting).
+        int splits = splitsScanned.get();
+        if (splits > 0) {
+            int files = filesScanned.get();
+            if (files > 0) {
+                builder.field("files_scanned", files);
+            }
+            builder.field("splits_scanned", splits);
+            long bytes = bytesScanned.get();
+            if (bytes > 0) {
+                builder.field("bytes_scanned", bytes);
+            }
+        }
+        // The affirmative warm signal: emitted only when at least one external aggregate was served from
+        // statistics with the scan short-circuited away. Its presence (with the scan counters above
+        // absent/zero) is what distinguishes a warm short-circuit from a cold scan without inferring from
+        // latency.
+        int warm = externalWarmAggregates.get();
+        if (warm > 0) {
+            builder.field("external_warm_aggregates", warm);
+        }
         return builder;
     }
 

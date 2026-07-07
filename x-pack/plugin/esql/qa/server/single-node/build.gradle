@@ -18,8 +18,10 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:tools'))
   javaRestTestImplementation project(xpackModule('esql'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+  yamlRestTestImplementation(testArtifact(project(":modules:ip-location")))
 
   javaRestTestImplementation project(':libs:arrow')
+  javaRestTestImplementation(testArtifact(project(":modules:ip-location")))
 
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')

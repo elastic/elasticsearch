@@ -35,8 +35,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.xpack.stateless.MetricQuality;
 
@@ -107,7 +105,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * <p>
      * By default, the Fixed Method is used. To switch to the Adaptive Method, explicitly set
      * the `memory_metrics.shard_memory_overhead` setting to -1.
-     * <p>
      */
     public static final ByteSizeValue FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT = ByteSizeValue.ofMb(6);
     public static final Setting<ByteSizeValue> FIXED_SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
@@ -147,7 +144,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     // The memory overhead of each field found in Lucene segments
     public static final ByteSizeValue ADAPTIVE_FIELD_MEMORY_OVERHEAD = ByteSizeValue.ofBytes(1024);
 
-    private static final Logger logger = LogManager.getLogger(StatelessMemoryMetricsService.class);
     // visible for testing
     public static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
 
@@ -270,8 +266,12 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return nodeIdToHeapUsage;
     }
 
+    public long getIndexMemoryOverhead() {
+        return INDEX_MEMORY_OVERHEAD * totalIndices;
+    }
+
     public long getNodeBaseHeapEstimateInBytes() {
-        return INDEX_MEMORY_OVERHEAD * totalIndices + workloadMemoryOverhead;
+        return getIndexMemoryOverhead() + workloadMemoryOverhead;
     }
 
     // Visible for testing

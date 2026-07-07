@@ -19,7 +19,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 
@@ -31,6 +32,8 @@ import java.io.IOException;
  */
 
 public class BulkKeywordLookup {
+    private static final Logger logger = LogManager.getLogger(BulkKeywordLookup.class);
+
     private final int matchChannelOffset;
     private final int extractChannelOffset;
     private final Warnings warnings;
@@ -41,11 +44,11 @@ public class BulkKeywordLookup {
     private PostingsEnum[] postingsCache = null;
     private final BytesRef scratch = new BytesRef();
 
-    public BulkKeywordLookup(MappedFieldType rightFieldType, int matchChannelOffset, int extractChannelOffset, Warnings warnings) {
+    public BulkKeywordLookup(String rightFieldName, int matchChannelOffset, int extractChannelOffset, Warnings warnings) {
         this.matchChannelOffset = matchChannelOffset; // offset of field in left (page shipped to lookup index)
         this.extractChannelOffset = extractChannelOffset; // offset of field in right (page from ValuesSourceReaderOperator)
         this.warnings = warnings;
-        this.fieldName = rightFieldType.name();
+        this.fieldName = rightFieldName;
     }
 
     /**

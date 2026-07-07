@@ -13,7 +13,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
@@ -86,7 +86,7 @@ public class IndexPrivilegeTests extends ESTestCase {
             findPrivilegesThatGrant(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME),
             equalTo(List.of("delete_view", "manage_view", "manage", "all"))
         );
-        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
+        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
             assertThat(
                 findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME),
                 equalTo(List.of("create_dataset", "manage_dataset", "manage", "all"))
@@ -163,7 +163,7 @@ public class IndexPrivilegeTests extends ESTestCase {
             assertThat(actual, equalTo(IndexPrivilege.MANAGE_VIEW));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
         }
-        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
+        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
             {
                 IndexPrivilege actual = IndexPrivilege.get("create_dataset");
                 assertThat(actual, equalTo(IndexPrivilege.CREATE_DATASET));
@@ -506,7 +506,7 @@ public class IndexPrivilegeTests extends ESTestCase {
     public void testDatasetPrivileges() {
         assumeTrue(
             "ESQL external datasources feature flag is disabled",
-            DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+            DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
         );
         final IndexPrivilege createDataset = resolvePrivilegeAndAssertSingleton(Set.of("create_dataset"));
         assertThat(createDataset.predicate.test(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME), is(true));

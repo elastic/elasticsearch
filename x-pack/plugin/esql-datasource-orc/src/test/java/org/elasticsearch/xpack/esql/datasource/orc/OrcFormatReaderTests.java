@@ -43,6 +43,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -178,7 +179,7 @@ public class OrcFormatReaderTests extends ESTestCase {
      * ORC's {@code TypeDescription} encodes no non-null guarantee at the schema level — per-file non-null observations live
      * only in footer statistics — so defaulting attributes to non-nullable would cause planner rules (e.g. {@code COALESCE}
      * simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) to drop legitimate null rows. The schema below covers
-     * every branch of {@code convertOrcTypeToEsql}, including the {@code UNSUPPORTED} fallback (binary).
+     * the representative scalar, list and {@code UNSUPPORTED} (binary) mappings of {@code convertOrcTypeToEsql}.
      */
     public void testSchemaAttributesAreAlwaysNullable() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
@@ -249,6 +250,38 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(2));
             assertEquals(new BytesRef("Charlie"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(2, new BytesRef()));
             assertEquals(92.1, ((DoubleBlock) page.getBlock(2)).getDouble(2), 0.001);
+        });
+    }
+
+    public void testBinaryColumnMapsToUnsupported() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("payload", TypeDescription.createBinary());
+        byte[] orcData = createOrcFile(schema, batch -> { batch.size = 0; });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        List<Attribute> attributes = reader.metadata(createStorageObject(orcData)).schema();
+        assertEquals(1, attributes.size());
+        assertEquals(DataType.UNSUPPORTED, attributes.get(0).dataType());
+    }
+
+    public void testStringColumnWithInvalidUtf8IsSanitized() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("name", TypeDescription.createString());
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[0];
+            // 0xF8..0xFF is never a valid UTF-8 lead byte; it is exactly what crashes the TopN Utf8 encoder.
+            nameCol.setVal(0, new byte[] { (byte) 0xFF, (byte) 0xF8 });
+            nameCol.setVal(1, "ok".getBytes(StandardCharsets.UTF_8));
+        });
+
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        StorageObject storageObject = createStorageObject(orcData);
+        assertEquals(DataType.KEYWORD, reader.metadata(storageObject).schema().get(0).dataType());
+
+        readFirstPage(reader, storageObject, null, page -> {
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            // Two invalid lead bytes -> two U+FFFD.
+            assertEquals(new BytesRef("\uFFFD\uFFFD"), block.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("ok"), block.getBytesRef(1, new BytesRef()));
         });
     }
 
@@ -1239,6 +1272,74 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertTrue("Should have multiple stripes", ranges.size() >= 2);
 
         assertEquals("Filter should exclude all rows in this stripe", 0, countRangeRows(reader, storageObject, ranges.get(0)));
+    }
+
+    /**
+     * {@code _rowPosition} must be the absolute, file-global row number — split-invariant — both
+     * on a full-file read and when the read is restricted to a later stripe via {@code readRange}.
+     * This is the substrate {@code _id} is composed from; a stripe-relative regression here would
+     * silently re-key every row whenever the split layout changes. Each row's {@code id} column is
+     * written equal to its absolute row number, so the assertion is {@code rowPosition == id}.
+     */
+    public void testRowPositionIsFileGlobalAcrossStripes() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        int rowsPerStripe = 100;
+        int stripeCount = 3;
+        byte[] orcData = createMultiStripeOrcFile(schema, stripeCount, batchIndex -> {
+            VectorizedRowBatch batch = schema.createRowBatch();
+            batch.size = rowsPerStripe;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            for (int i = 0; i < rowsPerStripe; i++) {
+                idCol.vector[i] = batchIndex * (long) rowsPerStripe + i;
+            }
+            return batch;
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        List<String> projection = List.of("id", ColumnExtractor.ROW_POSITION_COLUMN);
+
+        // Full-file read with a batch size that does not align with stripe boundaries.
+        int totalRows = 0;
+        try (CloseableIterator<Page> iter = reader.read(storageObject, projection, 64)) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                LongBlock idBlock = (LongBlock) page.getBlock(0);
+                LongBlock rowPosBlock = (LongBlock) page.getBlock(1);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    assertEquals("_rowPosition must equal the absolute row number", idBlock.getLong(i), rowPosBlock.getLong(i));
+                }
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(rowsPerStripe * stripeCount, totalRows);
+
+        // Stripe-ranged read of a non-first stripe: positions stay file-global, not range-relative.
+        List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Should have multiple stripes", ranges.size() >= 2);
+        SplitRange secondStripe = ranges.get(1);
+        try (
+            CloseableIterator<Page> iter = reader.readRange(
+                storageObject,
+                new RangeReadContext(projection, 64, secondStripe.offset(), secondStripe.offset() + secondStripe.length(), List.of(), null)
+            )
+        ) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                LongBlock idBlock = (LongBlock) page.getBlock(0);
+                LongBlock rowPosBlock = (LongBlock) page.getBlock(1);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    assertEquals(
+                        "_rowPosition on a ranged read must stay file-global, not range-relative",
+                        idBlock.getLong(i),
+                        rowPosBlock.getLong(i)
+                    );
+                    assertTrue("second stripe rows start at " + rowsPerStripe, rowPosBlock.getLong(i) >= rowsPerStripe);
+                }
+                page.releaseBlocks();
+            }
+        }
     }
 
     // --- Read template helpers ---

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -18,6 +17,9 @@ import org.elasticsearch.xpack.esql.CsvTestUtils;
 import java.nio.file.Path;
 
 public class Clusters {
+
+    private static final String ENCRYPTION_PASSWORD_ID = "test";
+    private static final String ENCRYPTION_PASSWORD = "esql-test-encryption-password";
 
     /**
      * System property that, when set to {@code "true"}, enables xpack security on the test
@@ -46,10 +48,16 @@ public class Clusters {
             .setting("xpack.security.enabled", Boolean.toString(securityEnabled))
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
+            .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
+            .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
+            .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
             .shared(true)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
-            .apply(() -> configProvider)
-            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS);
+            .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
+            .setting("ingest.geoip.downloader.enabled", "false")
+            .apply(() -> configProvider);
         if (securityEnabled) {
             builder.user(ADMIN_USER, ADMIN_PASSWORD, "superuser", true);
         }

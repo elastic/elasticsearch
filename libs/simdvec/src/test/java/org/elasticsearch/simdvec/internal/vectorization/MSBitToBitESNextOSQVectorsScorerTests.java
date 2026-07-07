@@ -15,12 +15,14 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.nativeaccess.BBQTestUtils;
+import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class MSBitToBitESNextOSQVectorsScorerTests extends ESTestCase {
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
+
+public class MSBitToBitESNextOSQVectorsScorerTests extends BaseVectorizationTests {
 
     public void testSymmetric1BitDotProductMatchesScalar() throws IOException {
         int dims = random().nextInt(1, 64) * 8;
@@ -61,7 +63,8 @@ public class MSBitToBitESNextOSQVectorsScorerTests extends ESTestCase {
     }
 
     public void testSymmetric1BitDotProductMatchesNativeWhenSupported() throws IOException {
-
+        assumeTrue("native scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
+        assumeTrue("native vector library not available", nativeProvider().getVectorScorerFactory().usesNative());
         int dims = random().nextInt(1, 64) * 8;
         int length = BBQTestUtils.numBytes(dims, 1);
 

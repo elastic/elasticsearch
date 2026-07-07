@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -52,7 +53,6 @@ import static java.util.stream.Collectors.summingInt;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 
 /**
@@ -77,7 +77,7 @@ public class PromqlCoverageAnalyzer implements Closeable {
         new MutableAnalyzerContext(
             EsqlTestUtils.TEST_CFG,
             TEST_FUNCTION_REGISTRY,
-            TEST_PROMQL_FUNCTION_REGISTRY,
+            PromqlFunctionRegistry.INSTANCE,
             Map.of(),
             AnalyzerTestUtils.defaultLookupResolution(),
             new EnrichResolution(),

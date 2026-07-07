@@ -40,6 +40,64 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(15, file1.get("day"));
     }
 
+    /**
+     * Standard metadata names are dedicated: a template placeholder claiming one (here
+     * {@code {_index}}) surfaces under the {@code _partition.} prefix — the same contract the
+     * Hive detector enforces — so {@code METADATA _index} keeps its spec meaning while the
+     * layout's value stays queryable. Each rename is disclosed via a {@code Warning} header at
+     * detection time.
+     */
+    public void testReservedPlaceholderSurfacesUnderPartitionPrefix() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{_index}/{year}");
+
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/alpha/2024/file1.parquet"),
+            entry("s3://bucket/data/beta/2023/file2.parquet")
+        );
+
+        PartitionMetadata result = detector.detect(files, Map.of());
+
+        assertFalse(result.isEmpty());
+        assertFalse("reserved name must not surface as-is", result.partitionColumns().containsKey("_index"));
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._index"));
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
+
+        Map<String, Object> file1 = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/alpha/2024/file1.parquet"));
+        assertEquals("alpha", file1.get("_partition._index"));
+        assertEquals(2024, file1.get("year"));
+
+        assertWarnings(
+            "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+            "partition column [_index] surfaced as [_partition._index]"
+        );
+    }
+
+    /**
+     * The per-row composed pair is reserved too: {@code {_id}} and {@code {_source}} placeholders
+     * must not reach {@code VirtualColumnIterator}'s name-keyed role dispatch (a bare {@code _id}
+     * partition column crashes on the missing {@code _rowPosition} channel; a bare {@code _source}
+     * silently substitutes synthesized JSON for the layout's value).
+     */
+    public void testReservedPerRowNamesAreRenamedToo() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{_id}/{_source}");
+
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/k1/v1/file1.parquet"));
+
+        PartitionMetadata result = detector.detect(files, Map.of());
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._id"));
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._source"));
+        assertFalse(result.partitionColumns().containsKey("_id"));
+        assertFalse(result.partitionColumns().containsKey("_source"));
+
+        assertWarnings(
+            "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+            "partition column [_id] surfaced as [_partition._id]",
+            "partition column [_source] surfaced as [_partition._source]"
+        );
+    }
+
     public void testTypeInferenceKeyword() {
         TemplatePartitionDetector detector = new TemplatePartitionDetector("{region}/{city}");
 

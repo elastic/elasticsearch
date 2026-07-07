@@ -665,7 +665,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertEquals(100L, enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
-            assertEquals(0L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            // Once the 0..K fold is complete the per-stripe bookkeeping is compacted away (it has served its
+            // purpose) so the entry weight stays O(1) — see the compaction step in applyStripeDelta.
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 
@@ -808,7 +813,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 100L,
                 enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
-            assertEquals(1L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 
@@ -1134,6 +1142,54 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for mechanism #2 of the ndjson warm-COUNT loss (esql-planning#1099): a many-stripe file's
+     * entry must NOT keep its per-stripe sub-entries once the whole-file 0..K fold is complete. Retaining them
+     * makes the entry weight O(stripe count); a multi-file glob of such entries overflows the schema-cache weight
+     * budget, the LRU evicts already-committed sibling entries, and the all-or-nothing multi-file warm serve
+     * re-scans. After a complete fold the entry must hold ONLY the whole-file _stats.* (no _stats.stripe.*),
+     * keeping its weight O(1) and its estimatedBytes small regardless of stripe count.
+     */
+    public void testManyStripeEntryCompactedToConstantWeightAfterCompleteFold() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/big.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCache(service, key, path, "fp");
+
+            int stripes = 500;
+            long grid = 100L;
+            List<Map<String, Object>> fragments = new ArrayList<>(stripes);
+            for (int k = 0; k < stripes; k++) {
+                boolean last = k == stripes - 1;
+                fragments.add(stripeFragment(mtime, "fp", 3L, grid, k, k * grid, (k + 1) * grid, true, true, last));
+            }
+            service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "whole-file fold sums every stripe",
+                (long) stripes * 3L,
+                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            long stripeSubEntries = enriched.safeMetadata()
+                .keySet()
+                .stream()
+                .filter(kk -> kk.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX))
+                .count();
+            assertEquals("no per-stripe sub-entries retained after a complete fold", 0L, stripeSubEntries);
+            assertNull("stripe EOF marker compacted", enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull("stripe grid stamp compacted", enriched.safeMetadata().get(ExternalStats.STRIPE_GRID_KEY));
+            // The entry weight must not scale with stripe count: 500 stripes must weigh no more than a small
+            // constant over a fold-only entry (a retained-stripe entry would be tens of KB heavier).
+            assertThat(
+                "compacted entry weight must be O(1), not O(stripe count)",
+                enriched.estimatedBytes(),
+                org.hamcrest.Matchers.lessThan(2_000L)
+            );
+        }
+    }
+
     public void testReconcileEmptyStripeFromOversizedRecord() throws Exception {
         // A record larger than the grid skips an ordinal entirely — the reader emits an explicit
         // zero-length empty fragment for it (atStripeStart & atStripeEnd). The whole-file fold counts
@@ -1159,7 +1215,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 10L,
                 enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
-            assertEquals(2L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 
@@ -1216,7 +1275,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 stripes * rowsPerStripe,
                 enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
-            assertEquals((long) (stripes - 1), enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 

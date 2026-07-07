@@ -520,6 +520,22 @@ public class ExternalSourceCacheService implements Closeable {
             }
             Map<String, Object> wholeFile = foldCommittedStripes(enriched, delta);
             if (wholeFile != null) {
+                // The 0..K fold is complete: the whole-file _stats.* now carry the authoritative row count and
+                // extrema, so the per-stripe sub-entries have served their only purpose (composing partial
+                // knowledge across queries until the file is fully covered). Retaining them makes each entry's
+                // cache weight O(stripe count) — a many-stripe file (thousands of 8 MB stripes over a large
+                // uncompressed/JSON object) then weighs hundreds of KB, and a multi-file glob's accumulated
+                // working set overflows the schema-cache budget (0.4% heap default). The LRU then evicts
+                // already-committed sibling entries, and the all-or-nothing multi-file fold
+                // (aggregateFileStatistics returns null if ANY file lacks stats) forces a full warm re-scan.
+                // Compact to O(1): once complete, drop the stripe bookkeeping and keep only the whole-file fold.
+                // Safe because the file is fully known — a later scan of the same (path, mtime, fingerprint)
+                // re-emits identical stripes idempotently, and a partial re-scan folds to null but leaves the
+                // committed whole-file row count in place. NDJSON hits the overflow first (its decompressed
+                // footprint packs 2-3x the stripes of CSV/TSV at equal rows), but the bloat is format-agnostic.
+                enriched.keySet().removeIf(k -> k.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX));
+                enriched.remove(ExternalStats.STRIPE_LAST_INDEX_KEY);
+                enriched.remove(ExternalStats.STRIPE_GRID_KEY);
                 enriched.putAll(wholeFile);
             }
             schemaCache.put(

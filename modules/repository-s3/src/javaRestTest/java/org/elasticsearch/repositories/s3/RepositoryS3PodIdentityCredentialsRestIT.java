@@ -31,14 +31,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * Exercises the EKS Pod Identity credentials path. Like ECS task roles, Pod Identity resolves credentials through the AWS
- * SDK's {@code ContainerCredentialsProvider} by calling {@code AWS_CONTAINER_CREDENTIALS_FULL_URI} with the token read from
- * {@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE}. That token path sits outside the plugin's entitlement-grantable area, so
- * the operator repoints {@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE} at the entitled symlink
- * ({@code ${ES_PATH_CONF}/repository-s3/eks-pod-identity-token}) and symlinks the real token there, exactly as for the IRSA
- * web-identity token; {@code repository-s3} only grants read access there and overrides neither the env var nor any system
- * property.
- *
  * @see <a href="https://docs.aws.amazon.com/eks/latest/userguide/pod-id-how-it-works.html">How EKS Pod Identity works</a>
  */
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
@@ -49,9 +41,7 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "pod_identity_credentials_client";
 
-    // Generated lazily (not in static context) so the token is a deterministic function of the test seed, and memoized so the
-    // config file written below and the fixture's Authorization check observe the same value.
-    private static final Supplier<String> podIdentityTokenSupplier = new LazyInitializable<String, RuntimeException>(
+    private static final Supplier<String> podIdentityTokenSupplier = new LazyInitializable<>(
         () -> "test-pod-identity-auth-token-" + randomIdentifier()
     )::getOrCompute;
 
@@ -61,9 +51,7 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
     private static final Ec2ImdsHttpFixture podIdentityCredentialsFixture = new Ec2ImdsHttpFixture(
         new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).newCredentialsConsumer(dynamicCredentials::addValidCredentials)
             .alternativeCredentialsEndpoints(Set.of("/pod_identity_credentials_endpoint"))
-            // Return the EKS Pod Identity response shape (AccountId, no RoleArn) rather than the EC2/ECS RoleArn shape.
             .podIdentityCredentialsResponse()
-            // Verify the SDK sends the token read from the entitled file.
             .authorizationTokenSupplier(podIdentityTokenSupplier)
     );
 
@@ -76,14 +64,13 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
         dynamicCredentials::isAuthorized
     );
 
+    private static final String POD_IDENTITY_TOKEN_FILE_LOCATION = "repository-s3/eks-pod-identity-token";
+
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
-        // The entitled symlink the operator points the SDK at; in production this symlinks the Kubernetes-injected token.
-        .configFile(S3Service.POD_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString(podIdentityTokenSupplier))
-        // Repoint the SDK's token file at the entitled symlink above; ${ES_PATH_CONF} is expanded by the test-clusters
-        // framework to the node's config dir.
-        .environment("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", "${ES_PATH_CONF}/" + S3Service.POD_IDENTITY_TOKEN_FILE_LOCATION)
+        .configFile(POD_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString(podIdentityTokenSupplier))
+        .environment("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", "${ES_PATH_CONF}/" + POD_IDENTITY_TOKEN_FILE_LOCATION)
         .environment(
             "AWS_CONTAINER_CREDENTIALS_FULL_URI",
             () -> podIdentityCredentialsFixture.getAddress() + "/pod_identity_credentials_endpoint"

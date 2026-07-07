@@ -43,10 +43,6 @@ public class Ec2ImdsServiceBuilder {
         ESTestCase.fail("credentials creation not supported");
     }
 
-    /**
-     * If set, the credentials endpoint only responds when the request carries an {@code Authorization} header equal to the
-     * supplied token; otherwise it returns {@code 403}. Used to verify that the SDK sends the container-credentials token.
-     */
     public Ec2ImdsServiceBuilder authorizationTokenSupplier(Supplier<String> authorizationTokenSupplier) {
         this.authorizationTokenSupplier = authorizationTokenSupplier;
         return this;
@@ -57,11 +53,6 @@ public class Ec2ImdsServiceBuilder {
         return this;
     }
 
-    /**
-     * If set, the credentials endpoint returns an {@code AccountId} field and omits {@code RoleArn}, matching the response
-     * shape of the EKS Pod Identity agent. If unset, the response carries a {@code RoleArn} as the EC2 IMDS and ECS
-     * container-credentials endpoints this fixture otherwise emulates do.
-     */
     public Ec2ImdsServiceBuilder podIdentityCredentialsResponse() {
         this.podIdentityCredentialsResponse = true;
         return this;

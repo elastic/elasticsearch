@@ -47,9 +47,8 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
     private final Set<String> validImdsTokens = ConcurrentCollections.newConcurrentSet();
 
     private final BiConsumer<String, String> newCredentialsConsumer;
-    @Nullable // if non-null, the credentials endpoint requires this exact Authorization header value
+    @Nullable // if any Authorization header is acceptable
     private final Supplier<String> authorizationTokenSupplier;
-    // if true, the credentials endpoint returns the EKS Pod Identity response shape (AccountId, no RoleArn)
     private final boolean podIdentityCredentialsResponse;
     private final Map<String, String> instanceAddresses;
     private final Set<String> validCredentialsEndpoints;

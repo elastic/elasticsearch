@@ -93,15 +93,6 @@ class S3Service extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    /**
-     * Entitled location ({@code ${ES_PATH_CONF}}-relative) for the EKS Pod Identity auth token; {@code entitlement-policy.yaml}
-     * grants read access here, mirroring the IRSA web-identity symlink. Operators point
-     * {@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE} at this path and symlink the Kubernetes-injected token here.
-     *
-     * @see <a href="https://docs.aws.amazon.com/eks/latest/userguide/pod-id-how-it-works.html">How EKS Pod Identity works</a>
-     */
-    static final String POD_IDENTITY_TOKEN_FILE_LOCATION = "repository-s3/eks-pod-identity-token";
-
     private final S3DefaultRegionHolder defaultRegionHolder;
 
     final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;

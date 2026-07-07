@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -328,7 +329,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             var responseData = getEisElserAuthorizationResponse(eisGatewayUrl);
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
 
-            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new TestPlainActionFuture<>();
             authHandler.getAuthorizationWithPreferences(listener, sender, new InferencePreferences(regionPolicy));
             listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 

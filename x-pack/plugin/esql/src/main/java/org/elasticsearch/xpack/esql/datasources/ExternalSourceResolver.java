@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
@@ -41,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -643,6 +645,11 @@ public class ExternalSourceResolver {
                 // (metadataReadConcurrency), releasing the pool thread across each footer read;
                 // - the aggregated stats unlock skipping Phase 2 entirely for pushable aggregates
                 // (see ComputeService#canSkipSplitDiscovery), which dominates the savings.
+                // implicitNulls: whether an absent per-column stat means "all rows null" (footer formats) vs
+                // "not harvested" (line-oriented text). Computed once from the anchor's sourceType and threaded
+                // into the async aggregation so text-format multi-file merges force a re-scan instead of serving
+                // a subset COUNT/MIN/MAX (see foldsAbsentColumnAsImplicitNull / SourceStatisticsSerializer).
+                boolean implicitNulls = foldsAbsentColumnAsImplicitNull(base.sourceType());
                 ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
                     try {
                         listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, aggregatedStats)));
@@ -651,9 +658,9 @@ public class ExternalSourceResolver {
                     }
                 }, listener::onFailure);
                 if (cacheable) {
-                    readAndAggregateAllFileStatsWithCache(listing, config, statsListener);
+                    readAndAggregateAllFileStatsWithCache(listing, config, implicitNulls, statsListener);
                 } else {
-                    readAndAggregateAllFileStats(listing, config, statsListener);
+                    readAndAggregateAllFileStats(listing, config, implicitNulls, statsListener);
                 }
             } else if (listing.fileCount() > 1) {
                 // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
@@ -683,10 +690,28 @@ public class ExternalSourceResolver {
             // rely on incomplete sourceMetadata stats.
             return markStatsAsPartial(base);
         }
-        // Replace anchor-only stats with globally-aggregated stats. Preserve all non-stats keys from base (e.g.
-        // file_count, config).
+        // Replace anchor-only stats with globally-aggregated stats. The aggregated stats are authoritative across
+        // all files: a column the cross-file merge dropped (e.g. a text column harvested in only some files, under
+        // implicitNulls=false) must NOT survive via the anchor file's own per-column keys. So strip every _stats.*
+        // key from the anchor base before overlaying — putAll alone only overwrites keys the aggregate still has,
+        // which would leak the anchor's stale per-column stats (value_count/min/max/null_count) against the GLOBAL
+        // row count and serve a wrong COUNT/MIN/MAX. Non-stats keys (file_count, config) are preserved. Mirrors
+        // buildUnifiedMetadata's strip.
         Map<String, Object> current = base.sourceMetadata();
-        Map<String, Object> merged = current != null ? new HashMap<>(current) : new HashMap<>();
+        Map<String, Object> merged = new HashMap<>();
+        if (current != null) {
+            for (Map.Entry<String, Object> entry : current.entrySet()) {
+                // Strip the anchor's stale per-file stats, but PRESERVE STATS_FILE_COUNT: it was stamped on base by
+                // enrichWithFileCount before this call and is not part of aggregatedStats (which carries only row
+                // count + per-column stats), so dropping it would lose the file count the eager path needs for
+                // canSkipSplitDiscovery. (buildUnifiedMetadata re-stamps it after its strip; here base already has it.)
+                boolean isStale = entry.getKey().startsWith(SourceStatisticsSerializer.STATS_KEY_PREFIX)
+                    && entry.getKey().equals(SourceStatisticsSerializer.STATS_FILE_COUNT) == false;
+                if (isStale == false) {
+                    merged.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
         merged.putAll(aggregatedStats);
         // Do NOT add STATS_PARTIAL — stats are now complete across all files.
         merged.remove(SourceStatisticsSerializer.STATS_PARTIAL);
@@ -817,6 +842,42 @@ public class ExternalSourceResolver {
         return dot >= 0 ? name.substring(dot) : "";
     }
 
+    /** True for the coordinator-cache stripe bookkeeping keys that have no plan-side consumer. */
+    private static boolean isStripeBookkeeping(String key) {
+        return key.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX)
+            || key.equals(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            || key.equals(ExternalStats.STRIPE_GRID_KEY);
+    }
+
+    /**
+     * Returns {@code safeMetadata} without the coordinator-cache stripe bookkeeping ({@code _stats.stripe.<k>},
+     * {@code _stats.stripe_last_index}, {@code _stats.stripe_grid}) — those feed the cache-side 0..K fold and are
+     * never read from the plan, but would otherwise ride the plan wire per fragment. Returns the input unchanged
+     * when it carries no stripe keys (no copy on the common already-folded warm-serve path).
+     */
+    private static Map<String, Object> stripStripeBookkeeping(Map<String, Object> safeMetadata) {
+        if (safeMetadata == null || safeMetadata.isEmpty()) {
+            return safeMetadata;
+        }
+        boolean hasStripeKeys = false;
+        for (String k : safeMetadata.keySet()) {
+            if (isStripeBookkeeping(k)) {
+                hasStripeKeys = true;
+                break;
+            }
+        }
+        if (hasStripeKeys == false) {
+            return safeMetadata;
+        }
+        Map<String, Object> filtered = new HashMap<>(safeMetadata.size());
+        for (Map.Entry<String, Object> e : safeMetadata.entrySet()) {
+            if (isStripeBookkeeping(e.getKey()) == false) {
+                filtered.put(e.getKey(), e.getValue());
+            }
+        }
+        return filtered;
+    }
+
     private static ExternalSourceMetadata buildMetadataFromCache(
         SchemaCacheEntry entry,
         List<Attribute> schema,
@@ -837,8 +898,13 @@ public class ExternalSourceResolver {
 
         // Warm stats live in the entry's safeMetadata, reconciled there from the data-node capture
         // (DriverCompletionInfo → ExternalSourceCacheService.reconcileSourceStats). The optimizer
-        // reads the _stats.* keys straight off this map; no separate cache lookup.
-        final Map<String, Object> finalMetadata = entry.safeMetadata();
+        // reads the whole-file _stats.* keys (row count, per-column min/max/null/value-count, mtime,
+        // fingerprint) straight off this map; no separate cache lookup. But safeMetadata ALSO carries the
+        // coordinator-cache stripe bookkeeping (_stats.stripe.<k> committed stripes, _stats.stripe_last_index,
+        // _stats.stripe_grid), which only ExternalSourceCacheService's 0..K fold reads — it has no plan-side
+        // consumer, yet this map rides ExternalRelation.writeTo onto the wire in every fragment of every query.
+        // Strip it here so the plan carries only what the optimizer actually reads.
+        final Map<String, Object> finalMetadata = stripStripeBookkeeping(entry.safeMetadata());
 
         return new ExternalSourceMetadata() {
             @Override
@@ -907,8 +973,21 @@ public class ExternalSourceResolver {
                 List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
                 SourceMetadata firstMeta = allMetadata.get(firstFile);
                 // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
-                // no second cache or storage hit per file.
-                Map<String, Object> aggregatedStats = aggregateFileStatistics(allMetadata.values());
+                // no second cache or storage hit per file. Each file's stats are in its OWN unit/representation;
+                // normalize every file's min/max to the reconciled unified type (temporal rescale, or safe-miss
+                // marker for a non-normalizable representation) BEFORE folding, so the source-level warm
+                // COUNT/MIN/MAX is not a unit-blind numeric mix across DATETIME(millis)/DATE_NANOS(nanos) files.
+                Map<String, DataType> reconciledTypes = attributesToTypeMap(unifiedSchema);
+                Map<StoragePath, Map<String, DataType>> perFileTypes = new HashMap<>();
+                for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : result.perFileInfo().entrySet()) {
+                    perFileTypes.put(e.getKey(), attributesToTypeMap(e.getValue().fileSchema().attributes()));
+                }
+                Map<String, Object> aggregatedStats = aggregateFileStatistics(
+                    allMetadata,
+                    perFileTypes,
+                    reconciledTypes,
+                    foldsAbsentColumnAsImplicitNull(firstMeta.sourceType())
+                );
                 ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
 
                 // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
@@ -1122,27 +1201,108 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Aggregates statistics from all files' metadata into a single merged flat stats map.
-     * For each file, embeds its per-file statistics into its flat sourceMetadata map,
-     * then merges all maps using {@link SourceStatisticsSerializer#mergeStatistics}.
-     * Returns {@code null} if any file lacks statistics (prevents incorrect partial results).
+     * Reconciliation-path aggregate: normalizes each file's per-column min/max to the reconciled unified type
+     * ({@link SourceStatisticsSerializer#normalizeStatsToReconciled}) BEFORE the cross-file fold, so a column that
+     * mixes units/representations across files (DATETIME epoch-millis vs DATE_NANOS epoch-nanos; numeric vs the
+     * KEYWORD non-widenable fallback) is folded in ONE type and served result-identical to a full scan — or
+     * safe-misses when a value cannot be normalized. {@code perFileTypes} maps each file's path to its own column
+     * types; {@code reconciledTypes} is the unified schema's types. Without this, the source-level warm
+     * MIN/MAX/COUNT would compare raw file-local values unit-blind (a wrong answer).
      */
     @Nullable
-    static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata) {
+    static Map<String, Object> aggregateFileStatistics(
+        Map<StoragePath, SourceMetadata> allMetadata,
+        Map<StoragePath, Map<String, DataType>> perFileTypes,
+        Map<String, DataType> reconciledTypes,
+        boolean implicitNullsForAbsentColumn
+    ) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
-        for (SourceMetadata meta : allMetadata) {
-            // Cached entries embed stats in sourceMetadata(); uncached entries use typed statistics().
-            Map<String, Object> base = meta.sourceMetadata();
-            if (base != null && base.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
-                perFileFlatStats.add(base);
-            } else if (meta.statistics().isPresent()) {
-                perFileFlatStats.add(SourceStatisticsSerializer.embedStatistics(base, meta.statistics().get()));
-            } else {
+        for (Map.Entry<StoragePath, SourceMetadata> entry : allMetadata.entrySet()) {
+            Map<String, Object> flat = flatStatsOf(entry.getValue());
+            if (flat == null) {
                 // At least one file has no statistics — cannot produce accurate global stats.
                 return null;
             }
+            Map<String, DataType> fileTypes = perFileTypes.get(entry.getKey());
+            if (fileTypes != null) {
+                flat = SourceStatisticsSerializer.normalizeStatsToReconciled(flat, fileTypes, reconciledTypes);
+            }
+            perFileFlatStats.add(flat);
         }
-        return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats);
+        return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
+    }
+
+    /**
+     * FFW path. FIRST_FILE_WINS reads every file with the anchor's schema and assumes the others match, but does
+     * NOT enforce it. A column whose physical type DIVERGES across files (e.g. DATETIME/epoch-millis in the anchor
+     * and DATE_NANOS/epoch-nanos in another) would fold its extrema unit-blind here; worse, the divergent file's
+     * data is itself misread under the anchor schema, so no warm extremum can match a scan. We cannot normalize to
+     * a common unit (the cold path is already wrong), so we POISON such columns' extrema — safe-miss to a scan.
+     */
+    @Nullable
+    static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
+        List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
+        Map<String, DataType> anchorTypes = null;
+        Set<String> divergentColumns = new HashSet<>();
+        for (SourceMetadata meta : allMetadata) {
+            Map<String, Object> flat = flatStatsOf(meta);
+            if (flat == null) {
+                return null;
+            }
+            perFileFlatStats.add(flat);
+            Map<String, DataType> fileTypes = attributesToTypeMap(meta.schema());
+            if (anchorTypes == null) {
+                anchorTypes = fileTypes;
+            } else {
+                for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
+                    DataType anchorType = anchorTypes.get(entry.getKey());
+                    if (anchorType != null && anchorType != entry.getValue()) {
+                        divergentColumns.add(entry.getKey());
+                    }
+                }
+            }
+        }
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
+        if (merged != null && divergentColumns.isEmpty() == false) {
+            merged = new HashMap<>(merged); // mergeStatistics may hand back an unmodifiable/shared map
+            for (String column : divergentColumns) {
+                SourceStatisticsSerializer.poisonColumnExtrema(merged, column);
+            }
+        }
+        return merged;
+    }
+
+    /** A file's flat stat map — cached in sourceMetadata(), or embedded from typed statistics() — or null if absent. */
+    private static Map<String, Object> flatStatsOf(SourceMetadata meta) {
+        Map<String, Object> base = meta.sourceMetadata();
+        if (base != null && base.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
+            return base;
+        }
+        if (meta.statistics().isPresent()) {
+            return SourceStatisticsSerializer.embedStatistics(base, meta.statistics().get());
+        }
+        return null;
+    }
+
+    private static Map<String, DataType> attributesToTypeMap(List<Attribute> attributes) {
+        Map<String, DataType> types = new HashMap<>(attributes.size());
+        for (Attribute a : attributes) {
+            types.put(a.name(), a.dataType());
+        }
+        return types;
+    }
+
+    /**
+     * Whether {@code sourceType}'s format folds an absent column into implicit nulls when merging
+     * per-file statistics. Footer formats (Parquet/ORC) do: a file physically lacking a column
+     * contributes it as all-null. Text formats (CSV/TSV/NDJSON) do not — a column absent from a
+     * file's harvested stats may still be physically present but unharvested, so the cross-file merge
+     * must drop it and force a re-scan rather than serve a subset COUNT/MIN/MAX. Unknown formats keep
+     * the footer default (no behavior change).
+     */
+    private boolean foldsAbsentColumnAsImplicitNull(String sourceType) {
+        FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
+        return reader == null || reader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
     }
 
     /**
@@ -1152,28 +1312,30 @@ public class ExternalSourceResolver {
      * responds with {@code null} so the caller marks stats partial — except cancellation, which is surfaced as a
      * failure so the query aborts promptly instead of silently degrading.
      */
-    private void readAndAggregateAllFileStats(FileList listing, Map<String, Object> config, ActionListener<Map<String, Object>> listener) {
-        gatherPerFile(
-            listing,
-            config,
-            false,
-            ActionListener.wrap(allMeta -> { listener.onResponse(aggregateFileStatistics(allMeta)); }, e -> {
-                // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
-                // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
-                // was cancelled mid-flight can arrive wrapped (the schema cache wraps loader failures), so consult the
-                // cancellation state directly rather than matching only on the exception type.
-                if (e instanceof TaskCancelledException) {
-                    listener.onFailure(e);
-                    return;
-                }
-                if (isCancelled()) {
-                    listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
-                    return;
-                }
-                LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
-                listener.onResponse(null);
-            })
-        );
+    private void readAndAggregateAllFileStats(
+        FileList listing,
+        Map<String, Object> config,
+        boolean implicitNulls,
+        ActionListener<Map<String, Object>> listener
+    ) {
+        gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls));
+        }, e -> {
+            // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
+            // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
+            // was cancelled mid-flight can arrive wrapped (the schema cache wraps loader failures), so consult the
+            // cancellation state directly rather than matching only on the exception type.
+            if (e instanceof TaskCancelledException) {
+                listener.onFailure(e);
+                return;
+            }
+            if (isCancelled()) {
+                listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
+                return;
+            }
+            LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
+            listener.onResponse(null);
+        }));
     }
 
     /**
@@ -1185,6 +1347,7 @@ public class ExternalSourceResolver {
     private void readAndAggregateAllFileStatsWithCache(
         FileList listing,
         Map<String, Object> config,
+        boolean implicitNulls,
         ActionListener<Map<String, Object>> listener
     ) {
         gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
@@ -1198,7 +1361,7 @@ public class ExternalSourceResolver {
                 }
                 perFileStats.add(fileMeta);
             }
-            listener.onResponse(SourceStatisticsSerializer.mergeStatistics(perFileStats));
+            listener.onResponse(SourceStatisticsSerializer.mergeStatistics(perFileStats, implicitNulls));
         }, e -> {
             // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps
             // loader failures, so consult the state directly), must abort rather than degrade to partial stats.
@@ -1225,10 +1388,20 @@ public class ExternalSourceResolver {
         List<Attribute> schema = List.copyOf(unifiedSchema);
         Map<String, Object> enrichedSourceMetadata;
         if (aggregatedStats != null) {
-            // Aggregated stats already contain all the _stats.* keys merged across all files.
-            // Start from the reference meta's base map and overlay the aggregated stats.
+            // Aggregated stats already contain all the _stats.* keys merged across all files and are
+            // authoritative: a column the cross-file merge dropped (e.g. a text column harvested in
+            // only some files) must NOT survive via the anchor file's own per-column keys. So strip
+            // every _stats.* key from the anchor base before overlaying — overlaying alone would leak
+            // the anchor's stale columns, since putAll only overwrites keys the aggregate still has.
             Map<String, Object> base = referenceMeta.sourceMetadata();
-            Map<String, Object> merged = base != null ? new HashMap<>(base) : new HashMap<>();
+            Map<String, Object> merged = new HashMap<>();
+            if (base != null) {
+                for (Map.Entry<String, Object> entry : base.entrySet()) {
+                    if (entry.getKey().startsWith(SourceStatisticsSerializer.STATS_KEY_PREFIX) == false) {
+                        merged.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
             merged.putAll(aggregatedStats);
             enrichedSourceMetadata = Map.copyOf(merged);
         } else {
@@ -1552,7 +1725,17 @@ public class ExternalSourceResolver {
             enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, nullability, null, false));
         }
 
-        return withSchema(metadata, List.copyOf(enrichedSchema));
+        ExternalSourceMetadata schemaEnriched = withSchema(metadata, List.copyOf(enrichedSchema));
+        if (partitionNames.isEmpty()) {
+            return schemaEnriched;
+        }
+        // Stamp the partition column names into the serialized sourceMetadata. The fileList that carries
+        // PartitionMetadata is coordinator-only (ExternalRelation deserializes it to UNRESOLVED), so the data-node
+        // fold reads this key instead to safe-miss COUNT(partition_col). Read by
+        // ExternalSourceAggregatePushdown.partitionColumnNames.
+        Map<String, Object> stampedMetadata = new HashMap<>(schemaEnriched.sourceMetadata());
+        stampedMetadata.put(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.copyOf(partitionNames));
+        return replaceSourceMetadata(schemaEnriched, Map.copyOf(stampedMetadata));
     }
 
     /**

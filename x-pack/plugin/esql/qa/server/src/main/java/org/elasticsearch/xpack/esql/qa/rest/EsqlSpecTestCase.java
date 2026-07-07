@@ -82,6 +82,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBE
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
+import static org.junit.Assume.assumeFalse;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 45 * TimeUnits.MINUTE)

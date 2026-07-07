@@ -264,12 +264,14 @@ final class CsvLogicalRecordReader {
      * the next call. Bracket multi-value syntax is never eligible for the direct path, so (unlike
      * {@link #readRecord(boolean)}) there is no bracket-depth tracking here.
      *
-     * <p>Unlike {@link #readRecord(boolean)}, the success path does not commit {@link #bytesRead} or
-     * {@link #lastRecordBytes}: the direct-to-block path that drives {@code nextRecord()} never
-     * projects {@code _rowPosition}/{@code _id}/{@code _file.record_ref} (those reads are routed to
-     * the {@code readRecord}-backed offset path instead), so no caller consults this reader's byte
-     * accounting after a {@code nextRecord()}. Only the over-cap drain updates {@code bytesRead}, to
-     * keep the underlying stream's position and the cumulative count consistent for the skip.
+     * <p>Like {@link #readRecord(boolean)}, the success path commits {@link #bytesRead} and
+     * {@link #lastRecordBytes} on every returned record, using the identical per-record {@code recordBytes}
+     * ({@link #addBytes} / UTF-8 inference) as {@code readRecord}. This makes
+     * {@code splitStartByte + bytesRead() - lastRecordBytes()} the SAME byte-exact per-record offset axis on
+     * the direct-to-block path as on the {@code readRecord}-backed path, so the direct path can harvest
+     * canonical-stripe statistics with byte-exact per-record attribution (the emit-time byte-exactness
+     * tripwire safe-misses on any skew). Over-cap drains and blank/comment skips also flow through here, so
+     * the running offset stays monotonic and exact across skipped records.
      *
      * @return {@code true} if a record was read, {@code false} at end of stream
      * @throws CsvRecordTooLargeException if the record exceeds the configured byte cap
@@ -284,6 +286,13 @@ final class CsvLogicalRecordReader {
         while (true) {
             int ch = nextBulkChar();
             if (ch == -1) {
+                // Trailing unterminated record at EOF: commit its bytes so a subsequent caller's offset
+                // arithmetic stays anchored, mirroring readRecord()'s EOF branch. Gate on recordBytes (not
+                // recLen) so a trailing record whose only content is a stripped terminator is not under-counted.
+                if (recordBytes > 0) {
+                    this.lastRecordBytes = recordBytes;
+                    this.bytesRead += recordBytes;
+                }
                 return recLen != 0;
             }
             recordBytes = addBytes(recordBytes, ch);
@@ -328,6 +337,8 @@ final class CsvLogicalRecordReader {
                 continue;
             }
             if (ch == '\n') {
+                this.lastRecordBytes = recordBytes;
+                this.bytesRead += recordBytes;
                 return true;
             }
             if (ch == '\r') {
@@ -337,6 +348,8 @@ final class CsvLogicalRecordReader {
                 } else if (next != -1) {
                     pushBack(next);
                 }
+                this.lastRecordBytes = recordBytes;
+                this.bytesRead += recordBytes;
                 return true;
             }
             if (ch == delimiter) {

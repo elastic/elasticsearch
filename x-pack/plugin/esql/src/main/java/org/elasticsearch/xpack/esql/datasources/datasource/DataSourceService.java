@@ -24,6 +24,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -42,10 +43,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /** Orchestrates create / replace / delete of data sources in cluster state. */
 public class DataSourceService {
@@ -88,35 +91,61 @@ public class DataSourceService {
         return DataSourceMetadata.get(projectMetadata);
     }
 
-    /** Validate the put-data-source request and build the domain {@link DataSource}. Runs coordinator-side. */
-    public DataSource validatePutDataSource(PutDataSourceAction.Request request) {
+    /**
+     * Validate the put-data-source request and build the domain {@link DataSource}.
+     */
+    public DataSource validatePutDataSource(ProjectMetadata project, PutDataSourceAction.Request request) {
         DataSourceValidator validator = validatorsByType.get(request.type());
         if (validator == null) {
             throw new IllegalArgumentException("unknown data source type [" + request.type() + "]");
         }
-        final Map<String, DataSourceSetting> validated = validator.validateDatasource(request.rawSettings());
+        final DataSource current = getMetadata(project).get(request.name());
+        Set<String> existingSecretKeys = new HashSet<>();
+        if (current != null && current.type().equals(request.type())) {
+            for (var entry : current.settings()) {
+                if (isUntouchedSecret(entry.getValue(), entry.getKey(), request.rawSettings())) {
+                    existingSecretKeys.add(entry.getKey());
+                }
+            }
+        }
+        final Map<String, DataSourceSetting> validated = validator.validateDatasource(request.rawSettings(), existingSecretKeys);
         return new DataSource(request.name(), request.type(), request.description(), validated);
     }
 
-    /** Create or replace a data source. Secrets are encrypted master-side ({@link #applyEncryption}). */
+    /**
+     * Create or replace a data source. A newly-supplied secret is encrypted master-side
+     * ({@link #applyEncryption}) off the CAS task thread, since that's expensive and would otherwise block
+     * the master on every concurrent PUT. A secret omitted from the request is instead carried forward from
+     * the current entry inside the CAS task (via {@link #mergeCarriedForwardSecrets}), where {@code current}
+     * is read fresh against authoritative state and carrying the secret forward needs no encryption. The task
+     * also re-validates against that same fresh state, so a concurrent change to a secret this request relies
+     * on carrying forward fails the PUT instead of silently persisting an incomplete data source. Every other
+     * field is a full replace, matching the pre-existing PUT semantics.
+     */
     public void putDataSource(ProjectId projectId, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        // Encrypt off the CAS task thread: it's expensive and would block the master on every concurrent PUT.
-        final DataSource validated = validatePutDataSource(request);
-        final DataSourceSettings stored = applyEncryption(validated.name(), validated.settings());
-        final DataSource encrypted = new DataSource(validated.name(), validated.type(), validated.description(), stored);
-        logger.debug("submitting put data source [{}] of type [{}]", encrypted.name(), encrypted.type());
+        final ProjectMetadata projectSnapshot = clusterService.state().metadata().getProject(projectId);
+        final DataSource validated = validatePutDataSource(projectSnapshot, request);
+        final DataSourceSettings encryptedNew = applyEncryption(validated.name(), validated.settings());
+        logger.debug("submitting put data source [{}] of type [{}]", validated.name(), validated.type());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final DataSourceMetadata metadata = getMetadata(project);
-                final DataSource current = metadata.get(encrypted.name());
+                final DataSource current = metadata.get(validated.name());
                 if (current == null && metadata.dataSources().size() >= maxDataSourcesCount) {
-                    logger.warn("rejected put for data source [{}]: maximum count [{}] reached", encrypted.name(), maxDataSourcesCount);
+                    logger.warn("rejected put for data source [{}]: maximum count [{}] reached", validated.name(), maxDataSourcesCount);
                     throw new IllegalArgumentException(
                         "cannot add data source, the maximum number of data sources is reached: " + maxDataSourcesCount
                     );
                 }
+                // Re-validate here, against the state just read, not the pre-encryption snapshot above: a
+                // concurrent operation could have cleared or removed a secret this request relies on carrying
+                // forward between that snapshot and this task running. Cheap (no I/O); throwing here fails the
+                // whole PUT instead of silently persisting a data source with incomplete credentials.
+                validatePutDataSource(project, request);
+                final DataSourceSettings merged = mergeCarriedForwardSecrets(current, validated.type(), encryptedNew, request);
+                final DataSource encrypted = new DataSource(validated.name(), validated.type(), validated.description(), merged);
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
                 updated.put(encrypted.name(), encrypted);
                 return ClusterState.builder(currentState)
@@ -127,6 +156,40 @@ public class DataSourceService {
             }
         };
         taskQueue.submitTask("update-esql-data-source-metadata-[" + request.name() + "]", task, task.timeout());
+    }
+
+    /**
+     * True iff {@code setting} is a secret the request leaves untouched, so it should carry forward from the
+     * existing entry rather than being wiped.
+     */
+    static boolean isUntouchedSecret(DataSourceSetting setting, String key, Map<String, Object> rawSettings) {
+        return setting.secret() && setting.rawValue() != null && rawSettings.containsKey(key) == false;
+    }
+
+    /**
+     * Adds every untouched secret from {@code current} (same type, not already present in {@code encryptedNew})
+     * to the settings being stored, so it survives a PUT that only touches other fields.
+     */
+    private static DataSourceSettings mergeCarriedForwardSecrets(
+        @Nullable DataSource current,
+        String requestType,
+        DataSourceSettings encryptedNew,
+        PutDataSourceAction.Request request
+    ) {
+        if (current == null || current.type().equals(requestType) == false) {
+            return encryptedNew;
+        }
+        Map<String, DataSourceSetting> merged = new HashMap<>(encryptedNew.asMap());
+        for (var entry : current.settings()) {
+            String key = entry.getKey();
+            if (merged.containsKey(key)) {
+                continue;
+            }
+            if (isUntouchedSecret(entry.getValue(), key, request.rawSettings())) {
+                merged.put(key, entry.getValue());
+            }
+        }
+        return new DataSourceSettings(merged);
     }
 
     /**

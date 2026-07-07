@@ -1004,15 +1004,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         poisonedTemporalStats.add(colName);
                     } else {
                         mins.merge(colName, new Comparable[] { (Comparable) minVal }, (a, b) -> {
-                            @SuppressWarnings("unchecked")
-                            int cmp = a[0].compareTo(b[0]);
-                            if (cmp > 0) a[0] = b[0];
+                            if (compareStatExtremum(a[0], b[0]) > 0) a[0] = b[0];
                             return a;
                         });
                         maxs.merge(colName, new Comparable[] { (Comparable) maxVal }, (a, b) -> {
-                            @SuppressWarnings("unchecked")
-                            int cmp = a[0].compareTo(b[0]);
-                            if (cmp < 0) a[0] = b[0];
+                            if (compareStatExtremum(a[0], b[0]) < 0) a[0] = b[0];
                             return a;
                         });
                     }
@@ -1295,6 +1291,23 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
         }
         return Map.copyOf(stats);
+    }
+
+    /**
+     * Compares two cross-row-group extremum candidates. BINARY/keyword extrema arrive here as {@code String}
+     * (from {@link #normalizeStatValue}); they are ordered by the single shared UTF-8 keyword comparator
+     * ({@link org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer#compareKeywordUtf8}), matching
+     * the runtime keyword MIN/MAX and the cross-file fold — NOT {@link String#compareTo}'s UTF-16 code units,
+     * which disagree for supplementary (astral) chars vs BMP chars in {@code [U+E000..U+FFFF]}. Other stat types
+     * compare naturally.
+     */
+    // Package-private for a direct unit test of the UTF-8 ordering (ParquetFormatReaderTests).
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static int compareStatExtremum(Comparable a, Comparable b) {
+        if (a instanceof String && b instanceof String) {
+            return SourceStatisticsSerializer.compareKeywordUtf8(a, b);
+        }
+        return a.compareTo(b);
     }
 
     /**

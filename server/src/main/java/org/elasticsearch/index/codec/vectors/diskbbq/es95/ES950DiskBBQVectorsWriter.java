@@ -139,7 +139,7 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
     }
 
     @Override
-    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    protected IvfSegmentConfig resolveMergeConfig(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         return mergeConfigResolver.resolve(
             fieldInfo,
             mergeState,

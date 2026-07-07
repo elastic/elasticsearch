@@ -140,7 +140,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
-import static org.elasticsearch.index.IndexVersions.DISK_BBQ_QUANTIZE_BITS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 
@@ -2721,7 +2720,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     VectorIndexType.BBQ_DISK.name
                 );
             }
-            if (indexVersionCreated.onOrAfter(IndexVersions.UPGRADE_DISK_BBQ_ES950)) {
+            if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE)) {
                 if (autoCalibrate) {
                     return new ES950DiskBBQVectorsFormat(
                         QuantEncoding.fromBits((byte) bits),
@@ -2750,8 +2749,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                     flatIndexThreshold
                 );
-            } else if (indexVersionCreated.onOrAfter(DISK_BBQ_QUANTIZE_BITS) && experimentalFeaturesEnabled) {
-                if (autoCalibrate) {
+            } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_QUANTIZE_BITS) && experimentalFeaturesEnabled) {
+                if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE) && autoCalibrate) {
                     return new ESNextDiskBBQVectorsFormat(
                         QuantEncoding.fromBits((byte) bits),
                         clusterSize,
@@ -2878,12 +2877,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return doPrecondition;
         }
 
-        public int getBits() {
-            return bits;
+        public boolean autoCalibrate() {
+            return autoCalibrate;
         }
 
-        public boolean isAutoCalibrate() {
-            return autoCalibrate;
+        public int getBits() {
+            return bits;
         }
 
         @Override

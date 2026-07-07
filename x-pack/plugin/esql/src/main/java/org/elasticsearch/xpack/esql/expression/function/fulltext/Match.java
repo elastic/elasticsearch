@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -513,7 +513,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         if (field.dataType() == TEXT) {
             // TODO: use the analyzer specified in the options, for now we use the standard analyzer.
             Analyzer analyzer = new StandardAnalyzer();
-            Set<String> queryTerms;
+            Set<BytesRef> queryTerms;
             try {
                 queryTerms = queryTerms(analyzer);
             } catch (IOException e) {
@@ -600,14 +600,14 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         };
     }
 
-    private Set<String> queryTerms(Analyzer analyzer) throws IOException {
-        Set<String> queryTerms = new HashSet<>();
+    private Set<BytesRef> queryTerms(Analyzer analyzer) throws IOException {
+        Set<BytesRef> queryTerms = new HashSet<>();
 
         try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, queryAsObject().toString())) {
             stream.reset();
-            CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
+            TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
             while (stream.incrementToken()) {
-                queryTerms.add(term.toString());
+                queryTerms.add(term.getBytesRef());
             }
             stream.end();
         }
@@ -618,7 +618,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     static boolean processText(
         @Position int position,
         BytesRefBlock fieldBlock,
-        @Fixed Set<String> queryTerms,
+        @Fixed Set<BytesRef> queryTerms,
         @Fixed Analyzer analyzer,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
     ) throws IOException {
@@ -636,10 +636,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             // Once we accept options, we might need to take a different execution path and use a Lucene MemoryIndex.
             try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, scratch.utf8ToString())) {
                 stream.reset();
-                CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
+                TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
                 // TODO: Use the operator specified in the query options. For now, we use OR, meaning we stop as soon as we find a match.
                 while (stream.incrementToken()) {
-                    if (queryTerms.contains(term.toString())) {
+                    if (queryTerms.contains(term.getBytesRef())) {
                         foundMatch = true;
                         break;
                     }

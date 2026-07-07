@@ -33,7 +33,7 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator fieldBlock;
 
-  private final Set<String> queryTerms;
+  private final Set<BytesRef> queryTerms;
 
   private final Analyzer analyzer;
 
@@ -43,7 +43,7 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public MatchTextEvaluator(Source source, ExpressionEvaluator fieldBlock, Set<String> queryTerms,
+  public MatchTextEvaluator(Source source, ExpressionEvaluator fieldBlock, Set<BytesRef> queryTerms,
       Analyzer analyzer, BytesRef scratch, DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
@@ -103,13 +103,13 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory fieldBlock;
 
-    private final Set<String> queryTerms;
+    private final Set<BytesRef> queryTerms;
 
     private final Analyzer analyzer;
 
     private final Function<DriverContext, BytesRef> scratch;
 
-    public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, Set<String> queryTerms,
+    public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, Set<BytesRef> queryTerms,
         Analyzer analyzer, Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.fieldBlock = fieldBlock;

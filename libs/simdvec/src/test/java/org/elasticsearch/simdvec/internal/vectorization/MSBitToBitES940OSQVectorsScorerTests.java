@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
-public class MSBitToBitESNextOSQVectorsScorerTests extends BaseVectorizationTests {
+public class MSBitToBitES940OSQVectorsScorerTests extends BaseVectorizationTests {
 
     public void testSymmetric1BitDotProductMatchesScalar() throws IOException {
         int dims = random().nextInt(1, 64) * 8;
@@ -53,7 +53,7 @@ public class MSBitToBitESNextOSQVectorsScorerTests extends BaseVectorizationTest
                 assertEquals(expected, scalarScorer.quantizeScore(query));
             }
             try (IndexInput in2 = dir.openInput("v.bin", IOContext.DEFAULT)) {
-                var panamaScorer = new MSBitToBitESNextOSQVectorsScorer(in2, dims, length, ES940OSQVectorsScorer.BULK_SIZE);
+                var panamaScorer = new MSBitToBitES940OSQVectorsScorer(in2, dims, length, ES940OSQVectorsScorer.BULK_SIZE);
                 long panamaScore = panamaScorer.quantizeScore(query);
                 if (panamaScore != Long.MIN_VALUE) {
                     assertEquals(expected, panamaScore);

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -23,8 +23,6 @@ import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
-import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -34,10 +32,10 @@ import java.util.List;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata.NO_ORDINAL;
 
-class FlatCentroidIndex {
+public class FlatCentroidIndex {
 
     private final FieldInfo fieldInfo;
-    private final ESNextDiskBBQVectorsReader.NextFieldEntry fieldEntry;
+    private final IVFVectorsReader.FieldEntry fieldEntry;
     private final int numCentroids;
     private final IndexInput centroids;
     private final float visitRatio;
@@ -48,9 +46,9 @@ class FlatCentroidIndex {
     private final byte[] quantized;
     private final OptimizedScalarQuantizer.QuantizationResult queryParams;
 
-    FlatCentroidIndex(
+    public FlatCentroidIndex(
         FieldInfo fieldInfo,
-        ESNextDiskBBQVectorsReader.NextFieldEntry fieldEntry,
+        IVFVectorsReader.FieldEntry fieldEntry,
         int numCentroids,
         IndexInput centroids,
         float[] targetQuery,
@@ -68,7 +66,7 @@ class FlatCentroidIndex {
         // build optimization filters if possible
         acceptCentroids = getCentroidFilter(centroids, numCentroids, values, acceptDocs, approximateCost);
         numParents = centroids.readVInt();
-        acceptParents = getParentCentroidFilter(centroids, numParents, numCentroids, acceptDocs, fieldEntry.numSlices);
+        acceptParents = getParentCentroidFilter(centroids, numParents, numCentroids, acceptDocs, fieldEntry.numSlices());
 
         // build centroid search helpers
         bulkSize = fieldEntry.getBulkSize();

@@ -16,11 +16,15 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
+import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.hamcrest.Matcher;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
@@ -44,12 +48,19 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("HighlightOperator[query=fox, fields=1, number_of_fragments=5, fragment_size=0, no_match_size=0]");
+        return equalTo(
+            "HighlightOperator[query=fox, pre_tag=<em>, post_tag=</em>, encoder=default, number_of_fragments=5, fragment_size=0, "
+                + "no_match_size=0, word_boundary=false, locale=, order_by_score=false, max_analyzed_offset=-1, fields=1]"
+        );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("HighlightOperator[query=content:fox, number_of_fragments=5, fragment_size=0, no_match_size=0, fields=[identity]]");
+        return equalTo(
+            "HighlightOperator[query=content:fox, query=fox, pre_tag=<em>, post_tag=</em>, encoder=default, number_of_fragments=5, "
+                + "fragment_size=0, no_match_size=0, word_boundary=false, locale=, order_by_score=false, "
+                + "max_analyzed_offset=-1, fields=[identity]]"
+        );
     }
 
     @Override
@@ -136,13 +147,81 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     public void testHtmlEncoderEscapesMarkup() {
         String text = "Use <b>bold</b> tags & special chars with the Ring.";
-        HighlightConfig config = new HighlightConfig("ring", DEFAULT_PRE_TAG, DEFAULT_POST_TAG, HighlightConfig.HTML_ENCODER, 5, 0, 0);
+        HighlightConfig config = new HighlightConfig(
+            "ring",
+            DEFAULT_PRE_TAG,
+            DEFAULT_POST_TAG,
+            HighlightConfig.HTML_ENCODER,
+            5,
+            0,
+            0,
+            false,
+            Locale.ROOT,
+            false,
+            -1
+        );
         BytesRefBlock result = highlightSingle(config, text);
         try {
             assertThat(value(result, 0), equalTo("Use &lt;b&gt;bold&lt;&#x2F;b&gt; tags &amp; special chars with the <em>Ring</em>."));
         } finally {
             result.close();
         }
+    }
+
+    public void testWordBoundaryFragments() {
+        String text = "Elasticsearch powers fast search across very many documents and shards in a single cluster.";
+        BytesRefBlock result = highlight(config("elasticsearch", 5, 20, 0, true, false), bytesRefs(List.of(List.of(text))));
+        try {
+            // The word scanner ignores fragment_size and breaks on word boundaries, so the fragment is short.
+            assertThat(value(result, 0).contains("<em>Elasticsearch</em>"), equalTo(true));
+            assertThat(value(result, 0).length(), lessThan(text.length() + "<em></em>".length()));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testOrderByScoreReturnsBestFragmentFirst() {
+        // The second sentence has two matches, so it scores higher and must come first when ordering by score.
+        String text = "Search is fast. Fast search powers fast results. Indexing is simple.";
+        BytesRefBlock result = highlight(config("fast", 5, 0, 0, false, true), bytesRefs(List.of(List.of(text))));
+        try {
+            int first = result.getFirstValueIndex(0);
+            BytesRef scratch = new BytesRef();
+            assertThat(result.getBytesRef(first, scratch).utf8ToString(), startsWith("<em>Fast</em> search powers <em>fast</em> results."));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testOrderByScoreWithSingleFragmentReturnsOnlyBest() {
+        String text = "Search is fast. Indexing is fast. Fast search powers fast results. Queries are fast.";
+        BytesRefBlock result = highlight(config("fast", 1, 0, 0, false, true), bytesRefs(List.of(List.of(text))));
+        try {
+            assertThat(result.getValueCount(0), equalTo(1));
+            assertThat(value(result, 0), equalTo("<em>Fast</em> search powers <em>fast</em> results."));
+        } finally {
+            result.close();
+        }
+    }
+
+    // The no-match fallback passage carries a NaN score, which must sort last rather than first under order=score.
+    public void testScoreDescendingTreatsNaNAsLowest() {
+        Snippet best = new Snippet("best", 5.0f, true);
+        Snippet worst = new Snippet("worst", 1.0f, true);
+        Snippet noMatch = new Snippet("no-match-fallback", Float.NaN, false);
+        Snippet[] snippets = { noMatch, worst, best };
+        Arrays.sort(snippets, HighlightOperator.SCORE_DESCENDING);
+        assertThat(Arrays.stream(snippets).map(Snippet::getText).toList(), contains("best", "worst", "no-match-fallback"));
+    }
+
+    // Equal scores keep document order because Arrays.sort is stable and the comparator returns 0 on ties.
+    public void testScoreDescendingKeepsDocumentOrderOnTies() {
+        Snippet first = new Snippet("first", 2.0f, true);
+        Snippet second = new Snippet("second", 2.0f, true);
+        Snippet third = new Snippet("third", 2.0f, true);
+        Snippet[] snippets = { first, second, third };
+        Arrays.sort(snippets, HighlightOperator.SCORE_DESCENDING);
+        assertThat(Arrays.stream(snippets).map(Snippet::getText).toList(), contains("first", "second", "third"));
     }
 
     public void testNonBytesRefFieldThrows() {
@@ -201,7 +280,42 @@ public class HighlightOperatorTests extends OperatorTestCase {
     }
 
     private static HighlightConfig config(String queryText, int fragments, int fragmentSize, int noMatchSize) {
-        return new HighlightConfig(queryText, DEFAULT_PRE_TAG, DEFAULT_POST_TAG, DEFAULT_ENCODER, fragments, fragmentSize, noMatchSize);
+        return new HighlightConfig(
+            queryText,
+            DEFAULT_PRE_TAG,
+            DEFAULT_POST_TAG,
+            DEFAULT_ENCODER,
+            fragments,
+            fragmentSize,
+            noMatchSize,
+            false,
+            Locale.ROOT,
+            false,
+            -1
+        );
+    }
+
+    private static HighlightConfig config(
+        String queryText,
+        int fragments,
+        int fragmentSize,
+        int noMatchSize,
+        boolean wordBoundary,
+        boolean orderByScore
+    ) {
+        return new HighlightConfig(
+            queryText,
+            DEFAULT_PRE_TAG,
+            DEFAULT_POST_TAG,
+            DEFAULT_ENCODER,
+            fragments,
+            fragmentSize,
+            noMatchSize,
+            wordBoundary,
+            Locale.ROOT,
+            orderByScore,
+            -1
+        );
     }
 
     // Returns the input block unchanged, so the operator highlights channel 0 directly.

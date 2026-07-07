@@ -10,9 +10,10 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 
 import java.io.IOException;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Single threaded implementation of k-means with L2 regularization over the cluster sizes.
@@ -21,8 +22,11 @@ import java.io.IOException;
  */
 class BalancedASKMeansLocalSerial<V> extends BalancedASKMeansLocal<V> {
 
-    BalancedASKMeansLocalSerial(CentroidOps<V> ops, int sampleSize, int maxIterations) {
+    final Soar<V> soar;
+
+    BalancedASKMeansLocalSerial(CentroidOps<V> ops, int sampleSize, int maxIterations, float soarLambda) {
         super(ops, sampleSize, maxIterations);
+        soar = soarLambda < 0 ? Soar.none() : Soar.ofSerial(ops, soarLambda);
     }
 
     @Override
@@ -33,7 +37,7 @@ class BalancedASKMeansLocalSerial<V> extends BalancedASKMeansLocal<V> {
     @Override
     protected void assign(
         ClusteringVectorValues<V> vectors,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
@@ -44,13 +48,12 @@ class BalancedASKMeansLocalSerial<V> extends BalancedASKMeansLocal<V> {
     }
 
     @Override
-    protected void assignSpilled(
+    protected OverspillAssignments assignSpilled(
         ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kmeansIntermediate,
-        NeighborHood[] neighborhoods,
-        float soarLambda
+        KMeansResult<V> kMeansResult,
+        NeighborHood[] neighborhoods
     ) throws IOException {
-        assignSpilledSlice(vectors, ops, kmeansIntermediate, neighborhoods, soarLambda, 0, vectors.size());
+        return soar.assignSpilled(vectors, kMeansResult, neighborhoods);
     }
 
     @Override

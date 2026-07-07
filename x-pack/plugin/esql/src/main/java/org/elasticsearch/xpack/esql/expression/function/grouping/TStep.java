@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -219,7 +220,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             step,
             null,
             null,
-            configuration.withZoneId(ZoneOffset.UTC),
+            configuration.withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC),
             offsetToLong(ctx),
             Rounding.RoundingConvention.UP
         );

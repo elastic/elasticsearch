@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -88,6 +89,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private final AtomicBoolean failureTriggered = new AtomicBoolean(false);
     private final Object sendFinishLock = new Object(); // Synchronizes finish() with transport callbacks
     private final ActionListener<Void> batchExchangeStatusListener; // Listener for batch exchange status completion
+    // Accumulated directory bytes read across all worker BatchExchangeStatusResponses (set on transport threads).
+    private final AtomicLong totalBytesRead = new AtomicLong();
     private volatile boolean closed = false; // Track if close() has been called (for idempotency)
     // Track batch counts to ensure all batches complete before closing
     private int startedBatchCount = 0;
@@ -394,6 +397,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         response.isSuccess()
                     );
                     if (response.isSuccess()) {
+                        totalBytesRead.addAndGet(response.bytesRead());
                         worker.statusRef.onResponse(null);
                     } else {
                         Exception failure = response.getFailure();
@@ -664,6 +668,14 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      */
     public BatchSortedExchangeSource getSortedSource() {
         return sortedSource;
+    }
+
+    /**
+     * Returns the total directory bytes read accumulated from {@link BatchExchangeStatusResponse}s
+     * across all workers. Updated on transport callback threads.
+     */
+    public long bytesRead() {
+        return totalBytesRead.get();
     }
 
     /**

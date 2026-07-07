@@ -736,24 +736,8 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     private void waitForWatchExecutedSince(String watchId, long sinceEpochMillis) throws Exception {
         try {
             assertBusy(() -> {
-                final Request historyRequest = new Request("GET", ".watcher-history*/_search");
-                historyRequest.addParameter("ignore_unavailable", "true");
-                historyRequest.setJsonEntity(Strings.format("""
-                    {
-                      "query": {
-                        "bool": {
-                          "filter": [
-                            { "term": { "watch_id": "%s" } },
-                            { "term": { "state": "executed" } },
-                            { "range": { "trigger_event.triggered_time": { "gte": %s } } }
-                          ]
-                        }
-                      }
-                    }""", watchId, sinceEpochMillis));
-                final Map<String, Object> historyResponse = entityAsMap(client().performRequest(historyRequest));
-                final Map<?, ?> hits = (Map<?, ?>) historyResponse.get("hits");
-                final int total = ((Number) ((Map<?, ?>) hits.get("total")).get("value")).intValue();
-                assertThat(total, greaterThanOrEqualTo(1));
+                final int executionsSinceRestart = countWatcherHistoryRecordsWithStatusSince(watchId, sinceEpochMillis, "executed");
+                assertThat(executionsSinceRestart, greaterThanOrEqualTo(1));
             }, 30, TimeUnit.SECONDS);
         } catch (AssertionError e) {
             final Request dumpRequest = new Request("GET", ".watcher-history*/_search");
@@ -775,6 +759,26 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             }
             throw e;
         }
+    }
+
+    private int countWatcherHistoryRecordsWithStatusSince(String watchId, long sinceEpochMillis, String status) throws IOException {
+        final Request historyRequest = new Request("GET", ".watcher-history*/_search");
+        historyRequest.addParameter("ignore_unavailable", "true");
+        historyRequest.setJsonEntity(Strings.format("""
+            {
+              "query": {
+                "bool": {
+                  "filter": [
+                    { "term": { "watch_id": "%s" } },
+                    { "term": { "state": "%s" } },
+                    { "range": { "trigger_event.triggered_time": { "gte": %s } } }
+                  ]
+                }
+              }
+            }""", watchId, status, sinceEpochMillis));
+        final Map<String, Object> historyResponse = entityAsMap(client().performRequest(historyRequest));
+        final Map<?, ?> hits = (Map<?, ?>) historyResponse.get("hits");
+        return ((Number) ((Map<?, ?>) hits.get("total")).get("value")).intValue();
     }
 
     static String toStr(Response response) throws IOException {

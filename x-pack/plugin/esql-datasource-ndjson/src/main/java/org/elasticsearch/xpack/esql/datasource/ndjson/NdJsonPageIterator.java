@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -211,6 +212,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         long splitStartByte,
         int maxRecordBytes,
         DateFormatter datetimeFormatter,
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns,
         long statsBaseOffset,
         long statsStripeSize,
         boolean statsFileFinal,
@@ -305,6 +308,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 errorPolicy,
                 this.sourceLocation,
                 counters,
+                declaredDateFormats,
+                declaredTypeColumns,
                 warningSink
             );
         } else {
@@ -326,6 +331,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 errorPolicy,
                 this.sourceLocation,
                 counters,
+                declaredDateFormats,
+                declaredTypeColumns,
                 warningSink
             );
         }

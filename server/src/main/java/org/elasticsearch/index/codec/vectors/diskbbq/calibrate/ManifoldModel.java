@@ -99,8 +99,6 @@ public final class ManifoldModel {
      * @return double[2] containing {log(alpha), invDim}
      */
     static double[] estimateManifoldParameters(CalibrationSource source, int[] ranksForK) throws IOException {
-        assert source.preconditioner() == null
-            : "ManifoldModel does not apply the preconditioner; use ErrorModel for preconditioned queries";
         int nQueries = source.queryOrdinals().length;
         int nDocsTotal = source.corpusOrdinals().length;
         int m = Math.min(ranksForK.length, ManifoldModel.SAMPLE_SIZES.length);

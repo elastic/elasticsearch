@@ -25,9 +25,9 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -76,7 +76,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
@@ -86,6 +85,7 @@ import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenc
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
+import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -139,6 +139,8 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     private static final String URL_VALUE = "http://eis-gateway.com";
     private static final String INFERENCE_ENTITY_ID = "id";
     private static final String MODEL_ID_VALUE = "some model id";
+
+    private static final FeatureService FEATURE_SERVICE = new FeatureService(List.of(new InferenceFeatures()));
 
     public void testParseRequestConfig_CreatesASparseEmbeddingsModel() throws IOException {
         try (var service = createServiceWithMockSender()) {
@@ -206,7 +208,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var model = modelListener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             assertThat(model, instanceOf(ElasticInferenceServiceDenseEmbeddingsModel.class));
-            assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
+            assertThat(model.getTaskSettings(), is(EnforcingEmptyTaskSettings.INSTANCE));
             assertThat(model.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
             assertThat(model.getConfigurations().getTaskType(), is(taskType));
             assertThat(model.getConfigurations().getChunkingSettings(), is(new WordBoundaryChunkingSettings(maxChunkSize, overlap)));
@@ -379,7 +381,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             );
 
             assertThat(model, instanceOf(ElasticInferenceServiceDenseEmbeddingsModel.class));
-            assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
+            assertThat(model.getTaskSettings(), is(EnforcingEmptyTaskSettings.INSTANCE));
             assertThat(model.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
             assertThat(model.getConfigurations().getTaskType(), is(taskType));
             assertThat(model.getConfigurations().getChunkingSettings(), is(new WordBoundaryChunkingSettings(maxChunkSize, overlap)));
@@ -533,7 +535,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
         var sparseEmbeddingsModel = (ElasticInferenceServiceSparseEmbeddingsModel) model;
         assertThat(sparseEmbeddingsModel.getServiceSettings().modelId(), is(expectedModelId));
-        assertThat(sparseEmbeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
+        assertThat(sparseEmbeddingsModel.getTaskSettings(), is(EnforcingEmptyTaskSettings.INSTANCE));
         assertThat(sparseEmbeddingsModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
     }
 
@@ -952,7 +954,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
 
             // Create completion model
-            var model = new ElasticInferenceServiceCompletionModel(
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
                 INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
                 new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
@@ -1000,7 +1002,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             // Create completion model
-            var model = new ElasticInferenceServiceCompletionModel(
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
                 INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
                 new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
@@ -1135,7 +1137,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(mockedResponseJson));
 
             // Create completion model
-            var model = new ElasticInferenceServiceCompletionModel(
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
                 INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
                 new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
@@ -1899,7 +1901,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
             webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(responseJson));
-            var model = new ElasticInferenceServiceCompletionModel(
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
                 INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
                 new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
@@ -1922,11 +1924,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
-        var service = new ElasticInferenceService(
+        var service = ElasticInferenceService.create(
             factory,
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceSettings(Settings.EMPTY),
-            mockClusterServiceEmpty(),
+            createFactoryContext(),
             createNoopApplierFactory(),
             createInferencePreferencesCache()
         );
@@ -1939,16 +1941,28 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String elasticInferenceServiceURL) {
-        var service = new ElasticInferenceService(
+        var service = ElasticInferenceService.create(
             senderFactory,
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
-            mockClusterServiceEmpty(),
+            createFactoryContext(),
             createNoopApplierFactory(),
             createInferencePreferencesCache()
         );
         service.init();
         return service;
+    }
+
+    private InferenceServiceExtension.InferenceServiceFactoryContext createFactoryContext() {
+        var clusterService = mockClusterServiceEmpty();
+        return new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            clusterService,
+            Settings.EMPTY,
+            mock(),
+            FEATURE_SERVICE
+        );
     }
 
     private static InferencePreferencesCache createInferencePreferencesCache() {

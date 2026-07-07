@@ -86,8 +86,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
 
     /**
      * Parameterized over (clusterName, leaderNodesUpgraded, followerNodesUpgraded).
-     * The follower cluster is fully upgraded before the leader starts upgrading, mirroring
-     * the task dependency structure of the original Gradle-based test setup.
+     * The follower cluster is fully upgraded before the leader starts upgrading.
      */
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() {

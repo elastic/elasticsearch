@@ -17,11 +17,10 @@
 
 typeConflictWithUnmappedJustFrom
 required_capability: optional_fields_v5
-required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
-| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 ;
 ignoreOrder:true
 

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 151722
+pr: 151863
+summary: Fix two-legged PUNK auto-casting in 9.4/9.5 mixed-version clusters
+type: bug

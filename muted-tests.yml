@@ -725,9 +725,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testMultiTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/150101
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
-  issue: https://github.com/elastic/elasticsearch/issues/153084
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.doubleShadowingWithEval}
   issue: https://github.com/elastic/elasticsearch/issues/153096

@@ -155,7 +155,11 @@ public class ExternalSourceCacheService implements Closeable {
         Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preCommitSnapshot = snapshotEntriesByPath(
             contributionsPerFile.keySet()
         );
-        Map<String, Map<String, Object>> merged = new HashMap<>(contributionsPerFile.size());
+        // LinkedHashMap, not HashMap: commit whole-file entries in the caller's contribution order so the
+        // reconcile (and which sibling a capacity/TTL sweep hits during a commit) is deterministic rather
+        // than dependent on path hashCode. Final per-entry state is order-independent (each path keys a
+        // distinct entry; a swept sibling is recovered per key), so this only pins reproducibility.
+        Map<String, Map<String, Object>> merged = new LinkedHashMap<>(contributionsPerFile.size());
         for (Map.Entry<String, List<Map<String, Object>>> e : contributionsPerFile.entrySet()) {
             List<Map<String, Object>> contributions = e.getValue();
             if (contributions == null || contributions.isEmpty()) {

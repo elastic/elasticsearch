@@ -684,6 +684,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             seedSchemaCache(service, twinB2, pathB, "fp"); // still inside the TTL: seeding must not sweep the first twin
             Thread.sleep(1500); // now twinB1 and keyA have expired; twinB2 has not
 
+            // Order matters and is honored: pathA must commit before pathB so pathA's put sweeps the expired
+            // twinB1 from the LRU tail BEFORE pathB is collected (that is the partial sweep under test). The
+            // reconcile commits whole-file entries in this LinkedHashMap's insertion order (see the
+            // LinkedHashMap in reconcileSourceStatsFromContributions), so pathA-before-pathB is deterministic
+            // here, not a filename-hashCode accident.
             Map<String, List<Map<String, Object>>> contributions = new LinkedHashMap<>();
             contributions.put(pathA, List.of(wholeFileStats(mtime, "fp", 100L)));
             contributions.put(pathB, List.of(wholeFileStats(mtime, "fp", 200L)));

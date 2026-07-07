@@ -246,6 +246,27 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
                 }
             }
         }
+        // POC, NOT PRODUCTION READY - routes the (LONG/INT prefix + N>=2 BYTES_REF tail) shape to
+        // PrefixBlockHash instead of the generic fallback below.
+        // TODO: this blind structural dispatch is unsafe for general use - PrefixBlockHash throws on
+        // multi-valued tail columns instead of doing PackedValuesBlockHash's combinatorial expansion,
+        // so this would incorrectly break any other query matching this shape with genuinely
+        // multi-valued group-by columns. Before shipping, either (a) add combinatorial multi-valued
+        // support to PrefixBlockHash, or (b) remove this generic dispatch entirely and instead have
+        // TranslateTimeSeriesAggregate explicitly request PrefixBlockHash for its coordinator-side
+        // aggregate, since it has static, certain knowledge that PackDimension's output is
+        // single-valued - that's the real fix, this generic hook only exists to make end-to-end
+        // verification of the approach possible without a full planner-wiring pass.
+        if (groups.size() >= 2
+            && (groups.get(0).elementType() == ElementType.LONG || groups.get(0).elementType() == ElementType.INT)
+            && groups.subList(1, groups.size()).stream().allMatch(g -> g.elementType() == ElementType.BYTES_REF)) {
+            return new PrefixBlockHash(
+                groups.get(0).channel(),
+                groups.get(0).elementType(),
+                groups.subList(1, groups.size()),
+                blockFactory
+            );
+        }
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
     }
 

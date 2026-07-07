@@ -21,7 +21,6 @@ class DocsTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         docDir.mkdirs()
         addSampleDoc(docDir)
         buildApiRestrictionsDisabled = true
-        disableConfigurationCache("DocsTestPlugin uses project references that are not configuration-cache safe")
         configureBwcVersions()
 
         buildFile << """

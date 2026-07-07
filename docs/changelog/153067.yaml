@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 153067
+summary: Audit logging in serverless
+type: enhancement

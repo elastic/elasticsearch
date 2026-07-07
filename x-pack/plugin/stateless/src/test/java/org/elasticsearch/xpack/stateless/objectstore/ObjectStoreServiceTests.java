@@ -29,6 +29,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -682,6 +683,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
                             ProjectStateRegistry.builder(state).putProjectSettings(projectId, projectSettingsBuilder.build()).build()
                         )
                         .putProjectMetadata(ProjectMetadata.builder(projectId))
+                        .blocks(
+                            ClusterBlocks.builder(state.blocks())
+                                .addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+                                .build()
+                        )
                         .build()
                 );
                 // We should always have the default project object store (i.e., 1)
@@ -770,6 +776,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         ProjectStateRegistry.builder(state).putProjectSettings(projectId, settings).build()
                     )
                     .putProjectMetadata(ProjectMetadata.builder(projectId))
+                    .blocks(
+                        ClusterBlocks.builder(state.blocks())
+                            .addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+                            .build()
+                    )
                     .build()
             );
 
@@ -1114,6 +1125,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         ProjectStateRegistry.builder(state).putProjectSettings(projectId, settings).build()
                     )
                     .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata, false))
+                    .blocks(
+                        ClusterBlocks.builder(state.blocks())
+                            .addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+                            .build()
+                    )
                     .build()
             );
             final BlobStoreRepository projectObjectStore = objectStoreService.getProjectObjectStore(projectId);

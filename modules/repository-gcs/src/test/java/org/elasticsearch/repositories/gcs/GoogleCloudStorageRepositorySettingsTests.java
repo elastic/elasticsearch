@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -62,6 +63,11 @@ public class GoogleCloudStorageRepositorySettingsTests extends ESTestCase {
                 repositoryServiceClusterService,
                 ClusterState.builder(repositoryServiceClusterService.state())
                     .putProjectMetadata(ProjectMetadata.builder(repositoryServiceProjectId))
+                    .blocks(
+                        ClusterBlocks.builder()
+                            .addProjectGlobalBlock(repositoryServiceProjectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+                            .build()
+                    )
                     .build()
             );
         }
@@ -108,7 +114,7 @@ public class GoogleCloudStorageRepositorySettingsTests extends ESTestCase {
     }
 
     private ClusterState clusterStateWithGcsRepo(String repoName, Settings repoSettings) {
-        return ClusterState.builder(new ClusterName("test"))
+        final var builder = ClusterState.builder(new ClusterName("test"))
             .putProjectMetadata(
                 ProjectMetadata.builder(repositoryServiceProjectId)
                     .putCustom(
@@ -117,8 +123,13 @@ public class GoogleCloudStorageRepositorySettingsTests extends ESTestCase {
                             Collections.singletonList(new RepositoryMetadata(repoName, GoogleCloudStorageRepository.TYPE, repoSettings))
                         )
                     )
-            )
-            .build();
+            );
+        if (repositoryServiceProjectId.equals(ProjectId.DEFAULT)) {
+            return builder.build();
+        }
+        return builder.blocks(
+            ClusterBlocks.builder().addProjectGlobalBlock(repositoryServiceProjectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK).build()
+        ).build();
     }
 
     private static ClusterState emptyState() {

@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -466,7 +467,7 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private ClusterState clusterStateWithS3Repo(String repoName, Settings repoSettings) {
-        return ClusterState.builder(new ClusterName("test"))
+        final var builder = ClusterState.builder(new ClusterName("test"))
             .putProjectMetadata(
                 ProjectMetadata.builder(projectId)
                     .putCustom(
@@ -475,8 +476,13 @@ public class S3RepositoryTests extends ESTestCase {
                             Collections.singletonList(new RepositoryMetadata(repoName, S3Repository.TYPE, repoSettings))
                         )
                     )
-            )
-            .build();
+            );
+        if (projectId.equals(ProjectId.DEFAULT)) {
+            return builder.build();
+        }
+        return builder.blocks(
+            ClusterBlocks.builder().addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK).build()
+        ).build();
     }
 
     private static ClusterState emptyState() {

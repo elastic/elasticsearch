@@ -174,6 +174,7 @@ public class EsqlCCSUtils {
 
     static String createQualifiedLookupIndexExpressionFromAvailableClusters(Set<String> lookupIndexScope, String localPattern) {
         return Stream.concat(Stream.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY), lookupIndexScope.stream())
+            .distinct()
             .map(clusterAlias -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, localPattern))
             .collect(joining(","));
     }

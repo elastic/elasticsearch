@@ -28,7 +28,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Multi-node end-to-end guard for H4 (elastic/elasticsearch#150920): {@code COUNT(partition_column)} over a
@@ -72,8 +74,7 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
         // COUNT(p) must SAFE-MISS to a scan on the data node (ExternalDataSourceOperator present), NOT warm-fold to
         // 0. Without the serialized partition-column stamp the data-node fold sees an empty partition set (fileList
         // is UNRESOLVED there) and folds COUNT(p) to a constant 0 -> a LocalSourceExec with no ExternalDataSource
-        // operator. NOTE: the exact COUNT(p) VALUE is deliberately not asserted here — parquet hive-partition-column
-        // value attachment (separate from this fold fix) is broken for multi-file reads and tracked separately.
+        // operator. The scan then attaches the partition value to every row, so COUNT(p) counts all 5 rows.
         String query = "FROM " + dataset + " | STATS c = COUNT(p)";
         var request = syncEsqlQueryRequest(query);
         request.profile(true);
@@ -87,6 +88,14 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
                 }
             }
             assertTrue("COUNT(partition_column) must safe-miss to a scan on the data node, not warm-fold to 0", scanned);
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("COUNT(p) returns a single row", rows.size(), equalTo(1));
+            assertThat(
+                "COUNT(p) counts the partition value attached to all 5 rows (3 under p=a + 2 under p=b), not a folded 0",
+                ((Number) rows.getFirst().getFirst()).longValue(),
+                equalTo(5L)
+            );
         }
     }
 

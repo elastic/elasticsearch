@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -97,6 +98,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -596,6 +598,99 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             "COUNT(*) sentinel must arrive at the format reader as an empty projection",
             captured.get().projectedColumns(),
             equalTo(List.of())
+        );
+    }
+
+    /**
+     * Guards the {@code virtualColumnNames} union in {@link LocalExecutionPlanner} {@code planExternalSource}: on a
+     * data node the coordinator's {@link FileList} is not serialized ({@code ExternalSourceExec.writeTo} drops it, so
+     * it deserializes to {@code null}), so the Hive partition-column NAMES must instead be recovered from the
+     * serialized {@code _partition.columns} stamp in {@code sourceMetadata} (see
+     * {@code ExternalSourceAggregatePushdown#partitionColumnNames}). Without that union
+     * {@link SourceOperatorContext#partitionColumnNames()} is empty on the data node, {@code VirtualColumnIterator}
+     * never materialises the partition column, and a distributed partition-column read attaches SQL {@code NULL}.
+     * <p>
+     * Here {@code fileList} is deliberately left {@code null} (the data-node shape) and the partition name {@code p} is
+     * present in NEITHER the output attributes NOR a {@code FileList} — its only possible source is the stamp, so
+     * seeing it in the resolved set pins exactly this union. The end-to-end value-attachment twin is
+     * {@code ExternalHivePartitionDistributedValueIT}.
+     */
+    public void testExternalSourceUnionsPartitionColumnNamesFromSourceMetadataStamp() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = context -> {
+            captured.set(context);
+            return new SourceOperator.SourceOperatorFactory() {
+                @Override
+                public SourceOperator get(DriverContext driverContext) {
+                    return new SourceOperator() {
+                        @Override
+                        public Page getOutput() {
+                            return null;
+                        }
+
+                        @Override
+                        public boolean isFinished() {
+                            return true;
+                        }
+
+                        @Override
+                        public void finish() {}
+
+                        @Override
+                        public void close() {}
+                    };
+                }
+
+                @Override
+                public String describe() {
+                    return "test-source";
+                }
+            };
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        // Only the data column 'id' is in the output — the partition column 'p' is NOT, so the sole path that can put
+        // it into partitionColumnNames is the serialized stamp read below.
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSplit split = new FileSplit(
+            "file",
+            StoragePath.of("s3://test-bucket/warehouse/p=a/part-00000.parquet"),
+            0,
+            10,
+            ".parquet",
+            Map.of(),
+            Map.of("p", "a")
+        );
+
+        // fileList left null (the data-node shape: the coordinator's resolved FileList is not serialized), so the
+        // fileList partition-metadata branch contributes nothing and 'p' can only come from the _partition.columns stamp.
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://test-bucket/warehouse/*.parquet",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("p")),
+            null, // pushedFilter
+            10
+        ).withSplits(List.of(split));
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(
+            "partition column names must be recovered from the serialized _partition.columns stamp when the "
+                + "coordinator FileList is absent (data-node read)",
+            captured.get().partitionColumnNames(),
+            equalTo(Set.of("p"))
         );
     }
 

@@ -603,7 +603,7 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
             FROM (FROM sample_data | EVAL name = message | KEEP name),
                  (TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster | EVAL name = cluster | KEEP name),
                  (FROM salaries_int | KEEP name)
-            """, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """, dimensionValuesVersion());
     }
 
     public void testSubqueryRenameKeepStarOnMissingColumnPreservesType() {

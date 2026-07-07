@@ -1491,7 +1491,9 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testExplicitNullString() throws IOException {
-        String csv = "id:long,name:keyword\n1,null\n2,Bob\n";
+        // The literal "null" token is a null marker for typed columns (id here is unaffected), but a
+        // declared KEYWORD/TEXT column must be able to hold the string "null" verbatim.
+        String csv = "id:long,name:keyword\n,null\n2,Bob\n";
 
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
@@ -1500,8 +1502,28 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
-            assertTrue(page.getBlock(1).isNull(0));
+            assertTrue(page.getBlock(0).isNull(0));
+            assertFalse(page.getBlock(1).isNull(0));
+            assertEquals(new BytesRef("null"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
             assertFalse(page.getBlock(1).isNull(1));
+        }
+    }
+
+    public void testKeywordColumnHoldsLiteralNullStringAnyCase() throws IOException {
+        String csv = "name:keyword\nnull\nNULL\nNuLl\nBob\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(4, page.getPositionCount());
+            BytesRefBlock nameBlock = (BytesRefBlock) page.getBlock(0);
+            assertEquals(new BytesRef("null"), nameBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("NULL"), nameBlock.getBytesRef(1, new BytesRef()));
+            assertEquals(new BytesRef("NuLl"), nameBlock.getBytesRef(2, new BytesRef()));
+            assertEquals(new BytesRef("Bob"), nameBlock.getBytesRef(3, new BytesRef()));
         }
     }
 
@@ -3230,6 +3252,27 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(2, namesBlock.getValueCount(1));
             assertEquals(new BytesRef("hello world"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(1), new BytesRef()));
             assertEquals(new BytesRef("test"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(1) + 1, new BytesRef()));
+        }
+    }
+
+    /**
+     * A quoted {@code "null"} element inside a bracket multi-value cell is stripped to the bare token by
+     * the bracket splitter before element parsing sees it (see #1098); on a KEYWORD column it must survive
+     * as the literal string, not be dropped as a null element.
+     */
+    public void testMultiValueBracketsQuotedNullStringPreserved() throws IOException {
+        String csv = "id:integer,names:keyword\n1,\"[\"\"null\"\",\"\"bar\"\"]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = mvcReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock namesBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, namesBlock.getValueCount(0));
+            assertEquals(new BytesRef("null"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0), new BytesRef()));
+            assertEquals(new BytesRef("bar"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0) + 1, new BytesRef()));
         }
     }
 

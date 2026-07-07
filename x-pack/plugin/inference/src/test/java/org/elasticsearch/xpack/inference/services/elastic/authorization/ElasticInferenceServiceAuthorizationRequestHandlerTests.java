@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -99,6 +100,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -129,6 +132,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -160,6 +165,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -221,6 +228,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -290,6 +299,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             cache
         );
 
@@ -322,6 +333,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             cache
         );
 
@@ -354,6 +367,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -386,6 +401,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -426,6 +443,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -469,6 +488,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -537,6 +558,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -576,6 +599,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -614,6 +639,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createApplierFactory(secret),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -657,6 +684,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -704,6 +733,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createNoopApplierFactory(),
             createMockCcmFeature(false),
             createMockCcmService(false),
+            mockClusterServiceEmpty(),
+            createFeatureService(),
             createMockPreferencesCache()
         );
 
@@ -720,6 +751,14 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             var message = loggerArgsCaptor.getValue();
             assertThat(message, containsString("Failed to retrieve the authorization information from the Elastic Inference Service."));
         }
+    }
+
+    // The tests in this class exercise auth retrieval, not the reasoning task settings, so a fully-upgraded
+    // feature service is used throughout to match the expected endpoints built with ImmutableEmptyTaskSettings.
+    private static FeatureService createFeatureService() {
+        var featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        return featureService;
     }
 
     @SuppressWarnings("unchecked")

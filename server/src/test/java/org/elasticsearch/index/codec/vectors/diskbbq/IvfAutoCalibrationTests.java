@@ -30,7 +30,6 @@ import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.test.ESTestCase;
 
@@ -60,8 +59,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     private static final int VPC = 128;
 
     private static final IvfSegmentConfig CODEC_DEFAULT = IvfSegmentConfig.fromCodecDefaults(
-        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+        CentroidIndexFormat.FLAT,
+        QuantEncoding.ONE_BIT_4BIT_QUERY,
         false
     );
 
@@ -100,16 +99,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
     public void testSelectFromMergeStateReusesWeightedOversample() throws IOException {
         FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            false
-        );
-        StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            4f,
-            false
-        );
+        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(QuantEncoding.ONE_BIT_4BIT_QUERY, 2f, false);
+        StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(QuantEncoding.ONE_BIT_4BIT_QUERY, 4f, false);
         try (Directory dir = newDirectory()) {
             MergeState mergeState = mergeState(
                 dir,
@@ -122,7 +113,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
 
             assertThat(reused, notNullValue());
-            assertThat(reused.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
+            assertThat(reused.quantEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
             assertThat(reused.rescoreOversample(), equalTo(3.2f));
             assertFalse(reused.usePrecondition());
         }
@@ -136,16 +127,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     public void testSelectFromMergeStateReusesAcrossSegmentsWithAndWithoutDeletes() throws IOException {
         FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
         // Both segments agree on encoding, so metadata is reused rather than re-calibrated.
-        StubCalibrationKnnVectorsReader noDeletes = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            false
-        );
-        StubCalibrationKnnVectorsReader withDeletes = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            4f,
-            false
-        );
+        StubCalibrationKnnVectorsReader noDeletes = new StubCalibrationKnnVectorsReader(QuantEncoding.ONE_BIT_4BIT_QUERY, 2f, false);
+        StubCalibrationKnnVectorsReader withDeletes = new StubCalibrationKnnVectorsReader(QuantEncoding.ONE_BIT_4BIT_QUERY, 4f, false);
         int maxDocA = 8000; // no deletes -> 8000 live
         int maxDocB = 4000; // 2000 deleted -> 2000 live
         try (Directory dir = newDirectory()) {
@@ -162,7 +145,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
 
             assertThat(reused, notNullValue());
-            assertThat(reused.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
+            assertThat(reused.quantEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
             // Weighted by LIVE docs per segment (deletes excluded): (2*8000 + 4*2000) / (8000 + 2000) = 2.4
             // Weighting by maxDoc would instead give (2*8000 + 4*4000) / (8000 + 4000) = 2.667.
             assertThat(reused.rescoreOversample(), equalTo(2.4f));
@@ -172,16 +155,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
     public void testSelectFromMergeStateReturnsNullOnEncodingDisagreement() throws IOException {
         FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            false
-        );
-        StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC,
-            2f,
-            false
-        );
+        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(QuantEncoding.ONE_BIT_4BIT_QUERY, 2f, false);
+        StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(QuantEncoding.FOUR_BIT_SYMMETRIC, 2f, false);
         try (Directory dir = newDirectory()) {
             MergeState mergeState = mergeState(
                 dir,
@@ -233,7 +208,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
 
                 assertThat(reused, notNullValue());
-                assertThat(reused.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
+                assertThat(reused.quantEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
                 float expectedOversample = (oversampleA * reader.leaves().get(0).reader().maxDoc() + oversampleB * reader.leaves()
                     .get(1)
                     .reader()
@@ -267,16 +242,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
     public void testSelectFromMergeStateReusesOnPartialEncodingAgreement() throws IOException {
         FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        StubCalibrationKnnVectorsReader dominant = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            false
-        );
-        StubCalibrationKnnVectorsReader minority = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC,
-            2f,
-            false
-        );
+        StubCalibrationKnnVectorsReader dominant = new StubCalibrationKnnVectorsReader(QuantEncoding.ONE_BIT_4BIT_QUERY, 2f, false);
+        StubCalibrationKnnVectorsReader minority = new StubCalibrationKnnVectorsReader(QuantEncoding.FOUR_BIT_SYMMETRIC, 2f, false);
         try (Directory dir = newDirectory()) {
             MergeState mergeState = mergeState(
                 dir,
@@ -289,22 +256,14 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
 
             assertThat(reused, notNullValue());
-            assertThat(reused.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
+            assertThat(reused.quantEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
         }
     }
 
     public void testSelectFromMergeStateRecalibratesOnWeakEncodingAgreement() throws IOException {
         FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            false
-        );
-        StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC,
-            2f,
-            false
-        );
+        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(QuantEncoding.ONE_BIT_4BIT_QUERY, 2f, false);
+        StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(QuantEncoding.FOUR_BIT_SYMMETRIC, 2f, false);
         try (Directory dir = newDirectory()) {
             MergeState mergeState = mergeState(
                 dir,
@@ -320,16 +279,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
     public void testSelectFromMergeStateUsesPreconditionMajorityVote() throws IOException {
         FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        StubCalibrationKnnVectorsReader precondTrue = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            true
-        );
-        StubCalibrationKnnVectorsReader precondFalse = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            4f,
-            false
-        );
+        StubCalibrationKnnVectorsReader precondTrue = new StubCalibrationKnnVectorsReader(QuantEncoding.ONE_BIT_4BIT_QUERY, 2f, true);
+        StubCalibrationKnnVectorsReader precondFalse = new StubCalibrationKnnVectorsReader(QuantEncoding.ONE_BIT_4BIT_QUERY, 4f, false);
         try (Directory dir = newDirectory()) {
             MergeState mergeState = mergeState(
                 dir,
@@ -376,12 +327,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 int realNumVectors,
                 IvfAutoCalibration.CalibrationMode mode
             ) {
-                return new IvfSegmentConfig(
-                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
-                    false,
-                    2.5f
-                );
+                return new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 2.5f);
             }
         };
         FieldInfo fieldInfo = vectorFieldInfo("f");
@@ -396,7 +342,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
             IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
 
-            assertThat(config.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY));
+            assertThat(config.quantEncoding(), is(QuantEncoding.TWO_BIT_4BIT_QUERY));
             assertThat(config.rescoreOversample(), equalTo(2.5f));
             assertEquals(0, selector.calibrateInvocations);
         }
@@ -814,11 +760,11 @@ public class IvfAutoCalibrationTests extends ESTestCase {
      */
     private static final class StubCalibrationKnnVectorsReader extends KnnVectorsReader implements CalibrationAwareReader {
 
-        private final ESNextDiskBBQVectorsFormat.QuantEncoding encoding;
+        private final QuantEncoding encoding;
         private final float oversample;
         private final boolean precondition;
 
-        StubCalibrationKnnVectorsReader(ESNextDiskBBQVectorsFormat.QuantEncoding encoding, float oversample, boolean precondition) {
+        StubCalibrationKnnVectorsReader(QuantEncoding encoding, float oversample, boolean precondition) {
             this.encoding = encoding;
             this.oversample = oversample;
             this.precondition = precondition;
@@ -835,7 +781,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
 
         @Override
-        public ESNextDiskBBQVectorsFormat.QuantEncoding getQuantEncoding(FieldInfo fieldInfo) {
+        public QuantEncoding getQuantEncoding(FieldInfo fieldInfo) {
             return encoding;
         }
 

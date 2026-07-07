@@ -46,6 +46,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IntToBooleanFunction;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedCentroids;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.SoarAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
@@ -892,60 +893,6 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
         @Override
         public KMeansFloatVectorValues asKmeansFloatVectorValues() throws IOException {
             return KMeansFloatVectorValues.build(centroidsInput, null, numCentroids, dimension);
-        }
-    }
-
-    static class QuantizedCentroids implements QuantizedVectorValues {
-        private final CentroidSupplier supplier;
-        private final OptimizedScalarQuantizer quantizer;
-        private final byte[] quantizedVector;
-        private final int[] quantizedVectorScratch;
-        private final float[] floatVectorScratch;
-        private OptimizedScalarQuantizer.QuantizationResult corrections;
-        private final float[] centroid;
-        private int currOrd = -1;
-        private IntToIntFunction ordTransformer = i -> i;
-        int size;
-
-        QuantizedCentroids(CentroidSupplier supplier, int dimension, OptimizedScalarQuantizer quantizer, float[] centroid) {
-            this.supplier = supplier;
-            this.quantizer = quantizer;
-            this.quantizedVector = new byte[dimension];
-            this.floatVectorScratch = new float[dimension];
-            this.quantizedVectorScratch = new int[dimension];
-            this.centroid = centroid;
-            size = supplier.size();
-        }
-
-        @Override
-        public int count() {
-            return size;
-        }
-
-        void reset(IntToIntFunction ordTransformer, int size) {
-            this.ordTransformer = ordTransformer;
-            this.currOrd = -1;
-            this.size = size;
-            this.corrections = null;
-        }
-
-        @Override
-        public byte[] next() throws IOException {
-            if (currOrd >= count() - 1) {
-                throw new IllegalStateException("No more vectors to read, current ord: " + currOrd + ", count: " + count());
-            }
-            currOrd++;
-            float[] vector = supplier.centroid(ordTransformer.apply(currOrd));
-            corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, (byte) 7, centroid);
-            for (int i = 0; i < quantizedVectorScratch.length; i++) {
-                quantizedVector[i] = (byte) quantizedVectorScratch[i];
-            }
-            return quantizedVector;
-        }
-
-        @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
-            return corrections;
         }
     }
 

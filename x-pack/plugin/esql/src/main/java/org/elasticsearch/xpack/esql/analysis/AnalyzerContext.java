@@ -174,14 +174,6 @@ public class AnalyzerContext {
         return projectMetadata;
     }
 
-    public boolean includesRemoteIndices() {
-        assert indexResolution != null;
-        if (hasRemoteIndices == null) {
-            hasRemoteIndices = indexResolution.values().stream().anyMatch(IndexResolution::includesRemoteIndices);
-        }
-        return hasRemoteIndices;
-    }
-
     public UnmappedResolution unmappedResolution() {
         return unmappedResolution;
     }

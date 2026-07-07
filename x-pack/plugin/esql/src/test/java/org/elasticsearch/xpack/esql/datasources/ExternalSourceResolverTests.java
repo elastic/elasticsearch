@@ -14,9 +14,11 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -66,6 +69,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -98,6 +102,37 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+    }
+
+    /**
+     * Guards {@link ExternalSourceResolver#FILE_TYPED_FORMATS} — the hand-maintained classification of columnar
+     * (self-typed) formats that gates all three columnar declaration rejects (format-on-columnar, strict type mismatch,
+     * non-strict retype). The set has no SPI-derived source of truth yet (see the constant's TODO), so pin its exact
+     * membership: dropping an entry silently disables the rejects for that format, and a new columnar reader must be
+     * added here. A change to this set is a deliberate, reviewed test diff — not a silent drift.
+     */
+    public void testFileTypedFormatsGatesColumnarRejects() {
+        assertEquals(
+            Set.of(FormatNameResolver.FORMAT_PARQUET, "orc", FormatNameResolver.FORMAT_PARQUET_RS),
+            ExternalSourceResolver.FILE_TYPED_FORMATS
+        );
+        // Text formats parse into the declared type, so a declared format/retype IS honored — they must NOT be here.
+        assertFalse(ExternalSourceResolver.FILE_TYPED_FORMATS.contains("csv"));
+        assertFalse(ExternalSourceResolver.FILE_TYPED_FORMATS.contains("tsv"));
+        assertFalse(ExternalSourceResolver.FILE_TYPED_FORMATS.contains("ndjson"));
+    }
+
+    /**
+     * Pins {@link ExternalSourceResolver#COERCING_FILE_TYPED_FORMATS} — the columnar formats whose readers coerce a
+     * declared type from the file's physical type (vs strict equality). It must be a subset of the file-typed set, and
+     * {@code parquet-rs} must stay OUT of it (it is file-typed but does not implement coercion yet), so a declared
+     * retype on parquet-rs still requires strict equality rather than silently coercing.
+     */
+    public void testCoercingFileTypedFormatsPinned() {
+        assertEquals(Set.of(FormatNameResolver.FORMAT_PARQUET, "orc"), ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS);
+        assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.containsAll(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS));
+        assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
+        assertFalse(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
     }
 
     // ===== FIRST_FILE_WINS tests (current behavior) =====
@@ -231,6 +266,57 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals("[" + strategy + "] resolved column 0 type", DataType.LONG, resolvedSchema.get(0).dataType());
             assertEquals("[" + strategy + "] resolved column 1 type", DataType.DOUBLE, resolvedSchema.get(1).dataType());
         }
+    }
+
+    /**
+     * FIRST_FILE_WINS folds every file's stats under the anchor's schema without enforcing that the other files
+     * actually share it. A column whose physical type diverges across files (here {@code ts}: DATETIME/millis in
+     * the anchor, DATE_NANOS/nanos in file 2) is read from the divergent file under the anchor schema — its data
+     * is misread — so a warm extremum cannot match a scan. The fold must POISON such a column's extrema
+     * (safe-miss), while a uniformly-typed column ({@code id}) folds normally.
+     */
+    public void testFfwAggregatePoisonsExtremaOfDivergentlyTypedColumn() {
+        Map<String, Object> f1 = new HashMap<>();
+        f1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        f1.put(SourceStatisticsSerializer.columnMinKey("ts"), 1000L);
+        f1.put(SourceStatisticsSerializer.columnMaxKey("ts"), 5000L);
+        f1.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
+        f1.put(SourceStatisticsSerializer.columnMaxKey("id"), 9L);
+        Map<String, Object> f2 = new HashMap<>();
+        f2.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        f2.put(SourceStatisticsSerializer.columnMinKey("ts"), 2_000_000L);
+        f2.put(SourceStatisticsSerializer.columnMaxKey("ts"), 9_000_000L);
+        f2.put(SourceStatisticsSerializer.columnMinKey("id"), 3L);
+        f2.put(SourceStatisticsSerializer.columnMaxKey("id"), 7L);
+        SourceMetadata m1 = new SimpleSourceMetadata(
+            List.of(attr("ts", DataType.DATETIME), attr("id", DataType.LONG)),
+            "parquet",
+            "file:///1.parquet",
+            null,
+            null,
+            f1,
+            null
+        );
+        SourceMetadata m2 = new SimpleSourceMetadata(
+            List.of(attr("ts", DataType.DATE_NANOS), attr("id", DataType.LONG)),
+            "parquet",
+            "file:///2.parquet",
+            null,
+            null,
+            f2,
+            null
+        );
+
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(List.of(m1, m2), false);
+        assertNotNull(agg);
+        // ts diverged -> extrema poisoned (value dropped, unservable marker set) -> MIN/MAX(ts) safe-miss to a scan.
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("ts")));
+        // id is uniformly LONG -> folds normally.
+        assertEquals(1L, agg.get(SourceStatisticsSerializer.columnMinKey("id")));
+        assertEquals(9L, agg.get(SourceStatisticsSerializer.columnMaxKey("id")));
     }
 
     // ===== Stats partial / file-count flag tests =====
@@ -749,7 +835,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> config
     ) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, pathsRequiringStats, future);
+        resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, pathsRequiringStats, future);
         return future.actionGet();
     }
 
@@ -1559,6 +1645,51 @@ public class ExternalSourceResolverTests extends ESTestCase {
         };
     }
 
+    // ===== Config validation =====
+
+    /**
+     * Unknown configuration keys must be rejected by the resolver before any factory consumer
+     * (resolveMetadata or operatorFactory) is invoked.
+     */
+    public void testResolverRejectsUnknownConfigKeyOnSingleFilePath() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/data/file.parquet", schema);
+
+        ExternalSourceResolver resolver = createStrictValidationResolver(schemasByPath, Map.of(), new AtomicInteger());
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of("s3://bucket/data/file.parquet"),
+            Map.of("s3://bucket/data/file.parquet", Map.of("bogus_unknown_key", "value")),
+            future
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("bogus_unknown_key"));
+    }
+
+    /**
+     * Unknown config keys are rejected before resolveMetadata is invoked on the cache-miss path.
+     * Confirmed by asserting zero schema reads on validation failure: if validation fired only
+     * inside resolveMetadata, the format reader would be reached first.
+     */
+    public void testResolverRejectsUnknownConfigKeyBeforeAnyFactoryRead() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/data/file.parquet", schema);
+
+        AtomicInteger readerCallCount = new AtomicInteger();
+        ExternalSourceResolver resolver = createStrictValidationResolver(schemasByPath, Map.of(), readerCallCount);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of("s3://bucket/data/file.parquet"),
+            Map.of("s3://bucket/data/file.parquet", Map.of("bogus_unknown_key", "value")),
+            future
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("bogus_unknown_key"));
+        assertEquals("validateConfig must fire before resolveMetadata; the format reader must not be reached", 0, readerCallCount.get());
+    }
+
     // ===== Empty resolution =====
 
     public void testEmptyPathListReturnsEmptyResolution() throws Exception {
@@ -1741,7 +1872,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
         };
 
-        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
+        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached), true);
         assertNotNull(merged);
         assertEquals(uncachedRowCount + cachedRowCount, ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
 
@@ -1761,7 +1892,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 return "s3://bucket/missing.parquet";
             }
         };
-        assertNull(ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached, missing)));
+        assertNull(ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached, missing), true));
     }
 
     private static SourceStatistics statsOf(long rowCount) {
@@ -1838,7 +1969,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
         };
 
-        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
+        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached), true);
         assertNotNull(merged);
         assertEquals(uncachedRowCount + cachedRowCount, ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
         assertEquals(
@@ -2049,6 +2180,64 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     private static StorageEntry entry(String path, long length) {
         return new StorageEntry(StoragePath.of(path), length, Instant.EPOCH);
+    }
+
+    /**
+     * Builds a resolver whose storage provider claims no config keys, so any key not in
+     * {@link FileSourceFactory#COORDINATOR_KEYS} or the format reader's recognised set is
+     * rejected by {@code validateConfig}. {@code readerCallCount} is incremented on every
+     * {@link FormatReader#metadata} call.
+     */
+    private ExternalSourceResolver createStrictValidationResolver(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        AtomicInteger readerCallCount
+    ) {
+        StubFormatReader formatReader = new StubFormatReader(schemasByPath) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                readerCallCount.incrementAndGet();
+                return super.metadata(object);
+            }
+        };
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                // noConfigKeys: the storage provider claims no config keys, so any unknown key
+                // is not consumed here and must be caught by ConfigKeyValidator.
+                return Map.of("s3", StorageProviderFactory.noConfigKeys(() -> storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, null);
     }
 
     private ExternalSourceResolution resolveMultiFile(
@@ -2588,6 +2777,80 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    // ===== Security context preservation tests =====
+
+    /**
+     * Regression test for a lost security context (issue 152978): when an async metadata read
+     * completes on a thread the resolver does not control -- e.g. a native async storage SDK's own
+     * I/O thread (AWS's Netty-backed S3 client, for a real Parquet-on-S3 query), which never had the
+     * calling request's {@link ThreadContext} installed -- the {@code resolve()} completion listener
+     * must still observe the calling request's context. Without the fix, the listener chain runs
+     * synchronously on that foreign thread all the way back into {@code EsqlSession} and the
+     * subsequent compute transport send, which finds no {@code Authentication} in context and throws
+     * "there should always be a user". {@link AsyncStubFormatReader} stands in for the native SDK by
+     * completing on a dedicated pool distinct from both the resolver executor and this test thread.
+     */
+    public void testResolveRestoresCallerThreadContextAcrossAsyncCompletion() throws Exception {
+        String headerName = "x-test-auth-marker";
+        String headerValue = "authenticated-user";
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(headerName, headerValue);
+
+        String path = "s3://bucket/data/file.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("id", DataType.LONG)));
+        String glob = "s3://bucket/data/*.parquet";
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of(glob).patternPrefix().toString(), List.of(entry(path, 100)));
+
+        ExecutorService resolverExecutor = Executors.newSingleThreadExecutor();
+        // Distinct from resolverExecutor and from this test thread: stands in for a native async
+        // storage SDK's own I/O thread, which the resolver never dispatches onto and which never had
+        // this request's ThreadContext installed.
+        ExecutorService ioPool = Executors.newSingleThreadExecutor();
+        AsyncStubFormatReader reader = new AsyncStubFormatReader(schemasByPath, ioPool, null, 0, null);
+        try {
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(
+                schemasByPath,
+                listingsByPrefix,
+                reader,
+                resolverExecutor,
+                ExternalSourceResolver.DEFAULT_METADATA_READ_CONCURRENCY,
+                threadContext
+            );
+
+            AtomicReference<String> observedHeaderOnResponse = new AtomicReference<>();
+            AtomicReference<Thread> completionThread = new AtomicReference<>();
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            // Captures the header inside the resolve() completion callback itself: ContextPreservingActionListener
+            // only restores the calling request's context for the duration of that callback, so the assertion must
+            // happen there rather than after future.actionGet() returns on this (unrelated) test thread.
+            ActionListener<ExternalSourceResolution> capturingListener = ActionListener.wrap(resolution -> {
+                observedHeaderOnResponse.set(threadContext.getHeader(headerName));
+                completionThread.set(Thread.currentThread());
+                future.onResponse(resolution);
+            }, future::onFailure);
+
+            resolver.resolve(List.of(glob), Map.of(glob, Map.of()), capturingListener);
+            ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
+
+            assertNotNull(resolution.resolvedSource(glob));
+            assertNotEquals(
+                "the completion must run off this test thread to actually exercise cross-thread context restoration",
+                Thread.currentThread(),
+                completionThread.get()
+            );
+            assertEquals(
+                "the calling request's ThreadContext header must be visible inside the resolve() completion listener "
+                    + "even though the async metadata read completed on an unrelated I/O thread",
+                headerValue,
+                observedHeaderOnResponse.get()
+            );
+        } finally {
+            resolverExecutor.shutdownNow();
+            ioPool.shutdownNow();
+        }
+    }
+
     private ExternalSourceResolution resolveWithAsyncReader(
         String glob,
         Map<String, List<Attribute>> schemasByPath,
@@ -2611,6 +2874,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         FormatReader formatReader,
         Executor resolverExecutor,
         int permits
+    ) {
+        return createResolverWithAsyncReader(schemasByPath, listingsByPrefix, formatReader, resolverExecutor, permits, null);
+    }
+
+    private ExternalSourceResolver createResolverWithAsyncReader(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        FormatReader formatReader,
+        Executor resolverExecutor,
+        int permits,
+        @Nullable ThreadContext threadContext
     ) {
         StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
         DataSourcePlugin plugin = new DataSourcePlugin() {
@@ -2646,7 +2920,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
-        return new ExternalSourceResolver(resolverExecutor, module, Settings.EMPTY, null, permits);
+        return new ExternalSourceResolver(resolverExecutor, module, Settings.EMPTY, null, null, permits, threadContext);
     }
 
     /**

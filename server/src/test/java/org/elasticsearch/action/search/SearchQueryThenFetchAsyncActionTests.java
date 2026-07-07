@@ -57,6 +57,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -107,7 +108,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 int shardId = request.shardId().id();
                 if (request.canReturnNullResponseIfMatchNoDocs()) {
@@ -333,7 +336,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 int shardId = request.shardId().id();
                 if (request.canReturnNullResponseIfMatchNoDocs()) {

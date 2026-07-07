@@ -111,11 +111,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
     // Does this join involve remote indices? This is relevant only on the coordinating node, thus transient.
-    private transient boolean isRemote = false;
-
-    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
-        this(source, left, right, config, false);
-    }
+    private final transient boolean isRemote;
 
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, boolean isRemote) {
         super(source, left, right);
@@ -130,15 +126,16 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         JoinType type,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
-        Expression joinOnConditions
+        Expression joinOnConditions,
+        boolean isRemote
     ) {
-        super(source, left, right);
-        this.config = new JoinConfig(type, leftFields, rightFields, joinOnConditions);
+        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), isRemote);
     }
 
     public Join(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readNamedWriteable(LogicalPlan.class));
         this.config = new JoinConfig(in);
+        this.isRemote = false;
     }
 
     @Override
@@ -183,7 +180,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             config.type(),
             config.leftFields(),
             config.rightFields(),
-            config.joinOnConditions()
+            config.joinOnConditions(),
+            isRemote
         );
     }
 

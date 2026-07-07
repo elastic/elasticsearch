@@ -359,7 +359,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         switch (source) {
             case EsRelation esRelation -> {
                 IndexMode mode = esRelation.indexMode();
-                if ((mode == IndexMode.STANDARD || mode == IndexMode.TIME_SERIES) == false) {
+                if ((mode == IndexMode.STANDARD || mode.isTsdb()) == false) {
                     throw new EsqlIllegalArgumentException(
                         "invalid source type [{}] for unmapped field resolution",
                         esRelation.indexMode()

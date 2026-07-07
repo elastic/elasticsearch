@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 136639
+pr: 152152
+summary: Fix NPE when aggregation param scripts return null
+type: bug

@@ -174,20 +174,22 @@ public class RegionPolicyAuthorizationRefreshIT extends ESRestTestCase {
         String pipelineId = "pipeline-referencing-" + endpointId;
         putPipeline(pipelineId, endpointId);
 
-        mockEISServer.getWebServer().enqueue(new MockResponse().setResponseCode(200).setBody(deniedEndpointAuthResponse(endpointId)));
+        try {
+            mockEISServer.getWebServer().enqueue(new MockResponse().setResponseCode(200).setBody(deniedEndpointAuthResponse(endpointId)));
 
-        var exception = expectThrows(ResponseException.class, () -> putRegionPolicy("""
-            { "region_policy": { "allowed_geos": ["eu"] } }
-            """));
-        assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(409));
+            var exception = expectThrows(ResponseException.class, () -> putRegionPolicy("""
+                { "region_policy": { "allowed_geos": ["eu"] } }
+                """));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(409));
 
-        var error = (Map<String, Object>) entityAsMap(exception.getResponse()).get("error");
-        // A single denied endpoint / single reference serializes as a bare string, not a one-element array
-        assertThat(error.get("denied_endpoint_ids"), is(endpointId));
-        assertThat(error.get("referencing_pipelines"), is(endpointId + ":" + pipelineId));
-        assertThat(error, not(hasKey("referencing_indexes")));
-
-        deletePipeline(pipelineId);
+            var error = (Map<String, Object>) entityAsMap(exception.getResponse()).get("error");
+            // A single denied endpoint / single reference serializes as a bare string, not a one-element array
+            assertThat(error.get("denied_endpoint_ids"), is(endpointId));
+            assertThat(error.get("referencing_pipelines"), is(endpointId + ":" + pipelineId));
+            assertThat(error, not(hasKey("referencing_indexes")));
+        } finally {
+            deletePipeline(pipelineId);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -197,20 +199,22 @@ public class RegionPolicyAuthorizationRefreshIT extends ESRestTestCase {
         putTestServiceSparseEmbeddingModel(endpointId);
         putSemanticText(endpointId, indexName);
 
-        mockEISServer.getWebServer().enqueue(new MockResponse().setResponseCode(200).setBody(deniedEndpointAuthResponse(endpointId)));
+        try {
+            mockEISServer.getWebServer().enqueue(new MockResponse().setResponseCode(200).setBody(deniedEndpointAuthResponse(endpointId)));
 
-        var exception = expectThrows(ResponseException.class, () -> putRegionPolicy("""
-            { "region_policy": { "allowed_geos": ["eu"] } }
-            """));
-        assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(409));
+            var exception = expectThrows(ResponseException.class, () -> putRegionPolicy("""
+                { "region_policy": { "allowed_geos": ["eu"] } }
+                """));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(409));
 
-        var error = (Map<String, Object>) entityAsMap(exception.getResponse()).get("error");
-        assertThat(error.get("denied_endpoint_ids"), is(endpointId));
-        assertThat(error, not(hasKey("referencing_pipelines")));
-        assertThat(error.get("referencing_indexes"), is(endpointId + ":" + indexName));
-
-        client().performRequest(new Request("DELETE", indexName));
-        client().performRequest(new Request("DELETE", "_inference/" + endpointId + "?force=true"));
+            var error = (Map<String, Object>) entityAsMap(exception.getResponse()).get("error");
+            assertThat(error.get("denied_endpoint_ids"), is(endpointId));
+            assertThat(error, not(hasKey("referencing_pipelines")));
+            assertThat(error.get("referencing_indexes"), is(endpointId + ":" + indexName));
+        } finally {
+            client().performRequest(new Request("DELETE", indexName));
+            client().performRequest(new Request("DELETE", "_inference/" + endpointId + "?force=true"));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -221,25 +225,27 @@ public class RegionPolicyAuthorizationRefreshIT extends ESRestTestCase {
         putPipeline(pipelineIdOne, endpointId);
         putPipeline(pipelineIdTwo, endpointId);
 
-        mockEISServer.getWebServer().enqueue(new MockResponse().setResponseCode(200).setBody(deniedEndpointAuthResponse(endpointId)));
+        try {
+            mockEISServer.getWebServer().enqueue(new MockResponse().setResponseCode(200).setBody(deniedEndpointAuthResponse(endpointId)));
 
-        var exception = expectThrows(ResponseException.class, () -> putRegionPolicy("""
-            { "region_policy": { "allowed_geos": ["eu"] } }
-            """));
-        assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(409));
+            var exception = expectThrows(ResponseException.class, () -> putRegionPolicy("""
+                { "region_policy": { "allowed_geos": ["eu"] } }
+                """));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(409));
 
-        var error = (Map<String, Object>) entityAsMap(exception.getResponse()).get("error");
-        // A single denied endpoint still serializes as a bare string...
-        assertThat(error.get("denied_endpoint_ids"), is(endpointId));
-        // ...but multiple references for that endpoint serialize as an array
-        assertThat(
-            (List<String>) error.get("referencing_pipelines"),
-            contains(endpointId + ":" + pipelineIdOne, endpointId + ":" + pipelineIdTwo)
-        );
-        assertThat(error, not(hasKey("referencing_indexes")));
-
-        deletePipeline(pipelineIdOne);
-        deletePipeline(pipelineIdTwo);
+            var error = (Map<String, Object>) entityAsMap(exception.getResponse()).get("error");
+            // A single denied endpoint still serializes as a bare string...
+            assertThat(error.get("denied_endpoint_ids"), is(endpointId));
+            // ...but multiple references for that endpoint serialize as an array
+            assertThat(
+                (List<String>) error.get("referencing_pipelines"),
+                contains(endpointId + ":" + pipelineIdOne, endpointId + ":" + pipelineIdTwo)
+            );
+            assertThat(error, not(hasKey("referencing_indexes")));
+        } finally {
+            deletePipeline(pipelineIdOne);
+            deletePipeline(pipelineIdTwo);
+        }
     }
 
     private void putRegionPolicy(String body) throws IOException {

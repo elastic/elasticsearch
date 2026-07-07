@@ -60,9 +60,11 @@ import static org.hamcrest.Matchers.stringContainsInOrder;
 public class IndexRoutingTests extends ESTestCase {
 
     /**
-     * Result of creating time_series index routing; carries the routing and the explicit synthetic-id setting used.
+     * Result of creating time_series index routing; carries the routing, the explicit synthetic-id setting
+     * used, and the {@link IndexMode} the fixture was built with (either {@link IndexMode#TIME_SERIES} or
+     * {@link IndexMode#TSDB}).
      */
-    private record TimeSeriesRoutingFixture(IndexRouting routing, boolean useSyntheticId) {}
+    private record TimeSeriesRoutingFixture(IndexRouting routing, boolean useSyntheticId, IndexMode indexMode) {}
 
     public void testSimpleRoutingRejectsEmptyId() {
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
@@ -562,16 +564,21 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathUpdate() {
-        IndexRouting routing = indexRoutingForPath(between(1, 5), "foo").routing();
+        TimeSeriesRoutingFixture fixture = indexRoutingForPath(between(1, 5), "foo");
+        IndexRouting routing = fixture.routing();
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> routing.updateShard(randomAlphaOfLength(5), randomBoolean() ? null : randomAlphaOfLength(5))
         );
-        assertThat(e.getMessage(), equalTo("update is not supported because the destination index [test] is in time_series mode"));
+        assertThat(
+            e.getMessage(),
+            equalTo("update is not supported because the destination index [test] is in " + fixture.indexMode().getName() + " mode")
+        );
     }
 
     public void testRoutingIndexWithRouting() throws IOException {
-        IndexRouting indexRouting = indexRoutingForPath(5, "foo").routing();
+        TimeSeriesRoutingFixture fixture = indexRoutingForPath(5, "foo");
+        IndexRouting indexRouting = fixture.routing();
         String value = randomAlphaOfLength(5);
         BytesReference source = source(Map.of("foo", value));
         String docRouting = randomAlphaOfLength(5);
@@ -583,16 +590,23 @@ public class IndexRoutingTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("specifying routing is not supported because the destination index [test] is in time_series mode")
+            equalTo(
+                "specifying routing is not supported because the destination index [test] is in " + fixture.indexMode().getName() + " mode"
+            )
         );
     }
 
     public void testRoutingPathCollectSearchWithRouting() {
-        IndexRouting routing = indexRoutingForPath(between(1, 5), "foo").routing();
+        TimeSeriesRoutingFixture fixture = indexRoutingForPath(between(1, 5), "foo");
+        IndexRouting routing = fixture.routing();
         Exception e = expectThrows(IllegalArgumentException.class, () -> routing.collectSearchShards(randomAlphaOfLength(5), null));
         assertThat(
             e.getMessage(),
-            equalTo("searching with a specified routing is not supported because the destination index [test] is in time_series mode")
+            equalTo(
+                "searching with a specified routing is not supported because the destination index [test] is in "
+                    + fixture.indexMode().getName()
+                    + " mode"
+            )
         );
     }
 
@@ -761,16 +775,16 @@ public class IndexRoutingTests extends ESTestCase {
 
     public void testRoutingPathReadWithInvalidString() {
         int shards = between(2, 1000);
-        IndexRouting indexRouting = indexRoutingForPath(shards, "foo").routing();
-        Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(indexRouting, "!@#"));
-        assertThat(e.getMessage(), equalTo("invalid id [!@#] for index [test] in time_series mode"));
+        TimeSeriesRoutingFixture fixture = indexRoutingForPath(shards, "foo");
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(fixture.routing(), "!@#"));
+        assertThat(e.getMessage(), equalTo("invalid id [!@#] for index [test] in " + fixture.indexMode().getName() + " mode"));
     }
 
     public void testRoutingPathReadWithShortString() {
         int shards = between(2, 1000);
-        IndexRouting indexRouting = indexRoutingForPath(shards, "foo").routing();
-        Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(indexRouting, ""));
-        assertThat(e.getMessage(), equalTo("invalid id [] for index [test] in time_series mode"));
+        TimeSeriesRoutingFixture fixture = indexRoutingForPath(shards, "foo");
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(fixture.routing(), ""));
+        assertThat(e.getMessage(), equalTo("invalid id [] for index [test] in " + fixture.indexMode().getName() + " mode"));
     }
 
     public void testRoutingPathLogsdb() {
@@ -1297,7 +1311,8 @@ public class IndexRoutingTests extends ESTestCase {
             IndexRouting.fromIndexMetadata(
                 IndexMetadata.builder("test").settings(settingsBuilder).numberOfShards(shards).numberOfReplicas(1).build()
             ),
-            useSyntheticId
+            useSyntheticId,
+            indexMode
         );
     }
 

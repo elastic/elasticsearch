@@ -122,7 +122,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected static List<Object[]> readScriptSpec(String specFile) throws Exception {
         List<URL> urls = classpathResources(specFile);
         assertEquals("Expected exactly one resource for " + specFile + " but found " + urls, 1, urls.size());
-        return SpecReader.readScriptSpec(urls, specParser());
+        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
     }
 
     protected EsqlSpecTestCase(

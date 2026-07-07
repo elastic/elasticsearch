@@ -412,11 +412,13 @@ ds_dataset_read_metadata:
 
 # Repro for the GET _query/dataset 404: a broad, Kibana-like reader that can both list datasets and read an
 # unrelated (Entity-Store-style) data stream, so the dataset list's wildcard expands across both namespaces.
+# read_dataset_metadata on the data stream mirrors a role authorized for the dataset get/list action there too
+# (e.g. via a broad "manage"/"all" grant), which is what lets the co-resident name reach dataset resolution.
 ds_repro_broad_reader:
   cluster: []
   indices:
     - names: [ 'entities-updates-*' ]
-      privileges: [ 'read' ]
+      privileges: [ 'read', 'read_dataset_metadata' ]
     - names: [ 'security_it_ds_*' ]
       privileges: [ 'read_dataset_metadata' ]
   global:

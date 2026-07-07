@@ -904,7 +904,7 @@ required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
-FROM sample_data, no_mapping_sample_data METADATA _index
+FROM sample_data, no_mapping_sample_data
 | KEEP event_duration
 ;
 ignoreOrder:true
@@ -927,13 +927,12 @@ event_duration:long
 ;
 
 typeConflictPartiallyUnmappedKeywordFieldKept - old data node
-required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
-FROM sample_data, no_mapping_sample_data METADATA _index
+FROM sample_data, no_mapping_sample_data
 | KEEP event_duration
 ;
 ignoreOrder:true
@@ -956,12 +955,11 @@ event_duration:long
 ;
 
 typeConflictPartiallyUnmappedKeywordFieldKept - old coordinator
-required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
-FROM sample_data, no_mapping_sample_data METADATA _index
+FROM sample_data, no_mapping_sample_data
 | KEEP event_duration
 ;
 ignoreOrder:true

@@ -97,6 +97,11 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
         return DocValuesType.SORTED_NUMERIC;
     }
@@ -443,7 +448,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnarBooleanArrayOrderRoundTrip() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "boolean").endObject()))
             .documentMapper();

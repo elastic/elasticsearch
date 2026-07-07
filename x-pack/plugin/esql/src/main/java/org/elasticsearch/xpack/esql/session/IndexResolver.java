@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
@@ -607,19 +608,26 @@ public class IndexResolver {
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
         @Nullable Map<Set<String>, Set<String>> indexDedupCache
     ) {
+        boolean useLegacyField = indexDedupCache == null;
         return switch (field.getDataType()) {
             // OBJECT fields are containers for subfields, not leaf fields that get queried directly.
             // Wrapping them would break downstream code that doesn't expect OBJECT as a data type in InvalidMappedField.
             case OBJECT -> field;
             // PotentiallyUnmappedKeywordEsField needs the full dotted path for DefaultShardContextForUnmappedField.fieldType().
             case KEYWORD -> new PotentiallyUnmappedKeywordEsField(fullName);
-            default -> indexDedupCache != null
-                ? CompactInvalidMappedField.potentiallyUnmapped(
-                    name,
-                    partiallyUnmappedTypesByDataType(field, mappedIndices),
-                    indexDedupCache
-                )
-                : InvalidMappedField.potentiallyUnmapped(name, partiallyUnmappedTypesByName(field, mappedIndices));
+            default -> {
+                if (field instanceof TypeConflictedField) {
+                    yield useLegacyField
+                        ? InvalidMappedField.potentiallyUnmapped(name, partiallyUnmappedTypesByName(field, mappedIndices))
+                        : CompactInvalidMappedField.potentiallyUnmapped(
+                            name,
+                            partiallyUnmappedTypesByDataType(field, mappedIndices),
+                            indexDedupCache
+                        );
+                }
+                // We only need to maintain mappedIndices for the legacy InvalidMappedType.
+                yield new PotentiallyUnmappedSingleTypeEsField(field, useLegacyField ? mappedIndices : Set.of());
+            }
         };
     }
 

@@ -120,7 +120,7 @@ public abstract class Soar<V> {
         int numWorkers,
         ClusteringVectorValues<V> vectors,
         CentroidOps<V> ops,
-        KMeansResult<V> kmeansIntermediate,
+        KMeansResult<V> kMeansResult,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
@@ -131,7 +131,7 @@ public abstract class Soar<V> {
             final int start = i * len;
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             runners.add(() -> {
-                assignSpilledSlice(vectors.copy(), ops, kmeansIntermediate, neighborhoods, soarLambda, start, end, assignments);
+                assignSpilledSlice(vectors.copy(), ops, kMeansResult, neighborhoods, soarLambda, start, end, assignments);
                 return null;
             });
         }

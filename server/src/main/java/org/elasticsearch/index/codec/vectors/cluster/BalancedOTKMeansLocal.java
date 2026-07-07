@@ -10,10 +10,10 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Balanced k-means algorithm that uses a mini-batch approach with OT-based balancing on each mini-batch.
@@ -49,9 +49,6 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
         // A negative number means that the actual miniBatchSize will be set to k * abs(this.miniBatchSize).
         this.miniBatchSize = -2;
     }
-
-    /** Number of workers to use for parallelism */
-    protected abstract int numWorkers();
 
     /** compute the distance from every vector to every centroid */
     private void computeDistances(ClusteringVectorValues<V> vectors, V[] centroids, float[][] distances) throws IOException {
@@ -105,7 +102,7 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
     /** assign to each vector the closest centroid */
     protected abstract void assign(
         ClusteringVectorValues<V> vectors,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
@@ -113,15 +110,15 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
     ) throws IOException;
 
     @Override
-    protected void innerCluster(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate, NeighborHood[] neighborhoods)
+    protected void innerCluster(ClusteringVectorValues<V> vectors, KMeansResult<V> kMeansResult, NeighborHood[] neighborhoods)
         throws IOException {
         assert neighborhoods == null;
 
-        V[] centroids = kMeansIntermediate.centroids();
+        V[] centroids = kMeansResult.centroids();
         int k = centroids.length;
         int n = vectors.size();
 
-        int[] assignments = kMeansIntermediate.assignments();
+        int[] assignments = kMeansResult.assignments();
 
         if (k == 1) {
             Arrays.fill(assignments, 0);
@@ -211,40 +208,17 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
             centroidChangedSlices[i] = new FixedBitSet(centroids.length);
         }
 
-        assign(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods);
+        assign(vectors, IntUnaryOperator.identity(), centroids, centroidChangedSlices, assignments, neighborhoods);
         int[] centroidCounts = new int[centroids.length];
         CentroidOps.AccumulatorState<V> accumulatorState = ops.newAccumulatorState(centroids, centroids.length, vectors.dimension());
         CentroidAssignment.updateCentroids(
             vectors,
             centroids,
-            i -> i,
+            IntUnaryOperator.identity(),
             centroidChangedSlices,
             centroidCounts,
             assignments,
             accumulatorState
         );
-    }
-
-    /**
-     * helper that calls {@link BalancedOTKMeansLocal#cluster(ClusteringVectorValues, KMeansIntermediate)} given a set of initialized
-     * centroids, this call is not neighbor aware
-     *
-     * @param vectors the vectors to cluster
-     * @param ops the type of vectors such as float and associated operations
-     * @param centroids the initialized centroids to be shifted using k-means
-     * @param sampleSize the subset of vectors to use when shifting centroids
-     * @param maxIterations the max iterations to shift centroids
-     */
-    public static <V> void cluster(
-        ClusteringVectorValues<V> vectors,
-        CentroidOps<V> ops,
-        V[] centroids,
-        int sampleSize,
-        int maxIterations,
-        float soarLambda
-    ) throws IOException {
-        KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, new int[vectors.size()], vectors::ordToDoc);
-        BalancedOTKMeansLocal<V> kMeans = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda);
-        kMeans.cluster(vectors, kMeansIntermediate);
     }
 }

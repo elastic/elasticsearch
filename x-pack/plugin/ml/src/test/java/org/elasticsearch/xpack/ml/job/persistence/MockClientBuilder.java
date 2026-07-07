@@ -111,6 +111,14 @@ public class MockClientBuilder {
     }
 
     /**
+     * Mocks sequential {@link Client#prepareSearch(String...)} calls with the given index patterns as varargs.
+     */
+    public MockClientBuilder prepareSearches(String[] indices, SearchRequestBuilder first, SearchRequestBuilder... searches) {
+        when(client.prepareSearch(indices)).thenReturn(first, searches);
+        return this;
+    }
+
+    /**
      * Creates a {@link SearchResponse} with a {@link SearchHit} for each element of {@code docs}
      * @param indexName Index being searched
      * @param docs Returned in the SearchResponse

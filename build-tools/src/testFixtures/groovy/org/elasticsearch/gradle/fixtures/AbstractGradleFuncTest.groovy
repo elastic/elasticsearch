@@ -49,6 +49,14 @@ abstract class AbstractGradleFuncTest extends Specification {
     protected boolean configurationCacheCompatible = true
     protected boolean buildApiRestrictionsDisabled = false
 
+    /**
+     * Opt out of configuration-cache compatibility checking for this test class.
+     * The {@code reason} must explain the root cause so it can be tracked and fixed.
+     */
+    void disableConfigurationCache(String reason) {
+        configurationCacheCompatible = false
+    }
+
     def setup() {
         projectDir = testProjectDir.root
         settingsFile = testProjectDir.newFile('settings.gradle')

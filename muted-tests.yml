@@ -734,12 +734,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexCancelRelocationIT
   method: testCancelReindexCancelsRelocatedTaskByOriginalTaskId
   issue: https://github.com/elastic/elasticsearch/issues/152925
-- class: org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperatorTests
-  method: testMultivaluedGroupColumnProducesWarning
-  issue: https://github.com/elastic/elasticsearch/issues/152928
-- class: org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperatorTests
-  method: testMultivaluedGroupColumnProducesWarning
-  issue: https://github.com/elastic/elasticsearch/issues/152929
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testSingleTypeAggregateMetricDoubleUnmappedNoCastLoadOnly
   issue: https://github.com/elastic/elasticsearch/issues/152930

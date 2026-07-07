@@ -598,16 +598,14 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
 
         var defaultSettings = Settings.builder();
-        createIndexWithDocument(LOCAL_CLUSTER, "data", defaultSettings, Map.of("key", 1, "f1", 1));
-        createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 2, "f2", 2));
-        createIndexWithDocument(REMOTE_CLUSTER_2, "data", defaultSettings, Map.of("key", 3, "f3", 3));
+        createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 1, "f1", 1));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "data", defaultSettings, Map.of("key", 2, "f2", 2));
 
         var lookupSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
-        createIndexWithDocument(LOCAL_CLUSTER, "lookup", lookupSettings, Map.of("key", 1, "location", "local"));
-        createIndexWithDocument(REMOTE_CLUSTER_1, "lookup", lookupSettings, Map.of("key", 2, "location", "remote-1"));
+        createIndexWithDocument(REMOTE_CLUSTER_1, "lookup", lookupSettings, Map.of("key", 1, "location", "remote-1"));
         // lookup is intentionally absent on REMOTE_CLUSTER_2
 
-        // The following query uses filter f2=2 that narrows down execution only to REMOTE_CLUSTER_1 index however,
+        // The following query uses filter f1=1 that narrows down execution only to REMOTE_CLUSTER_1 index however,
         // later it uses `WHERE f1 == 1` esql condition that to an attribute present only on the local cluster index.
         // This causes analysis to fail and retry the entire query without a filter.
         // The second analysis executes against all cluster indices and should discover that lookup is absent on REMOTE_CLUSTER_2.
@@ -615,7 +613,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             VerificationException.class,
             containsString("lookup index [lookup] is not available in remote cluster [remote-b]"),
             () -> runQuery(
-                syncEsqlQueryRequest("FROM data,*:data | LOOKUP JOIN lookup ON key | WHERE f1 == 1").filter(new TermQueryBuilder("f2", 2))
+                syncEsqlQueryRequest("FROM *:data | LOOKUP JOIN lookup ON key | WHERE f2 == 2").filter(new TermQueryBuilder("f1", 1))
             )
         );
     }

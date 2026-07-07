@@ -13,7 +13,6 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -621,10 +620,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         }
 
         // Retrieve the host metadata in parallel. Assume low-cardinality and do not split the query.
-        // profiling-hosts is a data stream created on first ingest, so it may not exist yet.
-        // Use lenient options to return empty results rather than a 404 when no data has been ingested.
         client.prepareSearch("profiling-hosts")
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .setTrackTotalHits(false)
             .setQuery(
                 QueryBuilders.boolQuery()

@@ -510,6 +510,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
         // Text fields keep analyzer-based matching; every other type compares the query value against the field block directly.
         if (field.dataType() == TEXT) {
+            // TODO: use the analyzer specified in the options, for now we use the standard analyzer.
             Analyzer analyzer = new StandardAnalyzer();
             Set<String> queryTerms;
             try {
@@ -518,7 +519,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                 throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
             }
 
-            return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), queryTerms, new StandardAnalyzer());
+            return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), queryTerms, analyzer, context -> new BytesRef());
         }
 
         Object queryValue = queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));
@@ -609,22 +610,29 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     }
 
     @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
-    static boolean processText(@Position int position, BytesRefBlock fieldBlock, @Fixed Set<String> queryTerms, @Fixed Analyzer analyzer)
-        throws IOException {
+    static boolean processText(
+        @Position int position,
+        BytesRefBlock fieldBlock,
+        @Fixed Set<String> queryTerms,
+        @Fixed Analyzer analyzer,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) throws IOException {
         if (fieldBlock == null) {
             return false;
         }
 
         final var valueCount = fieldBlock.getValueCount(position);
         final var startIndex = fieldBlock.getFirstValueIndex(position);
-        var value = new BytesRef();
 
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
             boolean foundMatch = false;
-            value = fieldBlock.getBytesRef(valueIndex, value);
-            try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, value.utf8ToString())) {
+            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
+            // Because we use the standard analyzer and options cannot be specified, we can look for matches in the analyzed token stream.
+            // Once we accept options, we might need to take a different execution path and use a Lucene MemoryIndex.
+            try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, scratch.utf8ToString())) {
                 stream.reset();
                 CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
+                // TODO: Use the operator specified in the query options. For now, we use OR, meaning we stop as soon as we find a match.
                 while (stream.incrementToken()) {
                     if (queryTerms.contains(term.toString())) {
                         foundMatch = true;

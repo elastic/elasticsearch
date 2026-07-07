@@ -8,7 +8,9 @@ import java.io.IOException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -35,16 +37,19 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   private final Analyzer analyzer;
 
+  private final BytesRef scratch;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public MatchTextEvaluator(Source source, ExpressionEvaluator fieldBlock, Set<String> queryTerms,
-      Analyzer analyzer, DriverContext driverContext) {
+      Analyzer analyzer, BytesRef scratch, DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
     this.queryTerms = queryTerms;
     this.analyzer = analyzer;
+    this.scratch = scratch;
     this.driverContext = driverContext;
   }
 
@@ -66,7 +71,7 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(Match.processText(p, fieldBlockBlock, this.queryTerms, this.analyzer));
+          result.appendBoolean(Match.processText(p, fieldBlockBlock, this.queryTerms, this.analyzer, this.scratch));
         } catch (IOException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -102,17 +107,20 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
     private final Analyzer analyzer;
 
+    private final Function<DriverContext, BytesRef> scratch;
+
     public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, Set<String> queryTerms,
-        Analyzer analyzer) {
+        Analyzer analyzer, Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.fieldBlock = fieldBlock;
       this.queryTerms = queryTerms;
       this.analyzer = analyzer;
+      this.scratch = scratch;
     }
 
     @Override
     public MatchTextEvaluator get(DriverContext context) {
-      return new MatchTextEvaluator(source, fieldBlock.get(context), queryTerms, analyzer, context);
+      return new MatchTextEvaluator(source, fieldBlock.get(context), queryTerms, analyzer, scratch.apply(context), context);
     }
 
     @Override

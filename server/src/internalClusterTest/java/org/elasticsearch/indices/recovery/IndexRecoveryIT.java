@@ -637,6 +637,9 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC));
 
+        logger.info("--> waiting for recovery to start both on source and target");
+        awaitRecoveryCountStats(Map.of(nodeB, stats -> stats.currentAsSource() == 1, nodeC, stats -> stats.currentAsTarget() == 1));
+
         recoveryStates = getRecoveryStates(INDEX_NAME);
 
         nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);

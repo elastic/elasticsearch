@@ -256,6 +256,12 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         indexRequestBuilder.execute(new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
+                logger.info(
+                    "Region policy [{}] by [{}]: {}",
+                    existingRegionPolicyDoc == null ? "created" : "updated",
+                    existingRegionPolicyDoc == null ? doc.createdBy() : doc.updatedBy(),
+                    Strings.toString(doc.regionPolicy())
+                );
                 inferencePreferencesCache.invalidate(
                     ActionListener.runAfter(
                         ActionListener.wrap(

@@ -68,6 +68,12 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     public static final String DEFAULT_PROMQL_INDEX_PATTERN = "metrics-*";
     public static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
 
+    /** Synthetic column tagging each union branch with its position, used for left-preferring dedup. */
+    private static final String BRANCH_COLUMN = "_branch";
+
+    /** Synthetic column name for the materialised {@code @timestamp + offset} expression. */
+    private static final String TIMESTAMP_COLUMN = "_timestamp";
+
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     // Prometheus selector lookback delta for plain instant selectors without an explicit [range].
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
@@ -285,6 +291,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return STEP;
     }
 
+    /** Name of the synthetic column tagging each union branch with its position, used for left-preferring dedup. */
+    public String branchColumnName() {
+        return BRANCH_COLUMN;
+    }
+
+    /** Name of the synthetic column materialising the offset-shifted {@code @timestamp + offset} evaluation time. */
+    public String timestampColumnName() {
+        return TIMESTAMP_COLUMN;
+    }
+
     public NameId valueId() {
         return valueId;
     }
@@ -428,9 +444,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
                     }
                     if (s.evaluation() != null) {
-                        if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
-                            failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
-                        }
+                        // Only constant per-selector time shift is supported at the moment.
+                        // TODO(sidosera): Support heterogeneous offset on binary operators.
                         if (s.evaluation().at().value() != null) {
                             failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
                         }
@@ -513,6 +528,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             fail(lp, "binary expressions with nested aggregations are not supported at this time [{}]", lp.sourceText())
                         );
                     }
+                    // Arithmetic/comparison binary operators merge both source-backed operands into a single
+                    // TimeSeriesAggregate (one shared time bucket and timestamp), which cannot represent two
+                    // different offsets. `or` (UNION) translates to independent branches, so per-branch offsets
+                    // are fine and excluded here.
+                    if (binaryOperator instanceof VectorBinarySet == false
+                        && hasSourceBackedExpression(binaryOperator.left())
+                        && hasSourceBackedExpression(binaryOperator.right())
+                        && distinctSelectorOffsets(binaryOperator).size() > 1) {
+                        failures.add(
+                            fail(lp, "binary expressions with different offsets are not supported at this time [{}]", lp.sourceText())
+                        );
+                    }
                 }
                 case PlaceholderRelation placeholderRelation -> {
                     // ok
@@ -584,6 +611,36 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     /**
+     * Collects the distinct signed offsets of the source-backed selectors under {@code plan}. Literal selectors
+     * carry no data window and are excluded. More than one distinct value within a merged binary operator is
+     * unsupported (see the verifier guard).
+     */
+    private static Set<Duration> distinctSelectorOffsets(LogicalPlan plan) {
+        Set<Duration> offsets = new HashSet<>();
+        for (Selector selector : plan.collect(Selector.class)) {
+            if (selector instanceof LiteralSelector == false && selector.evaluation() != null) {
+                offsets.add(selector.evaluation().offsetDuration());
+            }
+        }
+        return offsets;
+    }
+
+    /**
+     * The signed offset shared by the source-backed selectors in {@code branch}, as a constant time shift to add to
+     * {@code @timestamp}. The verifier guarantees a merged branch is offset-uniform (heterogeneous offsets in a binary
+     * expression are rejected), so the first source-backed selector's offset is representative. {@link Duration#ZERO}
+     * when there is none.
+     */
+    public Duration offset(LogicalPlan branch) {
+        for (Selector selector : branch.collect(Selector.class)) {
+            if (selector instanceof LiteralSelector == false && selector.evaluation() != null) {
+                return selector.evaluation().offsetDuration();
+            }
+        }
+        return Duration.ZERO;
+    }
+
+    /**
      * Returns the source-side timestamp lookback window.
      * Explicit and implicit range selectors contribute their requested window.
      * Instant queries extend that window to at least the Prometheus lookback delta.
@@ -594,6 +651,22 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             window = DEFAULT_LOOKBACK;
         }
         return window;
+    }
+
+    /**
+     * Returns the local evaluation timestamp for the current selector branch.
+     * <p>
+     * Unlike {@link PromqlCommand#timestamp()}, which returns the global evaluation timestamp,
+     * this function returns the plan fragment timestamp and includes any applied offset.
+     */
+    public Expression timestamp(LogicalPlan fragment) {
+        var offset = offset(fragment);
+        var timestamp = timestamp();
+        if (offset.isZero() || timestamp == null || timestamp.resolved() == false) {
+            return timestamp;
+        }
+        // TODO: use unique names?
+        return new ReferenceAttribute(source(), null, TIMESTAMP_COLUMN, timestamp.dataType());
     }
 
     /**

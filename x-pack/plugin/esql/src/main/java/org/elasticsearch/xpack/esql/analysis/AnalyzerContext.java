@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,6 +34,7 @@ public class AnalyzerContext {
     private final Configuration configuration;
     private final EsqlFunctionRegistry functionRegistry;
     private final PromqlFunctionRegistry promqlFunctionRegistry;
+    private final AnalysisRegistry analysisRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
     private final Map<String, IndexResolution> lookupResolution;
     private final Map<LinkedIndexPattern, IndexResolution> linkedResolution; // CPS-specific resolution for remote indexes matching local
@@ -43,6 +46,7 @@ public class AnalyzerContext {
     private final ProjectMetadata projectMetadata;
     private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
+    private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
 
@@ -50,6 +54,7 @@ public class AnalyzerContext {
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
         PromqlFunctionRegistry promqlFunctionRegistry,
+        AnalysisRegistry analysisRegistry,
         ProjectMetadata projectMetadata,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
@@ -65,6 +70,7 @@ public class AnalyzerContext {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.promqlFunctionRegistry = promqlFunctionRegistry;
+        this.analysisRegistry = analysisRegistry;
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
         this.lookupResolution = lookupResolution;
@@ -87,6 +93,7 @@ public class AnalyzerContext {
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
         PromqlFunctionRegistry promqlFunctionRegistry,
+        AnalysisRegistry analysisRegistry,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
@@ -98,6 +105,7 @@ public class AnalyzerContext {
             configuration,
             functionRegistry,
             promqlFunctionRegistry,
+            analysisRegistry,
             null,
             indexResolution,
             lookupResolution,
@@ -122,6 +130,13 @@ public class AnalyzerContext {
 
     public PromqlFunctionRegistry promqlFunctionRegistry() {
         return promqlFunctionRegistry;
+    }
+
+    /**
+     * Node-level analyzer registry.
+     */
+    public AnalysisRegistry analysisRegistry() {
+        return analysisRegistry;
     }
 
     public Map<IndexPattern, IndexResolution> indexResolution() {
@@ -172,6 +187,14 @@ public class AnalyzerContext {
     }
 
     /**
+     * Header warnings collected during analysis but emitted only once the {@code Verifier} has passed, so a query that fails
+     * verification produces no warnings.
+     */
+    public Set<String> deferredHeaderWarnings() {
+        return deferredHeaderWarnings;
+    }
+
+    /**
      * Returns the {@code @timestamp} bounds extracted from the query DSL filter, or {@code null} if not available.
      */
     @Nullable
@@ -212,6 +235,7 @@ public class AnalyzerContext {
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
         PromqlFunctionRegistry promqlFunctionRegistry,
+        AnalysisRegistry analysisRegistry,
         UnmappedResolution unmappedResolution,
         ProjectMetadata projectMetadata,
         EsqlSession.PreAnalysisResult result,
@@ -222,6 +246,7 @@ public class AnalyzerContext {
             configuration,
             functionRegistry,
             promqlFunctionRegistry,
+            analysisRegistry,
             projectMetadata,
             result.indexResolution(),
             result.lookupIndices(),

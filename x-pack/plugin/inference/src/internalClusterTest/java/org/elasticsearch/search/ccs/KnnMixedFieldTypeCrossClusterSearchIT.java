@@ -23,7 +23,6 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 import org.junit.Before;
@@ -89,16 +88,8 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        boolean semanticEnabled = SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled();
-
-        List<String> types = new ArrayList<>(List.of("dense_vector", "semantic_text"));
-        if (semanticEnabled) {
-            types.add("semantic");
-        }
-        List<String> qvbTypes = new ArrayList<>(List.of(QVB_GENERIC, QVB_TEXT_EMBEDDING, QVB_LOOKUP));
-        if (semanticEnabled) {
-            qvbTypes.add(QVB_EMBEDDING);
-        }
+        List<String> types = new ArrayList<>(List.of("dense_vector", "semantic_text", "semantic"));
+        List<String> qvbTypes = new ArrayList<>(List.of(QVB_GENERIC, QVB_TEXT_EMBEDDING, QVB_LOOKUP, QVB_EMBEDDING));
 
         List<Object[]> params = new ArrayList<>();
         for (String local : types) {
@@ -260,10 +251,7 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
     }
 
     private void configureClusters() throws Exception {
-        List<String> types = new ArrayList<>(List.of("dense_vector", "semantic_text"));
-        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
-            types.add("semantic");
-        }
+        List<String> types = new ArrayList<>(List.of("dense_vector", "semantic_text", "semantic"));
 
         Map<String, Object> localMappings = new HashMap<>();
         Map<String, Object> remoteMappings = new HashMap<>();
@@ -287,18 +275,12 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
             Map.of(LOOKUP_SOURCE_FIELD, generateDenseVectorFieldValue(DIMS, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f))
         );
 
-        Map<String, MinimalServiceSettings> inferenceEndpoints = new HashMap<>(
-            Map.of(
-                TEXT_EMBEDDING_INFERENCE_ID,
-                textEmbeddingServiceSettings(DIMS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
-            )
+        Map<String, MinimalServiceSettings> inferenceEndpoints = Map.of(
+            TEXT_EMBEDDING_INFERENCE_ID,
+            textEmbeddingServiceSettings(DIMS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+            EMBEDDING_INFERENCE_ID,
+            embeddingServiceSettings(DIMS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
         );
-        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
-            inferenceEndpoints.put(
-                EMBEDDING_INFERENCE_ID,
-                embeddingServiceSettings(DIMS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
-            );
-        }
 
         setupTwoClusters(
             new TestIndexInfo(LOCAL_INDEX_NAME, inferenceEndpoints, localMappings, localDocs),

@@ -370,6 +370,9 @@ final class ParquetPushedExpressions {
                 return null;
             }
             BytesRef prefix = (BytesRef) prefixValue;
+            if (physicalPrimitiveIs(schema, ne.name(), PrimitiveType.PrimitiveTypeName.BINARY) == false) {
+                return null; // declared keyword over a non-BINARY physical: decline, let FilterExec re-apply
+            }
             var col = FilterApi.binaryColumn(ne.name());
             FilterPredicate lower = FilterApi.gtEq(col, toBinary(prefix));
             BytesRef upper = StringPrefixUtils.nextPrefixUpperBound(prefix);
@@ -406,8 +409,18 @@ final class ParquetPushedExpressions {
         if (value == null && op.isOrdered()) {
             return null;
         }
+        // IS NULL / IS NOT NULL (null-valued EQ/NOT_EQ) over a list column (resolves to a LIST group,
+        // not a primitive) must decline: pushing notEq(column("v"), null) names a leaf-absent column
+        // that parquet-mr drops entirely. The null-mask evaluator that answers instead is multivalue-safe.
+        // esql-planning#1056. Value predicates (comparisons/IN/LIKE) are deliberately NOT declined here —
+        // their decoded-block evaluator reads by position index and is not multivalue-safe.
+        if (value == null && resolveNestedPrimitive(schema, columnName) == null) {
+            return null;
+        }
         return switch (dataType) {
-            case INTEGER -> orderedPredicate(FilterApi.intColumn(columnName), value != null ? ((Number) value).intValue() : null, op);
+            case INTEGER -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.INT32)
+                ? orderedPredicate(FilterApi.intColumn(columnName), value != null ? ((Number) value).intValue() : null, op)
+                : null;
             case LONG -> buildLongPredicate(columnName, value, op, schema);
             case DOUBLE -> {
                 if (isPhysicalDouble(schema, columnName)) {
@@ -415,8 +428,13 @@ final class ParquetPushedExpressions {
                 }
                 yield null;
             }
-            case KEYWORD -> orderedPredicate(FilterApi.binaryColumn(columnName), value != null ? toBinary(value) : null, op);
+            case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
+                ? orderedPredicate(FilterApi.binaryColumn(columnName), value != null ? toBinary(value) : null, op)
+                : null;
             case BOOLEAN -> {
+                if (physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BOOLEAN) == false) {
+                    yield null;
+                }
                 var col = FilterApi.booleanColumn(columnName);
                 Boolean v = value != null ? (Boolean) value : null;
                 yield switch (op) {
@@ -432,15 +450,29 @@ final class ParquetPushedExpressions {
     }
 
     /**
+     * Returns {@code true} when the file's physical primitive at {@code columnName} (which may be a
+     * dotted path into a nested STRUCT) is exactly {@code expected}.
+     *
+     * <p>The INTEGER/KEYWORD/BOOLEAN predicate arms guard on this before minting a {@link FilterApi}
+     * column of the matching kind. A declared retype is a supported coercion ({@code
+     * DeclaredTypeCoercions.supports}), so {@code keyword} over a physical {@code INT64}, or {@code
+     * integer} over a physical {@code INT64}, reaches those arms — without the guard they would push a
+     * BINARY/INT32/BOOLEAN predicate against a column the file stores as something else, which
+     * parquet-mr rejects as a declared-type mismatch or (worse) mis-prunes. Declining is safe: these
+     * predicates are RECHECK, so {@code FilterExec} re-applies the real ESQL semantics — the same
+     * reasoning as {@link #buildLongPredicate} and {@link #isPhysicalDouble}.
+     */
+    private static boolean physicalPrimitiveIs(MessageType schema, String columnName, PrimitiveType.PrimitiveTypeName expected) {
+        PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
+        return primitive != null && primitive.getPrimitiveTypeName() == expected;
+    }
+
+    /**
      * Returns {@code true} when the file's physical primitive at {@code columnName} (which may be
      * a dotted path into a nested STRUCT) is {@link PrimitiveType.PrimitiveTypeName#DOUBLE}.
      */
     private static boolean isPhysicalDouble(MessageType schema, String columnName) {
-        PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
-        if (primitive == null) {
-            return false;
-        }
-        return primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE;
+        return physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.DOUBLE);
     }
 
     /**
@@ -479,17 +511,6 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Returns {@code true} when {@code ptype} is the Parquet {@code UINT_32} logical annotation
-     * (physical {@code INT32}, {@code intType(32, false)}) — the shape that widens to ESQL
-     * {@code LONG} because unsigned 32-bit values can exceed signed {@code int} range.
-     */
-    private static boolean isUnsignedInt32(PrimitiveType ptype) {
-        return ptype.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
-            && intLogical.isSigned() == false
-            && intLogical.getBitWidth() == 32;
-    }
-
-    /**
      * Narrows an ESQL {@code LONG} literal to the raw {@code int} bit pattern to push against a
      * physical {@code INT32} column, or returns {@code null} when {@code value} cannot possibly be
      * held by that column (in which case the caller must not push a predicate for it — see
@@ -506,7 +527,7 @@ final class ParquetPushedExpressions {
      */
     @Nullable
     private static Integer narrowLongToPhysicalInt32(long value, PrimitiveType ptype) {
-        if (isUnsignedInt32(ptype)) {
+        if (ParquetColumnDecoding.isUnsignedInt32(ptype)) {
             return (value >= 0 && value <= 0xFFFFFFFFL) ? (int) value : null;
         }
         int narrowed = (int) value;
@@ -687,7 +708,9 @@ final class ParquetPushedExpressions {
             return null;
         }
         return switch (dataType) {
-            case INTEGER -> inPredicate(FilterApi.intColumn(columnName), rawValues, v -> ((Number) v).intValue());
+            case INTEGER -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.INT32)
+                ? inPredicate(FilterApi.intColumn(columnName), rawValues, v -> ((Number) v).intValue())
+                : null;
             case LONG -> translateLongIn(columnName, rawValues, schema);
             case DOUBLE -> {
                 if (isPhysicalDouble(schema, columnName)) {
@@ -695,8 +718,12 @@ final class ParquetPushedExpressions {
                 }
                 yield null;
             }
-            case KEYWORD -> inPredicate(FilterApi.binaryColumn(columnName), rawValues, ParquetPushedExpressions::toBinary);
-            case BOOLEAN -> inPredicate(FilterApi.booleanColumn(columnName), rawValues, v -> (Boolean) v);
+            case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
+                ? inPredicate(FilterApi.binaryColumn(columnName), rawValues, ParquetPushedExpressions::toBinary)
+                : null;
+            case BOOLEAN -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BOOLEAN)
+                ? inPredicate(FilterApi.booleanColumn(columnName), rawValues, v -> (Boolean) v)
+                : null;
             case DATETIME -> translateDatetimeIn(columnName, rawValues, schema);
             case DATE_NANOS -> translateDateNanosIn(columnName, rawValues, schema);
             default -> null;

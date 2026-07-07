@@ -1,6 +1,6 @@
 area: ES|QL
-issues: []
-pr: 0
-summary: Resolve prefixed searchable-snapshot backing indices to their data stream
-  in `METRICS_INFO`/`TS_INFO`
+issues:
+  - 153073
+pr: 153128
+summary: Resolve prefixed searchable-snapshot backing indices to their data stream in `METRICS_INFO`/`TS_INFO`
 type: bug

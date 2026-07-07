@@ -415,16 +415,16 @@ public class BasicBlockTests extends ESTestCase {
             blockBuilder.appendNull();
             blockBuilder.appendLongRange(100, 200);
 
-            LongRangeBlock block = blockBuilder.build();
-            assertThat(block.getPositionCount(), equalTo(5));
-            assertThat(block.getValueCount(0), equalTo(0));
-            assertThat(block.getValueCount(1), equalTo(1));
-            assertThat(block.getValueCount(2), equalTo(2));
-            assertThat(block.getValueCount(3), equalTo(0));
-            assertThat(block.getValueCount(4), equalTo(1));
-            assertThat(block.getTotalValueCount(), equalTo(4));
-            assertValueCounts(block);
-            releaseAndAssertBreaker(block);
+            try (LongRangeBlock block = blockBuilder.build()) {
+                assertThat(block.getPositionCount(), equalTo(5));
+                assertThat(block.getValueCount(0), equalTo(0));
+                assertThat(block.getValueCount(1), equalTo(1));
+                assertThat(block.getValueCount(2), equalTo(2));
+                assertThat(block.getValueCount(3), equalTo(0));
+                assertThat(block.getValueCount(4), equalTo(1));
+                assertThat(block.getTotalValueCount(), equalTo(4));
+                assertValueCounts(block);
+            }
         }
     }
 

@@ -304,9 +304,13 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         assertThat(block.doesHaveMultivaluedFields(), equalTo(hasMultivalued));
         assertThat(block.mayHaveMultivaluedFields(), equalTo(hasMultivalued));
         if (supportsDenseVector() && denseSingleValued) {
-            assertThat(block.asVector(), notNullValue());
-            assertThat(block.asVector().getPositionCount(), equalTo(expected.size()));
-            assertThat(block.asVector().asBlock(), equalTo(block));
+            Vector vector = block.asVector();
+            assertThat(vector, notNullValue());
+            assertThat(vector.getPositionCount(), equalTo(expected.size()));
+            vector.incRef();
+            try (Block vectorBlock = vector.asBlock()) {
+                assertThat(vectorBlock, equalTo(block));
+            }
         } else {
             assertThat(block.asVector(), nullValue());
         }

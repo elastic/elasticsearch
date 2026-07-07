@@ -150,7 +150,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             List.of(1),
             pageSize,
             Long.MAX_VALUE,
-            true
+            GroupedTopNOperator.OutputOrdering.SORTED
         );
     }
 
@@ -158,7 +158,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
     protected Matcher<String> expectedDescriptionOfSimple() {
         return equalTo(
             "GroupedTopNOperator[count=4, elementTypes=[LONG, LONG], encoders=[DefaultUnsortable, DefaultUnsortable], "
-                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], groupKeys=[1]]"
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], groupKeys=[1], outputOrdering=SORTED]"
         );
     }
 
@@ -166,7 +166,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
             "GroupedTopNOperator[count=0/0/4, elementTypes=[LONG, LONG], encoders=[DefaultUnsortable, DefaultUnsortable], "
-                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], groupKeys=[1]]"
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], groupKeys=[1], outputOrdering=SORTED]"
         );
     }
 
@@ -239,7 +239,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             encoders,
             sortOrders,
             new int[] { 1 },
-            false
+            GroupedTopNOperator.OutputOrdering.NOT_SORTED
         );
         Comparator<List<Object>> comparator = comparatorFromSortOrders(sortOrders);
         assertThat(isSorted(actual, comparator), equalTo(false));
@@ -251,7 +251,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             encoders,
             sortOrders,
             new int[] { 1 },
-            true
+            GroupedTopNOperator.OutputOrdering.SORTED
         );
         assertThat(rowSignatures(actual), equalTo(rowSignatures(expected)));
     }
@@ -283,7 +283,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             encoders,
             sortOrders,
             new int[] { 1 },
-            true
+            GroupedTopNOperator.OutputOrdering.SORTED
         );
         List<List<Object>> expected = runGroupedTopN(
             List.of(new Page(BlockUtils.fromList(bf, shard1Rows)), new Page(BlockUtils.fromList(bf, shard2Rows))),
@@ -292,7 +292,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             encoders,
             sortOrders,
             new int[] { 1 },
-            true
+            GroupedTopNOperator.OutputOrdering.SORTED
         );
 
         assertThat(merged.get(0), equalTo(expected.get(0)));
@@ -469,7 +469,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                     ),
                     rows,
                     Long.MAX_VALUE,
-                    true
+                    GroupedTopNOperator.OutputOrdering.SORTED
                 )
             );
         List<List<Object>> actualValues = new ArrayList<>();
@@ -516,7 +516,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         List<SortOrder> sortOrders,
         int[] groupKeys
     ) {
-        return runGroupedTopN(pages, topCount, elementTypes, encoders, sortOrders, groupKeys, true);
+        return runGroupedTopN(pages, topCount, elementTypes, encoders, sortOrders, groupKeys, GroupedTopNOperator.OutputOrdering.SORTED);
     }
 
     private List<List<Object>> runGroupedTopN(
@@ -526,7 +526,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
         int[] groupKeys,
-        boolean sortOutput
+        GroupedTopNOperator.OutputOrdering outputOrdering
     ) {
         DriverContext driverContext = driverContext();
         List<List<Object>> actual = new ArrayList<>();
@@ -554,7 +554,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         ),
                         randomPageSize(),
                         Long.MAX_VALUE,
-                        sortOutput
+                        outputOrdering
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))

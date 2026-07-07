@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
@@ -2659,13 +2660,13 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(as(order.child(), FieldAttribute.class).name(), equalTo("salary"));
         assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
         assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
-        assertThat(topNBy.sortOutput(), equalTo(true));
+        assertThat(topNBy.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.SORTED));
 
         var exchangeExec = as(topNBy.child(), ExchangeExec.class);
         var projectDataNode = as(exchangeExec.child(), ProjectExec.class);
         var fieldExtractDataNode = as(projectDataNode.child(), FieldExtractExec.class);
         var topNExec = as(fieldExtractDataNode.child(), TopNByExec.class);
-        assertThat(topNExec.sortOutput(), equalTo(false));
+        assertThat(topNExec.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.NOT_SORTED));
         var fieldExtractExec = as(topNExec.child(), FieldExtractExec.class);
         var esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
     }

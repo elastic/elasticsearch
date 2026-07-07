@@ -22,6 +22,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
@@ -9957,6 +9958,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(topN.limit(), equalTo(new Literal(Source.EMPTY, limit, DataType.INTEGER)));
     }
 
+    public void testReductionPlanForTopNByUsesNonSortedOutput() {
+        int limit = between(1, 100);
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            FROM test
+            | sort salary
+            | limit %d by languages
+            """, limit));
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        var reductionPlan = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
+        var topNBy = as(reductionPlan, TopNByExec.class);
+        assertThat(as(topNBy.limitPerGroup(), Literal.class).value(), equalTo(limit));
+        assertThat(topNBy.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.NOT_SORTED));
+    }
+
     public void testReductionPlanForAggs() {
         var plan = physicalPlan("""
             FROM test
@@ -10686,7 +10701,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var project = as(plan, ProjectExec.class);
         var limit = as(project.child(), LimitExec.class);
         var topNByExec = as(limit.child(), TopNByExec.class);
-        assertThat(topNByExec.sortOutput(), equalTo(true));
+        assertThat(topNByExec.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.SORTED));
         var exchangeExec = as(topNByExec.child(), ExchangeExec.class);
         var fragmentExec = as(exchangeExec.child(), FragmentExec.class);
         var topNBy = as(fragmentExec.fragment(), TopNBy.class);

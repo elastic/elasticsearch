@@ -123,7 +123,7 @@ public class LocalMapper {
 
         if (unary instanceof TopNBy topNBy) {
             return new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null)
-                .withUnsortedOutput();
+                .withNonSortedOutput();
         }
 
         if (unary instanceof MetricsInfo metricsInfo) {

@@ -45,6 +45,11 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     private static final long SORT_ORDER_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.SortOrder.class);
 
+    public enum OutputOrdering {
+        SORTED,
+        NOT_SORTED
+    }
+
     public record GroupedTopNOperatorFactory(
         int topCount,
         List<ElementType> elementTypes,
@@ -53,7 +58,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
         List<Integer> groupKeys,
         int maxPageSize,
         long jumboPageBytes,
-        boolean sortOutput
+        OutputOrdering outputOrdering
     ) implements OperatorFactory {
         public GroupedTopNOperatorFactory {
             for (ElementType e : elementTypes) {
@@ -86,7 +91,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 keyEncoder,
                 maxPageSize,
                 jumboPageBytes,
-                sortOutput
+                outputOrdering
             );
         }
 
@@ -102,6 +107,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 + sortOrders
                 + ", groupKeys="
                 + groupKeys
+                + ", outputOrdering="
+                + outputOrdering
                 + "]";
         }
     }
@@ -116,7 +123,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
     private final List<TopNOperator.SortOrder> sortOrders;
     private final boolean[] channelInKey;
     private final GroupKeyEncoder keyEncoder;
-    private final boolean sortOutput;
+    private final OutputOrdering outputOrdering;
 
     private BytesRefHashTable keysHash;
     private GroupedQueue inputQueue;
@@ -141,7 +148,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
         GroupKeyEncoder keyEncoder,
         int maxPageSize,
         long jumboPageBytes,
-        boolean sortOutput
+        OutputOrdering outputOrdering
     ) {
         BytesRefHashTable keysHash = null;
         GroupedQueue inputQueue = null;
@@ -156,7 +163,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             }
         }
         this.keyEncoder = keyEncoder;
-        this.sortOutput = sortOutput;
+        this.outputOrdering = outputOrdering;
         this.keysHash = keysHash;
         this.inputQueue = inputQueue;
         this.blockFactory = blockFactory;
@@ -310,6 +317,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
             + sortOrders
             + ", groupKeys="
             + Arrays.toString(keyEncoder.groupChannels())
+            + ", outputOrdering="
+            + outputOrdering
             + "]";
     }
 
@@ -327,7 +336,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             return ReleasableIterator.empty();
         }
 
-        List<TopNRow> rows = inputQueue.popAll(sortOutput);
+        List<TopNRow> rows = inputQueue.popAll(outputOrdering);
         inputQueue.close();
         keysHash.close();
         inputQueue = null;

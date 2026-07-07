@@ -47,6 +47,15 @@ public class LimitByGoldenTests extends GoldenTestCase {
             """, STAGES, STATS);
     }
 
+    public void testTopNBySortOutputOnlyOnCoordinator() {
+        runGoldenTest("""
+              from employees
+            | sort salary desc
+            | limit 5 by languages
+            | keep first_name, salary, languages
+            """, STAGES, STATS);
+    }
+
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
         Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
         Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z"))

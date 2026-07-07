@@ -170,7 +170,7 @@ public class Mapper {
             mappedChild = addExchangeForFragment(topNBy, mappedChild);
             var topNByExec = new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
             if (mappedChild instanceof ExchangeExec) {
-                return topNByExec.withSortOutput();
+                return topNByExec.withSortedOutput();
             }
             return topNByExec;
         }

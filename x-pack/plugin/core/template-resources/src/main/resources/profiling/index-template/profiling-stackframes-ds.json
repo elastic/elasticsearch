@@ -16,7 +16,7 @@
   "ignore_missing_component_templates": [
     "profiling-stackframes@custom"
   ],
-  "priority": 200,
+  "priority": 100,
   "_meta": {
     "description": "Data stream template for profiling-stackframes",
     "managed": true

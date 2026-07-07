@@ -1349,7 +1349,12 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             | KEEP src, key, lookup_tag
             | SORT src, key
             """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("LOOKUP JOIN with remote indices can't be executed after [STATS key = count(*)]"));
+        // Only the branch whose LOOKUP JOIN actually reads from a remote index (TS *:metrics) trips the check; the local
+        // FROM logs-* branch's LOOKUP JOIN is unaffected, since remoteness is now determined per-relation rather than query-wide.
+        assertThat(
+            ex.getMessage(),
+            containsString("LOOKUP JOIN with remote indices can't be executed after [STATS key = TO_LONG(max(cpu))]")
+        );
     }
 
     private void populateTimeSeriesIndex(String clusterAlias, String indexName) {

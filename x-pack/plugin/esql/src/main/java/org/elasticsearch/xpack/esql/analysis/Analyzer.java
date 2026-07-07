@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -218,6 +219,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.Strings.splitStringByCommaToArray;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
@@ -1419,12 +1421,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
 
-                // A lookup join is remote only when its left side actually streams data from indices that may live on remote clusters.
-                // {@code includesRemoteIndices()} is query-wide, so on its own it would also mark a join whose left side is purely local
-                // (e.g. {@code ROW ... | LOOKUP JOIN} in a subquery branch) as remote. Such a join has no data-node source to attach to,
-                // so flagging it remote would cause {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupJoin} error out in
-                // ComputeService.
-                boolean isRemote = join.isRemote() || (context.includesRemoteIndices() && leftSideReadsFromIndices(join.left()));
+                boolean isRemote = join.isRemote() || leftSideReadsFromRemoteIndices(join.left());
                 return new LookupJoin(join.source(), join.left(), join.right(), config, isRemote);
             } else {
                 // everything else is unsupported for now
@@ -1435,27 +1432,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Whether {@code plan} reads from a non-lookup index, as opposed to a purely local source such as {@code ROW} /
-         * {@link LocalRelation}.
+         * Whether a lookup join's {@code left} side actually streams data from a non-lookup index that may live on a remote
+         * cluster, as opposed to a purely local source such as {@code ROW} / {@link LocalRelation}. A ROW-only left side has
+         * no {@link EsRelation} at all in its subtree, so it naturally falls through to {@code false} - no query-wide flag
+         * needed to avoid mismarking it remote (which would leave it with no data-node source to attach to, causing
+         * {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupJoin} to error out in ComputeService).
          * <p>
          * Only {@link EsRelation} needs to be considered: this runs from {@link #resolveLookupJoin} inside
          * {@link ResolveRefs}, which is guarded by {@code childrenResolved()}, so by the time we get here the left
-         * subtree is fully resolved and cannot contain an {@link UnresolvedRelation}.
+         * subtree is fully resolved and cannot contain an {@link UnresolvedRelation}. Remoteness is determined straight
+         * from the relation's own {@link EsRelation#indexPattern()} (same syntactic check as
+         * {@code IndexResolution#includesRemoteIndices()}) rather than a query-wide flag, so it only reflects this
+         * particular relation.
          * <p>
          * Stops descending at a {@link Fork} (covers {@code UnionAll}): its branches are merged on the coordinator before
          * any plan above it runs, so a LOOKUP JOIN sitting above a {@code Fork} executes locally regardless of whether the
          * branches themselves read remote indices. This mirrors {@code EsqlSession#collectLookupJoinLeftScope}, which scopes
          * such a join to the local cluster only.
          */
-        private static boolean leftSideReadsFromIndices(LogicalPlan plan) {
-            if (plan instanceof Fork) {
+        private static boolean leftSideReadsFromRemoteIndices(LogicalPlan left) {
+            if (left instanceof Fork) {
                 return false;
             }
-            if (plan instanceof EsRelation relation && relation.indexMode() != IndexMode.LOOKUP) {
-                return true;
+            if (left instanceof EsRelation relation && relation.indexMode() != IndexMode.LOOKUP) {
+                String[] indices = splitStringByCommaToArray(relation.indexPattern());
+                return RemoteClusterAware.getRemoteIndexExpressions(indices).isEmpty() == false;
             }
-            for (LogicalPlan child : plan.children()) {
-                if (leftSideReadsFromIndices(child)) {
+            for (LogicalPlan child : left.children()) {
+                if (leftSideReadsFromRemoteIndices(child)) {
                     return true;
                 }
             }

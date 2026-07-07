@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 150545
+summary: Add points memory estimate to tier heap estimate
+type: enhancement

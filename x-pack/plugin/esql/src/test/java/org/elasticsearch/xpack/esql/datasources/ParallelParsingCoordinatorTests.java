@@ -21,6 +21,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
@@ -42,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -56,8 +61,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -645,6 +652,75 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         assertThat("early close must leave no segment stream open", obj.currentOpen(), Matchers.equalTo(0));
+    }
+
+    /**
+     * Wiring test for {@code reader.pool.rejected}: when the parser executor refuses a segment submission
+     * ({@link RejectedExecutionException} — a saturated or shutting-down pool), the coordinator records one
+     * {@code reader.pool.rejected} event per rejected segment on the attached {@link ExternalSourceMetrics}.
+     * Drives the real {@code submitSegment} rejection path against a registry-backed holder (no mocks) and
+     * asserts the observable registry counter, not just that the read fails. The end-to-end integration test
+     * cannot force this deterministically, so this unit test is the coverage for the counter.
+     */
+    public void testReaderPoolRejectionRecordsReaderPoolRejected() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        int lineCount = 200;
+        for (int i = 0; i < lineCount; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
+        }
+        byte[] contentBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(contentBytes);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+
+        // The fixture must be genuinely multi-segment, else the coordinator takes the single-threaded fallback
+        // that never submits to the executor (and so never rejects).
+        assertThat(
+            "test needs a multi-segment file to reach the executor submission path",
+            ParallelParsingCoordinator.computeSegments(reader, obj, contentBytes.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+        // An executor that refuses every submission, exactly as a saturated / shutting-down parser pool would.
+        Executor rejecting = command -> { throw new RejectedExecutionException("parser pool saturated"); };
+
+        CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+            reader,
+            obj,
+            List.of("line"),
+            50,
+            4,
+            rejecting,
+            null,
+            true,
+            true,
+            null,
+            0L,
+            ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            false,
+            metrics
+        );
+        // Every segment submission is rejected: firstError is set and draining surfaces it. We only assert the
+        // telemetry moved; the surfaced failure is expected.
+        expectThrows(Exception.class, () -> {
+            try (iter) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        });
+
+        long rejected = registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.READER_POOL_REJECTED_TOTAL)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
+        assertThat("a rejected parser-segment submission must bump reader.pool.rejected", rejected, Matchers.greaterThanOrEqualTo(1L));
     }
 
     public void testParallelReadPropagatesError() throws Exception {

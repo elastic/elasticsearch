@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parameterized integration tests for standalone TSV files.
@@ -47,22 +46,17 @@ public class TsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    // Migrated specs run via FROM <dataset> on S3 (the anonymous-capable fixture backs a dataset without
-    // a cluster encryption key) and via the rebuilt EXTERNAL query on the other backends, so none are skipped.
-    @Override
-    protected Set<StorageBackend> datasetModeBackends() {
-        return Set.of(StorageBackend.S3);
-    }
-
     // external-basic.csv-spec is dropped for TSV: its multi-value queries (MV_EXPAND / MV_COUNT on the
     // employees bracket columns) assume brackets parsing, which is no longer the default. Scalar
     // coverage comes from csv-basic.csv-spec (bracket-free employees twin) and multi-value coverage
     // from tsv-multivalue.csv-spec. The multifile specs only project scalar columns, so they parse
-    // correctly under the default (tab delimiter — no column misalignment).
+    // correctly under the default (tab delimiter, no column misalignment). external-heavy-aggregates
+    // uses only the bracket-free employees_no_mv twin, so it parses under TSV's default too.
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         return readExternalSpecTests(
             "/csv-basic.csv-spec",
+            "/external-heavy-aggregates.csv-spec",
             "/external-multifile.csv-spec",
             "/external-multifile-resolution.csv-spec",
             "/tsv-multivalue.csv-spec"

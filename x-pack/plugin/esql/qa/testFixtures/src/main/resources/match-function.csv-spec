@@ -232,7 +232,7 @@ book_no:keyword | title:text
 ;
 
 matchMultivaluedField
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 
 from employees 
@@ -250,7 +250,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMultiValuedFieldWithConjunction
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 
 from employees 
@@ -263,7 +263,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMatchAndQueryStringFunctions
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 required_capability: qstr_function
 
@@ -620,7 +620,7 @@ live long and prosper
 ;
 
 testMatchWithSemanticTextAndKeyword
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 required_capability: semantic_text_field_caps
 
@@ -634,7 +634,7 @@ live long and prosper    | host1
 ;
 
 testMatchWithSemanticTextMultiValueField
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 required_capability: semantic_text_field_caps
 
@@ -648,7 +648,7 @@ _id: keyword | st_multi_value:text
 ;
 
 testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 required_capability: semantic_text_field_caps
 
@@ -860,7 +860,6 @@ c:long | m:integer | n:integer
 4      | 9607      | 1211
 ;
 
-
 testMatchInStatsWithGrouping
 required_capability: match_function
 required_capability: full_text_functions_in_stats_where
@@ -880,7 +879,7 @@ r:double           | author: text
 ;
 
 testMatchInStatsWithGroupingBy
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 required_capability: full_text_functions_in_stats_where
 FROM airports 
@@ -898,7 +897,6 @@ c: long     |   scalerank: long
 10             | 3              
 15             | 2              
 ;
-
 
 testMatchWithReplace
 required_capability: match_function
@@ -1138,9 +1136,7 @@ constant_keyword-foo:keyword | keyword:keyword
 matchOnRuntimeText
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM books
 | EVAL content = to_text(concat(title, " ", description))
@@ -1159,9 +1155,7 @@ book_no:keyword | title:text
 matchOnRuntimeTextAndIndexedField
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM books
 | EVAL content = to_text(concat(title, " ", description))
@@ -1180,9 +1174,7 @@ book_no:keyword | title:text
 matchOnTextWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
 | MV_EXPAND content
@@ -1198,9 +1190,7 @@ This is a brown dog
 matchOnTextWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
 | MV_EXPAND content
@@ -1216,9 +1206,7 @@ This dog is really brown
 matchOnTextWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
 | MV_EXPAND content
@@ -1235,9 +1223,7 @@ content:text
 matchOnRuntimeKeyword
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM employees
 | EVAL full_name = CONCAT(first_name, " ", last_name)
@@ -1254,9 +1240,7 @@ emp_no:integer | full_name:keyword
 matchOnRuntimeKeywordWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["foo", "bar", "foobar"]
 | MV_EXPAND content
@@ -1270,9 +1254,7 @@ foobar
 matchOnKeywordWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["foo", "bar", "foobar"]
 | MV_EXPAND content
@@ -1288,9 +1270,7 @@ foobar
 matchOnKeywordWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["foo", "bar", "foobar"]
 | MV_EXPAND content
@@ -1305,9 +1285,7 @@ content:keyword
 matchOnRuntimeBoolean
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM employees
 | EVAL x = starts_with(first_name, "A")
@@ -1328,9 +1306,7 @@ emp_no:integer | first_name:keyword | x:boolean
 matchOnRuntimeBooleanWithBooleanQuery
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM employees
 | EVAL x = starts_with(first_name, "A")
@@ -1351,9 +1327,7 @@ emp_no:integer | first_name:keyword | x:boolean
 matchOnRuntimeBooleanWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["foo", "bar", "foobar"]
 | MV_EXPAND content
@@ -1370,9 +1344,7 @@ foobar          | true
 matchOnBooleanWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["foo", "bar", "foobar"]
 | MV_EXPAND content
@@ -1389,9 +1361,7 @@ foobar          | true
 matchOnBooleanWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["foo", "bar", "foobar"]
 | MV_EXPAND content
@@ -1408,9 +1378,7 @@ foobar          | [true, false]
 matchOnRuntimeDouble
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM employees
 | EVAL x = height / 100
@@ -1428,9 +1396,7 @@ emp_no:integer | x:double
 matchOnRuntimeDoubleWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW a = [1.2, 1.3, 1.4, 1.5]
 | MV_EXPAND a
@@ -1446,10 +1412,7 @@ a:double
 matchOnDoubleWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
-
+required_capability: fn_match_runtime_filter
 
 ROW a = [1.2, 1.3, 1.4, 1.5, 1.6]
 | MV_EXPAND a
@@ -1466,9 +1429,7 @@ a:double
 matchOnDoubleWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW a = [1.2, 1.3, 1.4, 1.5, 1.6]
 | MV_EXPAND a
@@ -1486,9 +1447,7 @@ a:double
 matchOnRuntimeLong
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM employees
 | EVAL x = to_long(emp_no + 10000)
@@ -1505,9 +1464,7 @@ emp_no:integer | x:long
 matchOnRuntimeLongWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW a = [100, 200, 300, 400]::long
 | MV_EXPAND a
@@ -1523,9 +1480,7 @@ a:long
 matchOnLongWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW a = [100, 200, 300, 400]::long
 | MV_EXPAND a
@@ -1542,9 +1497,7 @@ a:long
 matchOnLongWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW a = [100, 200, 300, 400]::long
 | MV_EXPAND a
@@ -1561,9 +1514,7 @@ a:long
 matchOnRuntimeInteger
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM employees
 | EVAL x = emp_no + 10000
@@ -1580,9 +1531,7 @@ emp_no:integer | x:integer
 matchOnRuntimeIntegerWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW a = [100, 200, 300, 400]
 | MV_EXPAND a
@@ -1598,9 +1547,7 @@ a:integer
 matchOnIntegerWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW a = [100, 200, 300, 400]
 | MV_EXPAND a
@@ -1617,9 +1564,7 @@ a:integer
 matchOnIntegerWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW a = [100, 200, 300, 400]
 | MV_EXPAND a
@@ -1636,9 +1581,7 @@ a:integer
 matchOnRuntimeIp
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM hosts
 | EVAL my_ip = CASE(mv_contains(ip0, ip1), ip0, ip1)
@@ -1656,9 +1599,7 @@ epsilon      | [127.0.0.1, 127.0.0.2, 127.0.0.3] | null      | [127.0.0.1, 127.0
 matchOnRuntimeIpWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["127.0.0.1", "fe80::cae2:65ff:fece:feb9", "::1"]::ip
 | MV_EXPAND content
@@ -1672,9 +1613,7 @@ content:ip
 matchOnIpWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content =  ["127.0.0.1", "fe80::cae2:65ff:fece:feb9", "::1"]::ip
 | MV_EXPAND content
@@ -1690,9 +1629,7 @@ content:ip
 matchOnIpWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["127.0.0.1", "fe80::cae2:65ff:fece:feb9", "::1"]::ip
 | MV_EXPAND content
@@ -1707,9 +1644,7 @@ content:ip
 matchOnRuntimeVersion
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM apps
 | EVAL x = concat(version::string, ".1")::version
@@ -1726,9 +1661,7 @@ id:integer | version:version | x:version
 matchOnRuntimeVersionWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["1.2.3", "1.2.3.4", "1.2.3-SNAPSHOT"]::version
 | MV_EXPAND content
@@ -1742,9 +1675,7 @@ content:version
 matchOnVersionWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["1.2.3", "1.2.3.4", "1.2.3-SNAPSHOT"]::version
 | MV_EXPAND content
@@ -1760,9 +1691,7 @@ content:version
 matchOnVersionWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["1.2.3", "1.2.3.4", "1.2.3-SNAPSHOT"]::version
 | MV_EXPAND content
@@ -1777,9 +1706,7 @@ content:version
 matchOnRuntimeDatetime
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM employees
 | eval birth_date_string = date_format("yyyy-MM-dd", birth_date)
@@ -1795,9 +1722,7 @@ emp_no:integer | new_date:datetime        | birth_date:datetime
 matchOnRuntimeDatetimeWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["1965-01-29T00:00:00.000Z", "1965-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::datetime
 | MV_EXPAND content
@@ -1811,9 +1736,7 @@ content:datetime
 matchOnDatetimeWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["1965-01-29T00:00:00.000Z", "1965-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::datetime
 | MV_EXPAND content
@@ -1828,9 +1751,7 @@ content:datetime
 matchOnDatetimeWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["1965-01-29T00:00:00.000Z", "1965-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::datetime
 | MV_EXPAND content
@@ -1845,9 +1766,7 @@ content:datetime
 matchOnRuntimeDateNanos
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM employees
 | eval birth_date_string = date_format("yyyy-MM-dd", birth_date + 100y)
@@ -1863,9 +1782,7 @@ emp_no:integer | new_date:date_nanos      | birth_date:datetime
 matchOnRuntimeDateNanosWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["1980-01-29T00:00:00.000Z", "1990-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::date_nanos
 | MV_EXPAND content
@@ -1879,9 +1796,7 @@ content:date_nanos
 matchOnDateNanosWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["1980-01-29T00:00:00.000Z", "1990-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::date_nanos
 | MV_EXPAND content
@@ -1896,9 +1811,7 @@ content:date_nanos
 matchOnDateNanosWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW content = ["1980-01-29T00:00:00.000Z", "1990-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::date_nanos
 | MV_EXPAND content
@@ -1913,9 +1826,7 @@ content:date_nanos
 matchOnRuntimeUnsignedLong
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 FROM employees
 | EVAL x = to_unsigned_long(emp_no + 10000)
@@ -1932,9 +1843,7 @@ emp_no:integer | x:unsigned_long
 matchOnRuntimeUnsignedLongWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW a = ["100", "200", "300", "400", "18446744073709551615"]::unsigned_long
 | MV_EXPAND a
@@ -1950,9 +1859,7 @@ a:unsigned_long
 matchOnUnsignedLongWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW a = [100, 200, 300, 400]::unsigned_long
 | MV_EXPAND a
@@ -1969,9 +1876,7 @@ a:unsigned_long
 matchOnUnsignedLongWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
-
-pragma: runtime_lexical_search=true
+required_capability: fn_match_runtime_filter
 
 ROW a = [100, 200, 300, 400]::unsigned_long
 | MV_EXPAND a
@@ -1983,4 +1888,132 @@ ROW a = [100, 200, 300, 400]::unsigned_long
 a:unsigned_long
 [100, 200]
 [200, 300]
+;
+
+matchOnRuntimeLongWithFractionalQueryTruncates
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+
+// A numeric query against a numeric field is coerced to the field's type: 2.9 truncates to 2.
+ROW a = [1, 2, 3]::long
+| MV_EXPAND a
+| WHERE match(a, 2.9)
+| SORT a
+;
+
+a:long
+2
+;
+
+matchOnRuntimeLongWithStringQuery
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+
+ROW a = [10, 20, 30]::long
+| MV_EXPAND a
+| WHERE match(a, "20")
+| SORT a
+;
+
+a:long
+20
+;
+
+matchOnRuntimeDoubleWithStringQuery
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+
+ROW a = [1.5, 2.5]
+| MV_EXPAND a
+| WHERE match(a, "2.5")
+;
+
+a:double
+2.5
+;
+
+matchOnRuntimeBooleanWithStringQuery
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+
+ROW a = [true, false]
+| MV_EXPAND a
+| WHERE match(a, "true")
+;
+
+a:boolean
+true
+;
+
+matchOnRuntimeIntegerBoundary
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+
+ROW a = [2147483647, 1]::integer
+| MV_EXPAND a
+| WHERE match(a, 2147483647)
+;
+
+a:integer
+2147483647
+;
+
+matchOnRuntimeTextConversionIsAnalyzed
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+
+// Casting a runtime keyword to text makes match analyze it: the lowercased token "quick" is found.
+ROW phrase = "The Quick Brown Fox"
+| EVAL content = to_text(phrase)
+| WHERE match(content, "quick")
+| KEEP phrase
+;
+
+phrase:keyword
+The Quick Brown Fox
+;
+
+matchOnRuntimeLongWithStringQueryMultiValueAndNull
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+
+// String query conversion combined with multivalues and a null position.
+ROW a = [10, 20, 30, 40]::long
+| MV_EXPAND a
+| EVAL a = CASE(a == 40, null, a)
+| WHERE match(a, "10") OR match(a, "30")
+| SORT a
+;
+
+a:long
+10
+30
+;
+
+matchOnRuntimeDoubleWithIntegerQuery
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+
+// Cross-type numeric query: an integer query widens to the double field.
+ROW a = [1.0, 2.0, 3.0]
+| MV_EXPAND a
+| WHERE match(a, 2)
+;
+
+a:double
+2.0
+;
+
+matchOnRuntimeUnsignedLongWithIntegerQuery
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+
+// A plain integer query is encoded into the unsigned_long representation before matching.
+ROW a = [100, 200, 300]::unsigned_long
+| MV_EXPAND a
+| WHERE match(a, 200)
+;
+
+a:unsigned_long
+200
 ;

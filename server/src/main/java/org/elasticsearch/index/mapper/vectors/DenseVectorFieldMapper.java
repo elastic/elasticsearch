@@ -3225,10 +3225,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return VectorData.decodeQueryVector(queryVector.stringVector(), element.elementType(), dims);
         }
 
-        public Query createExactKnnQuery(VectorData queryVector, Float vectorSimilarity) {
-            // Entry point for ExactKnnQueryBuilder, inner-hits, and chunk scoring, which only ever target
-            // indexed fields, so non-indexed fields are rejected (allowNonIndexed=false).
-            return createExactKnnQuery(queryVector, vectorSimilarity, null, true, false);
+        /** Builds an exact (brute-force) kNN query, that requires an index to exist. */
+        public Query createIndexedExactKnnQuery(VectorData queryVector, Float vectorSimilarity) {
+            if (indexType() == IndexType.NONE) {
+                throw new IllegalArgumentException(
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
+                );
+            }
+            return createExactKnnQuery(queryVector, vectorSimilarity, null, true);
         }
 
         /**
@@ -3248,24 +3252,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorSimilarity similarityOverride,
             boolean useQuantized
         ) {
-            return createExactKnnQuery(queryVector, vectorSimilarityThreshold, similarityOverride, useQuantized, true);
-        }
-
-        private Query createExactKnnQuery(
-            VectorData queryVector,
-            Float vectorSimilarityThreshold,
-            VectorSimilarity similarityOverride,
-            boolean useQuantized,
-            boolean allowNonIndexed
-        ) {
-            // Use the field's own [index] setting rather than indexType(): a non-indexed dense_vector maps to
-            // IndexType.docValuesOnly() (not IndexType.NONE), so an `== IndexType.NONE` check would not detect it.
-            boolean nonIndexed = indexed == false;
-            if (nonIndexed && allowNonIndexed == false) {
-                throw new IllegalArgumentException(
-                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
-                );
-            }
             if (dims == null) {
                 return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
             }
@@ -3278,7 +3264,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             VectorSimilarity effectiveSimilarity = effectiveSimilarity(similarityOverride);
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
-            Query knnQuery = nonIndexed
+            Query knnQuery = indexed == false
                 ? element.createDocValuesExactKnnQuery(resolvedQueryVector, dims, effectiveSimilarity, name(), indexVersionCreated)
                 : createIndexedExactKnnQuery(resolvedQueryVector, effectiveSimilarity, isSimilarityOverridden, useQuantized);
             if (vectorSimilarityThreshold != null) {

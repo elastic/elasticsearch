@@ -25,9 +25,9 @@ public final class RangeReadContext {
     private final long rangeEnd;
     private final List<Attribute> resolvedAttributes;
     private final ErrorPolicy errorPolicy;
-    /** See {@link #warningSink()}. */
+    /** See {@link #informationalWarningSink()}. */
     @Nullable
-    private final Consumer<String> warningSink;
+    private final Consumer<String> informationalWarningSink;
     /**
      * Opaque file-level context, single-writer/single-reader, carried by the owning producer across successive readRange calls.
      */
@@ -46,9 +46,9 @@ public final class RangeReadContext {
     }
 
     /**
-     * As the above, plus {@code warningSink} — see {@link #warningSink()}. Kept as a separate
-     * constructor so the many existing callers (tests, benchmarks) that don't care about relaying
-     * warnings off this thread are unaffected.
+     * As the above, plus {@code informationalWarningSink} — see {@link #informationalWarningSink()}.
+     * Kept as a separate constructor so the many existing callers (tests, benchmarks) that don't
+     * care about relaying warnings off this thread are unaffected.
      */
     public RangeReadContext(
         List<String> projectedColumns,
@@ -57,7 +57,7 @@ public final class RangeReadContext {
         long rangeEnd,
         List<Attribute> resolvedAttributes,
         ErrorPolicy errorPolicy,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> informationalWarningSink
     ) {
         this.projectedColumns = projectedColumns;
         this.batchSize = batchSize;
@@ -65,7 +65,7 @@ public final class RangeReadContext {
         this.rangeEnd = rangeEnd;
         this.resolvedAttributes = resolvedAttributes;
         this.errorPolicy = errorPolicy;
-        this.warningSink = warningSink;
+        this.informationalWarningSink = informationalWarningSink;
     }
 
     public List<String> projectedColumns() {
@@ -99,11 +99,11 @@ public final class RangeReadContext {
      * the read runs on the request/driver thread. Callers that dispatch {@code readRange} to a
      * background thread (e.g. {@code AsyncExternalSourceOperatorFactory}) must set this to a sink so
      * the warning is relayed back and re-emitted on the correct thread instead of being silently
-     * dropped. See {@link FormatReadContext#warningSink()} for the non-range-read counterpart.
+     * dropped. See {@link FormatReadContext#informationalWarningSink()} for the non-range-read counterpart.
      */
     @Nullable
-    public Consumer<String> warningSink() {
-        return warningSink;
+    public Consumer<String> informationalWarningSink() {
+        return informationalWarningSink;
     }
 
     @Nullable

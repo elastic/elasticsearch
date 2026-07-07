@@ -490,7 +490,7 @@ public final class ParallelParsingCoordinator {
             // macro-split is never file-final — a later split supplies the terminal stripe.
             .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
             .statsColumnScope(statsColumnScope)
-            .warningSink(warningSink)
+            .informationalWarningSink(warningSink)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -853,7 +853,7 @@ public final class ParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
                 .statsColumnScope(statsColumnScope)
-                .warningSink(warningSink)
+                .informationalWarningSink(warningSink)
                 .build();
 
             // Bind the consumer-owned sink on this worker so the reader's close hook (which publishes its

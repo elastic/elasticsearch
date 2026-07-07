@@ -1631,7 +1631,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     /**
      * Same fixture as {@link #testScalarThenObjectConflictLenientNullFillsAndWarns}, but with
-     * {@link FormatReadContext#warningSink()} supplied: the shape-conflict warning must route
+     * {@link FormatReadContext#informationalWarningSink()} supplied: the shape-conflict warning must route
      * through the sink instead of {@link org.elasticsearch.common.logging.HeaderWarning}, since
      * {@code read} can be invoked from a background reader thread whose thread-local response
      * headers never reach the client (see {@code SkipWarnings}).
@@ -1645,7 +1645,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var object = new BytesStorageObject("memory://scalar-then-object-sink.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         List<String> sunk = new ArrayList<>();
-        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).warningSink(sunk::add).build();
+        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).informationalWarningSink(sunk::add).build();
         try (var iterator = reader.read(object, ctx)) {
             assertTrue(iterator.hasNext());
             iterator.next();

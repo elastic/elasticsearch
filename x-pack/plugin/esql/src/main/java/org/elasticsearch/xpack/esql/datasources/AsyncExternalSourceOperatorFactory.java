@@ -1941,7 +1941,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         // its trailing stripe to EOF).
                         .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
-                        .warningSink(state.buffer::recordInformationalWarning)
+                        .informationalWarningSink(state.buffer::recordInformationalWarning)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -2126,7 +2126,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
-                    .warningSink(state.buffer::recordInformationalWarning)
+                    .informationalWarningSink(state.buffer::recordInformationalWarning)
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
@@ -2206,7 +2206,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .errorPolicy(errorPolicy)
             .maxRecordBytes(maxRecordBytes)
             .statsColumnScope(statsColumnScope)
-            .warningSink(buffer::recordInformationalWarning)
+            .informationalWarningSink(buffer::recordInformationalWarning)
             .build();
         FormatReader reader = readerWithDynamicThreshold(formatReader);
         reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
@@ -2259,7 +2259,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .errorPolicy(errorPolicy)
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
-                    .warningSink(buffer::recordInformationalWarning)
+                    .informationalWarningSink(buffer::recordInformationalWarning)
                     .build();
                 pages = reader.read(storageObject, ctx);
             }
@@ -2573,8 +2573,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         captureSink,
                         statsStripeSize,
                         statsColumnScope,
-                        partialResultsWarningSink,
-                        warningSink
+                        new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink)
                     );
                 } catch (Exception e) {
                     try {

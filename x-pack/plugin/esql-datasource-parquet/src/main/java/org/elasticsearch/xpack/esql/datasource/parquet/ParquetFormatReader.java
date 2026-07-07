@@ -1267,7 +1267,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 null,
                 filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build()),
                 resolveErrorPolicy(context.errorPolicy()),
-                context.warningSink()
+                context.informationalWarningSink()
             );
         } finally {
             // read_nanos covers the synchronous setup phase only; per-page decode/decompress time
@@ -1604,7 +1604,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     filterBlocksByRange(fullFooter, rangeStart, rangeEnd)
                 ),
                 resolveErrorPolicy(context.errorPolicy()),
-                context.warningSink()
+                context.informationalWarningSink()
             );
         } finally {
             counters.addTotalReadNanos(System.nanoTime() - startNanos);

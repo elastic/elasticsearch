@@ -186,7 +186,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                null
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
                 while (iter.hasNext()) {
@@ -246,7 +246,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                null
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
             // Consume one page, then close without draining — an early termination.
@@ -446,7 +446,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     sink,
                     64L, // stripe addressing active
                     StripeColumnScope.PROJECTED,
-                    null
+                    StreamingParallelParsingCoordinator.WarningSinks.NONE
                 )
             );
 
@@ -1186,8 +1186,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                null,
-                null
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
@@ -1236,8 +1235,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                null,
-                null
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
@@ -1268,8 +1266,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                null,
-                null
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             List<String> got = collectLines(lenientIterator);
             assertEquals("non-strict policy must return the records parsed before the cap-hit", leadingRecords, got.size());
@@ -1317,8 +1314,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                sink::add,
-                null
+                new StreamingParallelParsingCoordinator.WarningSinks(sink::add, null)
             );
             List<String> got = collectLines(iterator);
             assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());
@@ -1367,8 +1363,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
-            null,
-            null
+            StreamingParallelParsingCoordinator.WarningSinks.NONE
         );
         List<String> got = collectLines(iterator);
         assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());

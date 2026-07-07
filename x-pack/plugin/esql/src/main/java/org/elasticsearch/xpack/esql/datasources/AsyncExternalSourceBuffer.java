@@ -77,8 +77,8 @@ public final class AsyncExternalSourceBuffer {
      * signals (currently a streaming {@code max_record_size} truncation under a non-strict
      * {@code error_mode}, see {@code StreamingParallelParsingCoordinator}) and per-record
      * skip/null-fill warnings relayed from format-reader {@code SkipWarnings} sinks (see
-     * {@code FormatReadContext#warningSink()} / {@code RangeReadContext#warningSink()}), which do not
-     * necessarily imply a dropped record. See {@link #recordWarning} vs {@link
+     * {@code FormatReadContext#informationalWarningSink()} / {@code RangeReadContext#informationalWarningSink()}),
+     * which do not necessarily imply a dropped record. See {@link #recordWarning} vs {@link
      * #recordInformationalWarning}. Producer / parse-worker threads append here off the driver thread;
      * {@link AsyncExternalSourceOperator#close()} drains and re-emits them via {@link
      * org.elasticsearch.common.logging.HeaderWarning} on the driver thread, whose response headers
@@ -147,13 +147,19 @@ public final class AsyncExternalSourceBuffer {
      * thread.
      * <p>
      * Use this for warnings relayed from format-reader {@code SkipWarnings} sinks (see {@code
-     * FormatReadContext#warningSink()} / {@code RangeReadContext#warningSink()}) — e.g. CSV/NDJSON
-     * per-record skip/null-fill handling or Parquet on-disk/planner type mismatches. This preserves
-     * these warnings' pre-existing behavior of never flipping {@link #partial} (previously they only
-     * ever reached {@link org.elasticsearch.common.logging.HeaderWarning} directly, which has no notion
-     * of {@link #partial} either); this method only fixes their delivery when the read runs off the
-     * driver thread, without changing what they signal. See {@link #recordWarning} for the one warning
-     * that has always mapped to {@link #partial}.
+     * FormatReadContext#informationalWarningSink()} / {@code RangeReadContext#informationalWarningSink()})
+     * — e.g. CSV/NDJSON per-record skip/null-fill handling or Parquet on-disk/planner type mismatches.
+     * This preserves these warnings' pre-existing behavior of never flipping {@link #partial} (previously
+     * they only ever reached {@link org.elasticsearch.common.logging.HeaderWarning} directly, which has
+     * no notion of {@link #partial} either); this method only fixes their delivery when the read runs
+     * off the driver thread, without changing what they signal. See {@link #recordWarning} for the one
+     * warning that has always mapped to {@link #partial}.
+     * <p>
+     * Each {@code SkipWarnings} instance caps its own per-event details at
+     * {@code SkipWarnings.MAX_ADDED_WARNINGS} (20), but that cap is per reader instance, not per query:
+     * a parallel or macro-split read constructs one {@code SkipWarnings} per chunk/segment, so a single
+     * read can add well more than 20 entries to {@link #pendingWarnings} here — this queue itself is
+     * unbounded.
      */
     public void recordInformationalWarning(String warning) {
         pendingWarnings.add(warning);

@@ -1626,7 +1626,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             chunkMode ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
             context.statsColumnScope(),
-            context.warningSink()
+            context.informationalWarningSink()
         );
     }
 

@@ -3763,7 +3763,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     /**
      * Same schema-mismatch scenario as {@link #testSchemaMismatchEmitsResponseWarningHeader}, but
      * through {@link ParquetFormatReader#read(StorageObject, FormatReadContext)} with a
-     * {@link FormatReadContext#warningSink()} supplied: the mismatch warning must route through the
+     * {@link FormatReadContext#informationalWarningSink()} supplied: the mismatch warning must route through the
      * sink instead of {@link HeaderWarning}, since {@code read} can be invoked from a background
      * reader thread whose thread-local response headers never reach the client (see
      * {@code SkipWarnings}).
@@ -3783,7 +3783,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iterator = reader.read(
                 storageObject,
-                FormatReadContext.builder().batchSize(100).readSchema(plannerTypes).warningSink(sunk::add).build()
+                FormatReadContext.builder().batchSize(100).readSchema(plannerTypes).informationalWarningSink(sunk::add).build()
             )
         ) {
             assertTrue(iterator.hasNext());

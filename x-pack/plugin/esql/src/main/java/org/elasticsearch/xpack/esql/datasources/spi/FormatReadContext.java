@@ -80,7 +80,7 @@ import java.util.function.Consumer;
  *                         {@link StripeColumnScope#PROJECTED} (back-compat for call sites that predate the
  *                         setting); the compact constructor collapses {@code null} to that default so
  *                         readers do one check.
- * @param warningSink      optional relay for client-visible lenient-policy warnings (see
+ * @param informationalWarningSink optional relay for client-visible lenient-policy warnings (see
  *                         {@link SkipWarnings}) raised while reading. {@code null} means the reader
  *                         should fall back to emitting warnings directly via {@link
  *                         org.elasticsearch.common.logging.HeaderWarning}, which is only correct when
@@ -107,7 +107,7 @@ public record FormatReadContext(
     long statsStripeSize,
     boolean statsFileFinal,
     StripeColumnScope statsColumnScope,
-    @Nullable Consumer<String> warningSink
+    @Nullable Consumer<String> informationalWarningSink
 ) {
 
     public FormatReadContext {
@@ -152,7 +152,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            warningSink
+            informationalWarningSink
         );
     }
 
@@ -175,7 +175,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            warningSink
+            informationalWarningSink
         );
     }
 
@@ -198,7 +198,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            warningSink
+            informationalWarningSink
         );
     }
 
@@ -226,7 +226,7 @@ public record FormatReadContext(
         private boolean statsFileFinal = false;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
         @Nullable
-        private Consumer<String> warningSink = null;
+        private Consumer<String> informationalWarningSink = null;
 
         private Builder() {}
 
@@ -309,9 +309,12 @@ public record FormatReadContext(
             return this;
         }
 
-        /** See {@link FormatReadContext#warningSink()}; pass {@code null} for direct-to-HeaderWarning emission. */
-        public Builder warningSink(@Nullable Consumer<String> warningSink) {
-            this.warningSink = warningSink;
+        /**
+         * See {@link FormatReadContext#informationalWarningSink()}; pass {@code null} for
+         * direct-to-HeaderWarning emission.
+         */
+        public Builder informationalWarningSink(@Nullable Consumer<String> informationalWarningSink) {
+            this.informationalWarningSink = informationalWarningSink;
             return this;
         }
 
@@ -334,7 +337,7 @@ public record FormatReadContext(
                 statsStripeSize,
                 statsFileFinal,
                 statsColumnScope,
-                warningSink
+                informationalWarningSink
             );
         }
     }

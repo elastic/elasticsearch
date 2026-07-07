@@ -4514,7 +4514,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Same shape as {@link #testWarningsIncludeRowNumber}, but with {@link FormatReadContext#warningSink()}
+     * Same shape as {@link #testWarningsIncludeRowNumber}, but with {@link FormatReadContext#informationalWarningSink()}
      * supplied: every emitted message must route through the sink instead of {@link HeaderWarning}, since
      * {@link CsvFormatReader#read} can be invoked from a background reader thread whose thread-local response
      * headers never reach the client (see {@code SkipWarnings}).
@@ -4535,7 +4535,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iterator = reader.read(
                 object,
-                FormatReadContext.builder().batchSize(10).errorPolicy(lenient).warningSink(sunk::add).build()
+                FormatReadContext.builder().batchSize(10).errorPolicy(lenient).informationalWarningSink(sunk::add).build()
             )
         ) {
             while (iterator.hasNext()) {

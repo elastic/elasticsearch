@@ -92,13 +92,13 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
         }
         // Retrieve all continuous TSDB indices in a single window
         {
+            IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
             Instant start1 = Instant.parse("2024-01-15T00:00:00Z");
             Instant start2 = Instant.parse("2024-01-16T00:00:00Z");
             Instant start3 = Instant.parse("2024-01-17T00:00:00Z");
             Instant end = Instant.parse("2024-01-18T00:00:00Z");
-            ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStream(
-                projectId,
-                DATA_STREAM,
+            ProjectMetadata project = projectWithDataStream(
+                mode,
                 List.of(Tuple.tuple(start3, end), Tuple.tuple(start1, start2), Tuple.tuple(start2, start3))
             );
             // Updated project metadata with a consequent and unsored ts backing indices in a mixed data stream
@@ -462,13 +462,40 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
     }
 
     private static IndexMetadata createIndexMetadata(String indexName, Instant startTime, Instant endTime) {
+        return createIndexMetadata(indexName, startTime, endTime, randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB));
+    }
+
+    private static IndexMetadata createIndexMetadata(String indexName, Instant startTime, Instant endTime, IndexMode indexMode) {
         Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (startTime != null && endTime != null) {
-            settings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            settings.put(IndexSettings.MODE.getKey(), indexMode.getName())
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime.toEpochMilli())
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime.toEpochMilli());
         }
         return IndexMetadata.builder(indexName).settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+    }
+
+    /**
+     * Builds a ProjectMetadata with a data stream in the given {@link IndexMode} whose backing indices
+     * cover the given time ranges.
+     */
+    private ProjectMetadata projectWithDataStream(IndexMode mode, List<Tuple<Instant, Instant>> timeSlices) {
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        long generation = 1L;
+        for (Tuple<Instant, Instant> slice : timeSlices) {
+            String indexName = DataStream.getDefaultBackingIndexName(DATA_STREAM, generation, slice.v1().toEpochMilli());
+            backingIndices.add(createIndexMetadata(indexName, slice.v1(), slice.v2(), mode));
+            generation++;
+        }
+        DataStream ds = DataStream.builder(DATA_STREAM, backingIndices.stream().map(IndexMetadata::getIndex).toList())
+            .setGeneration(generation)
+            .setIndexMode(mode)
+            .build();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
+        for (IndexMetadata im : backingIndices) {
+            builder.put(im, false);
+        }
+        return builder.put(ds).build();
     }
 
     public void testOutsideEligibleWriteWindowFails() throws Exception {

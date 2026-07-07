@@ -46,6 +46,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -1182,6 +1183,11 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         assertThat(failureStoreConditions.getMaxAge(), equalTo(TimeValue.timeValueHours(1))); // 12h retention -> 1h max_age
     }
 
+    /**
+     * Covers both {@link IndexMode#TIME_SERIES} and {@link IndexMode#TSDB}, the latter sharing the
+     * former's {@code isTsdb()}-gated behaviour, so {@link DataStreamLifecycleService#timeSeriesIndicesStillWithinTimeBounds}
+     * must treat both identically.
+     */
     public void testTimeSeriesIndicesStillWithinTimeBounds() {
         Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         // These ranges are on the edge of each other temporal boundaries.

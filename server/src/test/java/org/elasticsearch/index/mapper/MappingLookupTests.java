@@ -180,7 +180,7 @@ public class MappingLookupTests extends ESTestCase {
             List.of(dimMapper, metricMapper, plainMapper),
             emptyList(),
             emptyList(),
-            randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()))
+            randomValueOtherThanMany(m -> m.isTsdb(), () -> randomFrom(IndexMode.availableModes()))
         );
         mappingLookup.validateDoesNotShadow("not_mapped");
         mappingLookup.validateDoesNotShadow("dim");
@@ -190,7 +190,7 @@ public class MappingLookupTests extends ESTestCase {
             List.of(dimMapper, metricMapper, plainMapper),
             emptyList(),
             emptyList(),
-            IndexMode.TIME_SERIES
+            randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB)
         );
         tsMappingLookup.validateDoesNotShadow("not_mapped");
         Exception e = expectThrows(MapperParsingException.class, () -> tsMappingLookup.validateDoesNotShadow("dim"));
@@ -226,12 +226,17 @@ public class MappingLookupTests extends ESTestCase {
             List.of(dimMapper, metricMapper),
             emptyList(),
             List.of(shadowing),
-            randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()))
+            randomValueOtherThanMany(m -> m.isTsdb(), () -> randomFrom(IndexMode.availableModes()))
         );
 
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> createMappingLookup(List.of(dimMapper, metricMapper), emptyList(), List.of(shadowing), IndexMode.TIME_SERIES)
+            () -> createMappingLookup(
+                List.of(dimMapper, metricMapper),
+                emptyList(),
+                List.of(shadowing),
+                randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB)
+            )
         );
         assertThat(
             e.getMessage(),

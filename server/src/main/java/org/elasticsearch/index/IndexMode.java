@@ -129,93 +129,17 @@ public enum IndexMode {
     TIME_SERIES("time_series") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
-                throw new IllegalArgumentException(error(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING));
-            }
-
-            var settingsWithIndexMode = Settings.builder().put(IndexSettings.MODE.getKey(), getName()).build();
-
-            for (Setting<?> unsupported : TIME_SERIES_UNSUPPORTED) {
-                if (false == Objects.equals(unsupported.getDefault(settingsWithIndexMode), settings.get(unsupported))) {
-                    throw new IllegalArgumentException(error(unsupported));
-                }
-            }
-            if (Boolean.TRUE.equals(settings.get(IndexSettings.SLICE_ENABLED))) {
-                throw new IllegalArgumentException(
-                    "The setting ["
-                        + IndexSettings.SLICE_ENABLED.getKey()
-                        + "] cannot be used with ["
-                        + IndexSettings.MODE.getKey()
-                        + "="
-                        + IndexMode.TIME_SERIES.getName()
-                        + "]."
-                );
-            }
-            Setting<List<String>> routingPath = IndexMetadata.INDEX_ROUTING_PATH;
-            if (isEmpty(settings, routingPath) && isEmpty(settings, IndexMetadata.INDEX_DIMENSIONS)) {
-                // index.dimensions is a private setting that only gets populated for data streams.
-                // We don't include it in the error message to not confuse users that are manually creating time series indices
-                // which is the only case where this error can occur.
-                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + routingPath.getKey() + "]");
-            }
-        }
-
-        private static boolean isEmpty(Map<Setting<?>, Object> settings, Setting<List<String>> setting) {
-            return Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting));
-        }
-
-        private static String error(Setting<?> unsupported) {
-            return tsdbMode() + " is incompatible with [" + unsupported.getKey() + "]";
+            validateTimeSeriesSettings(this, settings);
         }
 
         @Override
         public void validateMapping(MappingLookup lookup, Settings settings) {
-            if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
-                throw new IllegalArgumentException(routingRequiredBad());
-            }
-            validateTemporalityField(lookup, settings);
-        }
-
-        private static void validateTemporalityField(MappingLookup lookup, Settings settings) {
-            String temporalityFieldName = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(settings);
-            if (temporalityFieldName == null || temporalityFieldName.isEmpty()) {
-                return;
-            }
-            MappedFieldType fieldType = lookup.getFieldType(temporalityFieldName);
-            if (fieldType == null) {
-                // We silently ignore this case because of composable templates:
-                // composable templates are verified without being merged with the default mapping
-                // This means the temporality field might not exist during verification,
-                // but we'll add it automatically when the index is created through the default mapping
-                return;
-            }
-            if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
-                throw new IllegalArgumentException(
-                    "["
-                        + IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()
-                        + "] field ["
-                        + temporalityFieldName
-                        + "] must be of type [keyword] but is ["
-                        + fieldType.typeName()
-                        + "]"
-                );
-            }
-            if (fieldType.isDimension() == false) {
-                throw new IllegalArgumentException(
-                    "["
-                        + IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()
-                        + "] field ["
-                        + temporalityFieldName
-                        + "] must be a [time_series_dimension]"
-                );
-            }
+            validateTimeSeriesMapping(this, lookup, settings);
         }
 
         @Override
         public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {
-            if (indexRouting != null || searchRouting != null) {
-                throw new IllegalArgumentException(routingRequiredBad());
-            }
+            validateTimeSeriesAlias(this, indexRouting, searchRouting);
         }
 
         @Override
@@ -251,10 +175,6 @@ public enum IndexMode {
         @Override
         public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
             return new TimestampBounds(indexMetadata.getTimeSeriesStart(), indexMetadata.getTimeSeriesEnd());
-        }
-
-        private static String routingRequiredBad() {
-            return "routing is forbidden on CRUD operations that target indices in " + tsdbMode();
         }
 
         @Override
@@ -304,6 +224,87 @@ public enum IndexMode {
         @Override
         public boolean isColumnar() {
             return true;
+        }
+    },
+    /**
+     * Preferred alternative to {@link #TIME_SERIES} with the name {@code tsdb}. Behaves identically
+     * to {@link #TIME_SERIES} in every respect other than {@link #getName()}; existing
+     * {@code time_series} indices are unaffected and {@link #fromString} accepts both spellings.
+     */
+    TSDB("tsdb") {
+        @Override
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            validateTimeSeriesSettings(this, settings);
+        }
+
+        @Override
+        public void validateMapping(MappingLookup lookup, Settings settings) {
+            validateTimeSeriesMapping(this, lookup, settings);
+        }
+
+        @Override
+        public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {
+            validateTimeSeriesAlias(this, indexRouting, searchRouting);
+        }
+
+        @Override
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
+            TIME_SERIES.validateTimestampFieldMapping(isDataStream, mappingLookup);
+        }
+
+        @Override
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            return TIME_SERIES.getDefaultMapping(indexSettings);
+        }
+
+        @Override
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return TIME_SERIES.getTimestampBound(indexMetadata);
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
+            return TIME_SERIES.timeSeriesIdFieldMapper(c);
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            return TIME_SERIES.timeSeriesRoutingHashFieldMapper();
+        }
+
+        @Override
+        public Function<String, String> idTransformerForReindex() {
+            return TIME_SERIES.idTransformerForReindex();
+        }
+
+        @Override
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            return TIME_SERIES.buildRoutingFields(settings);
+        }
+
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return TIME_SERIES.shouldValidateTimestamp();
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
+            TIME_SERIES.validateSourceFieldMapper(sourceFieldMapper);
+        }
+
+        @Override
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return TIME_SERIES.defaultSourceMode();
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return TIME_SERIES.isColumnar();
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return INDEX_MODE_TSDB_ADDED;
         }
     },
     LOGSDB("logsdb") {
@@ -816,6 +817,122 @@ public enum IndexMode {
         IndexSortConfig.INDEX_SORT_MISSING_SETTING
     );
 
+    /**
+     * Shared {@code validateWithOtherSettings} implementation for {@link #TIME_SERIES} and {@link #TSDB}, which
+     * must reject the same incompatible settings identically. Takes the calling {@code mode} explicitly rather
+     * than relying on {@code this} inside a shared method body, since delegating straight from {@code TSDB} to
+     * {@code TIME_SERIES.validateWithOtherSettings(...)} would leave {@code getName()} always resolving to
+     * {@code "time_series"}, even while validating a {@code tsdb}-mode index. Error messages report the mode
+     * that was actually configured, so a {@code tsdb}-mode index is told about {@code index.mode=tsdb}, not
+     * the canonical {@code time_series} name.
+     */
+    private static void validateTimeSeriesSettings(IndexMode mode, Map<Setting<?>, Object> settings) {
+        if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
+            throw new IllegalArgumentException(unsupportedTimeSeriesSettingError(mode, IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING));
+        }
+
+        var settingsWithIndexMode = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+
+        for (Setting<?> unsupported : TIME_SERIES_UNSUPPORTED) {
+            if (false == Objects.equals(unsupported.getDefault(settingsWithIndexMode), settings.get(unsupported))) {
+                throw new IllegalArgumentException(unsupportedTimeSeriesSettingError(mode, unsupported));
+            }
+        }
+        if (Boolean.TRUE.equals(settings.get(IndexSettings.SLICE_ENABLED))) {
+            throw new IllegalArgumentException(
+                "The setting ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] cannot be used with ["
+                    + IndexSettings.MODE.getKey()
+                    + "="
+                    + mode.getName()
+                    + "]."
+            );
+        }
+        Setting<List<String>> routingPath = IndexMetadata.INDEX_ROUTING_PATH;
+        if (isDefaultRoutingPathSetting(settings, routingPath) && isDefaultRoutingPathSetting(settings, IndexMetadata.INDEX_DIMENSIONS)) {
+            // index.dimensions is a private setting that only gets populated for data streams.
+            // We don't include it in the error message to not confuse users that are manually creating time series indices
+            // which is the only case where this error can occur.
+            throw new IllegalArgumentException(
+                "[" + IndexSettings.MODE.getKey() + "=" + mode.getName() + "] requires a non-empty [" + routingPath.getKey() + "]"
+            );
+        }
+    }
+
+    private static boolean isDefaultRoutingPathSetting(Map<Setting<?>, Object> settings, Setting<List<String>> setting) {
+        return Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting));
+    }
+
+    private static String unsupportedTimeSeriesSettingError(IndexMode mode, Setting<?> unsupported) {
+        return "[" + IndexSettings.MODE.getKey() + "=" + mode.getName() + "] is incompatible with [" + unsupported.getKey() + "]";
+    }
+
+    /**
+     * Shared {@code validateMapping} implementation for {@link #TIME_SERIES} and {@link #TSDB}. Takes the
+     * calling {@code mode} explicitly (see {@link #validateTimeSeriesSettings}) so the routing-required
+     * error names the mode that was actually configured.
+     */
+    private static void validateTimeSeriesMapping(IndexMode mode, MappingLookup lookup, Settings settings) {
+        if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
+            throw new IllegalArgumentException(routingRequiredBad(mode));
+        }
+        validateTemporalityField(lookup, settings);
+    }
+
+    private static void validateTemporalityField(MappingLookup lookup, Settings settings) {
+        String temporalityFieldName = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(settings);
+        if (temporalityFieldName == null || temporalityFieldName.isEmpty()) {
+            return;
+        }
+        MappedFieldType fieldType = lookup.getFieldType(temporalityFieldName);
+        if (fieldType == null) {
+            // We silently ignore this case because of composable templates:
+            // composable templates are verified without being merged with the default mapping
+            // This means the temporality field might not exist during verification,
+            // but we'll add it automatically when the index is created through the default mapping
+            return;
+        }
+        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()
+                    + "] field ["
+                    + temporalityFieldName
+                    + "] must be of type [keyword] but is ["
+                    + fieldType.typeName()
+                    + "]"
+            );
+        }
+        if (fieldType.isDimension() == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()
+                    + "] field ["
+                    + temporalityFieldName
+                    + "] must be a [time_series_dimension]"
+            );
+        }
+    }
+
+    /**
+     * Shared {@code validateAlias} implementation for {@link #TIME_SERIES} and {@link #TSDB}. See
+     * {@link #validateTimeSeriesSettings} for why {@code mode} is passed explicitly.
+     */
+    private static void validateTimeSeriesAlias(IndexMode mode, @Nullable String indexRouting, @Nullable String searchRouting) {
+        if (indexRouting != null || searchRouting != null) {
+            throw new IllegalArgumentException(routingRequiredBad(mode));
+        }
+    }
+
+    private static String routingRequiredBad(IndexMode mode) {
+        return "routing is forbidden on CRUD operations that target indices in ["
+            + IndexSettings.MODE.getKey()
+            + "="
+            + mode.getName()
+            + "]";
+    }
+
     static final List<Setting<?>> VALIDATE_WITH_SETTINGS = List.copyOf(
         Stream.concat(
             Stream.of(
@@ -833,6 +950,7 @@ public enum IndexMode {
     );
 
     public static final TransportVersion COLUMNAR_INDEX_MODES_ADDED = TransportVersion.fromName("columnar_index_modes_added");
+    public static final TransportVersion INDEX_MODE_TSDB_ADDED = TransportVersion.fromName("index_mode_tsdb_added");
 
     /**
      * Returns the minimum transport version a recipient node must run to deserialize this index mode.
@@ -963,10 +1081,11 @@ public enum IndexMode {
     }
 
     /**
-     * Whether this index mode represents a time series (tsdb) index.
+     * Whether this index mode represents a time series (tsdb) index, regardless of whether it
+     * was declared as {@code time_series} or {@code tsdb}.
      */
     public boolean isTsdb() {
-        return this == TIME_SERIES;
+        return this == TIME_SERIES || this == TSDB;
     }
 
     /**
@@ -980,11 +1099,13 @@ public enum IndexMode {
 
     /**
      * Whether the given raw {@code index.mode} setting value names a time series (tsdb) index
-     * mode, case-insensitively. Use this instead of comparing against {@link #TIME_SERIES}'s
-     * {@link #getName()} directly when the value hasn't been parsed with {@link #fromString} yet.
+     * mode, accepting both {@code time_series} and {@code tsdb},
+     * case-insensitively. Use this instead of comparing against {@link #TIME_SERIES}'s or
+     * {@link #TSDB}'s {@link #getName()} directly when the value hasn't been parsed with
+     * {@link #fromString} yet.
      */
     public static boolean isTsdbName(@Nullable String name) {
-        return name != null && TIME_SERIES.getName().equalsIgnoreCase(name);
+        return name != null && (TIME_SERIES.getName().equalsIgnoreCase(name) || TSDB.getName().equalsIgnoreCase(name));
     }
 
     /**
@@ -994,6 +1115,7 @@ public enum IndexMode {
         IndexMode mode = switch (value.toLowerCase(Locale.ROOT)) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
+            case "tsdb" -> IndexMode.TSDB;
             case "logsdb" -> IndexMode.LOGSDB;
             case "columnar" -> IndexMode.COLUMNAR;
             case "logsdb_columnar" -> IndexMode.LOGSDB_COLUMNAR;
@@ -1032,6 +1154,7 @@ public enum IndexMode {
             case 4 -> COLUMNAR;
             case 5 -> LOGSDB_COLUMNAR;
             case 6 -> VECTORDB_DOCUMENT;
+            case 7 -> TSDB;
             default -> throw new IllegalStateException("unexpected index mode [" + mode + "]");
         };
     }
@@ -1053,6 +1176,7 @@ public enum IndexMode {
             case COLUMNAR -> 4;
             case LOGSDB_COLUMNAR -> 5;
             case VECTORDB_DOCUMENT -> 6;
+            case TSDB -> 7;
         };
         out.writeByte((byte) code);
     }

@@ -116,10 +116,10 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         IndexCommit previousCommit = null;
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
-                String docId1 = indexMode == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(1) : "docId1";
+                String docId1 = indexMode.isTsdb() ? TimeSeriesRoutingHashFieldMapper.encode(1) : "docId1";
                 long timestamp1 = randomLongBetween(10_000L, 1_000_000L);
                 indexWriter.addDocument(mapper.parse(source(docId1, b -> { b.field("@timestamp", timestamp1); }, null)).rootDoc());
-                String docId2 = indexMode == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(2) : "docId2";
+                String docId2 = indexMode.isTsdb() ? TimeSeriesRoutingHashFieldMapper.encode(2) : "docId2";
                 long timestamp2 = randomLongBetween(10_000L, 1_000_000L);
                 indexWriter.addDocument(mapper.parse(source(docId2, b -> { b.field("@timestamp", timestamp2); }, null)).rootDoc());
                 boolean doc1Deleted = randomBoolean();
@@ -139,12 +139,12 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                     );
                     previousCommit = currentCommit;
                 }
-                String docId3 = indexMode == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(3) : "docId3";
+                String docId3 = indexMode.isTsdb() ? TimeSeriesRoutingHashFieldMapper.encode(3) : "docId3";
                 long timestamp3 = randomLongBetween(10_000L, 1_000_000L);
                 indexWriter.addDocument(mapper.parse(source(docId3, b -> { b.field("@timestamp", timestamp3); }, null)).rootDoc());
                 // create a 1-doc segment
                 indexWriter.flush();
-                String docId4 = indexMode == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(4) : "docId4";
+                String docId4 = indexMode.isTsdb() ? TimeSeriesRoutingHashFieldMapper.encode(4) : "docId4";
                 long timestamp4 = randomLongBetween(10_000L, 1_000_000L);
                 indexWriter.addDocument(mapper.parse(source(docId4, b -> { b.field("@timestamp", timestamp4); }, null)).rootDoc());
                 deleteDoc(doc1Deleted ? docId2 : docId1, indexWriter, indexMode, mapper);
@@ -193,7 +193,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                         return List.of(
                             mapper.parse(
                                 source(
-                                    indexMode == IndexMode.TIME_SERIES
+                                    indexMode.isTsdb()
                                         ? TimeSeriesRoutingHashFieldMapper.encode(docId.incrementAndGet())
                                         : String.valueOf(docId.incrementAndGet()),
                                     b -> {
@@ -293,7 +293,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                 for (int i = 0; i < docCount; i++) {
                     // make sure timestamp doesn't look like a year
                     long timestamp = randomLongBetween(10_000L, 1_000_000L);
-                    String docId = indexMode == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(i) : randomUUID();
+                    String docId = indexMode.isTsdb() ? TimeSeriesRoutingHashFieldMapper.encode(i) : randomUUID();
                     indexWriter.addDocument(mapper.parse(source(docId, b -> { b.field("@timestamp", timestamp); }, null)).rootDoc());
                     flushEveryNDocCount--;
                     commitEveryNDocCount--;
@@ -396,12 +396,12 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                     b.field("doc_values", docValues).field("store", allowStore).endObject();
                 }), indexMode);
             }
-        } else if (indexMode == IndexMode.TIME_SERIES) {
-            // TIME_SERIES indexing modes use a fixed mapping for the @timestamp field
+        } else if (indexMode.isTsdb()) {
+            // TIME_SERIES/TSDB indexing modes use a fixed mapping for the @timestamp field
             // Synthetic id need cumbersome special care in test setup so we turn that
             // off in this test
             Settings settings = Settings.builder()
-                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexSettings.MODE.getKey(), indexMode.getName())
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "uid")
                 .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
                 .build();

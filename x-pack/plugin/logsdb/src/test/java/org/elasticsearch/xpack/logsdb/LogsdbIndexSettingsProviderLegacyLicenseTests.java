@@ -129,6 +129,9 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsTsdb() throws IOException {
+        // IndexMode.TSDB is a preferred alternative to IndexMode.TIME_SERIES and must be treated identically by the
+        // legacy license check in LogsdbIndexModeSettingsProvider#isLegacyLicensedUsageOfSyntheticSourceAllowed.
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
@@ -136,7 +139,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider.provideAdditionalSettings(
             indexName,
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            mode,
             null,
             null,
             settings,
@@ -172,6 +175,9 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             true
         );
 
+        // IndexMode.TSDB is a preferred alternative to IndexMode.TIME_SERIES and must be treated identically by the
+        // legacy license check.
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
@@ -179,7 +185,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider.provideAdditionalSettings(
             indexName,
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            mode,
             null,
             null,
             settings,

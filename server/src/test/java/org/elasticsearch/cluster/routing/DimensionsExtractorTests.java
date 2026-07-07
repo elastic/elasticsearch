@@ -144,6 +144,32 @@ public class DimensionsExtractorTests extends ESTestCase {
         assertThat("tsid should be attached to the IndexRequest after extraction", req.tsid(), notNullValue());
     }
 
+    /**
+     * {@code index.mode: tsdb} is a preferred alternative to {@code time_series}; it must select the same
+     * {@link IndexRouting.ExtractFromSource.ForIndexDimensions} strategy and produce byte-identical tsids
+     * and shard assignments.
+     */
+    public void testTsdbProducesSameTsidAsTimeSeries() throws IOException {
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("dim.host", "node-7");
+        doc.put("dim.region", "us-west-2");
+        doc.put("metric", "cpu.user");
+        BytesReference json = toJson(doc);
+
+        IndexRouting.ExtractFromSource.ForIndexDimensions timeSeriesStrategy = forIndexDimensions("dim.*", IndexMode.TIME_SERIES);
+        IndexRequest timeSeriesReq = new IndexRequest("test").id("d1").source(json, XContentType.JSON);
+        timeSeriesStrategy.preProcess(timeSeriesReq);
+        int timeSeriesShardId = timeSeriesStrategy.indexShard(timeSeriesReq);
+
+        IndexRouting.ExtractFromSource.ForIndexDimensions tsdbStrategy = forIndexDimensions("dim.*", IndexMode.TSDB);
+        IndexRequest tsdbReq = new IndexRequest("test").id("d1").source(json, XContentType.JSON);
+        tsdbStrategy.preProcess(tsdbReq);
+        int tsdbShardId = tsdbStrategy.indexShard(tsdbReq);
+
+        assertThat("tsid must be identical for time_series and tsdb", tsdbReq.tsid(), equalTo(timeSeriesReq.tsid()));
+        assertThat("shard id must be identical for time_series and tsdb", tsdbShardId, equalTo(timeSeriesShardId));
+    }
+
     public void testResetClearsBuilderBetweenDocuments() throws IOException {
         IndexRouting.ExtractFromSource.ForIndexDimensions strategyA = forIndexDimensions("dim.*");
         IndexRouting.ExtractFromSource.ForIndexDimensions strategyB = forIndexDimensions("dim.*");
@@ -200,10 +226,14 @@ public class DimensionsExtractorTests extends ESTestCase {
     }
 
     private static IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions(String dimensionPath) {
+        return forIndexDimensions(dimensionPath, randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB));
+    }
+
+    private static IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions(String dimensionPath, IndexMode indexMode) {
         Settings settings = Settings.builder()
             .put(SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
             .put(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensionPath)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexSettings.MODE.getKey(), indexMode)
             .build();
         IndexMetadata md = IndexMetadata.builder("test").settings(settings).numberOfShards(8).numberOfReplicas(0).build();
         IndexRouting routing = IndexRouting.fromIndexMetadata(md);

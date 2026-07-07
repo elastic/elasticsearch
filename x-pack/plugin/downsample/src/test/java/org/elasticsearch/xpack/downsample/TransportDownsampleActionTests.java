@@ -499,7 +499,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
             .settings(
                 indexSettings(IndexVersion.current(), randomUUID(), primaryShards, replicaShards).put(
                     IndexSettings.MODE.getKey(),
-                    IndexMode.TIME_SERIES.getName()
+                    randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB).getName()
                 )
                     .put("index.routing_path", "dimensions")
                     .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)

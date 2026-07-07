@@ -37,6 +37,11 @@ public class CreateIndexCapabilities {
      */
     private static final String VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY = "vectordb_document_index_mode";
 
+    /**
+     * Support for the 'tsdb' index mode
+     */
+    private static final String TSDB_INDEX_MODE_CAPABILITY = "tsdb_index_mode";
+
     private static final String NESTED_DENSE_VECTOR_SYNTHETIC_TEST = "nested_dense_vector_synthetic_test";
 
     private static final String POORLY_FORMATTED_BAD_REQUEST = "poorly_formatted_bad_request";
@@ -63,6 +68,7 @@ public class CreateIndexCapabilities {
         );
         caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
         caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
+        caps.add(TSDB_INDEX_MODE_CAPABILITY);
         CAPABILITIES = Set.copyOf(caps);
     }
 }

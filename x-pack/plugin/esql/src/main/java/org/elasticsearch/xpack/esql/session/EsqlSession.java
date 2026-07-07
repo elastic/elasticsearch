@@ -33,7 +33,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
@@ -2005,14 +2005,20 @@ public class EsqlSession {
         );
     }
 
-    private static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
-        return switch (indexMode) {
-            case IndexMode.TIME_SERIES -> {
-                var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                yield requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
-            }
-            default -> requestFilter;
-        };
+    // visible for testing
+    static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
+        if (IndexMode.isTsdb(indexMode)) {
+            // Match both values: the requested indexMode is a fixed sentinel (e.g. the TS command always
+            // declares IndexMode.TIME_SERIES), but the concrete backing indices may be configured with
+            // either [index.mode=time_series] or [index.mode=tsdb].
+            var indexModeFilter = new TermsQueryBuilder(
+                IndexModeFieldMapper.NAME,
+                IndexMode.TIME_SERIES.getName(),
+                IndexMode.TSDB.getName()
+            );
+            return requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
+        }
+        return requestFilter;
     }
 
     // visible for testing

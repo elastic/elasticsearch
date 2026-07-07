@@ -225,7 +225,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         for (int i = 0; i < numIterations; i++) {
             var indexMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES);
             String mapping = randomFrom(METRIC_MAPPING, MULTI_METRIC_MAPPING, LOGS_MAPPING);
-            final boolean randomSyntheticId = syntheticId(indexMode.equals(IndexMode.TIME_SERIES));
+            final boolean randomSyntheticId = syntheticId(indexMode.isTsdb());
             PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
                 randomBoolean(),
                 randomBoolean(),
@@ -409,7 +409,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     ) throws IOException {
         Settings.Builder settings = Settings.builder();
         settings.put(IndexSettings.MODE.getKey(), mode);
-        if (mode == IndexMode.TIME_SERIES) {
+        if (mode.isTsdb()) {
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         }
         if (syntheticId != null) {
@@ -444,7 +444,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         for (IndexMode mode : INDEX_MODES_UNDER_TEST) {
             final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(mode, mappingFor(mode), IndexVersion.current());
             final DocValuesFormat format = supplier.getDocValuesFormatForField(fieldFor(mode));
-            if (mode == IndexMode.TIME_SERIES) {
+            if (mode.isTsdb()) {
                 assertThat("mode=" + mode, format, instanceOf(ES95TSDBDocValuesFormat.class));
             } else {
                 assertFalse("mode=" + mode + " expected non-ES95", format instanceof ES95TSDBDocValuesFormat);
@@ -520,7 +520,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         final Settings.Builder settings = Settings.builder();
         settings.put(IndexSettings.MODE.getKey(), mode);
         settings.put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion);
-        if (mode == IndexMode.TIME_SERIES) {
+        if (mode.isTsdb()) {
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         }
         if (useTimeSeriesDocValuesFormat) {

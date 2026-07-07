@@ -575,6 +575,7 @@ public final class DataStreamTestHelper {
         String dataStreamName,
         List<Tuple<Instant, Instant>> timeSlices
     ) {
+        IndexMode indexMode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         List<IndexMetadata> backingIndices = new ArrayList<>();
         DataStream existing = builder.dataStream(dataStreamName);
         if (existing != null) {
@@ -587,7 +588,7 @@ public final class DataStreamTestHelper {
             Instant start = tuple.v1();
             Instant end = tuple.v2();
             Settings settings = Settings.builder()
-                .put("index.mode", "time_series")
+                .put("index.mode", indexMode.getName())
                 .put("index.routing_path", "uid")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
@@ -600,7 +601,7 @@ public final class DataStreamTestHelper {
         var dataStreamBuilder = DataStream.builder(
             dataStreamName,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
-        ).setGeneration(generation).setIndexMode(IndexMode.TIME_SERIES);
+        ).setGeneration(generation).setIndexMode(indexMode);
         if (existing != null) {
             dataStreamBuilder.setMetadata(existing.getMetadata())
                 .setHidden(existing.isHidden())

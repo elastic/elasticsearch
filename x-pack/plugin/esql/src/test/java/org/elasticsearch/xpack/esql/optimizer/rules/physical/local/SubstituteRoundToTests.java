@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
@@ -27,11 +28,14 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -43,7 +47,11 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -80,8 +88,14 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
@@ -996,6 +1010,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
      * {@link PushExpressionsToFieldLoadTests#testRoundToInTsEval} and friends.
      */
     public void testRoundToWithTimeSeriesIndices() {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         Map<String, Object> minValue = Map.of(
             "@timestamp",
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T12:15:03.360Z")
@@ -1008,14 +1023,12 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
             @Override
             public Map<ShardId, IndexMetadata> targetShards() {
                 var indexMetadata = IndexMetadata.builder("test_index")
-                    .settings(
-                        ESTestCase.indexSettings(IndexVersion.current(), 1, 1)
-                            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                    )
+                    .settings(ESTestCase.indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), mode.getName()))
                     .build();
                 return Map.of(new ShardId(new Index("id", "n/a"), 1), indexMetadata);
             }
         };
+        TestPlannerOptimizer optimizer = plannerOptimizerForMode(mode);
         // enable filter-by-filter for rate aggregations
         {
             String q = """
@@ -1023,7 +1036,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                 | STATS max(rate(network.total_bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
                 | LIMIT 10
                 """;
-            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+            PhysicalPlan plan = optimizer.plan(q, searchStats);
             int queryAndTags = plainQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(4));
         }
@@ -1034,10 +1047,45 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                 | STATS max(avg_over_time(network.bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
                 | LIMIT 10
                 """;
-            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+            PhysicalPlan plan = optimizer.plan(q, searchStats);
             int queryAndTags = plainQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(1));
         }
+    }
+
+    /**
+     * Directly exercises {@link ReplaceRoundToWithQueryAndTags#adjustedRoundingPointsThreshold}: since
+     * {@link IndexMode#TSDB} is a preferred alternative to {@link IndexMode#TIME_SERIES}, both must double the
+     * rounding points threshold identically.
+     */
+    public void testAdjustedRoundingPointsThreshold() {
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
+        int threshold = between(1, 1000);
+        int adjustedThreshold = ReplaceRoundToWithQueryAndTags.adjustedRoundingPointsThreshold(searchStats, threshold, null, mode);
+        assertThat(adjustedThreshold, equalTo(threshold * 2));
+    }
+
+    // Builds an analyzer/planner pair mirroring AbstractLocalPhysicalPlanOptimizerTests#init's
+    // plannerOptimizerTimeSeries/timeSeriesAnalyzer, but resolving the "k8s" index with the given
+    // IndexMode, so tests can verify IndexMode.TSDB is handled identically to IndexMode.TIME_SERIES.
+    private TestPlannerOptimizer plannerOptimizerForMode(IndexMode mode) {
+        var timeSeriesMapping = loadMapping("k8s-mappings.json");
+        var timeSeriesIndex = IndexResolution.valid(EsIndexGenerator.esIndex("k8s", timeSeriesMapping, Map.of("k8s", mode)));
+        Analyzer analyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                TEST_FUNCTION_REGISTRY,
+                indexResolutions(timeSeriesIndex),
+                new EnrichResolution(),
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+        return new TestPlannerOptimizer(
+            config,
+            analyzer,
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
+        );
     }
 
     /**

@@ -269,12 +269,10 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
             assertThat(branchingStep.getNextStepKey(), is(nextStepKey));
         }
         {
-            // time series indices execute the action
+            // time series indices execute the action, regardless of the index mode alias used
             BranchingStep branchingStep = getFirstBranchingStep(action, phase, nextStepKey, withForceMerge);
-            Settings settings = Settings.builder()
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .put("index.routing_path", "uid")
-                .build();
+            IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode).put("index.routing_path", "uid").build();
             IndexMetadata indexMetadata = newIndexMeta("test", settings);
 
             ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
@@ -283,10 +281,11 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
             assertThat(branchingStep.getNextStepKey().name(), is(CheckNotDataStreamWriteIndexStep.NAME));
         }
         {
-            // already downsampled indices for the interval skip the action
+            // already downsampled indices for the interval skip the action, regardless of the index mode alias used
             BranchingStep branchingStep = getFirstBranchingStep(action, phase, nextStepKey, withForceMerge);
+            IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
             Settings settings = Settings.builder()
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put(IndexSettings.MODE.getKey(), mode)
                 .put("index.routing_path", "uid")
                 .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY, IndexMetadata.DownsampleTaskStatus.SUCCESS)
                 .put(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey(), "test")

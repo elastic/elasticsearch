@@ -260,15 +260,21 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("unknown setting [index.slice.enabled]"));
     }
 
+    /**
+     * {@code index.mode: tsdb} must be rejected exactly like {@code time_series}, and the rejection
+     * message must name the mode that was actually configured, not always the canonical
+     * {@code time_series} name.
+     */
     public void testSliceEnabledSettingRejectedForTimeSeriesMode() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new IndexSettings(
                 newIndexMeta(
                     "index",
                     Settings.builder()
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                        .put(IndexSettings.MODE.getKey(), mode.getName())
                         .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
                         .put(IndexSettings.SLICE_ENABLED.getKey(), true)
                         .build()
@@ -278,7 +284,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString("index.slice.enabled"));
         assertThat(exception.getMessage(), containsString("index.mode"));
-        assertThat(exception.getMessage(), containsString("time_series"));
+        assertThat(exception.getMessage(), containsString(mode.getName()));
     }
 
     @TestLogging(reason = "testing warning logging", value = "org.elasticsearch.index.IndexSettings:WARN")
@@ -998,7 +1004,7 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
         );
-        IndexMode mode = IndexMode.TIME_SERIES;
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
             ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
             : CodecService.DEFAULT_CODEC;
@@ -1021,7 +1027,7 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
             IndexVersion.current()
         );
-        IndexMode mode = IndexMode.TIME_SERIES;
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
             ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
             : CodecService.DEFAULT_CODEC;
@@ -1040,7 +1046,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testSyntheticIdDefaultValueFalse() {
         IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
-        IndexMode mode = IndexMode.TIME_SERIES;
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         String codec = CodecService.DEFAULT_CODEC;
 
         Settings settings = Settings.builder()
@@ -1128,7 +1134,7 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
         );
-        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
+        IndexMode badMode = randomValueOtherThanMany(m -> m.isTsdb(), () -> randomFrom(IndexMode.availableModes()));
         String codec = CodecService.DEFAULT_CODEC;
 
         Settings settings = Settings.builder()
@@ -1144,10 +1150,11 @@ public class IndexSettingsTests extends ESTestCase {
             Matchers.containsString(
                 String.format(
                     Locale.ROOT,
-                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                    "The setting [%s] is only permitted when [%s] is set to [%s] or [%s]. Current mode: [%s].",
                     IndexSettings.SYNTHETIC_ID.getKey(),
                     IndexSettings.MODE.getKey(),
                     IndexMode.TIME_SERIES.name(),
+                    IndexMode.TSDB.name(),
                     badMode.name()
                 )
             )
@@ -1204,14 +1211,14 @@ public class IndexSettingsTests extends ESTestCase {
     public void testDisableSequenceNumbersRequiresDocValuesOnlyForNonStandardModes() {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
-        List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
+        List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.TSDB, IndexMode.LOGSDB));
         modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
         IndexMode mode = randomFrom(modes);
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES)
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
-        if (mode == IndexMode.TIME_SERIES) {
+        if (mode.isTsdb()) {
             builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
         }
         IndexMetadata indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
@@ -1295,7 +1302,7 @@ public class IndexSettingsTests extends ESTestCase {
         // All other modes default to true (text + keyword subfield)
         for (IndexMode otherMode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES)) {
             Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), otherMode.getName());
-            if (otherMode == IndexMode.TIME_SERIES) {
+            if (otherMode.isTsdb()) {
                 builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
             }
             IndexSettings indexSettings = new IndexSettings(newIndexMeta(otherMode.getName() + "-index", builder.build()), Settings.EMPTY);

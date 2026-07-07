@@ -157,9 +157,14 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    /**
+     * The {@code tsdb} index mode is equivalent to {@code time_series} (see {@link IndexMode#isTsdb()})
+     * so it must produce the same doc-values-only defaulting for metric fields.
+     */
     public void testTimeSeriesIndexDefault() throws Exception {
         var positionMetricType = TimeSeriesParams.MetricType.POSITION;
-        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+        var mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), mode.getName())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
         var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
             minimalMapping(b);

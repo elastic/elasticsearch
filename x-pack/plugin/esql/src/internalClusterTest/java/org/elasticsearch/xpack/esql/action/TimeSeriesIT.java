@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.Randomness;
@@ -76,6 +77,91 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             )
             .get();
         run("TS empty_index | LIMIT 1").close();
+    }
+
+    public void testTsdbModeProbe() throws Exception {
+        Settings settings = Settings.builder().put("mode", "tsdb").putList("routing_path", List.of("host")).build();
+        client().admin()
+            .indices()
+            .prepareCreate("hosts_tsdb_probe")
+            .setSettings(settings)
+            .setMapping(
+                "@timestamp",
+                "type=date",
+                "host",
+                "type=keyword,time_series_dimension=true",
+                "cpu",
+                "type=double,time_series_metric=gauge"
+            )
+            .get();
+        long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex("hosts_tsdb_probe")
+                .setSource("@timestamp", timestamp + i * 1000, "host", "h" + (i % 2), "cpu", (double) i)
+                .get();
+        }
+        client().admin().indices().prepareRefresh("hosts_tsdb_probe").get();
+        try (EsqlQueryResponse resp = run("TS hosts_tsdb_probe METADATA _index_mode | STATS load=avg(cpu) BY host | SORT host")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(2));
+        }
+        try (EsqlQueryResponse resp = run("TS hosts_tsdb_probe METADATA _index_mode, _index | STATS BY _index, _index_mode")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, equalTo(List.of(List.of("hosts_tsdb_probe", "tsdb"))));
+        }
+        // mixed wildcard: "hosts" fixture is mode=time_series, "hosts_tsdb_probe" is mode=tsdb
+        try (EsqlQueryResponse resp = run("TS hosts* METADATA _index_mode, _index | STATS BY _index, _index_mode | SORT _index")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, equalTo(List.of(List.of("hosts", "time_series"), List.of("hosts_tsdb_probe", "tsdb"))));
+        }
+    }
+
+    /**
+     * Mirrors how a real data stream ends up with backing indices in both spellings after migrating
+     * to the new preferred {@code tsdb} spelling (e.g. OTel/Prometheus streams, see docs/changelog/152901.yaml):
+     * a single logical name (here, an alias) fronting one {@code time_series}-mode index and one
+     * {@code tsdb}-mode index. {@code TS name}, a concrete (non-wildcard) request, must resolve both.
+     */
+    public void testTsdbModeProbeMixedAlias() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "@timestamp": { "type": "date" },
+                "host": { "type": "keyword", "time_series_dimension": true },
+                "cpu": { "type": "double", "time_series_metric": "gauge" }
+              }
+            }
+            """;
+        client().admin()
+            .indices()
+            .prepareCreate("hosts_mixed_alias_v1")
+            .setSettings(
+                Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").putList("routing_path", List.of("host")).build()
+            )
+            .setMapping(mapping)
+            .addAlias(new Alias("hosts_mixed_alias"))
+            .get();
+        client().admin()
+            .indices()
+            .prepareCreate("hosts_mixed_alias_v2")
+            .setSettings(Settings.builder().put(IndexSettings.MODE.getKey(), "tsdb").putList("routing_path", List.of("host")).build())
+            .setMapping(mapping)
+            .addAlias(new Alias("hosts_mixed_alias"))
+            .get();
+        client().prepareIndex("hosts_mixed_alias_v1").setSource("@timestamp", "2024-04-15T00:00:00Z", "host", "h0", "cpu", 1.0).get();
+        client().prepareIndex("hosts_mixed_alias_v2").setSource("@timestamp", "2024-04-15T01:00:00Z", "host", "h1", "cpu", 2.0).get();
+        client().admin().indices().prepareRefresh("hosts_mixed_alias").get();
+
+        try (
+            EsqlQueryResponse resp = run("TS hosts_mixed_alias METADATA _index_mode, _index | STATS BY _index, _index_mode | SORT _index")
+        ) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, equalTo(List.of(List.of("hosts_mixed_alias_v1", "time_series"), List.of("hosts_mixed_alias_v2", "tsdb"))));
+        }
+        try (EsqlQueryResponse resp = run("TS hosts_mixed_alias | STATS total=sum(cpu)")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, equalTo(List.of(List.of(3.0))));
+        }
     }
 
     record Doc(

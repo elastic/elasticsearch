@@ -778,16 +778,17 @@ public final class IndexSettings {
         @Override
         public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
             if (enabled) {
-                // Verify if index mode is TIME_SERIES
+                // Verify if index mode is a time series mode (TIME_SERIES or TSDB)
                 var indexMode = (IndexMode) settings.get(MODE);
                 if (indexMode.isTsdb() == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
-                            "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                            "The setting [%s] is only permitted when [%s] is set to [%s] or [%s]. Current mode: [%s].",
                             SYNTHETIC_ID.getKey(),
                             MODE.getKey(),
                             IndexMode.TIME_SERIES.name(),
+                            IndexMode.TSDB.name(),
                             indexMode.name()
                         )
                     );

@@ -8302,11 +8302,17 @@ public class InternalEngineTests extends EngineTestCase {
     public void testIndexBatchTimeSeriesPhase2() throws IOException {
         // planPrimarySubBatch Phase 2 uses timeSeriesBatchLoadDocIdAndVersion for TIME_SERIES
         // indices, which does a single sorted segment scan with timestamp-based segment skipping.
+        // IndexMode.TSDB is a preferred alternative to TIME_SERIES (delegates isTsdb() etc. to
+        // TIME_SERIES), so it must exercise the exact same batch phase 2 behavior.
+        runIndexBatchTimeSeriesPhase2(randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB));
+    }
+
+    private void runIndexBatchTimeSeriesPhase2(IndexMode mode) throws IOException {
         IndexSettings tsSettings = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder()
                 .put(defaultSettings.getSettings())
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .put(IndexSettings.MODE.getKey(), mode.getName())
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
                 .build()
         );

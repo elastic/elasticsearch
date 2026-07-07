@@ -51,6 +51,10 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
         assertThat(DLM_ONLY.getEligibleWriteWindowStart(dataStream, project, null, randomNonNegativeLong()), equalTo(-1L));
     }
 
+    /**
+     * IndexMode.TSDB is a preferred alternative to IndexMode.TIME_SERIES, so a data stream configured
+     * with either mode must be treated identically by the eligible write window logic.
+     */
     public void testWriteWindowDefinedByRetention() {
         // Configured retention
         {
@@ -137,6 +141,9 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
 
     private static DataStream dataStream(String name, DataStreamLifecycle lifecycle) {
         Index index = new Index(DataStream.getDefaultBackingIndexName(name, 1), randomAlphaOfLength(10));
-        return DataStream.builder(name, List.of(index)).setLifecycle(lifecycle).setIndexMode(IndexMode.TIME_SERIES).build();
+        return DataStream.builder(name, List.of(index))
+            .setLifecycle(lifecycle)
+            .setIndexMode(randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB))
+            .build();
     }
 }

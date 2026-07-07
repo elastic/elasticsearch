@@ -53,7 +53,7 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         );
         for (IndexMode mode : indexModesUnderTest()) {
             final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, version, true), null);
-            if (mode == IndexMode.TIME_SERIES) {
+            if (mode.isTsdb()) {
                 assertThat("mode=" + mode + " version=" + version, format.getName(), equalTo(ES95_CODEC_NAME));
             } else {
                 assertThat("mode=" + mode + " version=" + version, format.getName(), startsWith("ES819"));
@@ -98,7 +98,7 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         if (mode != IndexMode.STANDARD) {
             builder.put("index.mode", mode.getName());
         }
-        if (mode == IndexMode.TIME_SERIES) {
+        if (mode.isTsdb()) {
             builder.put("index.routing_path", "dimension");
         }
         if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {

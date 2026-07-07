@@ -850,7 +850,12 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             @Override
             public Map<ShardId, IndexMetadata> targetShards() {
                 IndexMetadata indexMetadata = IndexMetadata.builder("k8s")
-                    .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name()))
+                    .settings(
+                        indexSettings(IndexVersion.current(), 1, 1).put(
+                            IndexSettings.MODE.getKey(),
+                            randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB).name()
+                        )
+                    )
                     .build();
                 return Map.of(new ShardId(new Index("k8s", "n/a"), 0), indexMetadata);
             }

@@ -2719,8 +2719,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitTimestampSortForTsQuery() {
-        // TS query without STATS or SORT should have implicit sort
-        var plan = tsdb().query("TS test");
+        // TS query without STATS or SORT should have implicit sort. AddImplicitTimestampSort is
+        // gated on IndexMode#isTsdb(), so this exercises both IndexMode.TIME_SERIES and
+        // IndexMode.TSDB, which must be treated identically.
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json", mode).query("TS test");
 
         var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
@@ -4988,10 +4991,13 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitCastingForAggregateMetricDouble() {
+        // ImplicitCastAggregateMetricDoubles is gated on IndexMode#isTsdb(), so the TS branch below
+        // exercises both IndexMode.TIME_SERIES and IndexMode.TSDB, which must be treated identically.
         assumeTrue(
             "aggregate metric double implicit casting must be available",
             EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()
         );
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.TSDB);
         Map<String, EsField> mapping = Map.of(
             "@timestamp",
             new EsField("@timestamp", DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
@@ -5001,13 +5007,7 @@ public class AnalyzerTests extends ESTestCase {
             new InvalidMappedField("metric_field", Map.of("aggregate_metric_double", Set.of("k8s-downsampled"), "double", Set.of("k8s")))
         );
 
-        var esIndex = new EsIndex(
-            "k8s,k8s-downsampled",
-            mapping,
-            Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
-            Map.of(),
-            Map.of()
-        );
+        var esIndex = new EsIndex("k8s,k8s-downsampled", mapping, Map.of("k8s", mode, "k8s-downsampled", mode), Map.of(), Map.of());
         var testAnalyzer = analyzer().addIndex(esIndex);
         var stddevPlan = testAnalyzer.query("""
             from k8s,k8s-downsampled | stats std_dev = std_dev(metric_field)

@@ -154,17 +154,21 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testIndexModeNonStandardRejected() {
-        // Note on coverage: only TIME_SERIES (via TS) and LOOKUP (via LOOKUP JOIN) are user-reachable
+        // Note on coverage: only TIME_SERIES/TSDB (via TS) and LOOKUP (via LOOKUP JOIN) are user-reachable
         // through ESQL syntax; LOGSDB has no user-syntax path that constructs an UnresolvedRelation
         // with IndexMode.LOGSDB pointing at a dataset name. The LOGSDB branch is defensive code for
         // any future path that might set it. There is no IT analogue for LOGSDB — this unit case
         // pins the rejection-message contract.
+        // TSDB is included alongside TIME_SERIES to prove "index.mode: tsdb" is rejected
+        // with the exact same message, since IndexMode.TSDB behaves identically to TIME_SERIES.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         Map<IndexMode, String> expectedFragments = Map.of(
             IndexMode.TIME_SERIES,
+            "TS command is not supported for datasets",
+            IndexMode.TSDB,
             "TS command is not supported for datasets",
             IndexMode.LOOKUP,
             "LOOKUP JOIN against a dataset is not supported",

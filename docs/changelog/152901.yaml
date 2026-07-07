@@ -1,0 +1,16 @@
+area: TSDB
+highlight:
+  body: |-
+    Introduce `IndexMode.TSDB` as a new, first-class index mode for metrics.
+    It behaves identically to `TIME_SERIES`, so `index.mode: tsdb` 
+    is now accepted anywhere `index.mode: time_series` is — without renaming 
+    or changing anything about existing `time_series` indices. The querying 
+    experience and downsampling support remains seamless, regardless of the 
+    mix of `TSDB` and `TIME_SERIES` indices in a data stream.
+
+  notable: true
+  title: Add `IndexMode.TSDB` as a preferred alias for TIME_SERIES
+issues: []
+pr: 152901
+summary: Add `IndexMode.TSDB` as a preferred alias for TIME_SERIES
+type: enhancement

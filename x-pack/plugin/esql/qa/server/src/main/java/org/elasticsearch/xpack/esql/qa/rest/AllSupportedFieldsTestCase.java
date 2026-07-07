@@ -276,6 +276,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 minVersion().supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
             );
         }
+        if (indexMode == IndexMode.TSDB) {
+            assumeTrue("Cluster has nodes that do not support index.mode=tsdb", minVersion().supports(IndexMode.INDEX_MODE_TSDB_ADDED));
+        }
         if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
             // Gate on the cluster capability rather than the test runner build: columnar index modes are only available when the
             // feature flag is enabled on the nodes (e.g. they are disabled in upgrade clusters), in which case these tests skip.
@@ -1408,7 +1411,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
-            case TIME_SERIES, LOGSDB, COLUMNAR, LOGSDB_COLUMNAR -> true;
+            case TIME_SERIES, TSDB, LOGSDB, COLUMNAR, LOGSDB_COLUMNAR -> true;
             case STANDARD, LOOKUP, VECTORDB_DOCUMENT -> false;
         };
     }

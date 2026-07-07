@@ -774,12 +774,13 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testProcessOnceOnPrimary() throws Exception {
         final Settings.Builder settingsBuilder = indexSettings(IndexVersion.current(), 1, 0).put("index.xpack.ccr.following_index", true);
-        boolean useSyntheticId = indexMode == IndexMode.TIME_SERIES && randomBoolean();
+        boolean useSyntheticId = indexMode.isTsdb() && randomBoolean();
         switch (indexMode) {
             case STANDARD:
                 break;
             case TIME_SERIES:
-                settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
+            case TSDB:
+                settingsBuilder.put("index.mode", indexMode.getName()).put("index.routing_path", "foo");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
                 settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
                 break;

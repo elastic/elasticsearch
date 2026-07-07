@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -116,11 +117,9 @@ public class JobDataDeleter {
             return;
         }
 
-        String stateIndexName = AnomalyDetectorsIndex.jobStateIndexPattern();
-
         List<String> idsToDelete = new ArrayList<>();
         Set<String> indices = new HashSet<>();
-        indices.add(stateIndexName);
+        Collections.addAll(indices, AnomalyDetectorsIndex.jobStateIndexPatterns());
         indices.add(AnnotationIndex.READ_ALIAS_NAME);
         for (ModelSnapshot modelSnapshot : modelSnapshots) {
             idsToDelete.addAll(modelSnapshot.stateDocumentIds());
@@ -602,7 +601,7 @@ public class JobDataDeleter {
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId));
 
         String[] indicesToQuery = removeReadOnlyIndices(
-            List.of(AnomalyDetectorsIndex.jobStateIndexPattern()),
+            Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns()),
             finishedHandler,
             "quantiles",
             () -> finishedHandler.onResponse(true)
@@ -640,7 +639,7 @@ public class JobDataDeleter {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum));
         String[] indicesToQuery = removeReadOnlyIndices(
-            List.of(AnomalyDetectorsIndex.jobStateIndexPattern()),
+            Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns()),
             finishedHandler,
             "categorizer state",
             () -> finishedHandler.onResponse(true)

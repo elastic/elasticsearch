@@ -358,9 +358,6 @@ tests:
 - class: org.elasticsearch.packaging.test.PackageUpgradeTests
   method: test21CheckUpgradedVersion
   issue: https://github.com/elastic/elasticsearch/issues/152909
-- class: org.elasticsearch.search.vectors.DiversifyingParentBlockQueryTests
-  method: testRandom
-  issue: https://github.com/elastic/elasticsearch/issues/153089
 
 # Examples:
 #

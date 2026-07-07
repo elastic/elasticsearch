@@ -120,9 +120,7 @@ public final class LongRangeBlockBuilder extends AbstractBlockBuilder implements
             appendNull();
             return this;
         }
-        fromBuilder.appendLong(lit.from());
-        toBuilder.appendLong(lit.to());
-        return this;
+        return appendLongRange(lit.from(), lit.to());
     }
 
     @Override

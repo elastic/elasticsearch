@@ -804,4 +804,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     public LookupFromIndexService getLookupFromIndexService() {
         return lookupFromIndexService;
     }
+
+    /**
+     * The node's {@link ComputeService}, with its wired {@link FederationExecutionService}. Exposed for the Phase-7
+     * Increment-3 gate, which injects a physical plan carrying a {@code Boundary.REMOTE} leaf and drives it end-to-end
+     * through {@link ComputeService#execute} (production never flips {@code Boundary.REMOTE} until Increment-4, so the
+     * test forces the REMOTE leaf rather than reaching it from a user query).
+     */
+    public ComputeService getComputeService() {
+        return computeService;
+    }
 }

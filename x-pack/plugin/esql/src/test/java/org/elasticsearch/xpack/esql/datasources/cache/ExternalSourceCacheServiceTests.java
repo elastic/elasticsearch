@@ -668,10 +668,13 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * swept twin's delta is silently lost. Staggered seeding makes the sweep partial deterministically: the
      * first twin outlives the TTL by reconcile time, the second does not. (If a CI stall expires the second
      * twin too, both are recovered from the snapshot and the test still passes — it degrades to the
-     * all-swept case rather than false-failing.)
+     * all-swept case rather than false-failing. The one stall that WOULD false-fail is between the two
+     * seeds: a second seed landing past the first twin's TTL sweeps the first twin at seed time, before
+     * any snapshot exists to recover it from. The 3s TTL keeps that window a &gt;2.3s stall inside a
+     * two-statement gap.)
      */
     public void testPartialTwinSweepRecoversSweptTwinEntry() throws Exception {
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("2s"))) {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("3s"))) {
             long mtime = 1000L;
             String pathA = "s3://bucket/data/hits_00.csv";
             String pathB = "s3://bucket/data/hits_01.csv";
@@ -682,7 +685,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             seedSchemaCache(service, twinB1, pathB, "fp");
             Thread.sleep(700);
             seedSchemaCache(service, twinB2, pathB, "fp"); // still inside the TTL: seeding must not sweep the first twin
-            Thread.sleep(1500); // now twinB1 and keyA have expired; twinB2 has not
+            Thread.sleep(2500); // now twinB1 and keyA have expired; twinB2 has not
 
             // Order matters and is honored: pathA must commit before pathB so pathA's put sweeps the expired
             // twinB1 from the LRU tail BEFORE pathB is collected (that is the partial sweep under test). The

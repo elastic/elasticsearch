@@ -111,11 +111,11 @@ public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternal
 
     private void assertWarmCountShortCircuits(String dataset) {
         String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
-        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+        try (var response = runProfiled(countQuery)) {
             assertSingleLong(response, TOTAL);
             assertThat("cold COUNT(*) reads every row", response.documentsFound(), equalTo(TOTAL));
         }
-        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+        try (var response = runProfiled(countQuery)) {
             assertSingleLong(response, TOTAL);
             assertThat(
                 "warm COUNT(*) must short-circuit across a many-stripe compressed multi-file source",
@@ -123,6 +123,16 @@ public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternal
                 equalTo(0L)
             );
         }
+    }
+
+    /**
+     * Runs {@code query} with profiling on and — critically — {@link #getPragmas()} attached. The base
+     * class only attaches pragmas in its {@code run(String)} convenience; a raw
+     * {@code syncEsqlQueryRequest(...)} carries none, silently running at the node-default
+     * {@code parsing_parallelism} instead of the pinned value.
+     */
+    private EsqlQueryResponse runProfiled(String query) {
+        return run(syncEsqlQueryRequest(query).pragmas(getPragmas()).profile(true), TimeValue.timeValueMinutes(5));
     }
 
     private static void assertSingleLong(EsqlQueryResponse response, long expected) {

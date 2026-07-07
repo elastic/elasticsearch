@@ -16,6 +16,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -24,13 +26,19 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Warm short-circuit regression coverage for the <b>parallel multiple-chunks-per-stripe</b> read geometry, for
@@ -46,7 +54,10 @@ import static org.hamcrest.Matchers.equalTo;
  * per-stripe byte-range interval-cover fold. That is exactly the geometry where NDJSON's retired page-capped
  * striping used to leave the fold incomplete and warm {@code COUNT(*)}/{@code MIN}/{@code MAX} re-scanned the file
  * while CSV/TSV short-circuited. Any reader that stops committing per-stripe stats for this realistic shape (or
- * regresses the whole-file EOF marker so the {@code 0..K} fold never closes) must fail this test.
+ * regresses the whole-file EOF marker so the {@code 0..K} fold never closes) must fail this test. The geometry
+ * itself is asserted from the cold profile's captured contributions ({@link #assertMultiChunkPerStripeGeometry}),
+ * so a silent degradation to a whole-file or single-chunk read fails loudly instead of passing vacuously (a
+ * whole-file summary is authoritative and would still short-circuit warm).
  * <p>
  * Each file is ~12 MB (well over the default 4 MB segment size, so parallelism 4 yields ~3 chunks per file), the
  * stripe grid is pinned to 6 MB (larger than a 4 MB chunk, so every stripe spans a chunk boundary), and the
@@ -138,21 +149,27 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
      */
     private void assertWarmAggregatesShortCircuit(String dataset) {
         String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
-        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+        Map<String, List<Map<String, Object>>> coldContributions;
+        try (var response = runProfiled(countQuery)) {
             assertSingleLong(response, TOTAL);
             assertThat("cold COUNT(*) reads every row", response.documentsFound(), equalTo(TOTAL));
+            coldContributions = capturedContributionsByPath(response);
         }
-        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+        try (var response = runProfiled(countQuery)) {
             assertSingleLong(response, TOTAL);
             assertThat("warm COUNT(*) must short-circuit across multi-chunk-per-stripe files", response.documentsFound(), equalTo(0L));
         }
+        // Only meaningful AFTER the warm assertion: the warm serve firing proves the cold profile's
+        // contribution snapshot was the complete reconcile input (see capturedContributionsByPath),
+        // so the geometry read below cannot race the producer-completion async hop.
+        assertMultiChunkPerStripeGeometry(coldContributions);
 
         String longQuery = "FROM " + dataset + " | STATS lo = MIN(value), hi = MAX(value)";
-        try (var response = run(syncEsqlQueryRequest(longQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+        try (var response = runProfiled(longQuery)) {
             assertMinMax(response, 0L, TOTAL - 1);
             assertThat("cold MIN/MAX(long) reads every row", response.documentsFound(), equalTo(TOTAL));
         }
-        try (var response = run(syncEsqlQueryRequest(longQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+        try (var response = runProfiled(longQuery)) {
             assertMinMax(response, 0L, TOTAL - 1);
             assertThat("warm MIN/MAX(long) must short-circuit across multi-chunk-per-stripe files", response.documentsFound(), equalTo(0L));
         }
@@ -162,14 +179,25 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
         // (representation-agnostic — the DATETIME rendering is whatever the cold scan produced), not just fire.
         String dateQuery = "FROM " + dataset + " | STATS lo = MIN(ts), hi = MAX(ts)";
         List<Object> coldDateExtrema;
-        try (var response = run(syncEsqlQueryRequest(dateQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+        try (var response = runProfiled(dateQuery)) {
             coldDateExtrema = getValuesList(response).get(0);
             assertThat("cold MIN/MAX(date) reads every row", response.documentsFound(), equalTo(TOTAL));
         }
-        try (var response = run(syncEsqlQueryRequest(dateQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+        try (var response = runProfiled(dateQuery)) {
             assertThat("warm MIN/MAX(date) must serve the cold extrema", getValuesList(response).get(0), equalTo(coldDateExtrema));
             assertThat("warm MIN/MAX(date) must short-circuit across multi-chunk-per-stripe files", response.documentsFound(), equalTo(0L));
         }
+    }
+
+    /**
+     * Runs {@code query} with profiling on and — critically — {@link #getPragmas()} attached. The base
+     * class only attaches pragmas in its {@code run(String)} convenience; a raw
+     * {@code syncEsqlQueryRequest(...)} carries none, silently running at the node-default
+     * {@code parsing_parallelism} (allocated processors) instead of the pinned 4 this test's chunk
+     * geometry is premised on.
+     */
+    private EsqlQueryResponse runProfiled(String query) {
+        return run(syncEsqlQueryRequest(query).pragmas(getPragmas()).profile(true), TimeValue.timeValueMinutes(5));
     }
 
     private static void assertSingleLong(EsqlQueryResponse response, long expected) {
@@ -183,6 +211,65 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
         assertThat(rows.size(), equalTo(1));
         assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(expectedMin));
         assertThat(((Number) rows.get(0).get(1)).longValue(), equalTo(expectedMax));
+    }
+
+    /**
+     * The scan's per-file stats contributions, read off the query profile's
+     * {@link AsyncExternalSourceOperator.Status#capturedSourceMetadata()}. This is the exact payload the
+     * coordinator reconciled into the schema cache: the driver captures each operator's status ONCE at
+     * close, and both the response profile and {@code DriverCompletionInfo} (the reconcile input) read
+     * that same snapshot. The snapshot is only guaranteed complete once the producer has drained — the
+     * async hop {@link ExternalSourceProfileIT} documents — which the caller proves by asserting the warm
+     * short-circuit BEFORE interrogating this map: the warm serve can only fire if the reconcile saw the
+     * complete stripe cover, and the reconcile input IS this snapshot.
+     */
+    private static Map<String, List<Map<String, Object>>> capturedContributionsByPath(EsqlQueryResponse response) {
+        assertThat("query must run with profile(true) to read the scan's contributions", response.profile(), notNullValue());
+        Map<String, List<Map<String, Object>>> byPath = new HashMap<>();
+        for (var driver : response.profile().drivers()) {
+            for (var op : driver.operators()) {
+                if (op.status() instanceof AsyncExternalSourceOperator.Status status) {
+                    for (var e : status.capturedSourceMetadata().entrySet()) {
+                        byPath.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).addAll(e.getValue());
+                    }
+                }
+            }
+        }
+        return byPath;
+    }
+
+    /**
+     * Asserts the cold read actually exercised the multiple-chunks-per-stripe geometry this test exists
+     * for. The warm assertions alone cannot see it: a read that silently degrades to a whole-file pass
+     * (or to one chunk per file) still short-circuits warm — a whole-file summary is authoritative — so
+     * the coverage this suite adds over the sibling fold ITs would evaporate invisibly on a config or
+     * reader change. Per file: every contribution must be a partial-chunk stripe fragment (no whole-file
+     * reads), and at least one stripe ordinal must be covered by fragments from more than one chunk
+     * (distinct coverage starts) — the per-stripe interval-cover had to stitch. With the pinned 6 MB
+     * stripe over 4 MB chunks every interior stripe splits, so one stitched stripe per file is the
+     * loosest assertion that still pins the geometry.
+     */
+    private static void assertMultiChunkPerStripeGeometry(Map<String, List<Map<String, Object>>> contributionsByPath) {
+        assertThat("every file must contribute captured stats", contributionsByPath.keySet(), hasSize(FILE_COUNT));
+        for (Map.Entry<String, List<Map<String, Object>>> file : contributionsByPath.entrySet()) {
+            Map<Long, Set<Long>> fragmentStartsByStripe = new HashMap<>();
+            for (Map<String, Object> contribution : file.getValue()) {
+                assertTrue(
+                    "file [" + file.getKey() + "] must be read as parallel chunks, not a whole-file pass",
+                    Boolean.TRUE.equals(contribution.get(ExternalStats.PARTIAL_CHUNK_KEY))
+                );
+                long ordinal = ((Number) contribution.get(ExternalStats.STRIPE_ORDINAL_KEY)).longValue();
+                long start = ((Number) contribution.get(ExternalStats.COVERAGE_START_KEY)).longValue();
+                fragmentStartsByStripe.computeIfAbsent(ordinal, o -> new HashSet<>()).add(start);
+            }
+            assertTrue(
+                "file ["
+                    + file.getKey()
+                    + "] must have at least one stripe stitched from several chunks; per-stripe fragment starts: "
+                    + fragmentStartsByStripe,
+                fragmentStartsByStripe.values().stream().anyMatch(starts -> starts.size() > 1)
+            );
+        }
     }
 
     /** Writes {@code FILE_COUNT} files of the given format into a directory and registers the glob as a dataset. */

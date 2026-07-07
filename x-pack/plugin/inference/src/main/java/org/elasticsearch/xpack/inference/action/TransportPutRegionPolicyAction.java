@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -154,6 +155,12 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         indexRequestBuilder.execute(new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
+                logger.info(
+                    "Region policy [{}] by [{}]: {}",
+                    existingRegionPolicyDoc == null ? "created" : "updated",
+                    existingRegionPolicyDoc == null ? doc.createdBy() : doc.updatedBy(),
+                    Strings.toString(doc.regionPolicy())
+                );
                 inferencePreferencesCache.invalidate(
                     ActionListener.runAfter(
                         ActionListener.wrap(

@@ -130,6 +130,26 @@ public class FederationExecutionService {
         ExchangeSourceHandler leafExchangeSource,
         ActionListener<Void> completion
     ) {
+        // Cancel the query task + descendants on ANY failure, and wrap `completion` so every failure path routes through
+        // it — including the pre-sink failures below (connectionFor throw, the transport-version gate, openExchange
+        // failure) that return BEFORE a remote sink is added to leafExchangeSource. Without this, those paths would fail
+        // `completion` but never decrement the leaf source's outstandingSinks (it starts at 0 and only reaches the
+        // buffer.finish that unblocks the drain via a sink's removal), so the draining driver would block forever on
+        // buffer.waitForReading() with no error. Cancelling parentTask-and-descendants fails the driver's task instead,
+        // terminating the drain loud. This is the failFast branch of startComputeOnRemoteCluster, whose ComputeListener
+        // takes cancelQueryOnFailure as its failure hook; here we hoist it so the pre-sink paths share it too.
+        final Runnable cancelOnFailure = new RunOnce(
+            () -> transportService.getTaskManager()
+                .cancelTaskAndDescendants(parentTask, "cancelled on federation execution failure", false, ActionListener.noop())
+        );
+        completion = completion.delegateResponse((l, e) -> {
+            try {
+                cancelOnFailure.run();
+            } finally {
+                l.onFailure(e);
+            }
+        });
+
         final Transport.Connection connection;
         try {
             connection = connectionFor(handle);
@@ -174,14 +194,6 @@ public class FederationExecutionService {
             bufferSize,
             searchExecutor,
             completion.delegateFailureAndWrap((delegate, unused) -> {
-                // On any leg failing, cancel the query task + descendants so an orphaned home-side sink — e.g. the home
-                // executor rejecting the request before its handler wired failure -> finishSinkHandler — fails the leaf
-                // fast rather than stalling the drain until the inactive-sink reaper fires. This is the failFast branch of
-                // startComputeOnRemoteCluster, which passes cancelQueryOnFailure as the ComputeListener's failure hook.
-                Runnable cancelOnFailure = new RunOnce(
-                    () -> transportService.getTaskManager()
-                        .cancelTaskAndDescendants(parentTask, "cancelled on federation execution failure", false, ActionListener.noop())
-                );
                 // Fan the two home-side legs — the ComputeResponse (the run's completion/failure) and the remote sink
                 // (the drain's completion/failure) — into the single leaf completion, exactly as
                 // startComputeOnRemoteCluster fans them through a ComputeListener. Either leg failing fails the leaf; the

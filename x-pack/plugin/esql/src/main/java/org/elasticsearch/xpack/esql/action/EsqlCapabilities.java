@@ -3328,6 +3328,15 @@ public class EsqlCapabilities {
          */
         EMPTY_LIST_PARAM_AS_NULL,
 
+        /**
+         * Remote execution of a cross-cluster view/dataset: {@code FROM remote:<view>} / {@code FROM remote:<dataset>}
+         * routes the abstraction to its home cluster (Boundary.REMOTE) which resolves the name against its own state,
+         * runs it, and streams pages back, instead of failing with "remote views/datasets are not supported". Snapshot-only
+         * while the cross-cluster-abstraction product behaviour is settled; gating it as a capability keeps the existing
+         * reject behaviour the default and makes the execution path testable now.
+         */
+        REMOTE_ABSTRACTION_EXECUTION(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

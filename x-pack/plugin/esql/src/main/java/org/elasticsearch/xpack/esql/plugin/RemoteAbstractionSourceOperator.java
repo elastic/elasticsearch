@@ -106,9 +106,12 @@ public final class RemoteAbstractionSourceOperator {
                     abstractionName,
                     expectedAttributes,
                     source,
-                    // The leaf's correctness is the drained pages; the completion is the drain-finished signal. On failure
-                    // the service has already finished the source with the failure, so the operator's drain terminates
-                    // loud — nothing extra to do here.
+                    // The leaf's correctness is the drained pages; this completion is only the drain-finished signal, so it
+                    // is a noop. Crucially it is NOT the failure channel: fetchAbstraction cancels the query task (and its
+                    // descendant drivers) on ANY failure — including the pre-sink paths (unresolvable handle, older-version
+                    // home, openExchange failure) that never add a remote sink and so could otherwise leave this leaf's
+                    // ExchangeSourceHandler blocked forever with no sink to finish it. That cancellation fails the driver's
+                    // task, terminating the drain loud, so there is nothing extra to do on failure here.
                     ActionListener.noop()
                 );
                 leafExchangeSource = source;

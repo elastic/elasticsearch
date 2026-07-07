@@ -54,6 +54,9 @@ public final class FlattenedFieldArrayContext extends FieldArrayContext {
 
     @Override
     public void addToLuceneDocument(DocumentParserContext context) throws IOException {
+        // This instance is cached and flushed per (document, field) pair — see
+        // DocumentParserContext#getOffSetContext(String, java.util.function.Supplier) — so context.doc() here is always
+        // the single document this instance's offsets were recorded against.
         final LuceneDocument doc = context.doc();
         // Offsets must only be encoded and recorded once
         assert doc.getField(offsetsFieldName) == null;
@@ -62,11 +65,7 @@ public final class FlattenedFieldArrayContext extends FieldArrayContext {
             var offsets = entry.getValue();
             BytesRef encoded = encodeKeyedOffsetsArray(fieldName, offsets);
             if (encoded != null) {
-                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
-                    context.doc(),
-                    offsetsFieldName,
-                    encoded
-                );
+                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(doc, offsetsFieldName, encoded);
             }
         }
     }

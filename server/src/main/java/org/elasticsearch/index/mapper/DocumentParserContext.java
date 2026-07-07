@@ -112,8 +112,8 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public FieldArrayContext getOffSetContext(String key, Supplier<? extends FieldArrayContext> factory) {
-            return in.getOffSetContext(key, factory);
+        FieldArrayContext getOrCreateNamedOffsetContext(LuceneDocument doc, String key, Supplier<? extends FieldArrayContext> factory) {
+            return in.getOrCreateNamedOffsetContext(doc, key, factory);
         }
 
         @Override
@@ -187,7 +187,7 @@ public abstract class DocumentParserContext {
     private final Set<String> fieldsAppliedFromTemplates;
 
     private FieldArrayContext fieldArrayContext;
-    private Map<String, FieldArrayContext> namedFieldArrayContexts;
+    private Map<LuceneDocument, Map<String, FieldArrayContext>> namedFieldArrayContexts;
 
     /**
      * Fields that are copied from values of other fields via copy_to.
@@ -523,8 +523,13 @@ public abstract class DocumentParserContext {
             fieldArrayContext.addToLuceneDocument(context);
         }
         if (namedFieldArrayContexts != null) {
-            for (FieldArrayContext arrayContext : namedFieldArrayContexts.values()) {
-                arrayContext.addToLuceneDocument(context);
+            for (var docEntry : namedFieldArrayContexts.entrySet()) {
+                // Flush each context against the LuceneDocument it was created for, which may not be context.doc() (e.g. a
+                // nested object's document, if context is the top-level context passed once processing has completed).
+                DocumentParserContext docContext = context.switchDoc(docEntry.getKey());
+                for (FieldArrayContext arrayContext : docEntry.getValue().values()) {
+                    arrayContext.addToLuceneDocument(docContext);
+                }
             }
         }
     }
@@ -538,13 +543,24 @@ public abstract class DocumentParserContext {
 
     /**
      * Like {@link #getOffSetContext()}, but for mappers — such as flattened — that need a dedicated
-     * {@link FieldArrayContext} per mapped field rather than sharing the single document-wide one.
+     * {@link FieldArrayContext} per mapped field rather than sharing the single document-wide one. Keyed by both the
+     * current document and {@code key}, so a field whose {@code parseCreateField} runs against several documents within
+     * the same parse (e.g. separate elements of an array of nested objects) gets an isolated context per document,
+     * while repeated calls against the same document (e.g. field supplied as an array of objects) share one.
      */
-    public FieldArrayContext getOffSetContext(String key, Supplier<? extends FieldArrayContext> factory) {
+    public final FieldArrayContext getOffSetContext(String key, Supplier<? extends FieldArrayContext> factory) {
+        // doc() is resolved here, against whichever instance the caller actually invoked this method on, then passed
+        // explicitly down the (possibly wrapped/switched-doc) chain — mirroring addDoc(LuceneDocument) — so a Wrapper
+        // created via switchDoc (e.g. for a nested object's document) keys by its own document, not whatever in.doc()
+        // happens to be once the call reaches the real storage.
+        return getOrCreateNamedOffsetContext(doc(), key, factory);
+    }
+
+    FieldArrayContext getOrCreateNamedOffsetContext(LuceneDocument doc, String key, Supplier<? extends FieldArrayContext> factory) {
         if (namedFieldArrayContexts == null) {
             namedFieldArrayContexts = new HashMap<>();
         }
-        return namedFieldArrayContexts.computeIfAbsent(key, ignored -> factory.get());
+        return namedFieldArrayContexts.computeIfAbsent(doc, d -> new HashMap<>()).computeIfAbsent(key, ignored -> factory.get());
     }
 
     private XContentParser.Token lastSetToken;

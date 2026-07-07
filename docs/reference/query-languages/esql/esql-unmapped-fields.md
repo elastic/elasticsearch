@@ -23,7 +23,7 @@ Querying unmapped fields helps in several common situations where the mapping do
 - **Run reusable queries across datasets**: let a query continue when a field is not mapped in the data it runs against. This is useful for shared or saved queries and for data streams whose mappings change between rollovers. You can either ignore the missing data by returning `null` or try to load its values from `_source`.
 
 :::{tip}
-To extract a value from a JSON string or directly from `_source`, use [`JSON_EXTRACT`](functions-operators/string-functions/json_extract.md). To extract a subfield from a [`flattened`](/reference/elasticsearch/mapping-reference/flattened.md) field, use `FIELD_EXTRACT` {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`.
+To extract a value from a JSON string or directly from `_source`, use [`JSON_EXTRACT`](functions-operators/string-functions/json_extract.md) {applies_to}`stack: preview =9.4, ga 9.5+`. To extract a subfield from a [`flattened`](/reference/elasticsearch/mapping-reference/flattened.md) field, use [`FIELD_EXTRACT`](functions-operators/string-functions/field_extract.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`.
 :::
 
 ## How {{esql}} handles unmapped fields [esql-unmapped-fields-how-it-works]

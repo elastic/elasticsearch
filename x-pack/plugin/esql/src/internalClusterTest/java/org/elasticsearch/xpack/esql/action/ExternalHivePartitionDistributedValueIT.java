@@ -32,29 +32,25 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Multi-node end-to-end guard that Hive partition-column <em>values</em> attach correctly when an external-source
- * read is DISTRIBUTED to data nodes — for both Parquet and CSV/text. This is the leg that had no coverage on main:
- * the partition-name union that makes this work landed in elastic/elasticsearch#150920 (for the {@code COUNT(p)}
- * safe-miss-to-scan path), but nothing exercised the distributed <em>value</em> attachment for any format.
+ * read is DISTRIBUTED to data nodes, for a Parquet, a CSV/text, and an integer-typed partition.
  *
  * <p>Why the read must actually distribute: a partition column lives in the directory path, not the file payload.
  * On the coordinator the partition names ride in the {@code FileList}; on a data node that {@code FileList} is NOT
- * serialized ({@code ExternalSourceExec.writeTo} drops it), so the names must instead come from the serialized
- * {@code _partition.columns} stamp in {@code sourceMetadata}. If the read ran coordinator-local it would resolve the
- * values from the {@code FileList} and mask the distributed leg — a false green. Each test therefore forces
- * distribution ({@code external_distribution=round_robin} over a &gt;1-split dataset with
- * {@code ensureAtLeastNumDataNodes(2)}) and asserts via the profile that the {@code ExternalDataSource} scan ran on
- * at least two distinct data nodes.
+ * serialized ({@code ExternalSourceExec.writeTo} drops it), so the names come from the serialized
+ * {@code _partition.columns} stamp in {@code sourceMetadata}. A coordinator-local run would resolve the values from
+ * the {@code FileList} and mask the distributed leg — a false green — so each test forces distribution
+ * ({@code external_distribution=round_robin} over a &gt;1-split dataset with {@code ensureAtLeastNumDataNodes(2)}) and
+ * asserts via the profile that the {@code ExternalDataSource} scan ran on at least two distinct data nodes.
  *
  * <p>Why {@code STATS COUNT(*) BY <partition>}: grouping on the partition column collapses every row into a single
- * {@code null} group if the value failed to attach on the data node, and into a single group if the per-file values
- * cross-contaminated. Getting back the two distinct groups with their real counts proves the per-file partition
- * values reached the data-node read intact.
+ * {@code null} group if the value fails to attach on the data node, and into a single group if the per-file values
+ * cross-contaminate. Getting back the two distinct groups with their real counts proves the per-file partition values
+ * reach the data-node read intact.
  *
- * <p>The Parquet and CSV tests cover a STRING partition ({@code p=a}/{@code p=b}); the integer test covers an
- * INTEGER partition ({@code n=1}/{@code n=2}) — the one genuinely distributed-specific case, because the value must
- * survive the {@code writeGenericMap}/{@code readGenericMap} round-trip on the data node <em>as an Integer</em> (a
- * silent degrade to String would surface the group key as a keyword) and render through the {@code case Integer} arm
- * of {@code VirtualColumnIterator.createConstantBlock}.
+ * <p>The Parquet and CSV tests use a STRING partition ({@code p=a}/{@code p=b}); the integer test uses an INTEGER
+ * partition ({@code n=1}/{@code n=2}), which additionally exercises the {@code writeGenericMap}/{@code readGenericMap}
+ * type round-trip on the data node (the value must arrive as an {@code Integer}, not degrade to String) and the
+ * {@code case Integer} arm of {@code VirtualColumnIterator.createConstantBlock}.
  */
 public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDataSourceIT {
 
@@ -78,9 +74,8 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
     }
 
     /**
-     * CSV/text twin of {@link #testParquetHivePartitionValuesAttachOnDistributedRead} — the previously unproven leg
-     * (the CSV path once threw a {@code TopNOperator$RowFiller} AIOOBE). Same two-partition fixture, same distributed
-     * value-attachment contract.
+     * CSV/text twin of {@link #testParquetHivePartitionValuesAttachOnDistributedRead}: the same two-partition fixture
+     * and the same distributed value-attachment contract, exercised through the line-oriented CSV reader path.
      */
     public void testCsvHivePartitionValuesAttachOnDistributedRead() throws Exception {
         Path root = createTempDir().resolve("hive_csv_values");
@@ -111,6 +106,7 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
         int nIdx = result.columns().indexOf("n");
         int cIdx = result.columns().indexOf("c");
         assertThat("missing partition column 'n'", nIdx, greaterThanOrEqualTo(0));
+        assertThat("expected exactly two partition groups, no duplicate rows", result.rows().size(), equalTo(2));
 
         Map<Integer, Long> countByPartition = new HashMap<>();
         for (List<Object> row : result.rows()) {
@@ -127,6 +123,7 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
         int pIdx = result.columns().indexOf("p");
         int cIdx = result.columns().indexOf("c");
         assertThat("missing partition column 'p'", pIdx, greaterThanOrEqualTo(0));
+        assertThat("expected exactly two partition groups, no duplicate rows", result.rows().size(), equalTo(2));
 
         Map<String, Long> countByPartition = new HashMap<>();
         for (List<Object> row : result.rows()) {

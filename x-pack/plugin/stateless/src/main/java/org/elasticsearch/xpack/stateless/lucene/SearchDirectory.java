@@ -202,7 +202,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * for internal files) are used.
      *
      * @param commit the commit whose files should be mapped to their blob storage locations and byte ranges
-     * @param commitFilesRangesOverride optional custom byte ranges for specific files;
+     * @param commitFilesRangesOverride custom byte ranges for specific files
      *                                  if provided, these override the commit's default ranges
      * @return a map of file name to {@link BlobFileRanges}, containing blob location and optional
      *         timestamp range for efficient filtering and remote reading
@@ -611,9 +611,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             long commitSize = 0L;
             for (var entry : commitFilesRanges.entrySet()) {
                 final String fileName = entry.getKey();
-                final BlobFileRanges existingRanges = updatedMetadata.get(fileName);
-                final BlobFileRanges newRanges = entry.getValue();
-                final BlobFileRanges updatedRanges = updatedFileRanges(fileName, existingRanges, newRanges);
+                final BlobFileRanges updatedRanges = updatedFileRanges(fileName, updatedMetadata.get(fileName), entry.getValue());
                 if (isGenerationalFile(fileName)) {
                     // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
                     // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the

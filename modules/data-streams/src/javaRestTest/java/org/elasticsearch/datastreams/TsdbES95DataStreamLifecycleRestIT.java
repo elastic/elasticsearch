@@ -17,7 +17,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
@@ -45,7 +44,6 @@ public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
-        .feature(FeatureFlag.ES95_CODEC_FEATURE_FLAG)
         .build();
 
     @Override

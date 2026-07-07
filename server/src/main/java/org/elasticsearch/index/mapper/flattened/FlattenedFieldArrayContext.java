@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldArrayContext;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -53,12 +54,13 @@ public final class FlattenedFieldArrayContext extends FieldArrayContext {
 
     @Override
     public void addToLuceneDocument(DocumentParserContext context) throws IOException {
+        final LuceneDocument doc = context.doc();
+        // Offsets must only be encoded and recorded once
+        assert doc.getField(offsetsFieldName) == null;
         for (var entry : offsetsPerField.entrySet()) {
             String fieldName = entry.getKey();
             var offsets = entry.getValue();
-
             BytesRef encoded = encodeKeyedOffsetsArray(fieldName, offsets);
-
             if (encoded != null) {
                 MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
                     context.doc(),

@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
 
@@ -111,6 +112,11 @@ public abstract class DocumentParserContext {
         }
 
         @Override
+        public FieldArrayContext getOffSetContext(String key, Supplier<? extends FieldArrayContext> factory) {
+            return in.getOffSetContext(key, factory);
+        }
+
+        @Override
         public void setImmediateXContentParent(XContentParser.Token token) {
             in.setImmediateXContentParent(token);
         }
@@ -181,6 +187,7 @@ public abstract class DocumentParserContext {
     private final Set<String> fieldsAppliedFromTemplates;
 
     private FieldArrayContext fieldArrayContext;
+    private Map<String, FieldArrayContext> namedFieldArrayContexts;
 
     /**
      * Fields that are copied from values of other fields via copy_to.
@@ -515,6 +522,11 @@ public abstract class DocumentParserContext {
         if (fieldArrayContext != null) {
             fieldArrayContext.addToLuceneDocument(context);
         }
+        if (namedFieldArrayContexts != null) {
+            for (FieldArrayContext arrayContext : namedFieldArrayContexts.values()) {
+                arrayContext.addToLuceneDocument(context);
+            }
+        }
     }
 
     public FieldArrayContext getOffSetContext() {
@@ -522,6 +534,17 @@ public abstract class DocumentParserContext {
             fieldArrayContext = new FieldArrayContext();
         }
         return fieldArrayContext;
+    }
+
+    /**
+     * Like {@link #getOffSetContext()}, but for mappers — such as flattened — that need a dedicated
+     * {@link FieldArrayContext} per mapped field rather than sharing the single document-wide one.
+     */
+    public FieldArrayContext getOffSetContext(String key, Supplier<? extends FieldArrayContext> factory) {
+        if (namedFieldArrayContexts == null) {
+            namedFieldArrayContexts = new HashMap<>();
+        }
+        return namedFieldArrayContexts.computeIfAbsent(key, ignored -> factory.get());
     }
 
     private XContentParser.Token lastSetToken;

@@ -1513,7 +1513,10 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         if (preserveLeafArrays == PreserveLeafArrays.LOSSY) {
             arrayContext = null;
         } else {
-            arrayContext = new FlattenedFieldArrayContext(mappedFieldType.name());
+            arrayContext = (FlattenedFieldArrayContext) context.getOffSetContext(
+                mappedFieldType.name(),
+                () -> new FlattenedFieldArrayContext(mappedFieldType.name())
+            );
         }
 
         try {
@@ -1522,10 +1525,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             fieldParser.parse(context, arrayContext);
         } finally {
             context.path().setWithinLeafObject(false);
-        }
-
-        if (arrayContext != null) {
-            arrayContext.addToLuceneDocument(context);
         }
 
         if (mappedFieldType.hasDocValues() == false) {

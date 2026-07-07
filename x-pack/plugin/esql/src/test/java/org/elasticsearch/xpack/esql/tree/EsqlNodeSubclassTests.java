@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -504,6 +505,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of()), null, null);
         } else if (argClass == ExternalSchema.class) {
             return new ExternalSchema(List.of());
+        } else if (argClass == DeclaredReadSpec.class) {
+            // Typed carrier record; populate every component (renames, idPath, dateFormats, declaredTypeColumns) so
+            // transform/mutation tests exercise a fully-loaded value rather than an all-but-renames empty one.
+            return DeclaredReadSpec.of(
+                Map.of(randomAlphaOfLength(4), randomAlphaOfLength(5)),
+                randomBoolean() ? randomAlphaOfLength(4) : null,
+                Map.of(randomAlphaOfLength(4), "yyyy-MM-dd"),
+                Set.of(randomAlphaOfLength(4), randomAlphaOfLength(5))
+            );
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked
             return new MatchConfig(randomAlphaOfLength(5), randomInt(10), randomFrom(DataType.types()));
@@ -610,6 +620,24 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
         if (argClass == PromqlFunctionDefinition.class) {
             return PromqlBuiltinFunctionDefinitions.VECTOR;
+        }
+
+        if (argClass == org.elasticsearch.cluster.metadata.DatasetMapping.class) {
+            // final type, can't be mocked — build a small real instance (declared mapping on UnresolvedExternalRelation)
+            return new org.elasticsearch.cluster.metadata.DatasetMapping(
+                new org.elasticsearch.cluster.metadata.DatasetMapping.Mappings(
+                    randomFrom(org.elasticsearch.cluster.metadata.DatasetMapping.Dynamic.values()),
+                    java.util.Map.of(
+                        randomAlphaOfLength(5),
+                        new org.elasticsearch.cluster.metadata.DatasetFieldMapping(
+                            "keyword",
+                            randomBoolean() ? null : randomAlphaOfLength(4)
+                        )
+                    ),
+                    randomBoolean() ? null : randomBoolean(),
+                    randomBoolean() ? null : randomAlphaOfLength(5)
+                )
+            );
         }
 
         try {

@@ -521,6 +521,42 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testReadDeclaredDateFormatZoneAware() throws IOException {
+        // A per-column declared format parses this column's text with the ES DateFormatter (zone-aware): the -0700 offset
+        // is honored, so 10/Oct/2000:13:55:36 -0700 lands at 2000-10-10T20:55:36Z, NOT 13:55:36Z. A no-declared-format
+        // column keeps today's behavior; here `ts` is the only column and it carries a declared format.
+        String csv = "ts:datetime\n10/Oct/2000:13:55:36 -0700\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDeclaredDateFormats(Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(971211336000L, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
+    public void testReadDeclaredDateFormatMultiValueBrackets() throws IOException {
+        // A declared format applies per element inside a bracketed multi-value datetime cell: both
+        // `10/Oct/2000:...` and `11/Oct/2000:...` are parsed zone-aware with the declared pattern, one day apart.
+        String csv = "id:integer,ts:datetime\n1,\"[10/Oct/2000:13:55:36 -0700,11/Oct/2000:13:55:36 -0700]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = ((CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets")))
+            .withDeclaredDateFormats(Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            LongBlock ts = (LongBlock) page.getBlock(1);
+            assertEquals(2, ts.getValueCount(0));
+            int idx = ts.getFirstValueIndex(0);
+            assertEquals(971211336000L, ts.getLong(idx));
+            assertEquals(971211336000L + 86_400_000L, ts.getLong(idx + 1)); // one day later
+        }
+    }
+
     public void testReadDatetimeMixed() throws IOException {
         long epochMillis = 1609459200000L; // 2021-01-01T00:00:00.000Z
         String csv = "id:long,ts:datetime\n1," + epochMillis + "\n2,1953-09-02T00:00:00.000Z\n";
@@ -3280,6 +3316,56 @@ public class CsvFormatReaderTests extends ESTestCase {
                 rows += iterator.next().getPositionCount();
             }
             assertEquals(2, rows);
+        }
+    }
+
+    /**
+     * Julian's report: a header {@code "a,b",c} has TWO columns — the first field is quoted and embeds
+     * the delimiter — but a naive comma split counts three. The declared-schema width tripwire and the
+     * inferred-schema column count both go through {@code splitFieldsForOptions}; with the naive split a
+     * 3-column declaration was wrongly admitted over a 2-column file and then null-spliced every row.
+     * The quote-aware split counts two, so the tripwire fires and inference reports two columns.
+     */
+    public void testDeclaredWidthTripwireCountsQuotedHeaderFieldsCorrectly() throws IOException {
+        String csv = "\"a,b\",c\n1,2\n";
+        StorageObject object = createStorageObject(csv);
+
+        // Inferred-schema count (the metadata caller): two columns, not three.
+        assertEquals(2, new CsvFormatReader(blockFactory).metadata(object).schema().size());
+
+        // Width tripwire (the declared caller): a 3-column declaration cannot bind a 2-column file. The
+        // declared positional schema is plumbed through FormatReadContext.readSchema.
+        List<Attribute> tooWide = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "x", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "y", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "z", DataType.KEYWORD)
+        );
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(tooWide).build()
+            ).close()
+        );
+        assertThat(e.getMessage(), Matchers.containsString("declared schema has 3 columns"));
+        assertThat(e.getMessage(), Matchers.containsString("] has 2"));
+
+        // A 2-column declaration matches the two real columns and reads.
+        List<Attribute> exact = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "first", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "second", DataType.KEYWORD)
+        );
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(exact).build()
+            )
+        ) {
+            assertTrue(it.hasNext());
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            page.releaseBlocks();
         }
     }
 

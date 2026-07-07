@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -209,6 +210,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         long splitStartByte,
         int maxRecordBytes,
         DateFormatter datetimeFormatter,
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns,
         long statsBaseOffset,
         long statsStripeSize,
         boolean statsFileFinal,
@@ -301,7 +304,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 blockFactory,
                 errorPolicy,
                 this.sourceLocation,
-                counters
+                counters,
+                declaredDateFormats,
+                declaredTypeColumns
             );
         } else {
             // Streaming/fallback path (object too large for the fast path, unknown length, or a
@@ -321,7 +326,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 blockFactory,
                 errorPolicy,
                 this.sourceLocation,
-                counters
+                counters,
+                declaredDateFormats,
+                declaredTypeColumns
             );
         }
         // _rowPosition / _file.record_ref substrate: file-global per-record start offset.

@@ -338,6 +338,10 @@ public class CsvIT extends ESTestCase {
             testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST.capabilityName())
         );
         assumeFalseLogging(
+            "CSV tests cannot handle _slice",
+            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SLICE.capabilityName())
+        );
+        assumeFalseLogging(
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
@@ -566,6 +570,11 @@ public class CsvIT extends ESTestCase {
     private static ResourceLoader<CsvTestsDataLoader.TestDataset> indices = new ResourceLoader<>() {
         @Override
         protected void load(CsvTestsDataLoader.TestDataset dataset) throws IOException {
+            if (dataset.requiredCapabilities().contains(EsqlCapabilities.Cap.METADATA_SLICE)) {
+                logger.info("Skip dataset [{}] since it requires METADATA_SLICE", dataset.indexName());
+                return;
+            }
+
             logger.info("Loading dataset [{}]", dataset.indexName());
             for (String inferenceId : dataset.inferenceEndpoints()) {
                 inference.maybeLoad(inferenceId, INFERENCE_CONFIGS.get(inferenceId));

@@ -17,7 +17,13 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -27,8 +33,10 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -39,6 +47,54 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     @Before
     public void checkInSubquerySupport() {
         assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+    }
+
+    // basic IN and NOT IN subquery, validate JoinConfig
+
+    public void testInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("employees", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    public void testNotInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(antiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.output(), equalTo(antiJoin.left().output()));
+
+        EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
+        assertEquals("employees", leftRelation.indexPattern());
+
+        Project rightProject = as(antiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
     /**

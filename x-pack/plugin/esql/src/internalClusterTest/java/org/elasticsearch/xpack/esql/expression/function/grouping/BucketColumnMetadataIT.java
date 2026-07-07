@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
-import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -50,12 +49,6 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     private EsqlQueryResponse runAfterRefreshCompleted(EsqlQueryRequest request) {
         waitForAllTasks();
         return run(request);
-    }
-
-    @Before
-    public void requireBucketMetadataCapability() {
-        // The bucket metadata feature is snapshot-only until finalized; non-snapshot builds skip these tests.
-        assumeTrue("requires column_metadata_bucket_v2 capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET_V2.isEnabled());
     }
 
     /**
@@ -753,7 +746,6 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testColumnMetadataSettingGate() {
-        assumeTrue("requires column_metadata_bucket_v2 capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET_V2.isEnabled());
         client().prepareIndex("dates")
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

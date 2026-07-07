@@ -309,6 +309,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS,
 
         /**
+         * Fixes a bug when using an EVAL on the grouped by columns after a STATS.
+         *
+         * See https://github.com/elastic/elasticsearch/issues/152496.
+         */
+        OPTIONAL_FIELDS_UNMAPPED_EVAL_AFTER_STATS_FIX,
+
+        /**
          * Fix for a {@code ClassCastException} when an explicitly cast or implicitly widened partially unmapped small numeric field.
          * See https://github.com/elastic/elasticsearch/issues/151525.
          */
@@ -334,6 +341,19 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/152184.
          */
         OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_DENSE_VECTOR,
+
+        /**
+         * Warn when a partially unmapped field with a single non-KEYWORD mapped type is referenced explicitly, but its type has no
+         * KEYWORD converter and so cannot be loaded from _source: it falls back to null in the indices where it is unmapped.
+         */
+        OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
+
+        /**
+         * Fixes count on an unmapped field. Previously, it tried to push down a query filter on the unmapped field, leading to a 0-count
+         * since the field isn't mapped.
+         * See https://github.com/elastic/elasticsearch/issues/152884.
+         */
+        OPTIONAL_FIELDS_FIX_COUNT_ON_UNMAPPED,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -931,7 +951,7 @@ public class EsqlCapabilities {
          * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns, gated behind the
          * {@code SET column_metadata=true} setting. Without the setting, non-approximation metadata is omitted.
          */
-        COLUMN_METADATA_BUCKET_V2(Build.current().isSnapshot()),
+        COLUMN_METADATA_BUCKET_V2,
 
         /**
          * Extend {@code BUCKET} date-interval metadata with {@code "start"} and {@code "end"} epoch-millis
@@ -3278,7 +3298,7 @@ public class EsqlCapabilities {
          * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes the
          * generated {@code highlight_*} columns. Snapshot-only.
          */
-        HIGHLIGHT_V1(Build.current().isSnapshot()),
+        HIGHLIGHT_V2(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.

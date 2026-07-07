@@ -961,7 +961,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         }
 
         @Override
-        public Block[] extract(String[] columnNames, long[] localPositions, BlockFactory blockFactory) {
+        public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory blockFactory) {
             throw new AssertionError("extract() must not be called from these tests");
         }
 

@@ -115,7 +115,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModeStoresBinaryDocValues() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject()));
         String id = randomAlphaOfLength(12);
         ParsedDocument document = mapper.parse(source(id, b -> {}, null));
@@ -131,7 +130,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModeMappingSerialization() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // Columnar
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject()));
         String mapping = mapperService.documentMapper().mapping().toString();
@@ -153,7 +151,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocumentModeRejectedInStrictColumnarIndexMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexMode indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
         MapperParsingException e = expectThrows(
@@ -165,7 +162,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModeAllowedInStrictColumnarIndexMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexMode indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
         MapperService mapperService = createMapperService(
@@ -177,7 +173,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocumentModeAllowedInStandardIndexMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // The strictly columnar gate must not over-reach: explicit document mode is still allowed in a standard index.
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "document").endObject()));
         ProvidedIdFieldMapper idMapper = mapperService.mappingLookup().getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);
@@ -191,7 +186,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModeNotUpdateable() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(mapping(b -> {}));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -201,7 +195,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModeIdLoaderUsesDocValues() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject()));
         IdLoader idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
         assertThat(idLoader, instanceOf(IdLoader.DocValuesIdLoader.class));
@@ -214,7 +207,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocumentModeIdLoaderUsesStoredFields() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "document").endObject()));
         IdLoader idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
         assertThat(idLoader, instanceOf(IdLoader.StoredIdLoader.class));

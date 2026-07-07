@@ -4020,6 +4020,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
+         * Stages a present-but-empty field on the direct-to-block path: the empty string on
+         * {@code KEYWORD}/{@code TEXT} columns, {@code null} on every other type (which has no empty
+         * representation). Mirrors {@link CsvFormatReader#presentEmptyValue} and the {@link #tryConvertValue}
+         * empty branch so the direct decoders agree with the Jackson path. A MISSING field (row shorter than
+         * the schema) is always {@code null} and is handled by the trailing null-fill, not this method.
+         */
+        private void stagePresentEmptyValue(int bufIdx, DataType dt) {
+            if (DataType.isString(dt)) {
+                stageRefValue(bufIdx, EMPTY_STRING);
+            } else {
+                stageNullValue(bufIdx);
+            }
+        }
+
+        /**
          * Converts the character range {@code [start, end)} of {@code line} for the given target type
          * and stores the result in the typed staging slot {@code bufIdx} (see {@link #appendStagedRow}).
          * The hot numeric, double, and keyword types are parsed directly from the character range; the
@@ -4043,10 +4058,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (len > maxFieldChars) {
                 return rejectFieldTooLarge(len);
             }
-            // Null classification mirrors tryConvertValue: empty, the literal "null" (any case), or the
-            // configured null marker all become null.
+            // Null classification mirrors tryConvertValue: a present-but-empty field is the empty string
+            // on string columns and null on other types; the literal "null" (any case) or the configured
+            // null marker always become null.
             if (len == 0) {
-                stageNullValue(bufIdx);
+                stagePresentEmptyValue(bufIdx, dt);
                 return true;
             }
             if (len == 4 && regionEqualsIgnoreCase(buf, start, "null")) {
@@ -4205,7 +4221,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * and, when escaping is on, {@code \}+char is C-style decoded; quoted content (including inner
          * whitespace and embedded newlines) is preserved verbatim, while unquoted fields are trimmed.
          * Non-whitespace after a closing quote is a row error, and an empty quoted field ({@code ""})
-         * is null. Simple unquoted fields (no escape) take the same char-range fast path as
+         * is a present-but-empty field (empty string on string columns, null otherwise). Simple unquoted
+         * fields (no escape) take the same char-range fast path as
          * {@link #splitAndConvertPlain}; quoted or escaped fields are assembled into a reused buffer.
          *
          * @return {@code true} if the row was accepted, {@code false} if rejected by the error policy
@@ -4296,7 +4313,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                     if (projected) {
                         if (value.length() == 0) {
-                            stageNullValue(bufIdx); // empty quoted field is null
+                            // Empty quoted field ("") is a present-but-empty field: empty string on
+                            // string columns, null otherwise (matches the fused/split bracket routes).
+                            stagePresentEmptyValue(bufIdx, dt);
                         } else if (emitConvertedStageField(value.toString(), bufIdx, dt) == false) {
                             return false;
                         }
@@ -4386,7 +4405,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 start++;
             }
             if (start == end) {
-                stageNullValue(bufIdx);
+                // Whitespace-only field: present-but-empty (empty string on string columns, null otherwise).
+                stagePresentEmptyValue(bufIdx, dt);
                 return true;
             }
             final char esc = options.escapeChar();
@@ -4409,7 +4429,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 trimEnd--;
             }
             if (trimEnd == 0) {
-                stageNullValue(bufIdx);
+                // Decoded to only whitespace: present-but-empty (empty string on string columns, null otherwise).
+                stagePresentEmptyValue(bufIdx, dt);
                 return true;
             }
             if (trimEnd > maxFieldChars) {

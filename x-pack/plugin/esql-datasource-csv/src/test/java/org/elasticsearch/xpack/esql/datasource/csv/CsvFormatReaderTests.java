@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
@@ -6192,6 +6193,89 @@ public class CsvFormatReaderTests extends ESTestCase {
         withFirstPage(reader, "id:long\tn:integer\tphrase:keyword\n1\t10\tapple\n2\t20\t\n3\t30\tbanana\n", page -> {
             assertEquals(3, page.getPositionCount());
             assertKeyword(page, 2, 1, ""); // trailing empty -> empty string
+        });
+    }
+
+    // --- Direct-to-block path (multi_value_syntax=none, projected read with per-column stats) ---
+    // These force the optimized direct decoders (emitPlainField / splitAndConvertQuoted) by supplying a
+    // FormatReadContext with a projected, non-ALL stats scope on a direct-block-enabled reader. The
+    // present-empty rule must match the Jackson and bracket paths: empty string on KEYWORD/TEXT, null on
+    // other types, and null only for a genuinely missing (short-row) field.
+
+    /** Reads {@code csv} on the direct-to-block path (all named columns projected) and asserts the first page. */
+    private void withFirstPageDirect(String csv, List<String> projected, Consumer<Page> asserts) throws IOException {
+        StorageObject object = createStorageObject(csv);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projected)
+            .batchSize(100)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(true);
+        try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
+            assertTrue("expected at least one page", iterator.hasNext());
+            asserts.accept(iterator.next());
+        }
+    }
+
+    public void testEmptyVsNull_interiorEmptyString_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,,20
+            3,banana,30
+            """, List.of("id", "phrase", "n"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 0, "apple");
+            assertKeyword(page, 1, 1, ""); // present, interior empty -> empty string (not null)
+            assertKeyword(page, 1, 2, "banana");
+        });
+    }
+
+    public void testEmptyVsNull_whitespaceOnlyString_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,   ,20
+            3,banana,30
+            """, List.of("id", "phrase", "n"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // whitespace-only trimmed, then present-empty -> empty string
+        });
+    }
+
+    public void testEmptyVsNull_quotedEmptyString_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,"",20
+            3,banana,30
+            """, List.of("id", "phrase", "n"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // quoted empty -> empty string (not null)
+        });
+    }
+
+    public void testEmptyVsNull_interiorEmptyNumeric_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,score:double,phrase:keyword
+            1,1.5,a
+            2,,b
+            3,3.5,c
+            """, List.of("id", "score", "phrase"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 1, 1); // empty numeric has no empty representation -> null
+        });
+    }
+
+    public void testEmptyVsNull_missingStringField_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,n:integer,phrase:keyword
+            1,10,apple
+            2,20
+            3,30,banana
+            """, List.of("id", "n", "phrase"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 2, 1); // missing (short row) -> null, NOT empty string
         });
     }
 

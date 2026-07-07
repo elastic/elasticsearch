@@ -130,6 +130,7 @@ count:long
 
 aggregateByGender
 required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 FROM employees_no_mv
@@ -137,9 +138,9 @@ FROM employees_no_mv
 | SORT gender;
 
 count:long | gender:keyword
+10         |
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 aggregateAverageSalary
@@ -165,6 +166,7 @@ min_salary:integer | max_salary:integer | avg_salary:double
 
 aggregateSalaryByGender
 required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 FROM employees_no_mv
@@ -172,9 +174,9 @@ FROM employees_no_mv
 | SORT gender;
 
 avg_salary:double    | count:long | gender:keyword
+48760.5              | 10         |
 50490.78787878788    | 33         | "F"
 46860.59649122807    | 57         | "M"
-48760.5              | 10         | null
 ;
 
 filterAndSort

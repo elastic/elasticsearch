@@ -1,6 +1,6 @@
 ---
 applies_to:
-  stack: preview 9.3.0
+  stack: preview 9.3-9.5
   serverless: preview
 navigation_title: "Unmapped fields"
 description: How ES|QL queries fields that aren't in the index mapping, using the SET unmapped_fields directive.

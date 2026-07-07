@@ -157,12 +157,17 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
             assertThat("warm MIN/MAX(long) must short-circuit across multi-chunk-per-stripe files", response.documentsFound(), equalTo(0L));
         }
 
-        // Temporal (DATETIME) stats column — the bench EventDate shape. MIN/MAX over a date must short-circuit too.
+        // Temporal (DATETIME) stats column — the bench EventDate shape. MIN/MAX over a date must short-circuit AND
+        // serve the true extrema. The cold full scan is authoritative; the warm serve must return the identical row
+        // (representation-agnostic — the DATETIME rendering is whatever the cold scan produced), not just fire.
         String dateQuery = "FROM " + dataset + " | STATS lo = MIN(ts), hi = MAX(ts)";
+        List<Object> coldDateExtrema;
         try (var response = run(syncEsqlQueryRequest(dateQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            coldDateExtrema = getValuesList(response).get(0);
             assertThat("cold MIN/MAX(date) reads every row", response.documentsFound(), equalTo(TOTAL));
         }
         try (var response = run(syncEsqlQueryRequest(dateQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertThat("warm MIN/MAX(date) must serve the cold extrema", getValuesList(response).get(0), equalTo(coldDateExtrema));
             assertThat("warm MIN/MAX(date) must short-circuit across multi-chunk-per-stripe files", response.documentsFound(), equalTo(0L));
         }
     }

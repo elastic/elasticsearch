@@ -101,6 +101,37 @@ public class ExternalSourceResolverTests extends ESTestCase {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
     }
 
+    /**
+     * Guards {@link ExternalSourceResolver#FILE_TYPED_FORMATS} — the hand-maintained classification of columnar
+     * (self-typed) formats that gates all three columnar declaration rejects (format-on-columnar, strict type mismatch,
+     * non-strict retype). The set has no SPI-derived source of truth yet (see the constant's TODO), so pin its exact
+     * membership: dropping an entry silently disables the rejects for that format, and a new columnar reader must be
+     * added here. A change to this set is a deliberate, reviewed test diff — not a silent drift.
+     */
+    public void testFileTypedFormatsGatesColumnarRejects() {
+        assertEquals(
+            Set.of(FormatNameResolver.FORMAT_PARQUET, "orc", FormatNameResolver.FORMAT_PARQUET_RS),
+            ExternalSourceResolver.FILE_TYPED_FORMATS
+        );
+        // Text formats parse into the declared type, so a declared format/retype IS honored — they must NOT be here.
+        assertFalse(ExternalSourceResolver.FILE_TYPED_FORMATS.contains("csv"));
+        assertFalse(ExternalSourceResolver.FILE_TYPED_FORMATS.contains("tsv"));
+        assertFalse(ExternalSourceResolver.FILE_TYPED_FORMATS.contains("ndjson"));
+    }
+
+    /**
+     * Pins {@link ExternalSourceResolver#COERCING_FILE_TYPED_FORMATS} — the columnar formats whose readers coerce a
+     * declared type from the file's physical type (vs strict equality). It must be a subset of the file-typed set, and
+     * {@code parquet-rs} must stay OUT of it (it is file-typed but does not implement coercion yet), so a declared
+     * retype on parquet-rs still requires strict equality rather than silently coercing.
+     */
+    public void testCoercingFileTypedFormatsPinned() {
+        assertEquals(Set.of(FormatNameResolver.FORMAT_PARQUET, "orc"), ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS);
+        assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.containsAll(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS));
+        assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
+        assertFalse(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
+    }
+
     // ===== FIRST_FILE_WINS tests (current behavior) =====
 
     /**
@@ -801,7 +832,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> config
     ) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, pathsRequiringStats, future);
+        resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, pathsRequiringStats, future);
         return future.actionGet();
     }
 

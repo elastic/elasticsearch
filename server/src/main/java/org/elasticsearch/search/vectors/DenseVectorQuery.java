@@ -541,14 +541,12 @@ public abstract class DenseVectorQuery extends Query {
         private final byte[] query;
         private final VectorSimilarityFunction function;
         private final boolean isBit;
-        private final IndexVersion indexVersion;
 
-        public DocValuesBytes(byte[] query, String field, VectorSimilarityFunction function, boolean isBit, IndexVersion indexVersion) {
+        public DocValuesBytes(byte[] query, String field, VectorSimilarityFunction function, boolean isBit) {
             super(field);
             this.query = query;
             this.function = function;
             this.isBit = isBit;
-            this.indexVersion = indexVersion;
         }
 
         public byte[] getQuery() {
@@ -570,7 +568,7 @@ public abstract class DenseVectorQuery extends Query {
             if (docValues == null) {
                 return null;
             }
-            return new DocValuesByteVectorScorer(docValues, query, function, isBit, indexVersion);
+            return new DocValuesByteVectorScorer(docValues, query, function, isBit);
         }
 
         @Override
@@ -586,40 +584,35 @@ public abstract class DenseVectorQuery extends Query {
             return Objects.equals(field, other.field)
                 && Objects.deepEquals(query, other.query)
                 && function == other.function
-                && isBit == other.isBit
-                && Objects.equals(indexVersion, other.indexVersion);
+                && isBit == other.isBit;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(field, Arrays.hashCode(query), function, isBit, indexVersion);
+            return Objects.hash(field, Arrays.hashCode(query), function, isBit);
         }
 
         /**
          * Decodes each document's vector from binary doc values. {@code byte} fields apply {@code function};
-         * {@code bit} fields score by Hamming distance, matching Lucene's {@code FlatBitVectorsScorer}:
-         * {@code (numBits - xorBitCount) / numBits}.
+         * {@code bit} fields score by Hamming distance.
          */
         private static final class DocValuesByteVectorScorer implements VectorScorer {
             private final BinaryDocValues values;
             private final byte[] target;
             private final VectorSimilarityFunction function;
             private final boolean isBit;
-            private final IndexVersion indexVersion;
             private final byte[] decoded;
 
             DocValuesByteVectorScorer(
                 BinaryDocValues values,
                 byte[] target,
                 VectorSimilarityFunction function,
-                boolean isBit,
-                IndexVersion indexVersion
+                boolean isBit
             ) {
                 this.values = values;
                 this.target = target;
                 this.function = function;
                 this.isBit = isBit;
-                this.indexVersion = indexVersion;
                 this.decoded = new byte[target.length];
             }
 

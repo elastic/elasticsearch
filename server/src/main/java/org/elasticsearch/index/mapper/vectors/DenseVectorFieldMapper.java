@@ -681,7 +681,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 ElementType elementType,
                 IndexVersion indexVersion
             ) {
-                return new DenseVectorQuery.DocValuesBytes(values, field, function, false, indexVersion);
+                return new DenseVectorQuery.DocValuesBytes(values, field, function, false);
             }
         }
 
@@ -698,7 +698,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 ElementType elementType,
                 IndexVersion indexVersion
             ) {
-                return new DenseVectorQuery.DocValuesBytes(values, field, function, true, indexVersion);
+                return new DenseVectorQuery.DocValuesBytes(values, field, function, true);
             }
         }
     }

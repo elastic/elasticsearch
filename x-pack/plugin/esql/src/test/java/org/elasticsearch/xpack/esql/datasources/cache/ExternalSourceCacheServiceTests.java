@@ -40,10 +40,15 @@ import static org.hamcrest.Matchers.lessThan;
 public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     private static Settings defaultSettings() {
+        return schemaTtlSettings("5m");
+    }
+
+    /** {@link #defaultSettings()} with a chosen schema TTL — shrunk by the expiry-sweep tests. */
+    private static Settings schemaTtlSettings(String schemaTtl) {
         return Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.schema.ttl", schemaTtl)
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
     }
@@ -582,13 +587,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * time, standing in for "the scan outlived the TTL".
      */
     public void testMultiFileStripeCommitSurvivesSchemaTtlExpiry() throws Exception {
-        Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "500ms")
-            .put("esql.source.cache.listing.ttl", "30s")
-            .build();
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
             long mtime = 1000L;
             String pathA = "s3://bucket/data/hits_00.ndjson";
             String pathB = "s3://bucket/data/hits_01.ndjson";
@@ -615,13 +614,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     /** Whole-file-contribution twin of {@link #testMultiFileStripeCommitSurvivesSchemaTtlExpiry}. */
     public void testMultiFileWholeFileCommitSurvivesSchemaTtlExpiry() throws Exception {
-        Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "500ms")
-            .put("esql.source.cache.listing.ttl", "30s")
-            .build();
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
             long mtime = 1000L;
             String pathA = "s3://bucket/data/hits_00.csv";
             String pathB = "s3://bucket/data/hits_01.csv";
@@ -650,13 +643,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * single-file case (the one that would otherwise pay a doubled full-cache scan).
      */
     public void testSingleFileStripeCommitSurvivesSchemaTtlExpiry() throws Exception {
-        Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "500ms")
-            .put("esql.source.cache.listing.ttl", "30s")
-            .build();
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
             long mtime = 1000L;
             String path = "s3://bucket/data/hits_00.ndjson";
             SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
@@ -673,11 +660,57 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * The same {@code (path, mtime, fingerprint)} can live under SEVERAL cache keys — endpoint/region are
+     * {@link SchemaCacheKey} components but not config-fingerprint inputs — and a commit applies its delta to
+     * every one of them. A sibling path's earlier commit can sweep ONE twin (the older, expired one) while the
+     * other is still live; the snapshot recovery must be per key, not all-or-nothing on the live sweep, or the
+     * swept twin's delta is silently lost. Staggered seeding makes the sweep partial deterministically: the
+     * first twin outlives the TTL by reconcile time, the second does not. (If a CI stall expires the second
+     * twin too, both are recovered from the snapshot and the test still passes — it degrades to the
+     * all-swept case rather than false-failing.)
+     */
+    public void testPartialTwinSweepRecoversSweptTwinEntry() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("2s"))) {
+            long mtime = 1000L;
+            String pathA = "s3://bucket/data/hits_00.csv";
+            String pathB = "s3://bucket/data/hits_01.csv";
+            SchemaCacheKey keyA = SchemaCacheKey.build(pathA, mtime, ".csv", Map.of("format", "csv"));
+            SchemaCacheKey twinB1 = SchemaCacheKey.build(pathB, mtime, ".csv", Map.of("format", "csv", "endpoint", "https://e1"));
+            SchemaCacheKey twinB2 = SchemaCacheKey.build(pathB, mtime, ".csv", Map.of("format", "csv", "endpoint", "https://e2"));
+            seedSchemaCache(service, keyA, pathA, "fp");
+            seedSchemaCache(service, twinB1, pathB, "fp");
+            Thread.sleep(700);
+            seedSchemaCache(service, twinB2, pathB, "fp"); // still inside the TTL: seeding must not sweep the first twin
+            Thread.sleep(1500); // now twinB1 and keyA have expired; twinB2 has not
+
+            Map<String, List<Map<String, Object>>> contributions = new LinkedHashMap<>();
+            contributions.put(pathA, List.of(wholeFileStats(mtime, "fp", 100L)));
+            contributions.put(pathB, List.of(wholeFileStats(mtime, "fp", 200L)));
+            service.reconcileSourceStatsFromContributions(contributions);
+
+            assertEquals("first-committed file must keep its stats", 100L, schemaRowCount(service, keyA));
+            assertEquals("live twin must receive the delta", 200L, schemaRowCount(service, twinB2));
+            assertEquals("twin swept by the sibling commit must be recovered per key", 200L, schemaRowCount(service, twinB1));
+        }
+    }
+
     /** The committed row count of {@code path}'s entry, read expiry-blind via forEach (get() would hide expired entries). */
     private static Object schemaRowCount(ExternalSourceCacheService service, String path) {
         AtomicReference<Object> found = new AtomicReference<>();
         service.schemaCache().forEach((k, e) -> {
             if (path.equals(k.canonicalPath())) {
+                found.set(e.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            }
+        });
+        return found.get();
+    }
+
+    /** Key-precise variant of {@link #schemaRowCount(ExternalSourceCacheService, String)} for paths cached under twin keys. */
+    private static Object schemaRowCount(ExternalSourceCacheService service, SchemaCacheKey key) {
+        AtomicReference<Object> found = new AtomicReference<>();
+        service.schemaCache().forEach((k, e) -> {
+            if (key.equals(k)) {
                 found.set(e.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
             }
         });

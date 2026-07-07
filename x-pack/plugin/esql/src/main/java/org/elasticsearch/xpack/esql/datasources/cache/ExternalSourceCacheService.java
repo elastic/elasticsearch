@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -244,13 +245,18 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * Collects every schema-cache entry a contribution for {@code (path, mtimeMillis, fingerprint)}
-     * applies to: the live cache first, and only when that yields NOTHING the pre-reconcile
-     * {@code fallback} snapshot (see {@link #snapshotEntriesByPath}) — the case where a sibling
-     * path's earlier commit swept this path's expired entry out of the cache before its stats could
-     * be applied. A fallback entry passes the same mtime + fingerprint predicate as a live one, and
-     * re-putting it re-inserts the entry with a fresh write time — the same revive a live expired
-     * match already gets. Must run holding the per-path {@link #stripeCommitLocks} lock; callers
-     * mutate and re-put the returned entries after this method returns.
+     * applies to: every live match, plus — per KEY, for keys the live sweep no longer has — the
+     * pre-reconcile {@code fallback} snapshot (see {@link #snapshotEntriesByPath}), the case where a
+     * sibling path's earlier commit swept this path's expired entry out of the cache before its stats
+     * could be applied. The recovery is per key, not all-or-nothing on the live sweep: the same
+     * {@code (path, mtime, fingerprint)} can live under several keys (endpoint/region are key
+     * components but not fingerprint inputs), and a partial sweep evicting one twin must not forfeit
+     * its delta just because another twin survived. A live entry always wins over its snapshot
+     * version (it may carry a concurrent commit's enrichment). A fallback entry passes the same
+     * mtime + fingerprint predicate as a live one, and re-putting it re-inserts the entry with a
+     * fresh write time — the same revive a live expired match already gets. Must run holding the
+     * per-path {@link #stripeCommitLocks} lock; callers mutate and re-put the returned entries after
+     * this method returns.
      */
     private List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> collectMatchingEntries(
         String path,
@@ -270,14 +276,21 @@ public class ExternalSourceCacheService implements Closeable {
                 matches.add(Map.entry(key, existing));
             }
         });
-        if (matches.isEmpty() && fallback != null) {
+        if (fallback != null) {
+            Set<SchemaCacheKey> liveKeys = new HashSet<>(matches.size());
+            for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matches) {
+                liveKeys.add(match.getKey());
+            }
+            int recovered = 0;
             for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> candidate : fallback) {
-                if (matchesContribution(candidate.getKey(), candidate.getValue(), path, mtimeMillis, fingerprint)) {
+                if (liveKeys.contains(candidate.getKey()) == false
+                    && matchesContribution(candidate.getKey(), candidate.getValue(), path, mtimeMillis, fingerprint)) {
                     matches.add(candidate);
+                    recovered++;
                 }
             }
-            if (matches.isEmpty() == false) {
-                logger.debug("recovering [{}] cache entries for [{}] swept by a sibling commit", matches.size(), path);
+            if (recovered > 0) {
+                logger.debug("recovering [{}] cache entries for [{}] swept by a sibling commit", recovered, path);
             }
         }
         return matches;

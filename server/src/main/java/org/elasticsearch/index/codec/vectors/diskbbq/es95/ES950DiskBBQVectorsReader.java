@@ -27,7 +27,6 @@ import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidIndex;
@@ -140,19 +139,17 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         float visitRatio
     ) throws IOException {
         ES950DiskBBQVectorsReader.NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
-        var iterator = switch (fieldEntry.centroidIndexFormat()) {
-            case FLAT -> new FlatCentroidIndex(
-                fieldInfo,
-                fieldEntry,
-                numCentroids,
-                centroids,
-                targetQuery,
-                acceptDocs,
-                approximateCost,
-                values,
-                visitRatio
-            ).getIterator();
-        };
+        var iterator = new FlatCentroidIndex(
+            fieldInfo,
+            fieldEntry,
+            numCentroids,
+            centroids,
+            targetQuery,
+            acceptDocs,
+            approximateCost,
+            values,
+            visitRatio
+        ).getIterator();
         return getPostingListPrefetchIterator(iterator, postingListSlice);
     }
 
@@ -172,7 +169,6 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         float globalCentroidDp
     ) throws IOException {
         int bulkSize = input.readInt();
-        CentroidIndexFormat centroidIndexFormat = CentroidIndexFormat.fromId(input.readInt());
         QuantEncoding quantEncoding = QuantEncoding.fromId(input.readInt());
         long preconditionerLength = input.readLong();
         long preconditionerOffset = -1;
@@ -197,7 +193,6 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             postingListLength,
             globalCentroid,
             globalCentroidDp,
-            centroidIndexFormat,
             quantEncoding,
             bulkSize,
             preconditionerOffset,
@@ -294,7 +289,6 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
     }
 
     public static class NextFieldEntry extends FieldEntry {
-        private final CentroidIndexFormat centroidIndexFormat;
         private final QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;
@@ -317,7 +311,6 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             long postingListLength,
             float[] globalCentroid,
             float globalCentroidDp,
-            CentroidIndexFormat centroidIndexFormat,
             QuantEncoding quantEncoding,
             int bulkSize,
             long preconditionerOffset,
@@ -340,17 +333,12 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
                 globalCentroidDp,
                 bulkSize
             );
-            this.centroidIndexFormat = centroidIndexFormat;
             this.quantEncoding = quantEncoding;
             this.preconditionerOffset = preconditionerOffset;
             this.preconditionerLength = preconditionerLength;
             this.numSlices = numSlices;
             this.maxSliceSize = maxSliceSize;
             this.rescoreOversample = rescoreOversample;
-        }
-
-        public CentroidIndexFormat centroidIndexFormat() {
-            return centroidIndexFormat;
         }
 
         public QuantEncoding quantEncoding() {
@@ -373,13 +361,6 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         public int numSlices() {
             return numSlices;
         }
-    }
-
-    @Override
-    protected long maxVectorsToVisit(NextFieldEntry entry, float visitRatio, int numVectors) {
-        return switch (entry.centroidIndexFormat()) {
-            case FLAT -> super.maxVectorsToVisit(entry, visitRatio, numVectors);
-        };
     }
 
     @Override

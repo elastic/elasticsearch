@@ -16,7 +16,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
@@ -99,7 +98,6 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;
     public static final int MAX_DIMENSIONS = 4096;
 
-    private final CentroidIndexFormat centroidIndexFormat = CentroidIndexFormat.FLAT;
     private final QuantEncoding quantEncoding;
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
@@ -275,7 +273,6 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             rawVectorFormat.getName(),
             useDirectIO,
             rawVectorFormat.fieldsWriter(state),
-            centroidIndexFormat,
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,

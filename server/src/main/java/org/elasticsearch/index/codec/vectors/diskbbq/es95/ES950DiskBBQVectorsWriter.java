@@ -80,7 +80,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
     private static final Logger logger = LogManager.getLogger(ES950DiskBBQVectorsWriter.class);
 
     private final int vectorPerCluster;
-    private final CentroidIndexFormat centroidIndexFormat;
     private final int centroidsPerParentCluster;
     private final QuantEncoding quantEncoding;
     private final TaskExecutor mergeExec;
@@ -95,7 +94,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         String rawVectorFormatName,
         boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
-        CentroidIndexFormat centroidIndexFormat,
         QuantEncoding encoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -121,7 +119,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
             flatVectorThreshold
         );
         this.vectorPerCluster = vectorPerCluster;
-        this.centroidIndexFormat = centroidIndexFormat;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.quantEncoding = encoding;
         this.mergeExec = mergeExec;
@@ -134,7 +131,7 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
 
     @Override
     protected IvfSegmentConfig beginIvfFieldFlush(FieldInfo fieldInfo) throws IOException {
-        IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(centroidIndexFormat, quantEncoding, doPrecondition);
+        IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, quantEncoding, doPrecondition);
         return flushConfigSource.load(segmentWriteState, fieldInfo).orElse(codec);
     }
 
@@ -143,7 +140,7 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         return mergeConfigResolver.resolve(
             fieldInfo,
             mergeState,
-            IvfSegmentConfig.fromCodecDefaults(centroidIndexFormat, quantEncoding, doPrecondition)
+            IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, quantEncoding, doPrecondition)
         );
     }
 
@@ -674,7 +671,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
     ) throws IOException {
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(ivfSegmentConfig);
         metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
-        metaOutput.writeInt(segmentConfig.centroidIndexFormat().id());
         metaOutput.writeInt(segmentConfig.quantEncoding().id());
         metaOutput.writeLong(preconditionerLength);
         if (preconditionerLength > 0) {
@@ -691,9 +687,7 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         int[] centroidAssignments,
         IndexOutput centroidOutput
     ) throws IOException {
-        return switch (centroidIndexFormat) {
-            case FLAT -> FlatCentroidIndexWriter.writeCentroidIndex(centroidSupplier, centroidAssignments, centroidOutput);
-        };
+        return FlatCentroidIndexWriter.writeCentroidIndex(centroidSupplier, centroidAssignments, centroidOutput);
     }
 
     @Override
@@ -705,16 +699,14 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         FlatCentroidIndexWriter.CentroidGroups centroidGroups,
         IndexOutput centroidOutput
     ) throws IOException {
-        switch (centroidIndexFormat) {
-            case FLAT -> FlatCentroidIndexWriter.writeCentroidData(
-                fieldInfo,
-                centroidSupplier,
-                globalCentroid,
-                centroidOffsetAndLength,
-                centroidGroups,
-                centroidOutput
-            );
-        }
+        FlatCentroidIndexWriter.writeCentroidData(
+            fieldInfo,
+            centroidSupplier,
+            globalCentroid,
+            centroidOffsetAndLength,
+            centroidGroups,
+            centroidOutput
+        );
     }
 
     @Override
@@ -790,7 +782,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
                 printClusterQualityStatistics(clusterSizes);
             }
 
-            // TODO: swap out SOAR for SRAIR when HNSW graphs are used for the centroids
             return new CentroidInformation(
                 fieldInfo.getVectorDimension(),
                 kMeansResult.centroids(),
@@ -821,7 +812,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
             logger.debug("final centroid count: {}", kMeansResult.centroids().length);
         }
 
-        // TODO: swap out SOAR for SRAIR when HNSW graphs are used for the centroids
         return new CentroidInformation(
             fieldInfo.getVectorDimension(),
             kMeansResult.centroids(),

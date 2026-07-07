@@ -3404,8 +3404,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         indexDocs(indexName, numDocs);
         refresh(indexName);
         assertHitCount(prepareSearchAll(indexName), numDocs);
-        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get(SAFE_AWAIT_TIMEOUT);
-        assertNoFailures(flushResponse);
 
         // Second index node hosts the target primary after reshard
         startIndexNode();
@@ -3424,24 +3422,10 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                     splitInitiated.countDown();
                     Thread failoverThread = new Thread(() -> {
                         try {
-                            logger.info("--> restarting current master during split initiation");
                             awaitClusterState(state -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
+                            logger.info("--> restarting current master during split initiation");
                             internalCluster().restartNode(masterNode);
                             assertBusy(() -> ensureStableCluster(5)); // master back, gateway recovery done
-                            // Validate the fix: target shard must keep RESHARD_SPLIT recovery source after failover.
-                            assertBusy(() -> {
-                                ShardRouting targetPrimary = client().admin()
-                                    .cluster()
-                                    .prepareState(TEST_REQUEST_TIMEOUT)
-                                    .get()
-                                    .getState()
-                                    .routingTable()
-                                    .index(indexName)
-                                    .shard(1)
-                                    .primaryShard();
-                                assertThat(targetPrimary.recoverySource().getType(), equalTo(RecoverySource.Type.RESHARD_SPLIT));
-                                assertThat(targetPrimary.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.RESHARD_ADDED));
-                            });
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         } finally {

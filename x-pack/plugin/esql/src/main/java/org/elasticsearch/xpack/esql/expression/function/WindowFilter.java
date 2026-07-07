@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import com.carrotsearch.hppc.LongLongHashMap;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -26,9 +28,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -119,7 +119,7 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
             source(),
             foldedWindow.toMillis(),
             preparedRounding,
-            driverContext -> new HashMap<>(),
+            driverContext -> new LongLongHashMap(),
             timestampFactory
         );
     }
@@ -141,11 +141,26 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
     static boolean process(
         @Fixed long window,
         @Fixed Rounding.Prepared bucket,
-        @Fixed(scope = Fixed.Scope.THREAD_LOCAL) Map<Long, Long> nextTimestamps,
+        @Fixed(scope = Fixed.Scope.THREAD_LOCAL) LongLongHashMap nextTimestamps,
         long timestamp
     ) {
-        long bucketStart = bucket.round(timestamp);
-        long bucketEnd = nextTimestamps.computeIfAbsent(bucketStart, bucket::nextRoundingValue);
-        return timestamp >= bucketEnd - window;
+        long bucketId = bucket.round(timestamp);
+        int idx = nextTimestamps.indexOf(bucketId);
+        if (nextTimestamps.indexExists(idx)) {
+            return timestamp >= nextTimestamps.indexGet(idx);
+        }
+
+        long lo = bucket.roundingFloor(bucketId);
+        long hi = bucket.roundingCeiling(bucketId);
+        // round(timestamp) returns the bucket's label edge: its lower edge for start-labeled roundings and its upper
+        // edge for end-labeled ones. roundingFloor/roundingCeiling recover the physical [lo, hi] edges regardless of
+        // labeling, so the trailing-window boundary can be derived without knowing the convention. Start-labeled
+        // buckets are right-open [lo, hi) and keep their lower edge, so a sample is inside the window when
+        // timestamp >= hi - window. End-labeled buckets are left-open (lo, hi] and drop their lower edge (matching
+        // PromQL range selectors), so the boundary is nudged by one millisecond. bucketId equals lo only for
+        // start-labeled roundings.
+        long nextBucketId = lo == bucketId ? hi - window : hi - window + 1;
+        nextTimestamps.indexInsert(idx, bucketId, nextBucketId);
+        return timestamp >= nextBucketId;
     }
 }

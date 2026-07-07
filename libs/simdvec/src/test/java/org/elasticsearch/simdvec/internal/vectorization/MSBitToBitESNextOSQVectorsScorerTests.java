@@ -64,6 +64,7 @@ public class MSBitToBitESNextOSQVectorsScorerTests extends BaseVectorizationTest
 
     public void testSymmetric1BitDotProductMatchesNativeWhenSupported() throws IOException {
         assumeTrue("native scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
+        assumeTrue("native vector library not available", nativeProvider().getVectorScorerFactory().usesNative());
         int dims = random().nextInt(1, 64) * 8;
         int length = BBQTestUtils.numBytes(dims, 1);
 

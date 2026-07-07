@@ -94,6 +94,16 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     /** Skip all malformed rows without limit, logging each one. */
     public static final ErrorPolicy LENIENT = new ErrorPolicy(Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, true);
 
+    /**
+     * Null-fill unparseable fields without limit, keeping every row — the opt-in leniency for a
+     * declared-type coercion failure (a bad per-value token nulls the cell and emits a response
+     * {@code Warning} header) via {@code error_mode: null_field}. No format defaults to this: every
+     * reader inherits the base {@link FormatReader#defaultErrorPolicy()} == {@link #STRICT}. A
+     * columnar batch cannot drop a single row, so {@link Mode#SKIP_ROW} degrades to this same
+     * null-field behavior there.
+     */
+    public static final ErrorPolicy PERMISSIVE = new ErrorPolicy(Mode.NULL_FIELD, Long.MAX_VALUE, 1.0, false);
+
     /** Config keys recognised by {@link #fromConfig}. Mirrored as constants so format
      *  plugins do not have to hard-code the strings. */
     public static final String CONFIG_MAX_ERRORS = "max_errors";

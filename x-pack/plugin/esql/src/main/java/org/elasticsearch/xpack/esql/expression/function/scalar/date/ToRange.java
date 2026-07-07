@@ -52,7 +52,7 @@ public class ToRange extends EsqlScalarFunction {
     @FunctionInfo(
         returnType = "date_range",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Constructs a range from two boundary values.",
         description = "Constructs a range from two boundary values. "
             + "The first argument is the inclusive lower bound; "

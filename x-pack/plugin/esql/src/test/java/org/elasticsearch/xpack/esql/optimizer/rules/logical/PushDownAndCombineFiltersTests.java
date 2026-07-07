@@ -626,7 +626,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation left = relation(List.of(a, getFieldAttribute("b")));
         EsRelation right = relation(List.of(c, d, e, f, g));
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(c), null);
-        Join join = new Join(EMPTY, left, right, joinConfig);
+        Join join = new Join(Source.EMPTY, left, right, joinConfig, false);
 
         // Predicates
         Expression p1 = greaterThanOf(c, ONE);                                  // pushable
@@ -877,7 +877,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation right = relation(List.of(c, b));
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a, b), List.of(b, c), null);
-        return new Join(EMPTY, left, right, joinConfig);
+        return new Join(Source.EMPTY, left, right, joinConfig, false);
     }
 
     private Join createLeftJoinOnExpression() {
@@ -889,7 +889,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation right = relation(List.of(c, b2));
         Expression joinOnCondition = new GreaterThanOrEqual(Source.EMPTY, b1, b2);
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b1), List.of(b2), joinOnCondition);
-        return new Join(EMPTY, left, right, joinConfig);
+        return new Join(Source.EMPTY, left, right, joinConfig, false);
     }
 
     public void testLeftJoinOnExpressionPushable() {

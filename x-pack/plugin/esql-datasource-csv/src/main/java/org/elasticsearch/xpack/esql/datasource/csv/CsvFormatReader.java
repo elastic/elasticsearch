@@ -4710,13 +4710,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // only shrinks the range, so len here is always within the cap and needs no re-check.
             int len = end - start;
             // Null classification mirrors tryConvertValue: a present-but-empty field is the empty string
-            // on string columns and null on other types; the literal "null" (any case) or the configured
-            // null marker always become null.
+            // on string columns and null on other types; the literal "null" (any case) is a null marker
+            // only for non-string columns, since KEYWORD/TEXT must be able to hold the string "null"; the
+            // configured null marker always becomes null.
             if (len == 0) {
                 stagePresentEmptyValue(bufIdx, dt);
                 return true;
             }
-            if (len == 4 && regionEqualsIgnoreCase(buf, start, "null")) {
+            if (DataType.isString(dt) == false && len == 4 && regionEqualsIgnoreCase(buf, start, "null")) {
                 stageNullValue(bufIdx);
                 return true;
             }
@@ -5460,7 +5461,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // Present-but-empty cell: empty string on string columns, null otherwise.
                 return presentEmptyValue(dataType);
             }
-            if (value.equalsIgnoreCase("null")) {
+            if (DataType.isString(dataType) == false && value.equalsIgnoreCase("null")) {
+                // The literal "null" (any case) is a null marker only for non-string columns; KEYWORD/TEXT
+                // hold the string "null" verbatim.
                 return null;
             }
             if (bracketMultiValues) {
@@ -5573,7 +5576,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // scalar present-empty cell — empty string on string columns, null otherwise.
                 return presentEmptyValue(dataType);
             }
-            if (value.equalsIgnoreCase("null")) {
+            if (DataType.isString(dataType) == false && value.equalsIgnoreCase("null")) {
+                // Same string-type gate as tryConvertValue: a bracket element that is "null" stays the
+                // literal string on KEYWORD/TEXT.
                 return null;
             }
             value = unquoteElement(value);

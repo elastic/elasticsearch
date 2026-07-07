@@ -342,7 +342,8 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
 
         /**
-         * Fixes count on an unmapped field using a query filter, leading to 0 count.
+         * Fixes count on an unmapped field. Previously, it tried to push down a query filter on the unmapped field, leading to a 0-count
+         * since the field isn't mapped.
          * See https://github.com/elastic/elasticsearch/issues/152884.
          */
         OPTIONAL_FIELDS_FIX_COUNT_ON_UNMAPPED,

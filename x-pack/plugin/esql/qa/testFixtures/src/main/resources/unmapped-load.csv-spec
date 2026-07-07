@@ -739,7 +739,7 @@ c:long
 
 inlineCountPartiallyUnmappedPunkCastIncludesSourceOnlyValues
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_fix_count_on_unmapped
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data

@@ -364,7 +364,7 @@ public class Ai21ServiceTests extends InferenceServiceTestCase {
         try (var service = new Ai21Service(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = Ai21ChatCompletionModelTests.createCompletionModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }

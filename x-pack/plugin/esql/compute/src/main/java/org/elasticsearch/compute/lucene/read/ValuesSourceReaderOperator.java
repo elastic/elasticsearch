@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * Loads values from Lucene.
@@ -159,7 +160,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         boolean reuseColumnLoaders,
         int docChannel,
         double sourceReservationFactor,
-        int docSequenceBytesRefFieldThreshold
+        int docSequenceBytesRefFieldThreshold,
+        LongSupplier directoryBytesRead
     ) implements OperatorFactory {
         public Factory
 
@@ -178,9 +180,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             IndexedByShardId<ShardContext> shardContexts,
             boolean reuseColumnLoaders,
             int docChannel,
-            double sourceReservationFactor
+            double sourceReservationFactor,
+            LongSupplier directoryBytesRead
         ) {
-            this(jumboSize, fields, shardContexts, reuseColumnLoaders, docChannel, sourceReservationFactor, 500);
+            this(jumboSize, fields, shardContexts, reuseColumnLoaders, docChannel, sourceReservationFactor, 500, directoryBytesRead);
         }
 
         @Override
@@ -193,7 +196,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                 reuseColumnLoaders,
                 docChannel,
                 sourceReservationFactor,
-                docSequenceBytesRefFieldThreshold
+                docSequenceBytesRefFieldThreshold,
+                directoryBytesRead
             );
         }
 
@@ -302,6 +306,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
+    long bytesRead;
+    private final LongSupplier directoryBytesRead;
 
     private int lastShard = -1;
     private int lastSegment = -1;
@@ -336,11 +342,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         boolean reuseColumnLoaders,
         int docChannel,
         double sourceReservationFactor,
-        int docSequenceBytesRefFieldThreshold
+        int docSequenceBytesRefFieldThreshold,
+        LongSupplier directoryBytesRead
     ) {
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
         }
+        this.directoryBytesRead = directoryBytesRead;
         this.driverContext = driverContext;
         this.jumboBytes = jumboBytes;
         this.docSequenceBytesRefFieldThreshold = docSequenceBytesRefFieldThreshold;
@@ -358,7 +366,38 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     protected ReleasableIterator<Page> receive(Page page) {
         acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        return appendBlockArrays(page, valuesReader(docVector));
+        return trackBytesRead(appendBlockArrays(page, valuesReader(docVector)));
+    }
+
+    private ReleasableIterator<Page> trackBytesRead(ReleasableIterator<Page> inner) {
+        return new ReleasableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return inner.hasNext();
+            }
+
+            @Override
+            public Page next() {
+                long bytesSnapshot = directoryBytesRead.getAsLong();
+                try {
+                    return inner.next();
+                } finally {
+                    recordBytesRead(bytesSnapshot);
+                }
+            }
+
+            @Override
+            public void close() {
+                inner.close();
+            }
+        };
+    }
+
+    private void recordBytesRead(long bytesSnapshot) {
+        long current = directoryBytesRead.getAsLong();
+        if (current >= bytesSnapshot) {
+            bytesRead += current - bytesSnapshot;
+        }
     }
 
     private ValuesReader valuesReader(DocVector docVector) {
@@ -607,7 +646,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             pagesEmitted,
             rowsReceived,
             rowsEmitted,
-            valuesLoaded
+            valuesLoaded,
+            bytesRead
         );
     }
 

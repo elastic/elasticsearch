@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.eql.logging;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
@@ -73,12 +74,17 @@ public class EqlLogContext extends QueryLoggerContext {
         return Math.clamp(failedShards, 0, Integer.MAX_VALUE);
     }
 
+    @Override
+    protected QueryBuilder queryFilter() {
+        return request.filter();
+    }
+
     // CCS stuff
     public Collection<String> remoteClusterAliases() {
         ResolvedIndexExpressions resolved = request.getResolvedIndexExpressions();
         Stream<String> indices = resolved != null ? resolved.getRemoteIndicesList().stream() : Arrays.stream(request.indices());
         return indices.filter(RemoteClusterAware::isRemoteIndexName)
-            .map(i -> RemoteClusterAware.splitIndexName(i)[0])
+            .map(i -> RemoteClusterAware.splitIndexName(i).clusterAlias())
             .collect(Collectors.toSet());
     }
 }

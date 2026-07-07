@@ -1,7 +1,9 @@
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
@@ -17,6 +19,7 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql'))
   javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation(testArtifact(project(":modules:ip-location")))
 
   // S3 fixture infrastructure for external source distributed tests
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
@@ -40,6 +43,12 @@ dependencies {
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
+esqlCsvSpecTests {
+    specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+    packageName = 'org.elasticsearch.xpack.esql.qa.multi_node'
+    variant 'EsqlSpec', 'AbstractEsqlSpecIT'
+}
+
 tasks.named('javaRestTestTestingConventions').configure {
   baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
   baseClass 'org.elasticsearch.test.ESTestCase'
@@ -53,7 +62,7 @@ def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
 ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
 // CSV base names for sync + Parquet generation; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
-ext.csvToParquetFixtures = ['employees', 'web_logs', 'books']
+ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'employees_no_mv']
 
 tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
@@ -78,6 +87,7 @@ csvToParquetFixtures.each { baseName ->
     inputs.file(csvInput)
     outputs.file(parquetFile)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateParquetTasks.add(tasks.named(taskName))
 }
@@ -103,6 +113,18 @@ tasks.named('javaRestTest') {
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
 }
+
+def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  dependsOn generateEsqlSpecTests
+}
+tasks.named('check').configure { dependsOn csvSpecTests }
 
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'

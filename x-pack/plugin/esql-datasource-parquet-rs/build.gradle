@@ -7,6 +7,7 @@
 
 import org.elasticsearch.gradle.transform.UnzipTransform
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.Version
 
 import java.security.MessageDigest
 
@@ -125,7 +126,6 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
-  compileOnly project(xpackModule('esql:arrow'))
 
   // Arrow C Data Interface for zero-copy FFI transfer from Rust
   implementation("org.apache.arrow:arrow-c-data:18.3.0") {
@@ -238,12 +238,24 @@ tasks.named("sourcesJar").configure {
 
 // ---------------------------------------------------------------------------
 
-tasks.named("test").configure {
-  if (OS.current() == OS.WINDOWS) {
-    // Not supported
-    enabled = false
+ext.testsEnabled = switch(OS.current()) {
+  case OS.WINDOWS -> false // Not supported
+  case OS.LINUX -> {
+    // The native lib requires glibc >= 2.30, (max version from 'nm -D ./libesql_parquet_rs.so | grep '@GLIBC')
+    // RedHat 8 and derived distros have glibc 2.28, disable tests on those.
+    //
+    // This is a stopgap solution that needs to be reevaluated when development of this module restarts.
+    // See https://github.com/elastic/elasticsearch/issues/149917
+    Version glibcVersion = java.util.Optional.ofNullable(System.getenv("GLIBC_VERSION"))
+      .map(v -> Version.fromString(v, Version.Mode.RELAXED))
+      .orElse(null)
+    glibcVersion == null || glibcVersion.onOrAfter(Version.fromString("2.30.0"))
   }
+  default -> true
+}
 
+tasks.named("test").configure {
+  enabled = testsEnabled
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 

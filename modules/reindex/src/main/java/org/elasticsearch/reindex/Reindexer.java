@@ -49,7 +49,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
@@ -57,19 +56,19 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
-import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
@@ -126,14 +125,6 @@ public class Reindexer {
 
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
-    /// Allows setting the system property `es.reindex.disable_pit_search` as an escape hatch to disable the use of PIT-based search, and
-    /// force the use of the legacy scroll-based search.
-    // TODO(#2715): Remove this when we're confident the PIT version works
-    private static final boolean DISABLE_PIT_SEARCH = Booleans.parseBooleanLenient(
-        System.getProperty("es.reindex.disable_pit_search"),
-        false
-    );
-
     private final ClusterService clusterService;
     private final ReindexSettings reindexSettings;
     private final ProjectResolver projectResolver;
@@ -144,7 +135,7 @@ public class Reindexer {
     @Nullable
     private final ReindexMetrics reindexMetrics;
     @Nullable
-    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
+    private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
     private final TaskManager taskManager;
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
@@ -162,7 +153,7 @@ public class Reindexer {
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         TransportService transportService,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
@@ -177,7 +168,7 @@ public class Reindexer {
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
-        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
+        this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
         this.taskManager = transportService.getTaskManager(); // implicit null check
         this.transportService = transportService;
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
@@ -199,7 +190,7 @@ public class Reindexer {
         BulkByPaginatedSearchTask task,
         ReindexRequest request,
         Client bulkClient,
-        ActionListener<BulkByScrollResponse> listener
+        ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
         final ResumeInfo resumeInfo = request.getResumeInfo().orElse(null);
         if (resumeInfo != null && resumeInfo.sourceTaskResult() != null) {
@@ -240,11 +231,11 @@ public class Reindexer {
         BulkByPaginatedSearchTask task,
         ReindexRequest request,
         Client bulkClient,
-        ActionListener<BulkByScrollResponse> listener
+        ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
         // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
-        final ActionListener<BulkByScrollResponse> responseListener = wrapWithMetrics(
+        final ActionListener<BulkByPaginatedSearchResponse> responseListener = wrapWithMetrics(
             listenerWithRelocations(task, request, relocationResponseLoggingListener(task), listener),
             reindexMetrics,
             task,
@@ -255,7 +246,7 @@ public class Reindexer {
         Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, responseListener);
 
         // Point-in-time searching is disabled, so default to scroll
-        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false || DISABLE_PIT_SEARCH) {
+        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false) {
             executePaginatedSearch(task, request, responseListener, workerAction, null);
         }
         /**
@@ -272,7 +263,7 @@ public class Reindexer {
         else {
             // If PIT is already set (worker received sliced request from leader), skip opening a new PIT
             if (request.getSearchRequest().source() != null && request.getSearchRequest().source().pointInTimeBuilder() != null) {
-                ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
+                ActionListener<BulkByPaginatedSearchResponse> listenerWithClosePit = wrapListenerWithClosePit(
                     request.getSearchRequest().source().pointInTimeBuilder().getEncodedId(),
                     responseListener,
                     this::closeLocalPit,
@@ -296,7 +287,7 @@ public class Reindexer {
         BulkByPaginatedSearchTask task,
         ReindexRequest request,
         Client bulkClient,
-        ActionListener<BulkByScrollResponse> listener
+        ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
         return remoteVersion -> {
             ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
@@ -314,7 +305,7 @@ public class Reindexer {
                 listener,
                 remoteVersion,
                 reindexShutdownGracePeriod,
-                bulkByScrollSearchContextMetrics,
+                bulkByPaginatedSearchSearchContextMetrics,
                 reindexSettings,
                 requestBreaker
             );
@@ -328,7 +319,7 @@ public class Reindexer {
     private void executePaginatedSearch(
         BulkByPaginatedSearchTask task,
         ReindexRequest request,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         Consumer<Version> workerAction,
         @Nullable Version remoteVersion
     ) {
@@ -357,6 +348,9 @@ public class Reindexer {
             if (source.slice().getField() == null) {
                 source.slice(new SliceBuilder(IdFieldMapper.NAME, source.slice().getId(), source.slice().getMax()));
             }
+            // We also have to disable slicing by shard to maintain slice consistency in the presence of resharding, which can cause
+            // the set of documents on a shard to change between slices when PIT is not shared.
+            source.slice(SliceBuilder.withoutShardOptimization(source.slice()));
         }
     }
 
@@ -367,7 +361,7 @@ public class Reindexer {
         BulkByPaginatedSearchTask task,
         ReindexRequest request,
         Client bulkClient,
-        ActionListener<BulkByScrollResponse> listener
+        ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
         SearchRequest searchRequest = request.getSearchRequest();
         String[] indices = searchRequest.indices();
@@ -397,7 +391,7 @@ public class Reindexer {
         client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listener.delegateFailureAndWrap((l, pitResponse) -> {
             BytesReference pitId = pitResponse.getPointInTimeId();
             request.convertSearchRequestToUsePit(pitId, reindexSettings.pitKeepAlive());
-            ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
+            ActionListener<BulkByPaginatedSearchResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 l,
                 this::closeLocalPit,
@@ -412,7 +406,7 @@ public class Reindexer {
     /**
      * Wraps a listener to close the PIT when the task completes (success or failure).
      * <p>
-     * On <strong>response</strong>: closes the PIT unless the response carries {@link BulkByScrollResponse#getTaskResumeInfo()}
+     * On <strong>response</strong>: closes the PIT unless the response carries {@link BulkByPaginatedSearchResponse#getTaskResumeInfo()}
      * (relocation handoff to another node) or {@code shouldNotCloseOnResponse} is true (e.g. a sliced worker whose leader
      * owns the shared PIT).
      * <p>
@@ -424,9 +418,9 @@ public class Reindexer {
      * {@link RestClient#close()} for remote reindex).
      * Visible for testing
      */
-    static ActionListener<BulkByScrollResponse> wrapListenerWithClosePit(
+    static ActionListener<BulkByPaginatedSearchResponse> wrapListenerWithClosePit(
         BytesReference pitId,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         BiConsumer<BytesReference, ActionListener<Void>> closePit
     ) {
         return wrapListenerWithClosePit(pitId, listener, closePit, null, () -> false);
@@ -437,9 +431,9 @@ public class Reindexer {
      * When {@code shouldNotCloseOnResponse} returns true, the PIT is not closed on response (e.g. sliced workers
      * must not close the shared PIT; only the leader closes when all complete).
      */
-    static ActionListener<BulkByScrollResponse> wrapListenerWithClosePit(
+    static ActionListener<BulkByPaginatedSearchResponse> wrapListenerWithClosePit(
         BytesReference pitId,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         BiConsumer<BytesReference, ActionListener<Void>> closePit,
         @Nullable BulkByPaginatedSearchTask task,
         BooleanSupplier shouldNotCloseOnResponse
@@ -454,9 +448,9 @@ public class Reindexer {
      * For local PIT use {@link Runnable#run}; for remote PIT use
      * {@code next -> closeRestClientAndRun(restClient, next)} so the RestClient is closed before notifying.
      */
-    static ActionListener<BulkByScrollResponse> wrapListenerWithClosePit(
+    static ActionListener<BulkByPaginatedSearchResponse> wrapListenerWithClosePit(
         BytesReference pitId,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         BiConsumer<BytesReference, ActionListener<Void>> closePit,
         @Nullable BulkByPaginatedSearchTask task,
         BooleanSupplier shouldNotCloseOnResponse,
@@ -464,7 +458,7 @@ public class Reindexer {
     ) {
         return new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse response) {
+            public void onResponse(BulkByPaginatedSearchResponse response) {
                 if (response.getTaskResumeInfo().isEmpty() && shouldNotCloseOnResponse.getAsBoolean() == false) {
                     BytesReference idToClose = response.getPitId().orElse(pitId);
                     closePit.accept(idToClose, ActionListener.wrap(v -> listener.onResponse(response), listener::onFailure));
@@ -516,7 +510,7 @@ public class Reindexer {
         }, e -> {
             logger.warn("Failed to close remote PIT (rejected)", e);
             closeRestClientAndRun(restClient, () -> listener.onResponse(null));
-        }), threadPool, restClient);
+        }), threadPool, restClient, requestBreaker, reindexSettings.getMemoryAccountingThresholdInBytes());
     }
 
     /**
@@ -529,7 +523,7 @@ public class Reindexer {
         BulkByPaginatedSearchTask task,
         ReindexRequest request,
         Client bulkClient,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         Consumer<Version> workerAction
     ) {
         RemoteInfo remoteInfo = request.getRemoteInfo();
@@ -543,7 +537,7 @@ public class Reindexer {
                     // If PIT is already set (resumed after relocation), skip opening a new PIT
                     if (request.getSearchRequest().source() != null && request.getSearchRequest().source().pointInTimeBuilder() != null) {
                         BytesReference pitId = request.getSearchRequest().source().pointInTimeBuilder().getEncodedId();
-                        ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
+                        ActionListener<BulkByPaginatedSearchResponse> listenerWithClosePit = wrapListenerWithClosePit(
                             pitId,
                             listener,
                             (id, whenClosed) -> closeRemotePitAndRestClient(id, restClient, whenClosed),
@@ -580,7 +574,9 @@ public class Reindexer {
             exponentialBackoff(request.getRetryBackoffInitialTime(), request.getMaxRetries()),
             threadPool,
             restClient,
-            rejectAwareListener
+            rejectAwareListener,
+            requestBreaker,
+            reindexSettings.getMemoryAccountingThresholdInBytes()
         );
     }
 
@@ -592,7 +588,7 @@ public class Reindexer {
         BulkByPaginatedSearchTask task,
         ReindexRequest request,
         Client bulkClient,
-        ActionListener<BulkByScrollResponse> listenerWithRelocations,
+        ActionListener<BulkByPaginatedSearchResponse> listenerWithRelocations,
         RestClient restClient,
         Version remoteVersion
     ) {
@@ -601,7 +597,7 @@ public class Reindexer {
         // Sends a REST request to the remote node to open a PIT
         openPit(searchRequest, indices, reindexSettings.pitKeepAlive(), remoteVersion, RejectAwareActionListener.wrap(pitId -> {
             request.convertSearchRequestToUsePit(pitId, reindexSettings.pitKeepAlive());
-            ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
+            ActionListener<BulkByPaginatedSearchResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 listenerWithRelocations,
                 (id, whenClosed) -> closeRemotePitAndRestClient(id, restClient, whenClosed),
@@ -614,7 +610,7 @@ public class Reindexer {
         },
             e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e)),
             e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e))
-        ), threadPool, restClient);
+        ), threadPool, restClient, requestBreaker, reindexSettings.getMemoryAccountingThresholdInBytes());
     }
 
     /**
@@ -639,7 +635,7 @@ public class Reindexer {
     /// relocation), and the metrics agent stops publishing on SIGTERM — so any source-side metric would be dropped.
     ///
     /// Visible for testing.
-    static ActionListener<ResumeBulkByScrollResponse> relocationResponseLoggingListener(final BulkByPaginatedSearchTask task) {
+    static ActionListener<ResumeBulkByPaginatedSearchResponse> relocationResponseLoggingListener(final BulkByPaginatedSearchTask task) {
         return ActionListener.assertOnce(ActionListener.wrap(resp -> {
             logger.info("reindex task [{}] relocation succeeded on source node", task.getId());
         }, e -> {
@@ -655,8 +651,8 @@ public class Reindexer {
      * Wrap listener with reindex metrics. For sliced reindex, this should record once only when all slices complete
      * Visible for testing
      */
-    static ActionListener<BulkByScrollResponse> wrapWithMetrics(
-        ActionListener<BulkByScrollResponse> listener,
+    static ActionListener<BulkByPaginatedSearchResponse> wrapWithMetrics(
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         @Nullable ReindexMetrics metrics,
         BulkByPaginatedSearchTask task,
         ReindexRequest request
@@ -665,8 +661,8 @@ public class Reindexer {
     }
 
     /** Overload accepting a clock supplier for testability. Visible for testing*/
-    static ActionListener<BulkByScrollResponse> wrapWithMetrics(
-        final ActionListener<BulkByScrollResponse> listener,
+    static ActionListener<BulkByPaginatedSearchResponse> wrapWithMetrics(
+        final ActionListener<BulkByPaginatedSearchResponse> listener,
         final @Nullable ReindexMetrics metrics,
         final BulkByPaginatedSearchTask task,
         final ReindexRequest request,
@@ -693,22 +689,22 @@ public class Reindexer {
             }
 
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                if (bulkByScrollResponse.getTaskResumeInfo().isPresent()) {
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                if (bulkByPaginatedSearchResponse.getTaskResumeInfo().isPresent()) {
                     // Task will be relocated to a different node
                     // Do not record metrics on the source node, the destination node will record metrics when the relocated task completes
-                    assert bulkByScrollResponse.getBulkFailures().isEmpty() : "bulk failures should be empty if relocating";
-                    assert bulkByScrollResponse.getSearchFailures().isEmpty() : "search failures should be empty if relocating";
-                    listener.onResponse(bulkByScrollResponse);
+                    assert bulkByPaginatedSearchResponse.getBulkFailures().isEmpty() : "bulk failures should be empty if relocating";
+                    assert bulkByPaginatedSearchResponse.getSearchFailures().isEmpty() : "search failures should be empty if relocating";
+                    listener.onResponse(bulkByPaginatedSearchResponse);
                     return;
                 }
                 try {
-                    var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
+                    var searchExceptionSample = Optional.ofNullable(bulkByPaginatedSearchResponse.getSearchFailures())
                         .stream()
                         .flatMap(List::stream)
                         .map(PaginatedSearchFailure::getReason)
                         .findFirst();
-                    var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
+                    var bulkExceptionSample = Optional.ofNullable(bulkByPaginatedSearchResponse.getBulkFailures())
                         .stream()
                         .flatMap(List::stream)
                         .map(BulkItemResponse.Failure::getCause)
@@ -719,7 +715,7 @@ public class Reindexer {
                     } else {
                         metrics.recordSuccess(isRemote, slicingMode, relocated);
                     }
-                    listener.onResponse(bulkByScrollResponse);
+                    listener.onResponse(bulkByPaginatedSearchResponse);
                 } finally {
                     recordDuration();
                 }
@@ -738,11 +734,11 @@ public class Reindexer {
     }
 
     /** Wraps the listener with relocation handling (if applicable). Visible for testing. */
-    ActionListener<BulkByScrollResponse> listenerWithRelocations(
+    ActionListener<BulkByPaginatedSearchResponse> listenerWithRelocations(
         final BulkByPaginatedSearchTask task,
         final ReindexRequest request,
-        final ActionListener<ResumeBulkByScrollResponse> onRelocationResponseListener,
-        final ActionListener<BulkByScrollResponse> listener
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> onRelocationResponseListener,
+        final ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
         final boolean isRelocationHandledByLeader = getReindexParent(task).isPresent();
         if (isRelocationHandledByLeader) {
@@ -793,8 +789,8 @@ public class Reindexer {
             request.setResumeInfo(
                 new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.worker(), resumeInfo.slices(), sourceTaskResult)
             );
-            final ResumeBulkByScrollRequest resumeRequest = new ResumeBulkByScrollRequest(request);
-            final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(resp -> {
+            final ResumeBulkByPaginatedSearchRequest resumeRequest = new ResumeBulkByPaginatedSearchRequest(request);
+            final ActionListener<ResumeBulkByPaginatedSearchResponse> relocationListener = ActionListener.wrap(resp -> {
                 onRelocationResponseListener.onResponse(resp);
                 l.onFailure(new TaskRelocatedException(resumeInfo.relocationOrigin().originalTaskId(), resp.getTaskId()));
             }, e -> {
@@ -815,7 +811,7 @@ public class Reindexer {
                 nodeToRelocateToNode,
                 ResumeReindexAction.NAME,
                 resumeRequest,
-                new ActionListenerResponseHandler<>(relocationListener, ResumeBulkByScrollResponse::new, threadPool.generic())
+                new ActionListenerResponseHandler<>(relocationListener, ResumeBulkByPaginatedSearchResponse::new, threadPool.generic())
             );
         });
     }
@@ -897,8 +893,9 @@ public class Reindexer {
      * Returns a supplier that indicates whether the PIT should not be closed on the <strong>response</strong> path.
      * True only for a sliced worker whose {@linkplain #getReindexParent(BulkByPaginatedSearchTask) reindex parent} closes the
      * shared PIT when all slices complete. Relocation handoff is indicated by non-empty
-     * {@link BulkByScrollResponse#getTaskResumeInfo()} on the response, not by {@link BulkByPaginatedSearchTask#isRelocationRequested()},
-     * so a task that requested relocation but finishes in place without relocating must still close the PIT here.
+     * {@link BulkByPaginatedSearchResponse#getTaskResumeInfo()} on the response, not by
+     * {@link BulkByPaginatedSearchTask#isRelocationRequested()}, so a task that requested relocation
+     * but finishes in place without relocating must still close the PIT here.
      */
     private BooleanSupplier shouldNotClosePitOnResponse(BulkByPaginatedSearchTask task) {
         return () -> task != null && getReindexParent(task).isPresent();
@@ -991,10 +988,10 @@ public class Reindexer {
             ProjectState state,
             ReindexSslConfig sslConfig,
             ReindexRequest request,
-            ActionListener<BulkByScrollResponse> listener,
+            ActionListener<BulkByPaginatedSearchResponse> listener,
             @Nullable Version remoteVersion,
             TimeValue maxTaskShutdownGracePeriod,
-            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+            @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker
         ) {
@@ -1016,8 +1013,8 @@ public class Reindexer {
                 scriptService,
                 sslConfig,
                 remoteVersion,
-                bulkByScrollSearchContextMetrics,
-                BulkByScrollSearchContextMetrics.TaskKind.REINDEX,
+                bulkByPaginatedSearchSearchContextMetrics,
+                BulkByPaginatedSearchSearchContextMetrics.TaskKind.REINDEX,
                 request.getRemoteInfo() != null,
                 maxTaskShutdownGracePeriod,
                 reindexSettings,
@@ -1043,7 +1040,7 @@ public class Reindexer {
         }
 
         @Override
-        protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+        protected PaginatedHitSource buildPaginatedSearchResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
@@ -1056,13 +1053,15 @@ public class Reindexer {
                         backoffPolicy,
                         threadPool,
                         worker::countSearchRetry,
-                        this::onScrollResponse,
+                        this::onPaginatedSearchResponse,
                         this::finishHim,
                         restClient,
                         remoteInfo,
                         searchRequest,
                         remoteVersion,
-                        searchContextKeepaliveDeadline
+                        searchContextKeepaliveDeadline,
+                        getCircuitBreaker(),
+                        reindexSettings.getMemoryAccountingThresholdInBytes()
                     );
                 }
                 return new RemoteScrollablePaginatedHitSource(
@@ -1070,16 +1069,18 @@ public class Reindexer {
                     backoffPolicy,
                     threadPool,
                     worker::countSearchRetry,
-                    this::onScrollResponse,
+                    this::onPaginatedSearchResponse,
                     this::finishHim,
                     restClient,
                     remoteInfo,
                     searchRequest,
                     remoteVersion,
-                    searchContextKeepaliveDeadline
+                    searchContextKeepaliveDeadline,
+                    getCircuitBreaker(),
+                    reindexSettings.getMemoryAccountingThresholdInBytes()
                 );
             }
-            return super.buildScrollableResultSource(backoffPolicy, searchRequest);
+            return super.buildPaginatedSearchResultSource(backoffPolicy, searchRequest);
         }
 
         @Override
@@ -1182,6 +1183,7 @@ public class Reindexer {
              * here on out operates on the index request rather than the template.
              */
             index.routing(mainRequest.getDestination().routing());
+            index.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
             index.setPipeline(mainRequest.getDestination().getPipeline());
             if (mainRequest.getDestination().opType() == DocWriteRequest.OpType.CREATE) {
                 index.opType(mainRequest.getDestination().opType());
@@ -1198,15 +1200,24 @@ public class Reindexer {
             String routingSpec = mainRequest.getDestination().routing();
             if (routingSpec == null) {
                 super.copyRouting(request, routing);
+                // Prevent saying "routing from slice" on empty routing on write, as this is invalid
+                request.setRoutingFromSlice(false);
                 return;
             }
             if (routingSpec.startsWith("=")) {
                 super.copyRouting(request, mainRequest.getDestination().routing().substring(1));
+                request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
                 return;
             }
             switch (routingSpec) {
-                case "keep" -> super.copyRouting(request, routing);
-                case "discard" -> super.copyRouting(request, null);
+                case "keep" -> {
+                    super.copyRouting(request, routing);
+                    request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
+                }
+                case "discard" -> {
+                    super.copyRouting(request, null);
+                    request.setRoutingFromSlice(false);
+                }
                 default -> throw new IllegalArgumentException("Unsupported routing command");
             }
         }
@@ -1215,7 +1226,7 @@ public class Reindexer {
             private ReindexScript.Factory reindex;
 
             ReindexScriptApplier(
-                WorkerBulkByScrollTaskState taskWorker,
+                WorkerBulkByPaginatedSearchTaskState taskWorker,
                 ScriptService scriptService,
                 Script script,
                 Map<String, Object> params,
@@ -1240,7 +1251,9 @@ public class Reindexer {
                         nowInMillisSupplier.getAsLong()
                     )
                 );
-                reindex.newInstance(params, ctxMap).execute();
+                ReindexScript instance = reindex.newInstance(params, ctxMap);
+                instance._setCancellationCheck(buildCancellationCheck());
+                instance.execute();
                 return ctxMap;
             }
 
@@ -1264,8 +1277,9 @@ public class Reindexer {
                  * Its important that routing comes after parent in case you want to
                  * change them both.
                  */
-                if (metadata.routingChanged()) {
+                if (metadata.routingChangedWithSlice(request.isRoutingFromSlice())) {
                     request.setRouting(metadata.getRouting());
+                    request.setRoutingFromSlice(metadata.isRoutingFromSlice());
                 }
             }
         }

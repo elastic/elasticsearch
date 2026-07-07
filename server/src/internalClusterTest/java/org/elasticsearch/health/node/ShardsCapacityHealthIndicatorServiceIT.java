@@ -34,14 +34,12 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "index-name";
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMaxShardsPerNode() throws Exception {
         updateClusterSettings(Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 30));
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void resetMaxShardsPerNode() throws Exception {
         updateClusterSettings(
             Settings.builder()
                 .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getDefault(Settings.EMPTY))

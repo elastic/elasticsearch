@@ -1,7 +1,0 @@
-area: Transform
-issues:
- - 82935
- - 82936
-pr: 147934
-summary: Propagate deprecation warnings
-type: bug

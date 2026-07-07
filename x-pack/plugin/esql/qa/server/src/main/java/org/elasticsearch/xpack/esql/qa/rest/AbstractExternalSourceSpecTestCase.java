@@ -9,17 +9,22 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.elasticsearch.Version;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
+import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
@@ -29,10 +34,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.ACCOUNT;
@@ -40,6 +45,7 @@ import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.CONTAIN
 import static org.elasticsearch.xpack.esql.datasources.FixtureUtils.COMPRESSED_EXTENSIONS;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
  * Abstract base class for external source integration tests using S3HttpFixture.
@@ -105,7 +111,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
             for (StorageBackend backend : BACKENDS) {
@@ -154,7 +160,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
             for (String extra : extraParams) {
@@ -174,8 +180,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     @ClassRule
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
+    // Anonymous form: migrated specs read every backend via FROM <dataset> with auth=anonymous, so the
+    // Azure fixture must serve unauthenticated reads (the S3/GCS fixtures already do). No shared-key
+    // secret is stored, so these suites need no cluster encryption key.
     @ClassRule
-    public static DataSourcesAzureHttpFixture azureFixture = new DataSourcesAzureHttpFixture();
+    public static DataSourcesAzureHttpFixture azureFixture = new DataSourcesAzureHttpFixture(true);
 
     @ClassRule
     public static DataSourcesGcsHttpFixture gcsFixture = new DataSourcesGcsHttpFixture();
@@ -267,6 +276,25 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Drops every {@code data_source}/{@code dataset} registered by {@link DatasetRegistry} during the
+     * suite (datasets first, so data-source deletes do not 409 on a still-referenced parent). These are
+     * {@code ProjectCustom} metadata that survive the framework's index wipe, so they must be cleaned
+     * explicitly. The cluster-side delete is skipped when the test clusters are already known broken, but
+     * the static caches are always cleared (in a {@code finally}) so a broken cluster — or a cleanup that
+     * throws partway — cannot poison a later suite sharing this JVM fork.
+     */
+    @AfterClass
+    public static void cleanupRegisteredDatasets() throws IOException {
+        try {
+            if (testClustersOk) {
+                DatasetRegistry.cleanup(adminClient());
+            }
+        } finally {
+            DatasetRegistry.clearCaches();
+        }
+    }
+
+    /**
      * Automatically checks for unsupported S3 operations after each test.
      */
     @org.junit.After
@@ -309,23 +337,55 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /**
      * Override doTest() to transform templates and inject storage-specific parameters.
+     * <p>
+     * A spec that declares {@code dataset:} sources runs via the native {@code FROM <dataset>} path on
+     * every storage backend: the datasets are registered and the spec's {@code FROM <name>} query is run
+     * verbatim (see {@link #runDatasetMode()}). There is no longer an {@code EXTERNAL}-rebuild fallback.
+     * <p>
+     * Specs with no {@code dataset:} directive are run as-is. This still covers raw {@code EXTERNAL}
+     * queries that cannot be expressed as a dataset because their backend registers no
+     * {@code DataSourceValidator} — today the Iceberg suite ({@code IcebergSpecTestCase}), which reaches
+     * its table via {@code EXTERNAL "s3://..." WITH { "format": "iceberg" }}.
      */
     @Override
     protected void doTest() throws Throwable {
-        String query = testCase.query;
+        // ClickBench templates are resolved by ClickBenchParquetSpecIT, not by this class. After the FROM
+        // <dataset> migration the {{clickbench}} template lives in the dataset directive's resource rather
+        // than the query (which is now plain `FROM clickbench`), so check the declared sources too.
+        boolean clickBench = testCase.query.contains("{{clickbench}}")
+            || testCase.datasetSources.stream().anyMatch(source -> source.resource().contains("{{clickbench}}"));
+        assumeFalse("ClickBench templates require ClickBenchParquetSpecIT", clickBench);
+
+        if (testCase.datasetSources.isEmpty() == false && forceExternalRebuild() == false) {
+            runDatasetMode();
+            return;
+        }
+
+        // A multi-source FROM <dataset> has no single-EXTERNAL equivalent, so a suite that rebuilds specs
+        // into an EXTERNAL query cannot express it. Skip such specs here rather than failing in the rebuild.
+        assumeFalse(
+            "multi-source FROM <dataset> has no single-EXTERNAL equivalent; skipped on EXTERNAL-rebuild backends",
+            testCase.datasetSources.size() > 1
+        );
+
+        // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
+        useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
+
+        // Either a raw-EXTERNAL spec with no dataset: directive (the Iceberg holdout, left unchanged) or a
+        // holdout suite whose reader cannot be addressed via FROM <dataset> (parquet-rs — see
+        // forceExternalRebuild()): in the latter case rebuild the EXTERNAL query from the single dataset
+        // directive so the suite's reader override still applies. A spec with no directive is returned as-is.
+        String query = rebuildExternalFromDatasets(testCase.query);
 
         if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
             // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
         }
 
-        // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
-        useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
-
         // Transform templates like {{employees}} to actual paths
         query = transformTemplates(query);
 
-        // Inject endpoint and credentials for S3 backend
+        // Inject endpoint and credentials for the raw-EXTERNAL path (Iceberg).
         if (isExternalQuery(query)) {
             query = switch (storageBackend) {
                 case StorageBackend.S3 -> s3Fixture.injectParams(query);
@@ -337,7 +397,98 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         }
 
         logger.debug("Transformed query for {} backend: {}", storageBackend, query);
+        runColdThenWarm(query, isExternalQuery(query) && testCase.expectedDocumentsFound == null);
+    }
+
+    /**
+     * Runs {@code query} once (cold) and, when {@code warmPass} is set, a second time (warm) against the
+     * identical expected results.
+     * <p>
+     * The warm pass exercises the cache on EVERY external/dataset spec test, for every format and codec
+     * that extends this base. The cold run reconciles the file's statistics into the coordinator's
+     * per-file schema cache; the aggregate-metadata pushdown that serves COUNT(*) / MIN / MAX from that
+     * cache is a SECOND code path that a single run never touches. Re-running the identical query asserts
+     * the warm path, so a cache-only correctness bug (e.g. a COUNT(*) that only doubles on the warm read)
+     * fails deterministically here instead of surfacing flakily in CI when the randomized spec order
+     * happens to repeat a file against a shared cluster. Callers pass {@code warmPass == false} when the
+     * spec pins {@code documents_found}, because the warm run short-circuits to zero scanned documents and
+     * so cannot match the cold scan count. The schema cache is per-coordinator: on a single-node IT the
+     * warm run always hits it; on a multi-node IT the second run may land on another coordinator and
+     * re-scan (a coverage gap, never a wrong answer). The deterministic ExternalNdJsonMultiScanPushdownIT
+     * is the guaranteed warm-path guard regardless of routing.
+     */
+    private void runColdThenWarm(String query, boolean warmPass) throws Throwable {
         doTest(query);
+        if (warmPass) {
+            doTest(query);
+        }
+    }
+
+    /**
+     * Registers the {@code data_source} (once per backend) and every declared {@code dataset}, then runs
+     * the spec's {@code FROM <name>} query verbatim — cold then warm via {@link #runColdThenWarm}, the
+     * same idiom the raw-EXTERNAL flow uses. Each source's resource template is resolved to the backend
+     * URI exactly as the EXTERNAL path resolves it. The format reader is selected by the resource's file
+     * extension against the readers the cluster's installed datasource plugin registers; the dataset model
+     * exposes no {@code reader}/{@code format} selector, so a reader that registers no extension (e.g. the
+     * parquet-rs native reader) is not reachable on this path.
+     * <p>
+     * Skipped (rather than failed) on a cluster that lacks {@code dataset_in_from_command}: that
+     * capability gates resolving {@code FROM <dataset>} in {@code POST /_query}, which is what this path
+     * exercises, independently of the spec's static {@code required_capability} lines.
+     */
+    private void runDatasetMode() throws Throwable {
+        assumeTrue(
+            "FROM <dataset> requires the [dataset_in_from_command] capability",
+            hasCapabilities(client(), List.of(EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.capabilityName()))
+        );
+        // HTTP cannot list a directory, so multi-file/Hive-partitioned glob datasets cannot be resolved
+        // over it; skip those on the HTTP backend (the glob lives in the dataset's resource template).
+        for (DatasetSource source : testCase.datasetSources) {
+            if (source.resource().contains(MULTIFILE_SUFFIX) || source.resource().contains(HIVE_SUFFIX)) {
+                assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
+            }
+        }
+        String dataSourceName = ensureDataSourceForBackend();
+        for (DatasetSource source : testCase.datasetSources) {
+            String resource = transformTemplates(source.resource());
+            DatasetRegistry.ensureDataset(client(), source.name(), dataSourceName, resource, withJsonForSource(source));
+        }
+        String query = testCase.query;
+        logger.debug("Dataset-mode query for {} backend: {}", storageBackend, query);
+        runColdThenWarm(query, testCase.expectedDocumentsFound == null);
+    }
+
+    /**
+     * Lazily registers (and caches) the {@code data_source} pointing at the in-process fixture for the
+     * active backend. Every backend authenticates anonymously ({@code auth=anonymous}, or no settings for
+     * the unauthenticated HTTP/local sources), so no secret is stored and the suites need no cluster
+     * encryption key. The blob credentials, where a real backend would need them, are unnecessary because
+     * each fixture serves its blobs without verifying authorization.
+     */
+    private String ensureDataSourceForBackend() throws IOException {
+        return switch (storageBackend) {
+            case S3 -> DatasetRegistry.ensureDataSource(
+                client(),
+                "esql_spec_s3",
+                "s3",
+                Map.of("endpoint", s3Fixture.getAddress(), "auth", "anonymous")
+            );
+            case GCS -> DatasetRegistry.ensureDataSource(
+                client(),
+                "esql_spec_gcs",
+                "gcs",
+                Map.of("endpoint", gcsFixture.getAddress(), "auth", "anonymous")
+            );
+            case AZURE -> DatasetRegistry.ensureDataSource(
+                client(),
+                "esql_spec_azure",
+                "azure",
+                Map.of("endpoint", azureFixture.getAddress(), "auth", "anonymous")
+            );
+            case HTTP -> DatasetRegistry.ensureDataSource(client(), "esql_spec_http", "http", Map.of("auth", "anonymous"));
+            case LOCAL -> DatasetRegistry.ensureDataSource(client(), "esql_spec_local", "local", Map.of("auth", "anonymous"));
+        };
     }
 
     /**
@@ -367,6 +518,95 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     protected String readerName() {
         return null;
+    }
+
+    /**
+     * Whether this suite must drive its specs through the raw {@code EXTERNAL} command rather than the
+     * {@code FROM <dataset>} path, rebuilding the EXTERNAL query from each spec's {@code dataset:} directive.
+     * <p>
+     * Defaults to {@code false}: every dataset-backed suite runs via {@code FROM <dataset>}. The sole opt-in
+     * is the parquet-rs suite: the parquet-rs native reader registers no file extension and the dataset model
+     * exposes no {@code reader}/{@code format} selector ({@code Dataset} carries only
+     * {@code data_source}/{@code resource}/{@code settings}, and settings are validated against the format's
+     * config keys), so parquet-rs is reachable only via {@code EXTERNAL ... WITH "reader": "parquet-rs"}. It is
+     * therefore a sanctioned EXTERNAL holdout, like gRPC/Flight and Iceberg.
+     */
+    protected boolean forceExternalRebuild() {
+        return false;
+    }
+
+    /**
+     * Rebuilds a single-source {@code FROM <dataset>} spec into the equivalent {@code EXTERNAL "<resource>"
+     * WITH {...}} query so a {@link #forceExternalRebuild() holdout} suite can run it via the EXTERNAL command.
+     * A spec with no {@code dataset:} directive (a raw-EXTERNAL spec, e.g. Iceberg) is returned unchanged.
+     * Multi-source FROM has no single-EXTERNAL equivalent and is rejected.
+     */
+    protected final String rebuildExternalFromDatasets(String query) {
+        List<DatasetSource> sources = testCase.datasetSources;
+        if (sources.isEmpty()) {
+            return query;
+        }
+        if (sources.size() > 1) {
+            throw new AssertionError(
+                "Cannot rebuild a single EXTERNAL query for ["
+                    + sources.size()
+                    + "] dataset sources; multi-source FROM <dataset> has no EXTERNAL equivalent yet: "
+                    + query
+            );
+        }
+        DatasetSource source = sources.get(0);
+        int pipe = FixtureUtils.findFirstPipeAfterExternal(query);
+        String tail = pipe < 0 ? "" : " " + query.substring(pipe);
+        // source.resource() is decoded (quotes/escapes resolved by the parser); re-escape it back into the
+        // EXTERNAL string literal so a resource containing a backslash or quote round-trips correctly.
+        String literal = source.resource().replace("\\", "\\\\").replace("\"", "\\\"");
+        StringBuilder external = new StringBuilder("EXTERNAL \"").append(literal).append("\"");
+        // Apply the same WITH JSON the FROM path uses (adds trim_spaces for the column-aligned csv/tsv
+        // fixtures) so the EXTERNAL-holdout path reads them identically.
+        String withJson = withJsonForSource(source);
+        if (withJson != null) {
+            external.append(" WITH ").append(withJson);
+        }
+        external.append(tail);
+        return external.toString();
+    }
+
+    /**
+     * The {@code WITH}-clause JSON applied to a dataset source, both when registering the dataset
+     * ({@link #runDatasetMode()}) and when rebuilding an {@code EXTERNAL} query
+     * ({@link #rebuildExternalFromDatasets}).
+     * <p>
+     * The CSV/TSV test fixtures (employees.csv, books.csv, ...) are column-aligned with padding spaces for
+     * readability, so their expected spec values assume trimming. The reader default is now no-trim (RFC
+     * 4180 — spaces are part of a field), so read these aligned fixtures with {@code trim_spaces: true} to
+     * keep the expected values valid. Real-world no-trim fidelity is covered by CsvFormatReaderTests unit
+     * tests; a directive that sets {@code trim_spaces} explicitly is left untouched (so a spec can still
+     * exercise the no-trim default end to end).
+     */
+    private String withJsonForSource(DatasetSource source) {
+        // format is the base format or a codec-suffixed variant ("csv", "csv.gz", "tsv.zstd", ...). Other
+        // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
+        // column-aligned fixtures with trimming; the shared injector adds the key.
+        boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
+        return csvOrTsv ? injectTrimSpaces(source.withJson()) : source.withJson();
+    }
+
+    /**
+     * Adds {@code "trim_spaces": true} to a dataset directive's {@code WITH} JSON, unless it already sets
+     * {@code trim_spaces} (matched as a key — the quoted name followed by a colon, so a value that merely
+     * equals {@code "trim_spaces"} still gets the injection). {@code withJson} is parser-guaranteed to be a
+     * brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the structural closer.
+     */
+    static String injectTrimSpaces(String withJson) {
+        if (withJson != null && withJson.replaceAll("\\s", "").contains("\"trim_spaces\":")) {
+            return withJson;
+        }
+        if (withJson == null) {
+            return "{\"trim_spaces\": true}";
+        }
+        int close = withJson.lastIndexOf('}');
+        String head = withJson.substring(0, close).trim();
+        return head + (head.endsWith("{") ? "" : ", ") + "\"trim_spaces\": true}";
     }
 
     /**
@@ -466,12 +706,25 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
     private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
     /**
+     * Suffix that triggers a multi-file glob whose files share the same columns in different
+     * physical order (anchor vs reversed non-anchor) with distinct per-column types, used to lock
+     * cross-file column-order reconciliation against silent value swaps.
+     */
+    private static final String MULTIFILE_PERM_SUFFIX = "_multifile_perm";
+    /**
      * Suffix that triggers multi-file UBN glob with cross-file type drift (one file's sampler
      * infers INTEGER, the other infers KEYWORD for the same column). Used by csv-union-by-name
      * to exercise the KEYWORD-fallback path: under UBN the reconciler widens to KEYWORD with a
      * warning; under STRICT it still throws.
      */
     private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = "_multifile_type_drift";
+    /**
+     * Suffix that triggers a multi-file UBN glob with a mixed-temporal column ({@code date} in one file,
+     * {@code date_nanos} in the other) that union_by_name widens LOSSLESSLY to {@code date_nanos} -- no
+     * warning. Used to lock warm MIN/MAX over a cross-file mixed-temporal column without perturbing the
+     * shared multifile_ubn fixture, whose FFW and widened-column tests depend on its exact schema.
+     */
+    private static final String MULTIFILE_TEMPORAL_SUFFIX = "_multifile_temporal";
     /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
     private static final String HIVE_SUFFIX = "_hive";
 
@@ -485,6 +738,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         String relativePath;
         if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
             relativePath = "multifile_type_drift/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_TEMPORAL_SUFFIX)) {
+            relativePath = "multifile_temporal/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_PERM_SUFFIX)) {
+            // Column-permutation multi-file template: x_multifile_perm -> multifile_perm/*.<format>
+            relativePath = "multifile_perm/*." + format;
         } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
             // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
             relativePath = "multifile_ubn/*." + format;

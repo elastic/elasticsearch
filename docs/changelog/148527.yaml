@@ -1,6 +1,0 @@
-pr: 148527
-summary: Default `exclude_inference_fields` to `exclude_vectors` at REST
-area: Search
-type: bug
-issues:
- - 146425

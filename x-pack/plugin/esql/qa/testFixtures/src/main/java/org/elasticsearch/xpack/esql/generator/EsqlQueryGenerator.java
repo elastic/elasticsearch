@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DedupGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropAllGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropGenerator;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.IpLocationGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitByGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
@@ -108,6 +110,7 @@ public class EsqlQueryGenerator {
     public static List<CommandGenerator> PIPE_COMMANDS = List.of(
         ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
+        DedupGenerator.INSTANCE,
         DropGenerator.INSTANCE,
         DropAllGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,
@@ -126,6 +129,7 @@ public class EsqlQueryGenerator {
         StatsGenerator.INSTANCE,
         UriPartsGenerator.INSTANCE,
         UserAgentGenerator.INSTANCE,
+        IpLocationGenerator.INSTANCE,
         RegisteredDomainGenerator.INSTANCE,
         WhereGenerator.INSTANCE
     );

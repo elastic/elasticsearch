@@ -819,6 +819,11 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
+                    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+                        return delegate.prepareProcessIntermediateInputPage(seenGroupIds, page);
+                    }
+
+                    @Override
                     public void addIntermediateInput(int positionOffset, IntArrayBlock groupIds, Page page) {
                         addIntermediateInputInternal(positionOffset, groupIds, page);
                     }

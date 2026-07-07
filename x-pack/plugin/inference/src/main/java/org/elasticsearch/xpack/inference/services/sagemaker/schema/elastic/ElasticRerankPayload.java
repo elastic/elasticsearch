@@ -11,10 +11,11 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
@@ -22,10 +23,6 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel
 import java.util.EnumSet;
 
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
-import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.INPUT;
-import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.QUERY;
-import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.RETURN_DOCUMENTS;
-import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.TOP_N;
 
 public class ElasticRerankPayload implements ElasticPayload {
 
@@ -53,24 +50,24 @@ public class ElasticRerankPayload implements ElasticPayload {
         if (model.apiTaskSettings() instanceof SageMakerElasticTaskSettings elasticTaskSettings) {
             return SdkBytes.fromUtf8String(Strings.toString((builder, params) -> {
                 if (request.input().size() > 1) {
-                    builder.field(INPUT.getPreferredName(), request.input());
+                    builder.field(RerankRequest.INPUT_FIELD, request.input());
                 } else {
-                    builder.field(INPUT.getPreferredName(), request.input().get(0));
+                    builder.field(RerankRequest.INPUT_FIELD, request.input().get(0));
                 }
 
                 assert request.query() != null : "InferenceAction.Request will validate that rerank requests have a query field";
-                builder.field(QUERY.getPreferredName(), request.query());
+                builder.field(RerankRequest.QUERY_FIELD, request.query());
 
                 if (request.returnDocuments() != null) {
-                    builder.field(RETURN_DOCUMENTS.getPreferredName(), request.returnDocuments());
+                    builder.field(RerankRequest.RETURN_DOCUMENTS_FIELD, request.returnDocuments());
                 }
 
                 if (request.topN() != null) {
-                    builder.field(TOP_N.getPreferredName(), request.topN());
+                    builder.field(RerankRequest.TOP_N_FIELD, request.topN());
                 }
 
                 if (elasticTaskSettings.isEmpty() == false) {
-                    builder.field(InferenceAction.Request.TASK_SETTINGS.getPreferredName());
+                    builder.field(ModelConfigurations.TASK_SETTINGS);
                     if (elasticTaskSettings.isFragment()) {
                         builder.startObject();
                     }

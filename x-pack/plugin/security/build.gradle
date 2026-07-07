@@ -19,7 +19,6 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  api project(':x-pack:plugin:security:spi')
   api project(path: ':modules:transport-netty4')
 
   testImplementation project(path: xpackModule('ilm'))

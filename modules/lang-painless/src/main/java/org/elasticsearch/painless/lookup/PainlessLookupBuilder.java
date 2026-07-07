@@ -12,6 +12,7 @@ package org.elasticsearch.painless.lookup;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.Def;
+import org.elasticsearch.painless.PainlessScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistClass;
 import org.elasticsearch.painless.spi.WhitelistClassBinding;
@@ -24,6 +25,7 @@ import org.elasticsearch.painless.spi.annotation.AugmentedAnnotation;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -183,6 +185,8 @@ public final class PainlessLookupBuilder {
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
+    private final Map<Class<?>, Set<String>> annotationsToMethodKeys;
+
     public PainlessLookupBuilder() {
         javaClassNamesToClasses = new HashMap<>();
         canonicalClassNamesToClasses = new HashMap<>();
@@ -192,6 +196,8 @@ public final class PainlessLookupBuilder {
         painlessMethodKeysToImportedPainlessMethods = new HashMap<>();
         painlessMethodKeysToPainlessClassBindings = new HashMap<>();
         painlessMethodKeysToPainlessInstanceBindings = new HashMap<>();
+
+        annotationsToMethodKeys = new HashMap<>();
     }
 
     private Class<?> canonicalTypeNameToType(String canonicalTypeName) {
@@ -614,9 +620,24 @@ public final class PainlessLookupBuilder {
             );
         }
 
+        if (annotations.containsKey(ScriptAwareAnnotation.class) && augmentedClass == null) {
+            throw lookupException(
+                "[@%s] requires the whitelist line to declare an augmentation class for method [[%s], [%s], %s]",
+                ScriptAwareAnnotation.NAME,
+                targetCanonicalClassName,
+                methodName,
+                typesToCanonicalTypeNames(typeParameters)
+            );
+        }
+
         int typeParametersSize = typeParameters.size();
         int augmentedParameterOffset = augmentedClass == null ? 0 : 1;
-        List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize + augmentedParameterOffset);
+        int scriptParameterOffset = annotations.containsKey(ScriptAwareAnnotation.class) ? 1 : 0;
+        List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize + augmentedParameterOffset + scriptParameterOffset);
+
+        if (scriptParameterOffset == 1) {
+            javaTypeParameters.add(PainlessScript.class);
+        }
 
         if (augmentedClass != null) {
             javaTypeParameters.add(targetClass);
@@ -676,7 +697,12 @@ public final class PainlessLookupBuilder {
             } catch (NoSuchMethodException nsme) {
                 throw lookupException(
                     nsme,
-                    "reflection object not found for method [[%s], [%s], %s] with augmented class [%s]",
+                    scriptParameterOffset == 1
+                        ? "[@"
+                            + ScriptAwareAnnotation.NAME
+                            + "] requires augmented class [%4$s] to declare an overload of method [[%1$s], [%2$s], %3$s] "
+                            + "with a leading [org.elasticsearch.painless.PainlessScript] parameter"
+                        : "reflection object not found for method [[%s], [%s], %s] with augmented class [%s]",
                     targetCanonicalClassName,
                     methodName,
                     typesToCanonicalTypeNames(typeParameters),
@@ -745,6 +771,9 @@ public final class PainlessLookupBuilder {
         MethodType methodType = methodHandle.type();
         boolean isStatic = augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers());
         String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
+        for (Class<?> annotationType : annotations.keySet()) {
+            annotationsToMethodKeys.computeIfAbsent(annotationType, unused -> new HashSet<>()).add(painlessMethodKey);
+        }
         PainlessMethod existingPainlessMethod = isStatic
             ? painlessClassBuilder.staticMethods.get(painlessMethodKey)
             : painlessClassBuilder.methods.get(painlessMethodKey);
@@ -1703,6 +1732,7 @@ public final class PainlessLookupBuilder {
         }
 
         classesToDirectSubClasses.replaceAll((key, set) -> Set.copyOf(set)); // save some memory, especially when set is empty
+        annotationsToMethodKeys.replaceAll((key, set) -> Set.copyOf(set));
         return new PainlessLookup(
             javaClassNamesToClasses,
             canonicalClassNamesToClasses,
@@ -1710,7 +1740,8 @@ public final class PainlessLookupBuilder {
             classesToDirectSubClasses,
             painlessMethodKeysToImportedPainlessMethods,
             painlessMethodKeysToPainlessClassBindings,
-            painlessMethodKeysToPainlessInstanceBindings
+            painlessMethodKeysToPainlessInstanceBindings,
+            annotationsToMethodKeys
         );
     }
 

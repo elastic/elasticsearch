@@ -26,7 +26,7 @@ public abstract class AbstractBulkByPaginatedSearchRequestBuilder<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     Self extends AbstractBulkByPaginatedSearchRequestBuilder<Request, Self>> extends ActionRequestLazyBuilder<
         Request,
-        BulkByScrollResponse> {
+        BulkByPaginatedSearchResponse> {
     private final SearchRequestBuilder source;
     private Integer maxDocs;
     private Boolean abortOnVersionConflict;
@@ -41,7 +41,7 @@ public abstract class AbstractBulkByPaginatedSearchRequestBuilder<
 
     protected AbstractBulkByPaginatedSearchRequestBuilder(
         ElasticsearchClient client,
-        ActionType<BulkByScrollResponse> action,
+        ActionType<BulkByPaginatedSearchResponse> action,
         SearchRequestBuilder source
     ) {
         super(client, action);

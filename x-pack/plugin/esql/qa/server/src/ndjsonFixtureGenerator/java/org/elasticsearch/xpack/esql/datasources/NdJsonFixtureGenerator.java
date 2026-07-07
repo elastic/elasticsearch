@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.ColumnSpec;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.CsvFixtureResult;
 import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -50,6 +52,8 @@ public final class NdJsonFixtureGenerator {
 
     private NdJsonFixtureGenerator() {}
 
+    private static final Logger logger = LoggerFactory.getLogger(NdJsonFixtureGenerator.class);
+
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
         if (args.length == 2) {
@@ -61,7 +65,7 @@ public final class NdJsonFixtureGenerator {
             byte[] ndjson = generateFromCsv(sourcePath);
             Files.createDirectories(outputPath.getParent());
             Files.write(outputPath, ndjson);
-            System.out.println("Generated NDJSON fixture: " + outputPath);
+            logger.info("Generated NDJSON fixture: {}", outputPath);
         } else if (args.length == 3) {
             Path sourcePath = Path.of(args[0]);
             Path outputDir = Path.of(args[1]);
@@ -82,7 +86,7 @@ public final class NdJsonFixtureGenerator {
                 Path outputPath = outputDir.resolve(fileName);
                 byte[] ndjson = generateFromRows(parsed, range.from(), range.to());
                 Files.write(outputPath, ndjson);
-                System.out.println("Generated NDJSON split fixture: " + outputPath + " (rows " + range.from() + "-" + range.to() + ")");
+                logger.info("Generated NDJSON split fixture: {} (rows {}-{})", outputPath, range.from(), range.to());
             }
         } else {
             System.err.println("Usage: NdJsonFixtureGenerator <source-csv-path> <output-ndjson-path>");

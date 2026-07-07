@@ -71,4 +71,37 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status) 
         }
         return status.valuesLoaded();
     }
+
+    /**
+     * Rows this operator emitted to its downstream consumer. Source operators populate;
+     * pass-through operators return {@code 0}.
+     */
+    public long rowsEmitted() {
+        if (status == null) {
+            return 0;
+        }
+        return status.rowsEmitted();
+    }
+
+    /**
+     * Pre-decompression bytes pulled from the storage layer. Populated by external-source
+     * operators; others return {@code 0}.
+     */
+    public long bytesRead() {
+        if (status == null) {
+            return 0;
+        }
+        return status.bytesRead();
+    }
+
+    /**
+     * Wall time the format reader spent reading on the producer thread, in nanoseconds.
+     * Populated by external-source operators; others return {@code 0}.
+     */
+    public long readNanos() {
+        if (status == null) {
+            return 0;
+        }
+        return status.readNanos();
+    }
 }

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,9 +42,10 @@ public final class Expressions {
      * <p>
      * Exceptions to the {@link ReferenceAttribute} conversion:
      * <ul>
-     *   <li>A {@link FieldAttribute} backed by an {@link InvalidMappedField} (ambiguous type across indices) is converted
+     *   <li>A {@link FieldAttribute} backed by a {@link TypeConflictedField} (ambiguous type across indices) is converted
      *   to an {@link UnsupportedAttribute} via {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a
-     *   clear user-facing error.</li>
+     *   clear user-facing error. Exception: a two-legged PUNK ({@link TypeConflictedField#isSingleTypePotentiallyUnmapped()})
+     *   keeps its single mapped type on the {@link ReferenceAttribute} so it surfaces through a Fork/UnionAll output.</li>
      *   <li>An {@link ExternalMetadataAttribute} is rebuilt as the same subtype with the preserved id. The
      *   "virtual column" identity must survive operators that re-class their output (e.g. {@code Fork.refreshedOutput})
      *   because downstream rules such as {@code Analyzer.planWithoutSyntheticAttributes} (which strips
@@ -70,7 +71,27 @@ public final class Expressions {
             Attribute existing = existingByName.get(exp.name());
             NameId id = existing != null ? existing.id() : new NameId();
             Attribute refAttr = switch (exp) {
-                case FieldAttribute fa when fa.field() instanceof InvalidMappedField -> fa.flagTypeConflicts();
+                case FieldAttribute fa when fa.field() instanceof TypeConflictedField tcf ->
+                    // A two-legged PUNK is not a genuine conflict: keep its single mapped type instead of flagging it.
+                    tcf.isSingleTypePotentiallyUnmapped()
+                        ? new ReferenceAttribute(
+                            fa.source(),
+                            null,
+                            fa.name(),
+                            tcf.singleMappedTypeWidened(),
+                            fa.nullable(),
+                            id,
+                            fa.synthetic()
+                        )
+                        : fa.flagTypeConflicts();
+                case UnsupportedAttribute ua -> new UnsupportedAttribute(
+                    ua.source(),
+                    ua.qualifier(),
+                    ua.name(),
+                    ua.field(),
+                    ua.hasCustomMessage() ? ua.unresolvedMessage() : null,
+                    id
+                );
                 case ReferenceAttribute ra -> ra.withId(id);
                 case ExternalMetadataAttribute xa -> new ExternalMetadataAttribute(
                     xa.source(),

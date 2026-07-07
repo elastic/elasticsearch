@@ -11,25 +11,37 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.IntUnaryOperator;
 
 /**
- * concurrent implementation of mini-batch optimal transport k-means
+ * Concurrent implementation of mini-batch optimal transport k-means.
+ *
+ * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */
-class BalancedOTKMeansLocalConcurrent extends BalancedOTKMeansLocal {
+class BalancedOTKMeansLocalConcurrent<V> extends BalancedOTKMeansLocal<V> {
 
     final TaskExecutor executor;
     final int numWorkers;
+    private final Soar<V> soar;
 
-    BalancedOTKMeansLocalConcurrent(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
-        super(sampleSize, maxIterations);
+    BalancedOTKMeansLocalConcurrent(
+        CentroidOps<V> ops,
+        TaskExecutor executor,
+        int numWorkers,
+        int sampleSize,
+        int maxIterations,
+        float soarLambda
+    ) {
+        super(ops, sampleSize, maxIterations);
         this.executor = executor;
         this.numWorkers = numWorkers;
+        this.soar = soarLambda < 0 ? Soar.none() : Soar.ofConcurrent(executor, numWorkers, ops, soarLambda);
     }
 
     @Override
@@ -39,9 +51,9 @@ class BalancedOTKMeansLocalConcurrent extends BalancedOTKMeansLocal {
 
     @Override
     protected void assign(
-        ClusteringFloatVectorValues vectors,
-        IntToIntFunction ordTranslator,
-        float[][] centroids,
+        ClusteringVectorValues<V> vectors,
+        IntUnaryOperator ordTranslator,
+        V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
         NeighborHood[] neighborHoods
@@ -54,34 +66,33 @@ class BalancedOTKMeansLocalConcurrent extends BalancedOTKMeansLocal {
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             final FixedBitSet centroidChangedSlice = centroidChangedSlices[i];
             runners.add(
-                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments, neighborHoods, start, end)
+                () -> stepLloydSlice(
+                    vectors.copy(),
+                    ops,
+                    ordTranslator,
+                    centroids,
+                    centroidChangedSlice,
+                    assignments,
+                    neighborHoods,
+                    start,
+                    end
+                )
             );
         }
         executor.invokeAll(runners);
     }
 
     @Override
-    protected void assignSpilled(
-        ClusteringFloatVectorValues vectors,
-        KMeansIntermediate kmeansIntermediate,
-        NeighborHood[] neighborhoods,
-        float soarLambda
+    protected OverspillAssignments assignSpilled(
+        ClusteringVectorValues<V> vectors,
+        KMeansResult<V> kMeansResult,
+        NeighborHood[] neighborhoods
     ) throws IOException {
-        final int len = vectors.size() / numWorkers;
-        final List<Callable<Void>> runners = new ArrayList<>(numWorkers);
-        for (int i = 0; i < numWorkers; i++) {
-            final int start = i * len;
-            final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
-            runners.add(() -> {
-                assignSpilledSlice(vectors.copy(), kmeansIntermediate, neighborhoods, soarLambda, start, end);
-                return null;
-            });
-        }
-        executor.invokeAll(runners);
+        return soar.assignSpilled(vectors, kMeansResult, neighborhoods);
     }
 
     @Override
-    protected NeighborHood[] computeNeighborhoods(float[][] centroids, int clustersPerNeighborhood) throws IOException {
-        return NeighborHood.computeNeighborhoods(executor, numWorkers, centroids, clustersPerNeighborhood);
+    protected NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException {
+        return NeighborHood.computeNeighborhoods(ops, executor, numWorkers, centroids, clustersPerNeighborhood);
     }
 }

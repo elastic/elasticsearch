@@ -1,0 +1,5 @@
+pr: 149886
+summary: Fix TSV record-boundary scanner livelock on literal quotes
+area: ES|QL
+type: bug
+issues: []

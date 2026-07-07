@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -63,6 +64,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -698,17 +700,41 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         // No existing snapshot — flow will reach createSnapshot -> waitForIndexYellowStatus
         mockGetSnapshotsResponse.set(emptyGetSnapshotsResponse());
 
-        ClusterHealthResponse timedOut = new ClusterHealthResponse();
-        timedOut.setTimedOut(true);
-        mockHealthResponse.set(timedOut);
-
-        DLMConvertToFrozen converter = createConverter();
+        DLMConvertToFrozen converter = new TestDLMConvertToFrozenWithTimeout(
+            indexName,
+            projectId,
+            createMockClient(),
+            clusterService,
+            () -> licenseState,
+            clock
+        );
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeTakeSnapshot(indexName));
         assertThat(exception.getMessage(), containsString("timed out"));
         assertThat(exception.getMessage(), containsString(indexName));
         // GetSnapshots was issued but CreateSnapshot was not
         assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
         assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
+    }
+
+    // A version of the DLMConvertToFrozen class that always times out when waiting for an index to reach yellow
+    public static class TestDLMConvertToFrozenWithTimeout extends DLMConvertToFrozen {
+
+        TestDLMConvertToFrozenWithTimeout(
+            String indexName,
+            ProjectId projectId,
+            Client client,
+            ClusterService clusterService,
+            Supplier<XPackLicenseState> licenseStateSupplier,
+            Clock clock
+        ) {
+            super(indexName, projectId, client, clusterService, licenseStateSupplier, clock);
+        }
+
+        @Override
+        protected void waitForIndexYellowStatus(String index) {
+            // Immediately time out
+            throw new ElasticsearchException("DLM timed out after [1m] waiting for index [{}] shards to be allocated", index);
+        }
     }
 
     public void testMaybeTakeSnapshot_noInProgress_noExisting_createsNew() throws InterruptedException {

@@ -107,6 +107,13 @@ public class MetricValidator {
          */
         static final Set<String> OTEL_ATTRIBUTES = Set.of(MetricAttributes.ERROR_TYPE);
 
+        /**
+         * Routing attribute consumed by apm-server to direct a datapoint to a specific data stream
+         * (see apm-data {@code input/otlp}). It is stripped during ingestion and never stored as a
+         * label, so it is permitted on any metric regardless of the attribute naming pattern.
+         */
+        static final String DATA_STREAM_DATASET_ATTRIBUTE = "data_stream.dataset";
+
         static final Set<String> SEARCH_ATTRIBUTES = Set.of(
             "knn",
             "pit_scroll",
@@ -248,6 +255,18 @@ public class MetricValidator {
             Map.entry("es.repositories.snapshots.upload.upload_time.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.throttles.histogram", REPO_ATTRIBUTES),
             Map.entry("es.repositories.throttles.total", REPO_ATTRIBUTES),
+            Map.entry("es.search.coord.can_match.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.can_match.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs_query.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs_query.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.fetch.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.fetch.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.query.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.query.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.rank_feature.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.rank_feature.result.bytes.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search.query.aggregations.total", Set.of("aggregation_name", "values_source")),
             Map.entry("es.search_response.response_count.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search_response.took_durations.can_match.histogram", SEARCH_ATTRIBUTES),
@@ -257,6 +276,7 @@ public class MetricValidator {
             Map.entry("es.search_response.took_durations.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search_response.took_durations.open_pit.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search_response.took_durations.query.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search_response.store_bytes_read.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search.shards.phases.can_match.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
             Map.entry("es.search.shards.phases.dfs.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
             Map.entry("es.search.shards.phases.fetch.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
@@ -348,6 +368,7 @@ public class MetricValidator {
                 );
 
             assert Attributes.OTEL_ATTRIBUTES.contains(attribute)
+                || Attributes.DATA_STREAM_DATASET_ATTRIBUTE.equals(attribute)
                 || Attributes.SKIP_VALIDATION.getOrDefault(metricName, emptySet()).contains(attribute)
                 // allow percentile for all thread pools
                 // https://github.com/elastic/dev/issues/3436 remove the usage of percentile as attribute and move to metric name.

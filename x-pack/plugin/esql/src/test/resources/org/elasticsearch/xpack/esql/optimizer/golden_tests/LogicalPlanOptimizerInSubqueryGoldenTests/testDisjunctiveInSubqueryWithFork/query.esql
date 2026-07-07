@@ -1,0 +1,3 @@
+FROM employees
+| WHERE emp_no IN (FROM employees | KEEP emp_no) OR salary > 50000
+| FORK (WHERE emp_no > 10000) (WHERE emp_no < 10050)

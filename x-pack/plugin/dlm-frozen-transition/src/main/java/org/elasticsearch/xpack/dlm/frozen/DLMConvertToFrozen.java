@@ -59,11 +59,11 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -109,14 +109,6 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
  */
 public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
-    public static final String DLM_CREATED_SETTING_KEY = IndexMetadata.INDEX_SETTING_PREFIX + "dlm.frozen.created";
-    public static final Setting<Boolean> DLM_CREATED_SETTING = Setting.boolSetting(
-        DLM_CREATED_SETTING_KEY,
-        false,
-        Setting.Property.IndexScope,
-        Setting.Property.InternalIndex
-    );
-
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
     static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
     static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
@@ -158,6 +150,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             maybeForceMergeIndex(forceMergeIndex);
             maybeTakeSnapshot(forceMergeIndex);
             maybeMountSearchableSnapshot(forceMergeIndex);
+            waitForMountedIndexToBeAvailable();
             maybeCleanup(forceMergeIndex);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -462,7 +455,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             getRepositoryForFrozen(projectMetadata, indexName),
             snapshotName,
             forceMergeIndex,
-            Settings.builder().put(DLM_CREATED_SETTING_KEY, true).build(),
+            Settings.builder().put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true).build(),
             ignoredIndexSettings,
             true,
             MountSearchableSnapshotRequest.Storage.SHARED_CACHE
@@ -485,10 +478,31 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 );
             }
             logger.info("DLM successfully mounted snapshot [{}]", snapshotName);
-        } catch (ExecutionException e) {
-            throw ExceptionsHelper.convertToElastic(e, "DLM failed while mounting snapshot [{}]", snapshotName);
+        } catch (Exception e) {
+            Throwable unwrapped = unwrapNestedExceptions(e);
+            if (unwrapped instanceof InterruptedException ie) {
+                throw ie;
+            }
+            throw e instanceof ElasticsearchException ee
+                ? ee
+                : new ElasticsearchException("DLM failed while mounting snapshot [{}]", e, snapshotName);
         }
+    }
 
+    /**
+     * Waits for the mounted searchable snapshot index to reach yellow status (all primary shards allocated) before
+     * the cleanup step swaps it into the data stream. This guards against a partial mount being promoted, which would
+     * point the data stream at an index with no allocated shards while the original index is deleted.
+     * <p>
+     * This is a distinct step to handle both the normal path and a retry / resumption after master failover.
+     * <p>
+     * On timeout this method throws, the error is recorded in the DLM error store, and the next poll-cycle retry
+     * re-enters this same step.
+     */
+    public void waitForMountedIndexToBeAvailable() throws InterruptedException {
+        checkIfThreadInterrupted();
+        checkIfEligibleForConvertToFrozen();
+        waitForIndexYellowStatus(snapshotName(indexName));
     }
 
     void maybeCleanup(String forceMergeIndex) throws InterruptedException {
@@ -596,7 +610,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .putNull(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
-                .put(DLM_CREATED_SETTING_KEY, true)
+                .put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true)
         );
         return resizeReq;
     }
@@ -650,25 +664,60 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Waits up to 1 minute for the given index to reach yellow status (all primary shards allocated).
+     * Waits up to 5 minutes for the given index to reach yellow status (all primary shards allocated).
      * Throws an {@link ElasticsearchException} if the timeout is breached.
      */
-    private void waitForIndexYellowStatus(String index) throws InterruptedException {
-        TimeValue timeout = TimeValue.timeValueMinutes(1);
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(INFINITE_MASTER_NODE_TIMEOUT, index).waitForYellowStatus()
-            .timeout(timeout);
-        ClusterHealthResponse response;
+    protected void waitForIndexYellowStatus(String index) throws InterruptedException {
+        final TimeValue timeout = TimeValue.timeValueMinutes(5);
+        // Use a latch because we do no work, only waiting
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> observerError = new AtomicReference<>();
+
+        ClusterStateObserver.waitForState(
+            clusterService,
+            clusterService.threadPool().getThreadContext(),
+            new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    // Index shards have been allocated – signal the waiting thread.
+                    latch.countDown();
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    observerError.set(new NodeClosedException(clusterService.localNode()));
+                    latch.countDown();
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    observerError.set(
+                        new ElasticsearchException("DLM timed out after [{}] waiting for index [{}] shards to be allocated", timeout, index)
+                    );
+                    latch.countDown();
+                }
+            },
+            state -> Optional.ofNullable(state.projectState(projectId))
+                .map(projectState -> projectState.routingTable().index(index))
+                .map(IndexRoutingTable::allPrimaryShardsActive)
+                // Why "true" here? Because if the project or index goes missing (because it was
+                // deleted, for instance), then we want to fast-pass this observer, not waiting
+                // for the full timeout. DLM will consider the index as having reached yellow,
+                // and the error will bubble up elsewhere.
+                .orElse(true),
+            timeout,
+            logger
+        );
         try {
-            response = client.projectClient(projectId).admin().cluster().health(healthRequest).get();
-        } catch (ExecutionException e) {
-            throw new ElasticsearchException("DLM failed while waiting for index [{}] shards to be allocated", e, index);
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
         }
-        if (response.isTimedOut()) {
-            throw new ElasticsearchException(
-                "DLM timed out after [{}]m waiting for index [{}] shards to be allocated",
-                timeout.getMinutes(),
-                index
-            );
+
+        Exception error = observerError.get();
+        if (error != null) {
+            throw ExceptionsHelper.convertToElastic(error);
         }
         logger.debug("DLM index [{}] has reached yellow status, proceeding", index);
     }

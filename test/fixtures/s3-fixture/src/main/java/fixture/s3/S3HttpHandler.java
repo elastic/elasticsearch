@@ -35,6 +35,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,9 +59,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
-import static org.hamcrest.Matchers.oneOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -74,6 +74,8 @@ public class S3HttpHandler implements HttpHandler {
     private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
     public static final String STORAGE_CLASS_HEADER = "X-amz-storage-class";
     public static final String CONTENT_SHA256_HEADER = "X-amz-content-sha256";
+    public static final String COPY_SOURCE_HEADER = "X-amz-copy-source";
+    public static final Pattern SHA256_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
 
     private final String bucket;
     private final String basePath;
@@ -109,23 +111,9 @@ public class S3HttpHandler implements HttpHandler {
 
     private static final String SHA_256_ETAG_PREFIX = "es-test-sha-256-";
 
-    /**
-     * Default {@code LastModified} for ListBucket {@code Contents} entries. Real S3 returns ISO-8601
-     * timestamps; clients such as the AWS SDK map missing elements to {@code null} last-modified.
-     * <p>
-     * The default deliberately uses a fixed, non-epoch timestamp so consumers that distinguish
-     * "unknown" (epoch / null) from "known" mtime see a real value here. Keep this stable across
-     * releases — fixture-based tests that assert the rendered XML rely on the literal string.
-     */
-    public static final String DEFAULT_LIST_OBJECT_LAST_MODIFIED = "2024-01-01T00:00:00.000Z";
-
-    /**
-     * Default {@code Last-Modified} value (RFC 1123 / HTTP date) returned on HEAD responses.
-     * Consumers that read this header (e.g. plain HTTP clients) distinguish "unknown"
-     * (epoch / null) from "known" mtime, so the default is a fixed, non-epoch timestamp.
-     * Keep this in sync with {@link #DEFAULT_LIST_OBJECT_LAST_MODIFIED}.
-     */
-    public static final String DEFAULT_HEAD_OBJECT_LAST_MODIFIED = "Mon, 01 Jan 2024 00:00:00 GMT";
+    /** ISO-8601 formatter with millisecond precision, always UTC — used for {@code <LastModified>} in list responses. */
+    private static final DateTimeFormatter ISO_MILLIS_UTC = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
+        .withZone(ZoneOffset.UTC);
 
     public List<RequestEntry> requestLog() {
         return Collections.unmodifiableList(requestLog);
@@ -154,10 +142,11 @@ public class S3HttpHandler implements HttpHandler {
                     // HEAD response must include Content-Length header for S3 clients (AWS SDK) that read file size
                     exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobEntry.contents().length()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    // Last-Modified is read by HTTP clients (e.g. ES|QL HttpStorageProvider) for _file.modified.
-                    // Use a fixed, non-epoch RFC 1123 timestamp so consumers that distinguish "unknown"
-                    // (epoch / null) from "known" mtime see a real value.
-                    exchange.getResponseHeaders().add("Last-Modified", DEFAULT_HEAD_OBJECT_LAST_MODIFIED);
+                    exchange.getResponseHeaders()
+                        .add(
+                            "Last-Modified",
+                            DateTimeFormatter.RFC_1123_DATE_TIME.format(blobEntry.lastModified().atOffset(ZoneOffset.UTC))
+                        );
                     if (!"STANDARD".equals(blobEntry.storageClass())) {
                         exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
                     }
@@ -243,6 +232,7 @@ public class S3HttpHandler implements HttpHandler {
                         }
                     } else {
                         final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                        verifyContentSha256Header(exchange, blob.v2());
                         upload.addPart(blob.v1(), blob.v2());
                         exchange.getResponseHeaders().add("ETag", blob.v1());
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
@@ -341,6 +331,8 @@ public class S3HttpHandler implements HttpHandler {
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                    verifyContentSha256Header(exchange, blob.v2());
+
                     final var updateResponseCode = updateBlobContents(
                         exchange,
                         request.path(),
@@ -348,13 +340,6 @@ public class S3HttpHandler implements HttpHandler {
                     );
 
                     if (updateResponseCode == RestStatus.OK) {
-                        assertThat(
-                            exchange.getRequestHeaders().getFirst(CONTENT_SHA256_HEADER),
-                            oneOf(
-                                "STREAMING-AWS4-HMAC-SHA256-PAYLOAD",
-                                MessageDigests.toHexString(MessageDigests.digest(blob.v2(), MessageDigests.sha256()))
-                            )
-                        );
                         exchange.getResponseHeaders().add("ETag", blob.v1());
                     }
                     exchange.sendResponseHeaders(updateResponseCode.getStatus(), -1);
@@ -391,7 +376,7 @@ public class S3HttpHandler implements HttpHandler {
                     }
                     list.append("<Contents>");
                     list.append("<Key>").append(blobPath).append("</Key>");
-                    list.append("<LastModified>").append(DEFAULT_LIST_OBJECT_LAST_MODIFIED).append("</LastModified>");
+                    list.append("<LastModified>").append(ISO_MILLIS_UTC.format(blob.getValue().lastModified())).append("</LastModified>");
                     list.append("<Size>").append(blob.getValue().contents().length()).append("</Size>");
                     list.append("<StorageClass>").append(blob.getValue().storageClass()).append("</StorageClass>");
                     list.append("</Contents>");
@@ -435,10 +420,8 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
                 exchange.getResponseHeaders().add("ETag", etagFromContents);
-                // Last-Modified is read by S3 SDK clients (e.g. ES|QL S3StorageProvider's range-GET
-                // metadata fetch) for _file.modified. Use a fixed, non-epoch RFC 1123 timestamp so
-                // consumers that distinguish "unknown" (epoch / null) from "known" mtime see a real value.
-                exchange.getResponseHeaders().add("Last-Modified", DEFAULT_HEAD_OBJECT_LAST_MODIFIED);
+                exchange.getResponseHeaders()
+                    .add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(blobEntry.lastModified().atOffset(ZoneOffset.UTC)));
                 if (!"STANDARD".equals(blobEntry.storageClass())) {
                     exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
                 }
@@ -713,7 +696,7 @@ public class S3HttpHandler implements HttpHandler {
 
     @Nullable // if no X-amz-copy-source header present
     private static String copySourceName(final HttpExchange exchange) {
-        final var copySources = exchange.getRequestHeaders().get("X-amz-copy-source");
+        final var copySources = exchange.getRequestHeaders().get(COPY_SOURCE_HEADER);
         if (copySources != null) {
             if (copySources.size() != 1) {
                 throw new AssertionError("multiple X-amz-copy-source headers found: " + copySources);
@@ -818,6 +801,15 @@ public class S3HttpHandler implements HttpHandler {
                 return uploadCount;
             }
         });
+    }
+
+    private static void verifyContentSha256Header(final HttpExchange exchange, BytesReference body) {
+        final var contentSha256Header = exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER);
+        if (contentSha256Header != null && SHA256_PATTERN.asMatchPredicate().test(contentSha256Header)) {
+            // This header is optional and if present it may contain a special value indicating a different checksum scheme is in use, but
+            // if it's a real SHA256 checksum then it must match the request's contents.
+            assertEquals(contentSha256Header, MessageDigests.toHexString(MessageDigests.digest(body, MessageDigests.sha256())));
+        }
     }
 
     public S3Request parseRequest(HttpExchange exchange) {

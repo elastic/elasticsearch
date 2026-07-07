@@ -12,7 +12,6 @@ import io.opentelemetry.proto.common.v1.KeyValue;
 
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.oteldata.otlp.MappingMode;
 
 import java.util.List;
 import java.util.Set;
@@ -40,7 +39,6 @@ public final class TargetIndex {
     private static final String SELF_TELEMETRY_DATASET = "collectortelemetry";
     private static final String ENCODING_FORMAT = "encoding.format";
     private static final String ELASTICSEARCH_INDEX = "elasticsearch.index";
-    private static final String DATA_STREAM_TYPE = "data_stream.type";
     private static final String DATA_STREAM_DATASET = "data_stream.dataset";
     private static final String DATA_STREAM_NAMESPACE = "data_stream.namespace";
     private static final String DEFAULT_DATASET = "generic";
@@ -81,24 +79,6 @@ public final class TargetIndex {
         List<KeyValue> scopeAttributes,
         List<KeyValue> resourceAttributes
     ) {
-        return evaluate(type, MappingMode.OTEL, attributes, scopeRoutingDataset, scopeAttributes, resourceAttributes);
-    }
-
-    /**
-     * Determines the target index for a data point under a specific {@link MappingMode}.
-     * <p>
-     * In {@link MappingMode#BODYMAP} the {@code data_stream.type} attribute may override the default
-     * {@code type} (limited to {@code logs} or {@code metrics}, mirroring the upstream collector exporter),
-     * and the dataset is not suffixed with {@code .otel}.
-     */
-    public static TargetIndex evaluate(
-        String type,
-        MappingMode mode,
-        List<KeyValue> attributes,
-        @Nullable String scopeRoutingDataset,
-        List<KeyValue> scopeAttributes,
-        List<KeyValue> resourceAttributes
-    ) {
         // Order:
         // 1. elasticsearch.index from attributes, scope.attributes, resource.attributes
         // 2. read data_stream.* from attributes, scope.attributes, resource.attributes
@@ -113,17 +93,6 @@ public final class TargetIndex {
             return target;
         }
         target.type = type;
-        if (mode == MappingMode.BODYMAP) {
-            String overrideType = firstAttributeValue(DATA_STREAM_TYPE, attributes, scopeAttributes, resourceAttributes);
-            if (overrideType != null) {
-                if (TYPE_LOGS.equals(overrideType) == false && TYPE_METRICS.equals(overrideType) == false) {
-                    throw new IllegalArgumentException(
-                        "data_stream.type can only be set to \"logs\" or \"metrics\", got [" + overrideType + "]"
-                    );
-                }
-                target.type = overrideType;
-            }
-        }
         target.dataset = firstAttributeValue(DATA_STREAM_DATASET, attributes, scopeAttributes, resourceAttributes);
         if (target.dataset == null && scopeRoutingDataset != null) {
             target.dataset = scopeRoutingDataset;
@@ -131,7 +100,7 @@ public final class TargetIndex {
         if (target.dataset == null) {
             target.dataset = DEFAULT_DATASET;
         }
-        target.dataset = sanitizeDataset(target.dataset, mode);
+        target.dataset = sanitizeDataset(target.dataset);
         target.namespace = firstAttributeValue(DATA_STREAM_NAMESPACE, attributes, scopeAttributes, resourceAttributes);
         if (target.namespace == null) {
             target.namespace = DEFAULT_NAMESPACE;
@@ -216,14 +185,13 @@ public final class TargetIndex {
         return null;
     }
 
-    private static String sanitizeDataset(String dataset, MappingMode mode) {
+    private static String sanitizeDataset(String dataset) {
         String sanitizedDataset = DataStream.sanitizeDataset(dataset);
-        String suffix = mode == MappingMode.OTEL ? OTEL_DATASET_SUFFIX : "";
-        int maxBaseLength = MAX_DATA_STREAM_LENGTH - suffix.length();
+        int maxBaseLength = MAX_DATA_STREAM_LENGTH - OTEL_DATASET_SUFFIX.length();
         if (sanitizedDataset.length() > maxBaseLength) {
             sanitizedDataset = sanitizedDataset.substring(0, maxBaseLength);
         }
-        return sanitizedDataset + suffix;
+        return sanitizedDataset + OTEL_DATASET_SUFFIX;
     }
 
     public boolean isDataStream() {

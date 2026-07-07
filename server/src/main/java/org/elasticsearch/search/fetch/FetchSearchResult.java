@@ -71,7 +71,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId = new ShardSearchContextId(in);
         hits = SearchHits.readFrom(in);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
-
         if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             lastChunkSequenceStart = in.readLong();
             lastChunkHitCount = in.readInt();
@@ -79,6 +78,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
                 lastChunkBytes = in.readReleasableBytesReference();
             }
         }
+        readDirectoryMetrics(in);
     }
 
     @Override
@@ -87,7 +87,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId.writeTo(out);
         hits.writeTo(out);
         out.writeOptionalWriteable(profileResult);
-
         if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             out.writeLong(lastChunkSequenceStart);
             out.writeInt(lastChunkHitCount);
@@ -95,6 +94,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
                 out.writeBytesReference(lastChunkBytes);
             }
         }
+        writeDirectoryMetrics(out);
     }
 
     @Override

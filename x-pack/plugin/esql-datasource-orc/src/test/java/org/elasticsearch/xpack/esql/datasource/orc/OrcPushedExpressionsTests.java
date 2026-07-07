@@ -296,6 +296,47 @@ public class OrcPushedExpressionsTests extends ESTestCase {
         assertEquals(TypeDescription.Category.LONG, map.get("event.id"));
     }
 
+    // -------------------- Declared-retype physical-type guard (F-PUSH-KW) --------------------
+
+    public void testDeclaredKeywordOverPhysicalLongDeclinesPushdown() {
+        // A STRING leaf over a physical LONG mis-prunes (ORC stringifies the integer stats, so
+        // == "42" is tested lexicographically against stringified integer bounds). The guard drops
+        // the only conjunct -> no SearchArgument.
+        TypeDescription schema = TypeDescription.createStruct().addField("code", TypeDescription.createLong());
+        assertNull(toSearchArgument(schema, eq("code", DataType.KEYWORD, new BytesRef("42"))));
+    }
+
+    public void testDeclaredIntegerOverPhysicalStringDeclinesPushdown() {
+        TypeDescription schema = TypeDescription.createStruct().addField("s", TypeDescription.createString());
+        assertNull(toSearchArgument(schema, eq("s", DataType.INTEGER, 42)));
+    }
+
+    public void testGenuineColumnsStillPushAfterGuard() {
+        TypeDescription longSchema = TypeDescription.createStruct().addField("code", TypeDescription.createLong());
+        assertNotNull("long over physical LONG still pushes", toSearchArgument(longSchema, lt("code", DataType.LONG, 42L)));
+        TypeDescription strSchema = TypeDescription.createStruct().addField("s", TypeDescription.createString());
+        assertNotNull(
+            "keyword over physical STRING still pushes",
+            toSearchArgument(strSchema, eq("s", DataType.KEYWORD, new BytesRef("x")))
+        );
+    }
+
+    public void testMismatchedConjunctDroppedCompatibleLeafKept() {
+        // Two pushed filters: keyword-over-long (dropped) and keyword-over-string (kept).
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("code", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+        SearchArgument sarg = toSearchArgument(
+            schema,
+            eq("code", DataType.KEYWORD, new BytesRef("42")),
+            eq("name", DataType.KEYWORD, new BytesRef("bob"))
+        );
+        assertNotNull(sarg);
+        String repr = sarg.toString();
+        assertTrue("compatible name leaf is pushed", repr.contains("name"));
+        assertFalse("mis-typed code leaf must not be pushed", repr.contains("code"));
+    }
+
     // -------------------- Helpers --------------------
 
     private static TypeDescription nestedKeywordSchema() {

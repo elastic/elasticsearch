@@ -128,7 +128,7 @@ public class DataFrameAnalyticsDeleter {
     private void deleteState(DataFrameAnalyticsConfig config, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {
         ActionListener<Boolean> deleteModelStateListener = listener.delegateFailureAndWrap(
             (l, r) -> executeDeleteByQuery(
-                AnomalyDetectorsIndex.jobStateIndexPattern(),
+                AnomalyDetectorsIndex.jobStateIndexPatterns(),
                 QueryBuilders.idsQuery().addIds(StoredProgress.documentId(config.getId())),
                 timeout,
                 l
@@ -146,7 +146,7 @@ public class DataFrameAnalyticsDeleter {
 
         IdsQueryBuilder query = QueryBuilders.idsQuery().addIds(config.getAnalysis().getStateDocIdPrefix(config.getId()) + docNum);
         executeDeleteByQuery(
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            AnomalyDetectorsIndex.jobStateIndexPatterns(),
             query,
             timeout,
             listener.delegateFailureAndWrap((l, response) -> {
@@ -161,15 +161,20 @@ public class DataFrameAnalyticsDeleter {
 
     private void deleteStats(String jobId, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {
         executeDeleteByQuery(
-            MlStatsIndex.indexPattern(),
+            new String[] { MlStatsIndex.indexPattern() },
             QueryBuilders.termQuery(Fields.JOB_ID.getPreferredName(), jobId),
             timeout,
             listener
         );
     }
 
-    private void executeDeleteByQuery(String index, QueryBuilder query, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {
-        DeleteByQueryRequest request = new DeleteByQueryRequest(index);
+    private void executeDeleteByQuery(
+        String[] indices,
+        QueryBuilder query,
+        TimeValue timeout,
+        ActionListener<BulkByScrollResponse> listener
+    ) {
+        DeleteByQueryRequest request = new DeleteByQueryRequest(indices);
         request.setQuery(query);
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);

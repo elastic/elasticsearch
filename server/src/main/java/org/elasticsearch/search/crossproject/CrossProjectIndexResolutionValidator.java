@@ -186,7 +186,8 @@ public class CrossProjectIndexResolutionValidator {
         switch (localFailure) {
             case ResolutionFailure.Unauthorized unauthorized -> recordLocalAuthorizationFailure(unauthorized, originalExpression);
             case ResolutionFailure.NotFound notFound -> recordNotFoundFailure(notFound);
-            case null -> {}
+            case null -> {
+            }
         }
 
         // qualified linked project expression

@@ -669,6 +669,7 @@ s:long       | c:long | unmapped_message:keyword
 
 countUnmappedFieldExistsOnlyInSource
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -681,6 +682,7 @@ c:long
 
 countPartiallyUnmappedKeywordFieldIncludesSourceOnlyValues
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data
@@ -693,7 +695,7 @@ c:long
 
 countPartiallyUnmappedPunkCastIncludesSourceOnlyValues
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: optional_fields_fix_count_on_unmapped
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data
@@ -707,6 +709,7 @@ c:long
 
 inlineCountUnmappedFieldExistsOnlyInSource
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -721,6 +724,7 @@ c:long
 
 inlineCountPartiallyUnmappedKeywordFieldIncludesSourceOnlyValues
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data

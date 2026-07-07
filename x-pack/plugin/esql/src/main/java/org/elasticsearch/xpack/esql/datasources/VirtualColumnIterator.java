@@ -190,6 +190,19 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         return delegate.waitForReady();
     }
 
+    // Non-blocking drain contract — apply inject() to whatever page the delegate yields (sharing the
+    // transform with next()), and forward the exhaustion signal.
+    @Override
+    public Page pollNext() {
+        Page dataPage = delegate.pollNext();
+        return dataPage == null ? null : inject(dataPage);
+    }
+
+    @Override
+    public boolean isExhausted() {
+        return delegate.isExhausted();
+    }
+
     @Override
     public void close() throws IOException {
         delegate.close();

@@ -117,7 +117,8 @@ public final class StreamingParallelParsingCoordinator {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
-            null
+            null,
+            true
         );
     }
 
@@ -164,7 +165,8 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
-        @Nullable Consumer<String> partialResultsWarningSink
+        @Nullable Consumer<String> partialResultsWarningSink,
+        boolean splitIsFileFinal
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -178,10 +180,11 @@ public final class StreamingParallelParsingCoordinator {
 
         if (parallelism <= 1) {
             // Single-pass fallback reads the whole decompressed stream in one shot starting at
-            // baseFileOffset, so per-stripe stats attribution applies exactly as in the parallel branch and
-            // its trailing stripe is always file-final. Thread .stats(...) here too — mirrors the sibling
-            // ParallelParsingCoordinator's single-segment fallback — so a streaming read at parallelism 1
-            // still harvests per-stripe stats instead of silently dropping the capture.
+            // baseFileOffset, so per-stripe stats attribution applies exactly as in the parallel branch.
+            // Thread .stats(...) here too — mirrors the sibling ParallelParsingCoordinator's single-segment
+            // fallback — so a streaming read at parallelism 1 still harvests per-stripe stats instead of
+            // silently dropping the capture. The trailing stripe is file-final only when this split is the
+            // file's final one (splitIsFileFinal); a whole-file compressed stream passes true.
             FormatReadContext ctx = FormatReadContext.builder()
                 .projectedColumns(projectedColumns)
                 .batchSize(batchSize)
@@ -189,7 +192,7 @@ public final class StreamingParallelParsingCoordinator {
                 .readSchema(readSchema)
                 .splitStartByte(baseFileOffset)
                 .maxRecordBytes(maxRecordBytes)
-                .stats(baseFileOffset, statsStripeSize, true)
+                .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
                 .statsColumnScope(statsColumnScope)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
@@ -210,7 +213,8 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
-            partialResultsWarningSink
+            partialResultsWarningSink,
+            splitIsFileFinal
         );
     }
 
@@ -278,6 +282,14 @@ public final class StreamingParallelParsingCoordinator {
         /** How much per-stripe statistics each chunk harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
         /**
+         * Whether this decompressed stream is the file's final split — mirrors
+         * {@link ParallelParsingCoordinator}'s {@code splitIsFileFinal}. A stream-only compressed input is read as
+         * a whole file, so the caller passes {@code true} and the last chunk ({@link Chunk#last()}) is also
+         * file-final. Threaded so a future mid-file split of a streaming read would NOT mark its trailing chunk
+         * file-final (which would close a stripe the next split still owns — a latent stats-attribution hazard).
+         */
+        private final boolean splitIsFileFinal;
+        /**
          * Grow-loop bound. In production it comes from the {@code max_record_size} pragma (default
          * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}); overridable for tests.
          */
@@ -344,7 +356,8 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
-            @Nullable Consumer<String> partialResultsWarningSink
+            @Nullable Consumer<String> partialResultsWarningSink,
+            boolean splitIsFileFinal
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -358,6 +371,7 @@ public final class StreamingParallelParsingCoordinator {
             this.statsStripeSize = statsStripeSize;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.partialResultsWarningSink = partialResultsWarningSink;
+            this.splitIsFileFinal = splitIsFileFinal;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
@@ -757,7 +771,9 @@ public final class StreamingParallelParsingCoordinator {
                     .readSchema(readSchema)
                     .splitStartByte(chunkFileGlobalStart)
                     .maxRecordBytes(maxRecordBytes)
-                    .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
+                    // File-final only when this is the stream's last chunk AND this split is the file's final
+                    // one — a mid-file split's last chunk ends at the split boundary, not the file's true EOF.
+                    .stats(chunkFileGlobalStart, statsStripeSize, chunk.last() && splitIsFileFinal)
                     .statsColumnScope(statsColumnScope)
                     .build();
                 // Bind the consumer-owned sink on this worker so the reader's close hook reaches the
@@ -995,6 +1011,46 @@ public final class StreamingParallelParsingCoordinator {
             Page result = buffered;
             buffered = null;
             return result;
+        }
+
+        /**
+         * Non-blocking page pull for the async producer-loop drain. Returns a page if one is available in
+         * the current slot right now (advancing past at most one POISON), or {@code null} otherwise — it
+         * NEVER blocks on the parser threads (unlike {@link #hasNext()}, which parks on a latch for
+         * synchronous consumers). A {@code null} return is not EOF: the caller retries via
+         * {@link #waitForReady()} and concludes EOF only when {@link #isExhausted()} is true.
+         */
+        @Override
+        public Page pollNext() {
+            if (closed) {
+                return null;
+            }
+            if (buffered != null) {
+                Page p = buffered;
+                buffered = null;
+                return p;
+            }
+            // takeNextPage surfaces any recorded parser error and is strictly non-blocking.
+            return takeNextPage();
+        }
+
+        /**
+         * Terminal predicate for the async drain: {@code true} only when the consumer has drained every
+         * dispatched chunk AND every parser task (segmentator + per-chunk workers) has exited — the same
+         * condition {@link #hasNext()} uses to return {@code false}. Never {@code true} while a page or
+         * POISON is still buffered or a task is still in flight, so the drain can never conclude EOF while
+         * the pipeline is still producing.
+         */
+        @Override
+        public boolean isExhausted() {
+            if (closed) {
+                return true;
+            }
+            checkError();
+            if (buffered != null) {
+                return false;
+            }
+            return currentChunk >= chunksDispatched.get() && tasksOutstanding.get() == 0;
         }
 
         /**

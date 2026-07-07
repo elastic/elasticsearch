@@ -415,9 +415,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         // Create DataSourceModule with all discovered plugins.
         // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP
-        // client) — NOT the file-read path. Blocking external reads run on the esql_worker pool via
-        // OperatorFactoryRegistry#fileReadExecutor (wired in TransportEsqlQueryAction), bounded by the per-scheme
-        // permit semaphore in StorageProviderRegistry rather than a dedicated thread pool.
+        // client) — NOT the file-read path. Blocking external reads + the parse pipeline run on the dedicated
+        // esql_external_io pool via OperatorFactoryRegistry#fileReadExecutor, while the non-blocking page-consumer
+        // drain runs on esql_worker via OperatorFactoryRegistry#executor (both wired in TransportEsqlQueryAction),
+        // bounded by the per-scheme permit semaphore in StorageProviderRegistry.
         dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
             dataSourceCapabilities,

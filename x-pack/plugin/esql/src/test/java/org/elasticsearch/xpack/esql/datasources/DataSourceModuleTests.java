@@ -585,8 +585,8 @@ public class DataSourceModuleTests extends ESTestCase {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
         DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
-        // Create OperatorFactoryRegistry with a simple executor
-        OperatorFactoryRegistry operatorRegistry = module.createOperatorFactoryRegistry(Runnable::run);
+        // Create OperatorFactoryRegistry with the two-executor (drain, read) factory.
+        OperatorFactoryRegistry operatorRegistry = module.createOperatorFactoryRegistry(Runnable::run, Runnable::run);
         assertNotNull("OperatorFactoryRegistry should be created", operatorRegistry);
     }
 

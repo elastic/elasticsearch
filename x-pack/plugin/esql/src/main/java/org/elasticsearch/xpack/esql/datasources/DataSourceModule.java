@@ -332,10 +332,16 @@ public final class DataSourceModule implements Closeable {
         return externalSourceMetrics;
     }
 
-    public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
-        return createOperatorFactoryRegistry(executor, executor);
-    }
-
+    /**
+     * Builds the operator-factory registry with the two distinct executors the external parse pipeline needs.
+     * There is deliberately NO single-executor overload: collapsing both roles onto one pool is the exact
+     * footgun that deadlocks multi-file text reads, so every caller must name both pools explicitly.
+     *
+     * @param executor         page-consumer / coordination pool ({@link OperatorFactoryRegistry#executor()}) — the
+     *                         compute pool ({@code esql_worker}) that also runs the drivers draining the source buffer.
+     * @param fileReadExecutor read/parse pool ({@link OperatorFactoryRegistry#fileReadExecutor()}) — the dedicated
+     *                         {@code esql_external_io} pool that runs the blocking opens, segmentator, and parser workers.
+     */
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor, Executor fileReadExecutor) {
         return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor, fileReadExecutor);
     }

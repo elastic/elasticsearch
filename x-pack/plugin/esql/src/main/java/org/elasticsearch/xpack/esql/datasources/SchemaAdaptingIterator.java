@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -127,7 +128,29 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         if (delegate.hasNext() == false) {
             throw new NoSuchElementException();
         }
-        Page filePage = delegate.next();
+        return adapt(delegate.next());
+    }
+
+    // Non-blocking drain contract — forward the readiness/exhaustion signals and apply the schema
+    // adaptation to whatever page the delegate yields, sharing adapt() with next().
+    @Override
+    public SubscribableListener<Void> waitForReady() {
+        return delegate.waitForReady();
+    }
+
+    @Override
+    public Page pollNext() {
+        Page filePage = delegate.pollNext();
+        return filePage == null ? null : adapt(filePage);
+    }
+
+    @Override
+    public boolean isExhausted() {
+        return delegate.isExhausted();
+    }
+
+    /** Runs one reader-emitted page through the {@link ColumnMapping} (and splices {@code _rowPosition} when configured). */
+    private Page adapt(Page filePage) {
         try {
             Page schemaAdapted = mapping.mapPage(filePage, blockFactory, perFileColumnTypes);
             if (rowPositionInputIndex < 0) {

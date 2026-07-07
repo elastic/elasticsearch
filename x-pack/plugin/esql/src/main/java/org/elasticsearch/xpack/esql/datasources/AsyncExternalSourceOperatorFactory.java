@@ -1593,9 +1593,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Drain pages from the currently-open iterator into the buffer.
-     * Runs synchronously while the buffer has space; when full, registers a callback that
-     * re-submits {@link #runProducerLoop} via the executor and returns {@link DrainResult#BLOCKED}.
+     * Drain pages from the currently-open iterator into the buffer, poll-then-park and strictly non-blocking.
+     * Each step reserves buffer space, then pulls one page via the iterator's non-blocking
+     * {@link CloseableIterator#pollNext()}. When no page is available right now it consults
+     * {@link CloseableIterator#isExhausted()}: only that predicate concludes {@link DrainResult#EOF}. Otherwise
+     * it {@linkplain #parkUntilReady parks} on {@link CloseableIterator#waitForReady()} — releasing the executor
+     * slot so a full I/O pool of blocked parser workers can never starve this drain — and returns
+     * {@link DrainResult#BLOCKED}. When the buffer is full it parks the same way on {@link AsyncExternalSourceBuffer#waitForSpace()}.
+     * <p>
+     * <strong>EOF is derived from {@code isExhausted()} alone, never from {@code pollNext()==null} paired with a
+     * done {@code waitForReady()}.</strong> An async iterator's readiness can be done because a POISON / end-of-chunk
+     * marker sits in the current slot rather than a real page; treating that as EOF would silently drop the chunks
+     * still parsing behind it (partial results, no error). The terminal signal is the parser-side task/chunk
+     * accounting exposed through {@code isExhausted()}.
      */
     private DrainResult drainHotPath(ProducerState state, ActionListener<Void> completionListener) {
         CloseableIterator<Page> pages = state.pages;
@@ -1610,32 +1620,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
                 return DrainResult.DONE;
             }
-            // Yield on upstream-blocked (e.g. streaming-parallel iterator waiting on parser threads)
-            // — symmetric to the downstream-buffer-full yield below. Without this the producer-loop
-            // would spin inside {@code hasNext()} holding its executor slot while the iterator's
-            // segmenter/parser sub-tasks compete for slots on the same pool: with default
-            // {@code parsing_parallelism = cores} and F concurrent file readers we'd need
-            // F + F + F×cores slots, exhausting the generic pool on multi-file gzip globs.
-            // Synchronous iterators ({@code CloseableIterator}'s default) return an
-            // immediately-completed listener and fall straight through.
-            SubscribableListener<Void> ready = pages.waitForReady();
-            if (ready.isDone() == false) {
-                return parkUntilReady(ready, state, completionListener);
-            }
-            if (pages.hasNext() == false) {
-                // Race: waitForReady reported done (page available or EOF), but by the time we
-                // called hasNext the state advanced (e.g. another consumer drained, or POISON
-                // got handled inside hasNext and the next slot is not yet populated). For
-                // synchronous iterators where the default waitForReady returns immediately-done,
-                // hasNext=false truly means EOF and the recheck remains done. For async iterators
-                // like {@code StreamingParallelIterator}, a non-done recheck means the iterator
-                // is still producing — yield and let the parser-side {@code signalReady()} wake us.
-                SubscribableListener<Void> recheck = pages.waitForReady();
-                if (recheck.isDone()) {
-                    return DrainResult.EOF;
-                }
-                return parkUntilReady(recheck, state, completionListener);
-            }
+            // Reserve buffer space BEFORE pulling a page, so we never hold a polled page we cannot deliver.
+            // A full buffer yields the executor slot until the downstream driver frees space.
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {
                 return parkUntilReady(space, state, completionListener);
@@ -1643,7 +1629,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (buffer.noMoreInputs()) {
                 return DrainResult.DONE;
             }
-            Page page = pages.next();
+            // Non-blocking pull. pollNext() never blocks on the parser threads; null means "no page right now",
+            // which is NOT an EOF signal on its own — the parser may simply not have published the next chunk yet.
+            Page page = pages.pollNext();
+            if (page == null) {
+                if (pages.isExhausted()) {
+                    // The ONLY terminal signal: every dispatched chunk drained and every parser task exited.
+                    return DrainResult.EOF;
+                }
+                // Still producing but nothing available this instant: yield the executor slot and resume when
+                // the parser side signals readiness. Synchronous iterators return an immediately-done listener,
+                // so parkUntilReady re-submits promptly. Crucially we do NOT conclude EOF here even if the
+                // readiness signal is already done — a done signal can mean an end-of-chunk marker, not a page.
+                return parkUntilReady(pages.waitForReady(), state, completionListener);
+            }
             int rows = page.getPositionCount();
             page.allowPassingToDifferentDriver();
             buffer.addPage(page);
@@ -2511,7 +2510,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         captureSink,
                         statsStripeSize,
                         statsColumnScope,
-                        partialResultsWarningSink
+                        partialResultsWarningSink,
+                        // A stream-only compressed file is read whole (never macro-split), so this stream is
+                        // always the file's final split — its last chunk closes the file's terminal stripe.
+                        true
                     );
                 } catch (Exception e) {
                     try {

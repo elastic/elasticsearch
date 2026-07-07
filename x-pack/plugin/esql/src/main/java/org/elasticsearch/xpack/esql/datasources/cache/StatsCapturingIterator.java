@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -63,6 +64,22 @@ public final class StatsCapturingIterator implements CloseableIterator<Page>, Co
     @Override
     public Page next() {
         return delegate.next();
+    }
+
+    // Non-blocking drain contract — pure pass-through (this wrapper changes behavior only at close()).
+    @Override
+    public SubscribableListener<Void> waitForReady() {
+        return delegate.waitForReady();
+    }
+
+    @Override
+    public Page pollNext() {
+        return delegate.pollNext();
+    }
+
+    @Override
+    public boolean isExhausted() {
+        return delegate.isExhausted();
     }
 
     @Override

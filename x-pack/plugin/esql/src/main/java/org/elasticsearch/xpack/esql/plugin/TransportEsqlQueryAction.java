@@ -219,9 +219,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
 
         var dataSourceModule = planExecutor.dataSourceModule();
-        // External source coordination and blocking file reads both run on the external blob-store pool, so a single
-        // executor backs both roles of the registry.
-        OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(externalBlobStoreExecutor());
+        // Two pools, deliberately distinct, so the external parse pipeline can never starve its own consumer.
+        // Arg 1 (registry.executor()) is the page-consumer / coordination role — the esql_worker compute pool that
+        // also runs the drivers polling the source buffer, so the non-blocking drain runs there. Arg 2
+        // (registry.fileReadExecutor()) is the read/parse role — the dedicated esql_external_io pool that runs the
+        // blocking opens, segmentator, and parser workers. Collapsing these onto one pool deadlocks multi-file text
+        // reads (a full I/O pool of blocked parsers with no free thread left to run the drain that consumes them).
+        OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(
+            threadPool.executor(EsqlPlugin.computePool()), // drain / coordination — esql_worker
+            externalBlobStoreExecutor()                    // blocking reads + parse pipeline — esql_external_io
+        );
         this.computeService = new ComputeService(
             services,
             enrichLookupService,

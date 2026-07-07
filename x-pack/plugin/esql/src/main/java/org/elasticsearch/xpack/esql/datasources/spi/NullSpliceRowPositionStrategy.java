@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -88,7 +89,29 @@ public final class NullSpliceRowPositionStrategy implements RowPositionStrategy 
             if (inner.hasNext() == false) {
                 throw new NoSuchElementException();
             }
-            Page innerPage = inner.next();
+            return splice(inner.next());
+        }
+
+        // Non-blocking drain contract — forward readiness/exhaustion and apply the null splice to whatever
+        // page the inner iterator yields, sharing splice() with next().
+        @Override
+        public SubscribableListener<Void> waitForReady() {
+            return inner.waitForReady();
+        }
+
+        @Override
+        public Page pollNext() {
+            Page innerPage = inner.pollNext();
+            return innerPage == null ? null : splice(innerPage);
+        }
+
+        @Override
+        public boolean isExhausted() {
+            return inner.isExhausted();
+        }
+
+        /** Splices an all-null {@code _rowPosition} block into {@code innerPage} at the requested output slot. */
+        private Page splice(Page innerPage) {
             int positions = innerPage.getPositionCount();
             int innerBlockCount = innerPage.getBlockCount();
             // The splice loops below only cover slots in [0, innerBlockCount]; today the optimizer

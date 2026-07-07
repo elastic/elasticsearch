@@ -770,3 +770,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.RegionPolicyAuthorizationRefreshIT
   method: testPutRegionPolicy_WhenDeniedEndpointReferencedByPipelineOnly_OmitsEmptyIndexesField
   issue: https://github.com/elastic/elasticsearch/issues/153170
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSourceRelocationAndTargetRestart
+  issue: https://github.com/elastic/elasticsearch/issues/153173

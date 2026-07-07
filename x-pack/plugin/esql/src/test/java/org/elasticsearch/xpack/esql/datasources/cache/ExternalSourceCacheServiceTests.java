@@ -867,6 +867,34 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         );
     }
 
+    /**
+     * A NON-Number extremum on a numeric-typed column — cross-declaration garbage, e.g. a keyword min reconciled onto a
+     * column another dataset over the same file declares DOUBLE (the reconcile matches on path+mtime+config, never the
+     * declared type). It must be DROPPED and marked unservable so the serve safe-misses, never left in the map where
+     * {@code buildBlock}'s {@code (Number)} cast would {@code ClassCastException}. Holds on both the stripe path and the
+     * whole-file path — a non-Number extremum is never servable on a numeric column.
+     */
+    public void testCoerceColumnStatsToResolvedTypesDropsNonNumberOnNumericColumn() {
+        String[] names = { "v" };
+        DataType[] types = { DataType.DOUBLE };
+        for (boolean dropUnrepresentable : new boolean[] { false, true }) {
+            Map<String, Object> in = new LinkedHashMap<>();
+            in.put(SourceStatisticsSerializer.columnMinKey("v"), "alpha"); // keyword min landed on a DOUBLE column
+            in.put(SourceStatisticsSerializer.columnMaxKey("v"), 42.0);    // a valid Double max — must survive untouched
+            Map<String, Object> out = ExternalSourceCacheService.coerceColumnStatsToResolvedTypes(in, names, types, dropUnrepresentable);
+            assertFalse(
+                "non-Number min must be dropped (dropUnrepresentable=" + dropUnrepresentable + ")",
+                out.containsKey(SourceStatisticsSerializer.columnMinKey("v"))
+            );
+            assertEquals(
+                "and marked unservable so the serve safe-misses",
+                Boolean.TRUE,
+                out.get(SourceStatisticsSerializer.columnMinUnservableKey("v"))
+            );
+            assertEquals("a valid Double max is left intact", Double.valueOf(42.0), out.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        }
+    }
+
     public void testColumnValueCountFoldsAcrossStripesAsSum() throws Exception {
         // COUNT(col) is served from the harvested value count. Across stripes it must SUM (each stripe holds
         // the non-null value count of its own rows), so a multivalued column's whole-file COUNT is the total

@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -181,7 +182,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 IndexShard indexShard,
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
-                @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                 boolean preWarmForIdLookup,
                 ActionListener<Void> listener
             ) {
@@ -576,7 +577,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockIndexShard(self),
                 null,
                 null,
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), 1L),
+                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L)),
                 resumeFuture
             );
             safeGet(resumeFuture);
@@ -600,7 +601,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockIndexShard(self),
                 null,
                 null,
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), 1L),
+                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L)),
                 resume
             );
             assertTrue(resume.isDone());
@@ -678,7 +679,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockIndexShard(self),
                 null,
                 null,
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), 1L),
+                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L)),
                 resumeFuture
             );
             safeGet(resumeFuture);

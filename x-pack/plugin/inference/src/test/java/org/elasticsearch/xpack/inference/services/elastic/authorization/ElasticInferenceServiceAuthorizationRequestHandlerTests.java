@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -299,6 +300,105 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
             listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+            assertThat(webServer.requests().size(), is(1));
+            var header = webServer.requests().get(0).getHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER);
+            assertThat(header, is("aws:eu-west-1"));
+        }
+    }
+
+    public void testGetAuthorizationWithPreferences_UsesProvidedPreferences_NotCache() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+        var logger = mock(Logger.class);
+
+        var regionPolicy = new RegionPolicy(null, List.of(new CspRegion("aws", "eu-west-1")));
+        var cache = mock(InferencePreferencesCache.class);
+
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            logger,
+            createNoopApplierFactory(),
+            createMockCcmFeature(false),
+            createMockCcmService(false),
+            cache
+        );
+
+        try (var sender = senderFactory.createSender()) {
+            var responseData = getEisElserAuthorizationResponse(eisGatewayUrl);
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
+
+            TestPlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new TestPlainActionFuture<>();
+            authHandler.getAuthorizationWithPreferences(listener, sender, new InferencePreferences(regionPolicy));
+            listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+            assertThat(webServer.requests().size(), is(1));
+            var header = webServer.requests().get(0).getHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER);
+            assertThat(header, is("aws:eu-west-1"));
+
+            verify(cache, never()).get(any());
+        }
+    }
+
+    public void testGetAuthorizationWithPreferences_ReturnsUnauthorized_WhenCcmSupportedEnvironmentAndDisabled() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+
+        var mockCcmFeature = createMockCcmFeature(true);
+        var mockCcmService = createMockCcmService(false);
+
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            createNoopApplierFactory(),
+            mockCcmFeature,
+            mockCcmService,
+            createMockPreferencesCache()
+        );
+
+        try (var sender = senderFactory.createSender()) {
+            var regionPolicy = new RegionPolicy(null, List.of(new CspRegion("aws", "eu-west-1")));
+
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            authHandler.getAuthorizationWithPreferences(listener, sender, new InferencePreferences(regionPolicy));
+
+            var authResponse = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertFalse(authResponse.isAuthorized());
+
+            // No request should be made to EIS because CCM is supported but not configured
+            assertThat(webServer.requests(), empty());
+            verify(mockCcmFeature, times(1)).isCcmSupportedEnvironment();
+            verify(mockCcmService, times(1)).isEnabled(any());
+        }
+    }
+
+    public void testGetAuthorizationWithPreferences_MakesRequest_WhenCcmSupportedEnvironmentAndEnabled() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+
+        var mockCcmFeature = createMockCcmFeature(true);
+        var mockCcmService = createMockCcmService(true);
+
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            createNoopApplierFactory(),
+            mockCcmFeature,
+            mockCcmService,
+            createMockPreferencesCache()
+        );
+
+        try (var sender = senderFactory.createSender()) {
+            var regionPolicy = new RegionPolicy(null, List.of(new CspRegion("aws", "eu-west-1")));
+            var responseData = getEisElserAuthorizationResponse(eisGatewayUrl);
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
+
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            authHandler.getAuthorizationWithPreferences(listener, sender, new InferencePreferences(regionPolicy));
+
+            var authResponse = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertTrue(authResponse.isAuthorized());
 
             assertThat(webServer.requests().size(), is(1));
             var header = webServer.requests().get(0).getHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER);

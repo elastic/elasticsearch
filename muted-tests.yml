@@ -347,36 +347,18 @@ tests:
 - class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
   method: testTransformRollingUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/150442
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testTypeConflictMappedAndUnmappedWithCast
-  issue: https://github.com/elastic/elasticsearch/issues/150446
 - class: org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests
   method: testOverflowFails
   issue: https://github.com/elastic/elasticsearch/issues/150455
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testTypeConflictTimeseriesStatsWithCast
-  issue: https://github.com/elastic/elasticsearch/issues/150476
 - class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
   method: testRefreshesAreBlockedUntilBlockIsRemoved
   issue: https://github.com/elastic/elasticsearch/issues/150492
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testTSTypeConflictTimeseriesStatsWithCast
-  issue: https://github.com/elastic/elasticsearch/issues/150495
 - class: org.elasticsearch.xpack.stateless.StatelessSearchIT
   method: testSearchTriggeredDownloadsTelemetry
   issue: https://github.com/elastic/elasticsearch/issues/150540
 - class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/150541
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testTypeConflictMappedTimesTwoAndUnmapped
-  issue: https://github.com/elastic/elasticsearch/issues/150567
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testTSTypeConflictTimeseriesLongUnmappedWithCast
-  issue: https://github.com/elastic/elasticsearch/issues/150584
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testTypeConflictTimeseriesWhereWithCast
-  issue: https://github.com/elastic/elasticsearch/issues/150590
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSearchWhenCoordinatorSeesSplitFirst
   issue: https://github.com/elastic/elasticsearch/issues/150621
@@ -398,15 +380,9 @@ tests:
 - class: org.elasticsearch.index.engine.InternalEngineTests
   method: testShouldPeriodicallyFlushOnSize
   issue: https://github.com/elastic/elasticsearch/issues/150669
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testTypeConflictTimeseriesDoubleUnmappedWithCast
-  issue: https://github.com/elastic/elasticsearch/issues/150672
 - class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
   method: testCircuitBreakerTripCountMetric
   issue: https://github.com/elastic/elasticsearch/issues/150700
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testTypeConflictTimeseriesLongUnmappedWithCast
-  issue: https://github.com/elastic/elasticsearch/issues/150722
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/150762
@@ -620,9 +596,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152379
-- class: org.elasticsearch.index.store.BytesReadHeaderIT
-  method: testMultipleIndicesAccumulateBytesRead
-  issue: https://github.com/elastic/elasticsearch/issues/152425
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498
@@ -740,9 +713,6 @@ tests:
 - class: org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperatorTests
   method: testMultivaluedGroupColumnProducesWarning
   issue: https://github.com/elastic/elasticsearch/issues/152929
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testSingleTypeAggregateMetricDoubleUnmappedNoCastLoadOnly
-  issue: https://github.com/elastic/elasticsearch/issues/152930
 - class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
   method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with multiple _slice values and duplicatessearches across the requested slices}
   issue: https://github.com/elastic/elasticsearch/issues/152722

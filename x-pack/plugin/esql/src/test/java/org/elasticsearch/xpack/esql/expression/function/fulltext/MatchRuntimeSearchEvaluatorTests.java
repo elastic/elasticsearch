@@ -194,6 +194,16 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
         assertArrayEquals(new Boolean[] { true, true }, result);
     }
 
+    public void testTextAndMultiTermQuery() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("fox dog"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("This is a brown fox"));
+            builder.appendBytesRef(new BytesRef("This is a brown dog"));
+            builder.appendBytesRef(new BytesRef("Just a turtle"));
+            builder.appendBytesRef(new BytesRef("This dog is really brown"));
+        }));
+        assertArrayEquals(new Boolean[] { true, true, false, true }, result);
+    }
+
     public void testTextWithZeroTermsValues() {
         Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("fox"), TEXT), factory -> bytesRefBlock(factory, builder -> {
             builder.appendBytesRef(new BytesRef("! !"));

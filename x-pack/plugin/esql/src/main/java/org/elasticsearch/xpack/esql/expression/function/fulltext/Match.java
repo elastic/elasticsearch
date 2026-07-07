@@ -607,7 +607,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             stream.reset();
             TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
             while (stream.incrementToken()) {
-                queryTerms.add(term.getBytesRef());
+                queryTerms.add(BytesRef.deepCopyOf(term.getBytesRef()));
             }
             stream.end();
         }

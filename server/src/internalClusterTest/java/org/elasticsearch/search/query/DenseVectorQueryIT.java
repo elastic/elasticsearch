@@ -85,8 +85,7 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
             .vectorSimilarityFunction(IndexVersion.current(), ElementType.FLOAT);
         // The literal cosine function (normalizes both operands itself); the ground truth for a per-query
         // similarity_function=cosine override against the raw stored vectors of the l2_norm field.
-        private static final VectorSimilarityFunction COSINE_FUNCTION = DenseVectorFieldMapper.VectorSimilarity.COSINE
-            .rawVectorSimilarityFunction();
+        private static final VectorSimilarityFunction COSINE_FUNCTION = VectorSimilarityFunction.COSINE;
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {

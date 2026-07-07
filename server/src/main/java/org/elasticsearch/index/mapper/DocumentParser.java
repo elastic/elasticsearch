@@ -172,6 +172,11 @@ public final class DocumentParser {
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
+            // Required-field enforcement is per Lucene document, not per _source document. This is done in order to accommodate nested
+            // objects. A nested object yields one Lucene doc per array element, each enforced at its own close (see parseObjectOrNested)
+            // against a fresh per-doc tally. A non-nested mapping yields exactly one Lucene doc, so the root check here covers it; the
+            // empty-doc ({}) short-circuit above still reaches this call.
+            context.enforceRequiredFields();
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }
@@ -366,6 +371,8 @@ public final class DocumentParser {
         // restore the enable path flag
         if (context.parent().isNested()) {
             copyNestedFields(context, (NestedObjectMapper) context.parent());
+            // This nested instance is its own Lucene doc: enforce its required fields here, against its own per-doc tally and nested scope.
+            context.enforceRequiredFields();
         }
     }
 
@@ -1187,7 +1194,7 @@ public final class DocumentParser {
             IndexSettings indexSettings = mappingParserContext.getIndexSettings();
             BytesRef tsid = source.tsid();
             if (tsid == null
-                && indexSettings.getMode() == IndexMode.TIME_SERIES
+                && indexSettings.getMode().isTsdb()
                 && indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions) {
                 // the tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request
                 // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
@@ -1196,8 +1203,7 @@ public final class DocumentParser {
                 tsid = forIndexDimensions.buildTsid(sourceObject.xContentType(), sourceObject.originalBytes());
             }
             this.tsid = tsid;
-            assert this.tsid == null || indexSettings.getMode() == IndexMode.TIME_SERIES
-                : "tsid should only be set for time series indices";
+            assert this.tsid == null || indexSettings.getMode().isTsdb() : "tsid should only be set for time series indices";
             XContentParserDecorator parserDecorator = source.getMeteringParserDecorator();
             Mapping mapping = mappingLookup.getMapping();
             if (mapping.getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {

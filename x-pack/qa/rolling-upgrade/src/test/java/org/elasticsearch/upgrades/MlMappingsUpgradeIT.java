@@ -10,14 +10,17 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +38,14 @@ import static org.hamcrest.Matchers.nullValue;
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-mappings-upgrade-job";
+
+    /**
+     * Mirrors {@code MlIndexTemplateRegistry#ML_INDEX_TEMPLATE_VERSION}; kept here because rolling-upgrade
+     * tests cannot depend on the ML plugin module.
+     */
+    private static final int ML_INDEX_TEMPLATE_VERSION = 10000002 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
+        + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
+        + NotificationsIndex.NOTIFICATIONS_INDEX_TEMPLATE_VERSION;
 
     @BeforeClass
     public static void maybeSkip() {
@@ -76,8 +87,16 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                     () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
                         client(),
                         ".ml-anomalies-",
-                        10000006,
+                        ML_INDEX_TEMPLATE_VERSION,
                         List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*")
+                    )
+                );
+                assertBusy(
+                    () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
+                        client(),
+                        ".ml-state",
+                        ML_INDEX_TEMPLATE_VERSION,
+                        Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns())
                     )
                 );
                 break;
@@ -110,23 +129,44 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
+    /**
+     * Opens the test job if it was closed during rolling upgrade so results write aliases exist.
+     * The job must already exist from the {@code OLD} cluster phase.
+     */
+    private void ensureTestJobIsOpen() throws IOException {
+        Request getJob = new Request("GET", "_ml/anomaly_detectors/" + JOB_ID);
+        Response response = client().performRequest(getJob);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> jobs = (List<Map<String, Object>>) entityAsMap(response).get("jobs");
+        assertThat(jobs, hasSize(1));
+        if ("closed".equals(jobs.get(0).get("state"))) {
+            openTestJob();
+        }
+    }
+
     // Doing this should force the config index mappings to be upgraded,
     // when the finished time is cleared on reopening the job
+    private void openTestJob() throws IOException {
+        Request openJob = new Request("POST", "_ml/anomaly_detectors/" + JOB_ID + "/_open");
+        Response response = client().performRequest(openJob);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+    }
+
     private void closeAndReopenTestJob() throws IOException {
 
         Request closeJob = new Request("POST", "_ml/anomaly_detectors/" + JOB_ID + "/_close");
         Response response = client().performRequest(closeJob);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        Request openJob = new Request("POST", "_ml/anomaly_detectors/" + JOB_ID + "/_open");
-        response = client().performRequest(openJob);
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        openTestJob();
     }
 
     @SuppressWarnings("unchecked")
     private void assertUpgradedResultsMappings() throws Exception {
 
         assertBusy(() -> {
+            ensureTestJobIsOpen();
             Request getMappings = new Request("GET", XPackRestTestHelper.resultsWriteAlias(JOB_ID) + "/_mappings");
             Response response = client().performRequest(getMappings);
 

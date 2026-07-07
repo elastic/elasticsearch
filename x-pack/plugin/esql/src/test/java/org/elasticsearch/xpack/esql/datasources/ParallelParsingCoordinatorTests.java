@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -699,6 +700,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            false,
             metrics
         );
         // Every segment submission is rejected: firstError is set and draining surfaces it. We only assert the

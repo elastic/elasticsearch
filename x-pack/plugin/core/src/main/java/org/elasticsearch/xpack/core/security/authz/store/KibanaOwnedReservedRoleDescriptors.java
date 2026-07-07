@@ -663,7 +663,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".asset-criticality.asset-criticality-*")
                     .privileges("create_index", "manage", "read", "write")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.*").privileges("read", "write").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".entities.*")
+                    .privileges("auto_configure", "create_index", "read", "write")
+                    .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*history*")
                     .privileges("create_index", "manage", "read", "write")

@@ -253,6 +253,69 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertNull(fp);
     }
 
+    // --- Declared-retype physical-type guard (F-PUSH-KW) ---
+
+    /**
+     * A declared retype ({@code keyword}/{@code integer}/{@code boolean} over a physical {@code
+     * INT64}) is a supported coercion, so the predicate reaches the INTEGER/KEYWORD/BOOLEAN arms.
+     * Without the physical-type guard those arms mint a BINARY/INT32/BOOLEAN predicate against an
+     * INT64 column — a declared-type mismatch parquet-mr rejects or mis-prunes. They must decline
+     * (the conjunct stays RECHECK, {@code FilterExec} re-applies the real semantics).
+     */
+    public void testDeclaredRetypeOverInt64DeclinesPushdown() {
+        MessageType schema = Types.buildMessage().required(INT64).named("code").named("test");
+
+        assertNull(
+            "keyword over int64 declines",
+            new ParquetPushedExpressions(List.of(eq("code", DataType.KEYWORD, new BytesRef("42")))).toFilterPredicate(schema)
+        );
+        assertNull(
+            "integer over int64 declines",
+            new ParquetPushedExpressions(List.of(eq("code", DataType.INTEGER, 42))).toFilterPredicate(schema)
+        );
+        assertNull(
+            "boolean over int64 declines",
+            new ParquetPushedExpressions(List.of(eq("code", DataType.BOOLEAN, true))).toFilterPredicate(schema)
+        );
+        assertNull(
+            "keyword IN over int64 declines",
+            new ParquetPushedExpressions(
+                List.of(new In(Source.EMPTY, attr("code", DataType.KEYWORD), List.of(lit(new BytesRef("42"), DataType.KEYWORD))))
+            ).toFilterPredicate(schema)
+        );
+        assertNull(
+            "STARTS_WITH over int64 declines",
+            new ParquetPushedExpressions(
+                List.of(new StartsWith(Source.EMPTY, attr("code", DataType.KEYWORD), lit(new BytesRef("4"), DataType.KEYWORD)))
+            ).toFilterPredicate(schema)
+        );
+    }
+
+    /**
+     * Positive control for the guard: a genuine keyword/boolean column (physical BINARY/BOOLEAN)
+     * still pushes — the guard passes on a matching physical, so no pushdown is lost.
+     */
+    public void testGenuineKeywordAndBooleanStillPush() {
+        MessageType kwSchema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("s")
+            .named("test");
+        assertNotNull(
+            "keyword over BINARY still pushes",
+            new ParquetPushedExpressions(List.of(eq("s", DataType.KEYWORD, new BytesRef("x")))).toFilterPredicate(kwSchema)
+        );
+
+        MessageType boolSchema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BOOLEAN)
+            .named("b")
+            .named("test");
+        assertNotNull(
+            "boolean over BOOLEAN still pushes",
+            new ParquetPushedExpressions(List.of(eq("b", DataType.BOOLEAN, true))).toFilterPredicate(boolSchema)
+        );
+    }
+
     // --- Mixed types (DATETIME + INTEGER) ---
 
     public void testToFilterPredicateMixedTypes() {
@@ -1163,6 +1226,44 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     // --- helpers ---
+
+    // IS NULL / IS NOT NULL over a top-level list must NOT push a predicate (esql-planning#1056): the
+    // attribute name resolves to a LIST group, so notEq(column("tags"), null) names a leaf-absent
+    // column that parquet-mr drops. They decline so the multivalue-safe null-mask evaluator answers.
+    // (Value predicates — comparisons/IN/LIKE — are NOT declined here; their evaluator is not MV-safe.)
+
+    private static MessageType intListSchema() {
+        return new MessageType("test", Types.optionalList().optionalElement(INT32).named("ints"));
+    }
+
+    private static MessageType stringListSchema() {
+        return new MessageType(
+            "test",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("tags")
+        );
+    }
+
+    public void testTopLevelListIsNotNullDeclines() {
+        Expression expr = new IsNotNull(Source.EMPTY, attr("ints", DataType.INTEGER));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(intListSchema()));
+    }
+
+    public void testTopLevelStringListIsNotNullDeclines() {
+        Expression expr = new IsNotNull(Source.EMPTY, attr("tags", DataType.KEYWORD));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(stringListSchema()));
+    }
+
+    public void testFlatColumnStillPushesControl() {
+        // The list guard must not regress flat columns: a plain INT32 still pushes.
+        MessageType schema = new MessageType("test", Types.optional(INT32).named("flat"));
+        Expression expr = new IsNotNull(Source.EMPTY, attr("flat", DataType.INTEGER));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("flat"));
+    }
 
     private static Expression eq(String name, DataType type, Object value) {
         return new Equals(Source.EMPTY, attr(name, type), lit(value, type), null);

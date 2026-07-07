@@ -28,9 +28,13 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -95,6 +99,9 @@ final class PageColumnReader implements Releasable {
     private final ColumnDescriptor descriptor;
     private final ColumnInfo info;
     private final RowRanges rowRanges;
+    /** Per-value declared-coercion failure sink ({@code null} = strict); see the 5-arg constructor. */
+    @Nullable
+    private final SkipWarnings coercionWarnings;
     private final int maxDefLevel;
 
     private Dictionary dictionary;
@@ -129,10 +136,26 @@ final class PageColumnReader implements Releasable {
     private boolean columnExhausted;
 
     PageColumnReader(PageReader pageReader, ColumnDescriptor descriptor, ColumnInfo info, RowRanges rowRanges) {
+        this(pageReader, descriptor, info, rowRanges, null);
+    }
+
+    /**
+     * @param coercionWarnings sink for per-value declared-coercion failures (nulled cell +
+     *                         response Warning header), shared across the read so the warning cap
+     *                         is per read. {@code null} = strict: a coercion failure propagates.
+     */
+    PageColumnReader(
+        PageReader pageReader,
+        ColumnDescriptor descriptor,
+        ColumnInfo info,
+        RowRanges rowRanges,
+        @Nullable SkipWarnings coercionWarnings
+    ) {
         this.pageReader = pageReader;
         this.descriptor = descriptor;
         this.info = info;
         this.rowRanges = rowRanges;
+        this.coercionWarnings = coercionWarnings;
         this.maxDefLevel = descriptor.getMaxDefinitionLevel();
         this.columnExhausted = false;
         this.rowPositionInRowGroup = 0;
@@ -144,9 +167,38 @@ final class PageColumnReader implements Releasable {
 
     Block readBatch(int maxRows, BlockFactory blockFactory) {
         loadDictionaryIfNeeded();
+        // Declared-type coercion beyond the fused pairs: decode the column at the file's own type
+        // with the arms below, then coerce the block to the declared type. Per-value failures
+        // follow the read's error policy: a live coercionWarnings sink nulls the cell + emits a
+        // response Warning, a null sink (fail_fast) fails the read.
+        DataType declared = info.esqlType();
+        DataType fileType = info.fileEsqlType();
+        if (fileType != null
+            && declared != fileType
+            && DeclaredTypeCoercions.fusedInDecode(fileType, declared) == false
+            && DeclaredTypeCoercions.supports(fileType, declared)) {
+            Block physical = readBatchAs(fileType, maxRows, blockFactory);
+            try {
+                return DeclaredTypeCoercions.castBlock(
+                    physical,
+                    fileType,
+                    declared,
+                    info.dateFormatter(),
+                    blockFactory,
+                    String.join(".", descriptor.getPath()),
+                    coercionWarnings
+                );
+            } finally {
+                physical.close();
+            }
+        }
+        return readBatchAs(declared, maxRows, blockFactory);
+    }
+
+    private Block readBatchAs(DataType type, int maxRows, BlockFactory blockFactory) {
         // WARNING: the dispatching logic below is duplicated in ParquetFormatReader#readColumnBlock
         // KEEP IN SYNC!
-        return switch (info.esqlType()) {
+        return switch (type) {
             case BOOLEAN -> readBooleanBatch(maxRows, blockFactory);
             case INTEGER -> readIntBatch(maxRows, blockFactory);
             case LONG, UNSIGNED_LONG -> {
@@ -165,7 +217,7 @@ final class PageColumnReader implements Releasable {
                 // A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores sign-flip-encoded
                 // (value ^ 2^63) so signed-long ordering matches unsigned ordering. The output edge always
                 // decodes UNSIGNED_LONG blocks, so the read path must emit the encoded form here.
-                yield readLongBatch(maxRows, blockFactory, 1L, info.esqlType() == DataType.UNSIGNED_LONG);
+                yield readLongBatch(maxRows, blockFactory, 1L, type == DataType.UNSIGNED_LONG);
             }
             case DOUBLE -> readDoubleBatch(maxRows, blockFactory);
             case KEYWORD, TEXT -> readBytesBatch(maxRows, blockFactory);
@@ -1145,7 +1197,7 @@ final class PageColumnReader implements Releasable {
                 for (int i = 0; i < fromPage; i++) {
                     allValues[produced + i] = isUuid
                         ? new BytesRef(ParquetColumnDecoding.formatUuid(vals[i].bytes, vals[i].offset, vals[i].length))
-                        : vals[i];
+                        : Utf8Sanitizer.sanitize(vals[i]);
                 }
                 advancePosition(fromPage);
                 produced += fromPage;
@@ -1174,7 +1226,7 @@ final class PageColumnReader implements Releasable {
                     BytesRef uuidRef = vals[valIdx++];
                     allValues[produced + i] = new BytesRef(ParquetColumnDecoding.formatUuid(uuidRef.bytes, uuidRef.offset, uuidRef.length));
                 } else {
-                    allValues[produced + i] = vals[valIdx++];
+                    allValues[produced + i] = Utf8Sanitizer.sanitize(vals[valIdx++]);
                 }
             }
             advancePosition(fromPage);
@@ -1272,7 +1324,7 @@ final class PageColumnReader implements Releasable {
         if (nulls == null || nulls.isEmpty()) {
             int constantOrdinal = detectConstantOrdinal(ordinals, produced);
             if (constantOrdinal >= 0) {
-                return blockFactory.newConstantBytesRefBlockWith(dict[constantOrdinal], produced);
+                return blockFactory.newConstantBytesRefBlockWith(Utf8Sanitizer.sanitize(dict[constantOrdinal]), produced);
             }
         }
         IntBlock ordinalsBlock = null;
@@ -1346,7 +1398,9 @@ final class PageColumnReader implements Releasable {
         boolean success = false;
         try {
             for (BytesRef entry : entries) {
-                array.append(entry);
+                // KEYWORD ordinal dictionary path only (buildDictionaryVector -> here); sanitize each
+                // dictionary entry once per chunk so the OrdinalBytesRefBlock never exposes malformed UTF-8.
+                array.append(Utf8Sanitizer.sanitize(entry));
             }
             cachedDictArray = array;
             cachedDictArraySource = dictionary;
@@ -1412,6 +1466,15 @@ final class PageColumnReader implements Releasable {
                 return allNull;
             }
         }
+        // KEYWORD materialized fallback: {@code all} mixes raw dictionary entries with scalar values read
+        // after the chunk fell off dictionary encoding (this path is never taken for UUID, see readBytesBatch),
+        // so sanitize each position once before building. sanitize returns the input unchanged when it is
+        // already well-formed, so shared dictionary entries are not copied or mutated.
+        for (int i = 0; i < filled; i++) {
+            if (combinedNulls == null || combinedNulls.get(i) == false) {
+                all[i] = Utf8Sanitizer.sanitize(all[i]);
+            }
+        }
         return buildBytesRefBlock(all, combinedNulls, filled, blockFactory);
     }
 
@@ -1420,6 +1483,24 @@ final class PageColumnReader implements Releasable {
     private Block readDatetimeBatch(int maxRows, BlockFactory blockFactory) {
         if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
             return readInt96Batch(maxRows, blockFactory);
+        }
+        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY) {
+            // Declared string->datetime coercion: decode the column natively as bytes (dictionary and plain paths
+            // both reused as-is), then parse each value with the column's declared format (ISO default) via the
+            // shared scalar. An unparseable value follows the read's error policy through onCoercionFailure:
+            // a live sink nulls the position + warns, a null sink (fail_fast) fails the read.
+            Block bytes = readBytesBatch(maxRows, blockFactory);
+            try {
+                return ParquetColumnDecoding.bytesBlockToDatetimeMillis(
+                    bytes,
+                    info.dateFormatter(),
+                    blockFactory,
+                    String.join(".", descriptor.getPath()),
+                    coercionWarnings
+                );
+            } finally {
+                bytes.close();
+            }
         }
         boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
         long[] values = UninitializedArrays.newLongArray(maxRows);

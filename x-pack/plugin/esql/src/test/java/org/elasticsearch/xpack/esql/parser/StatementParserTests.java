@@ -1252,7 +1252,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightOnFields() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1267,7 +1267,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRequiresQueryAndOnClause() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
         // Both query and ON are grammatically required in v1. The plan node keeps `query` nullable
         // and `fields` allowed-empty so the bare form can be enabled later without serialization changes.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
@@ -1276,14 +1276,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsPrefixSyntax() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
         // The plan node still carries a prefix field (hard-coded to "highlight_") so a future
         // grammar extension can flip it on without breaking serialization.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title"));
     }
 
     public void testHighlightWithOptions() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
         LogicalPlan plan = query(
             "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
         );
@@ -1292,8 +1292,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.of("fragment_size", "number_of_fragments")));
     }
 
+    public void testHighlightAcceptsAllOptions() {
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        LogicalPlan plan = query("""
+            FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
+              "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
+              "number_of_fragments": 2, "fragment_size": 150, "no_match_size": 100,
+              "boundary_scanner": "word", "boundary_scanner_locale": "en-US",
+              "boundary_chars": ".,!?", "boundary_max_scan": 10, "order": "score",
+              "max_analyzed_offset": 500, "phrase_limit": 64 }""");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.copyOf(Highlight.validOptionNames())));
+    }
+
     public void testHighlightRejectsUnknownOption() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
@@ -1302,17 +1315,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsExpressionQuery() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title"));
     }
 
     public void testHighlightRejectsWildcardFields() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
     }
 
     public void testHighlightNotInReleaseBuild() {
-        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("mismatched input 'HIGHLIGHT'"),
@@ -2763,15 +2776,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("ROW false::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
         expectError("ROW abs(1)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
         expectError("ROW (1+2)::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
-    }
-
-    public void testInlineConvertToSnapshotOnlyType() {
-        assumeFalse("date_range is exposed on snapshot builds", Build.current().isSnapshot());
-        expectError(
-            "ROW str = \"2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z\" | EVAL range = str::date_range",
-            "Unknown data type named [date_range]"
-        );
-        expectError("ROW range = \"x\"::date_range", "Unknown data type named [date_range]");
     }
 
     public void testLookup() {
@@ -4596,10 +4600,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled() == false) {
-                // Some types do not have a converter function if the capability is disabled
-                namesAndAliases.removeAll(List.of("date_range"));
-            }
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {
                 DataType expectedType = DataType.fromNameOrAlias(nameOrAlias);

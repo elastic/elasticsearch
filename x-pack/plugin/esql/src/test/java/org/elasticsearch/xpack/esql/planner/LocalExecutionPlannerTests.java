@@ -37,6 +37,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.BlockSourceReader;
@@ -835,7 +836,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry,
             null, // parallelWorkerExecutor - not needed for these tests
-            0     // esqlWorkerPoolSize - not needed for these tests
+            0,    // esqlWorkerPoolSize - not needed for these tests
+            MatcherWatchdog.noop()
         );
     }
 

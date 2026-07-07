@@ -58,6 +58,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         this.clusters = clusters;
         this.timeProvider = timeProvider;
         this.fetchPhaseExpected = fetchPhase;
+        this.clusterAliasByShardIndex.clear();
+        for (int i = 0; i < shards.size(); i++) {
+            SearchShard shard = shards.get(i);
+            clusterAliasByShardIndex.put(i, Objects.requireNonNullElse(shard.clusterAlias(), RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
+        }
 
         // Partition by clusterAlias and get counts
         // the 'shards' list does not include the shards in the 'skipped' list, so combine counts from both to get total
@@ -75,6 +80,10 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                 continue;
             }
             clusters.swapCluster(clusterAlias, (k, v) -> {
+                // v may be null if reconcileProjects removed this cluster (e.g. stale alias with no matching shards)
+                if (v == null) {
+                    return null;
+                }
                 assert Objects.equals(v.getTotalShards(), v.getSkippedShards())
                     : "total shards should not be set on a Cluster before onListShards, except skipped";
 

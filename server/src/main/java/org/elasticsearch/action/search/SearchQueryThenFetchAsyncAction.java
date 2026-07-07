@@ -73,6 +73,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -122,7 +123,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         boolean batchQueryPhase,
         boolean pitRelocationEnabled,
         SearchResponseMetrics searchResponseMetrics,
-        Map<String, Object> searchRequestAttributes
+        Map<String, Object> searchRequestAttributes,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
     ) {
         super(
             "query",
@@ -146,7 +148,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             clusters,
             searchResponseMetrics,
             searchRequestAttributes,
-            pitRelocationEnabled
+            pitRelocationEnabled,
+            cpsMetrics
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();

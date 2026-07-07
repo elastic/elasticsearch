@@ -56,6 +56,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -146,6 +147,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -565,7 +567,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 listener,
                 (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                 service,
-                null
+                null,
+                Optional.empty()
             );
             if (localIndices == null) {
                 assertNull(setOnce.get());
@@ -642,7 +645,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -700,7 +704,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -729,6 +734,109 @@ public class TransportSearchActionTests extends ESTestCase {
                 }
             }
 
+        } finally {
+            for (MockTransportService mockTransportService : mockTransportServices) {
+                mockTransportService.close();
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCCSRemoteReduceCarriesFullCpsProfileShape() throws Exception {
+        int numClusters = 2;
+        DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder, false);
+        Settings settings = builder.build();
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        ResolvedIndices mockResolvedIndices = createMockResolvedIndices(null, remoteIndicesByCluster);
+
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                null
+            )
+        ) {
+            service.start();
+            service.acceptIncomingRequests();
+            RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            SearchRequest searchRequest = new SearchRequest();
+
+            CrossProjectSearchMetrics cpsMetrics = new CrossProjectSearchMetrics();
+            cpsMetrics.trackPreProcessingTookTime(11L);
+            cpsMetrics.trackPlanningPhaseTookTime(22L);
+            cpsMetrics.trackSearchPhaseTookTime("query", 33L);
+            cpsMetrics.trackSearchPhaseTookTime("fetch", 44L);
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            SetOnce<SearchResponse> response = new SetOnce<>();
+            LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
+                ActionTestUtils.assertNoFailureListener(newValue -> {
+                    newValue.mustIncRef();
+                    response.set(newValue);
+                }),
+                latch
+            );
+            TaskId parentTaskId = new TaskId("n", 1);
+            SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
+            TransportSearchAction.ccsRemoteReduce(
+                task,
+                parentTaskId,
+                searchRequest,
+                mockResolvedIndices,
+                new SearchResponse.Clusters(null, remoteIndicesByCluster, true, alias -> false),
+                timeProvider,
+                emptyReduceContextBuilder(),
+                remoteClusterService,
+                threadPool,
+                listener,
+                (r, l) -> fail("no local search expected"),
+                service,
+                null,
+                Optional.of(cpsMetrics)
+            );
+            awaitLatch(latch, 5, TimeUnit.SECONDS);
+
+            SearchResponse searchResponse = response.get();
+            assertNotNull(searchResponse);
+            try {
+                CrossProjectSearchMetrics metrics = searchResponse.getCrossProjectMetrics();
+                assertNotNull(metrics);
+                assertEquals(22L, metrics.getPlanningPhaseTookTime());
+                assertThat(metrics.getMergingPhaseTookTime(), greaterThanOrEqualTo(0L));
+                assertEquals(33L, metrics.getSearchPhaseTookTimes().get("query").longValue());
+                assertEquals(44L, metrics.getSearchPhaseTookTimes().get("fetch").longValue());
+
+                Map<String, Object> serializedMetrics = XContentHelper.convertToMap(
+                    new BytesArray(Strings.toString(metrics)),
+                    false,
+                    org.elasticsearch.xcontent.XContentType.JSON
+                ).v2();
+                Map<String, Object> cpsProfile = (Map<String, Object>) serializedMetrics.get(CrossProjectSearchMetrics.CPS_PROFILE_FIELD);
+                assertNotNull(cpsProfile);
+                assertEquals(
+                    11L,
+                    ((Number) cpsProfile.get(CrossProjectSearchMetrics.PRE_PROCESSING_TOOK_TIME_FIELD.getPreferredName())).longValue()
+                );
+                assertEquals(
+                    22L,
+                    ((Number) cpsProfile.get(CrossProjectSearchMetrics.PLANNING_PHASE_TOOK_TIME_FIELD.getPreferredName())).longValue()
+                );
+                assertEquals(
+                    metrics.getMergingPhaseTookTime(),
+                    ((Number) cpsProfile.get(CrossProjectSearchMetrics.MERGING_PHASE_TOOK_TIME_FIELD.getPreferredName())).longValue()
+                );
+                Map<String, Object> searchPhases = (Map<String, Object>) cpsProfile.get(CrossProjectSearchMetrics.SEARCH_PHASES_FIELD);
+                assertNotNull(searchPhases);
+                assertEquals(33L, ((Number) searchPhases.get("query")).longValue());
+                assertEquals(44L, ((Number) searchPhases.get("fetch")).longValue());
+            } finally {
+                searchResponse.decRef();
+            }
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {
                 mockTransportService.close();
@@ -790,7 +898,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -895,7 +1004,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -948,7 +1058,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -1023,7 +1134,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -1128,7 +1240,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     false,
                     null,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(response.get());
@@ -1164,7 +1277,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     false,
                     null,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(numClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
@@ -1223,7 +1337,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     false,
                     null,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(numDisconnectedClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
@@ -1260,7 +1375,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     false,
                     null,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(response.get());
@@ -1313,7 +1429,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     false,
                     null,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(0, clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
@@ -1346,7 +1463,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     source,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    SearchCoordinatorContext.none()
+                    SearchCoordinatorContext.none(),
+                    Optional.empty()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1363,7 +1481,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    SearchCoordinatorContext.none()
+                    SearchCoordinatorContext.none(),
+                    Optional.empty()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1384,7 +1503,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     source,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    SearchCoordinatorContext.none()
+                    SearchCoordinatorContext.none(),
+                    Optional.empty()
                 )
             ) {
                 assertEquals(0, source.from());

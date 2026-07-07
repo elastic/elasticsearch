@@ -52,10 +52,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -114,10 +116,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final boolean isPitRelocationEnabled;
     protected long phaseStartTimeInNanos;
     private final AtomicReference<DirectoryMetrics> mergedDirectoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
-
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
     private final Supplier<DiscoveryNodes> discoveryNodes;
+    private Optional<CrossProjectSearchMetrics> cpsMetrics;
 
     AbstractSearchAsyncAction(
         String name,
@@ -141,7 +143,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchResponse.Clusters clusters,
         SearchResponseMetrics searchResponseMetrics,
         Map<String, Object> searchRequestAttributes,
-        boolean pitRelocationEnabled
+        boolean pitRelocationEnabled,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -179,6 +182,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.searchResponseMetrics = searchResponseMetrics;
         this.searchRequestAttributes = searchRequestAttributes;
         this.isPitRelocationEnabled = pitRelocationEnabled;
+        this.cpsMetrics = cpsMetrics;
     }
 
     protected final boolean hasShardResponse() {
@@ -617,7 +621,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             clusters,
             searchContextId,
             request.source(),
-            request.indices()
+            request.indices(),
+            cpsMetrics.orElse(null)
         );
         DirectoryMetrics directoryMetrics = mergedDirectoryMetrics.get();
         searchResponse.setDirectoryMetrics(directoryMetrics);
@@ -809,7 +814,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult)
      */
     private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        searchResponseMetrics.recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, searchRequestAttributes);
+        long durationNanos = System.nanoTime() - phaseStartTimeInNanos;
+        searchResponseMetrics.recordSearchPhaseDuration(getName(), durationNanos, searchRequestAttributes);
+        cpsMetrics.ifPresent(c -> c.trackSearchPhaseTookTime(getName(), TimeUnit.NANOSECONDS.toMillis(durationNanos)));
         executeNextPhase(getName(), this::getNextPhase);
     }
 
@@ -840,6 +847,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     public Map<String, Object> getSearchRequestAttributes() {
         return Collections.unmodifiableMap(searchRequestAttributes);
+    }
+
+    /**
+     * Returns cross-project search metrics when this request is a CPS request.
+     */
+    protected Optional<CrossProjectSearchMetrics> getCpsMetrics() {
+        return cpsMetrics;
     }
 
     public final void execute(Runnable command) {

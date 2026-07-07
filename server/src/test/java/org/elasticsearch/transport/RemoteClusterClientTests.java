@@ -42,6 +42,7 @@ import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.elasticsearch.transport.RemoteClusterConnectionTests.startTransport;
 import static org.elasticsearch.transport.RemoteClusterServiceTests.isRemoteNodeConnected;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -134,6 +135,86 @@ public class RemoteClusterClientTests extends ESTestCase {
                     listener -> client.execute(TransportSearchScrollAction.REMOTE_TYPE, new SearchScrollRequest(""), listener)
                 );
                 assertEquals("No handler for action [indices:data/read/scroll]", ex.getMessage());
+            }
+        }
+    }
+
+    /**
+     * If the remote connection needs to be re-established (e.g. because it dropped) and the reconnect attempt
+     * fails, {@link RemoteClusterAwareClient#getConnection} completes its listener on whatever thread the
+     * connect attempt failed on, not on the caller-supplied response executor. Regression test for a case where
+     * that failure used to skip the executor guarantee entirely.
+     */
+    public void testGetConnectionFailureCompletesOnResponseExecutor() {
+        Settings remoteSettings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster").build();
+        try (
+            MockTransportService remoteTransport = startTransport(
+                "remote_node",
+                Collections.emptyList(),
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                remoteSettings
+            )
+        ) {
+            DiscoveryNode remoteNode = remoteTransport.getLocalNode();
+            Settings localSettings = Settings.builder()
+                .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
+                .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
+                .put("cluster.remote.initial_connect_timeout", "0s")
+                .build();
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    localSettings,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
+                    threadPool,
+                    null
+                )
+            ) {
+                // Fail every connection attempt, but only once released via the latch below. Installing this
+                // before #start() (as in #testQuicklySkipUnavailableClusters above) means the node never
+                // actually connects. Blocking on the latch, rather than just forking to another thread, is
+                // what makes this deterministic: RemoteConnectionStrategy#connect always dispatches the actual
+                // connect attempt onto the MANAGEMENT pool asynchronously regardless, but nothing stops that
+                // asynchronous completion from racing ahead of the calling thread and finishing before it
+                // reaches SubscribableListener#addListener(listener, executor, threadContext) below - which
+                // would then run inline, on the calling thread, since that method only forks when the upstream
+                // isn't complete yet. Blocking here until we've explicitly subscribed (by releasing the latch
+                // ourselves, after issuing the call) rules that race out entirely.
+                CountDownLatch latch = new CountDownLatch(1);
+                service.addConnectBehavior(
+                    remoteTransport,
+                    (transport, discoveryNode, profile, listener) -> threadPool.generic().execute(() -> {
+                        safeAwait(latch);
+                        listener.onFailure(new ConnectTransportException(discoveryNode, "simulated"));
+                    })
+                );
+                service.start();
+                service.acceptIncomingRequests();
+                RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+                assertFalse(isRemoteNodeConnected(remoteClusterService, "test", remoteNode));
+
+                var client = remoteClusterService.getRemoteClusterClient(
+                    "test",
+                    threadPool.executor(TEST_THREAD_POOL_NAME),
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                );
+
+                // call getConnection() directly: it's the choke point both #execute(action, request, listener)
+                // and callers that manage the connection themselves go through. It returns immediately (the
+                // connect attempt is pending, blocked on the latch), so our listener is subscribed before we
+                // release the latch and let the connect attempt actually fail.
+                SubscribableListener<Transport.Connection> future = new SubscribableListener<>();
+                client.getConnection(
+                    null,
+                    ActionListener.runBefore(
+                        future,
+                        () -> assertThat(Thread.currentThread().getName(), containsString('[' + TEST_THREAD_POOL_NAME + ']'))
+                    )
+                );
+                latch.countDown();
+                assertThat(safeAwaitFailure(future), instanceOf(ConnectTransportException.class));
             }
         }
     }

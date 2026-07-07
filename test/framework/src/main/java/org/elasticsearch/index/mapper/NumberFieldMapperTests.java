@@ -534,6 +534,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
         return DocValuesType.SORTED_NUMERIC;
     }
@@ -543,8 +548,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
      */
     public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -564,8 +568,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      * second (malformed) value.
      */
     public void testMultiValueFalseRejectsRegularPlusMalformed() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -585,8 +588,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      * second (regular) value.
      */
     public void testMultiValueFalseRejectsMalformedPlusRegular() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -602,7 +604,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnarModeSkippers() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
         {
             // In columnar mode, non-indexed numeric fields use skippers

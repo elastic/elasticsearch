@@ -26,7 +26,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
 /**
  * Reduce a multivalued field to a single valued field containing the count of values.
@@ -54,6 +55,7 @@ public class MvCount extends AbstractMultivalueFunction {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "date_range",
                 "double",
                 "flattened",
                 "geo_point",
@@ -85,7 +87,18 @@ public class MvCount extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
+        return isType(
+            field(),
+            dt -> isRepresentable(dt)
+                && dt != DataType.DENSE_VECTOR
+                && dt != DataType.AGGREGATE_METRIC_DOUBLE
+                && dt != DataType.EXPONENTIAL_HISTOGRAM
+                && dt != DataType.HISTOGRAM
+                && dt != DataType.TDIGEST,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, or exponential_histogram"
+        );
     }
 
     @Override

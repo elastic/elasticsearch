@@ -685,27 +685,37 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void testQueryCachingEqualityFromAutomaton() {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
-        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false);
-        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, true);
+        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, false);
+        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, true, false);
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false);
+        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, false);
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
+
+        // Different arrayOrder should not be equal
+        Query arrayOrderQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, true);
+        assertNotEquals(csQ, arrayOrderQ);
+        assertNotEquals(csQ.hashCode(), arrayOrderQ.hashCode());
     }
 
     public void testQueryCachingEqualityFromTerms() {
-        Query csQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
-        Query ciQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termB"));
+        Query csQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", false, new BytesRef("termA"));
+        Query ciQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", false, new BytesRef("termB"));
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Query csQ2 = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
+        Query csQ2 = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", false, new BytesRef("termA"));
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
+
+        // Different arrayOrder should not be equal
+        Query arrayOrderQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", true, new BytesRef("termA"));
+        assertNotEquals(csQ, arrayOrderQ);
+        assertNotEquals(csQ.hashCode(), arrayOrderQ.hashCode());
     }
 
     public void testVisit() {
@@ -1299,10 +1309,14 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 }
             });
 
-            // TODO update wildcard to use UNSORTED in columnar mode: https://github.com/elastic/elasticsearch/issues/152414
-            // Currently wildcard always uses SORTED_UNIQUE ordering: values are always deduplicated and sorted.
-            List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
-            Collections.sort(outList);
+            // Strictly columnar index modes preserve insertion order and duplicates; otherwise values are deduplicated and sorted.
+            List<String> outList;
+            if (isColumnar) {
+                outList = new ArrayList<>(docValuesValues);
+            } else {
+                outList = new ArrayList<>(new HashSet<>(docValuesValues));
+                Collections.sort(outList);
+            }
 
             // in columnar mode, ignored values are stored in sorted binary doc values
             boolean sortIgnored = isColumnar || sortIgnoredValues;
@@ -1434,5 +1448,32 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // then
         assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
         assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    /**
+     * In strictly columnar index mode, the field's binary doc values are stored via
+     * {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}, a different byte layout than the sorted-and-deduplicated format used
+     * elsewhere. Query confirmation ({@link BinaryDvConfirmedQuery}) reads that binary doc values column directly, bypassing the field's
+     * blockLoader/fielddata abstractions, so it must be told to decode the in-order format too; otherwise it misreads the bytes for any
+     * multi-valued doc.
+     */
+    public void testQueriesAgainstMultiValuedDocInColumnarMode() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "wildcard")));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        withLuceneIndex(
+            mapperService,
+            iw -> { iw.addDocument(mapper.parse(source(b -> b.array("field", "aaaaa", "bbbbb"))).rootDoc()); },
+            reader -> {
+                IndexSearcher searcher = newSearcher(reader);
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
+                WildcardFieldMapper.WildcardFieldType fieldType = (WildcardFieldMapper.WildcardFieldType) mapperService.fieldType("field");
+
+                assertEquals(1, searcher.count(fieldType.termQuery("bbbbb", context)));
+                assertEquals(0, searcher.count(fieldType.termQuery("ccccc", context)));
+                assertEquals(1, searcher.count(fieldType.wildcardQuery("bbb*", null, false, context)));
+            }
+        );
     }
 }

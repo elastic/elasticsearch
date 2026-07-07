@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -81,6 +82,17 @@ public final class NullSpliceRowPositionStrategy implements RowPositionStrategy 
         @Override
         public boolean hasNext() {
             return inner.hasNext();
+        }
+
+        /**
+         * Forward the async-ready signal so the producer-loop drain parks (rather than blocking in a
+         * parser-backed {@code hasNext()}) across the inter-chunk gap. Without this the default
+         * immediately-done {@link CloseableIterator#waitForReady()} would swallow the inner signal —
+         * the multi-file text-read deadlock.
+         */
+        @Override
+        public SubscribableListener<Void> waitForReady() {
+            return inner.waitForReady();
         }
 
         @Override

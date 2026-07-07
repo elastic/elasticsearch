@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -54,19 +53,22 @@ public class TransportGetRegionPolicyAction extends HandledTransportAction<GetRe
 
     @Override
     protected void doExecute(Task task, GetRegionPolicyAction.Request request, ActionListener<RegionPolicyResponse> finalListener) {
-        SubscribableListener.newForked(this::searchRegionPolicy)
-            .<RegionPolicyResponse>andThen((l, searchResponse) -> processSearchResponse(searchResponse.getHits(), l))
-            .addListener(finalListener);
+        searchAndProcessRegionPolicy(finalListener);
     }
 
-    private void searchRegionPolicy(ActionListener<SearchResponse> listener) {
-        doSearchRegionPolicy(client, false, listener.delegateResponse((l, e) -> {
-            if (e instanceof IndexNotFoundException) {
-                l.onFailure(noRegionPolicyConfiguredException());
-            } else {
-                l.onFailure(e);
-            }
-        }));
+    private void searchAndProcessRegionPolicy(ActionListener<RegionPolicyResponse> listener) {
+        doSearchRegionPolicy(
+            client,
+            false,
+            listener.<SearchResponse>delegateFailureAndWrap((l, searchResponse) -> processSearchResponse(searchResponse.getHits(), l))
+                .delegateResponse((l, e) -> {
+                    if (e instanceof IndexNotFoundException) {
+                        l.onFailure(noRegionPolicyConfiguredException());
+                    } else {
+                        l.onFailure(e);
+                    }
+                })
+        );
     }
 
     public static void doSearchRegionPolicy(Client client, boolean requestSeqNoAndPrimaryTerm, ActionListener<SearchResponse> listener) {

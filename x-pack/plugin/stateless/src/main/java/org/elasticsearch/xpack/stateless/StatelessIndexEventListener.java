@@ -24,7 +24,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -41,6 +40,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -69,6 +69,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -352,7 +353,6 @@ class StatelessIndexEventListener implements IndexEventListener {
                         indexShard,
                         recoveryCommit,
                         warmingDirectory,
-                        null,
                         hasRecentIdLookup,
                         ActionListener.noop()
                     );
@@ -466,10 +466,11 @@ class StatelessIndexEventListener implements IndexEventListener {
                 searchDirectory.updateLatestUploadedBcc(lastUploaded);
                 searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
 
-                SubscribableListener.<Tuple<Map<String, BlobFileRanges>, Map<BlobFile, Long>>>newForked(l2 -> {
+                SubscribableListener.<SearchRecoveryWarmingInputs>newForked(l2 -> {
                     if (useInternalFilesReplicatedContentForSearchShards) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, Long> offsetsToWarm = ConcurrentCollections.newConcurrentMap();
+                        Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
+                        // TODO: pass timestamps to cache regions read in this call
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,
@@ -485,20 +486,23 @@ class StatelessIndexEventListener implements IndexEventListener {
                                         referencedCompoundCommit.referencedInternalFiles()
                                     )
                                 );
-                                offsetsToWarm.compute(
-                                    referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile(),
-                                    (blobFile, maxOffsetToWarm) -> {
-                                        var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
-                                        return maxOffsetToWarm == null ? offset : Math.max(maxOffsetToWarm, offset);
-                                    }
+                                var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
+                                var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
+                                // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
+                                // representative timestamp among the referenced CCs sharing that blob.
+                                long ccTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
+                                    referencedCompoundCommit.statelessCompoundCommitReference()
+                                        .compoundCommit()
+                                        .getTimestampFieldValueRange()
                                 );
+                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
                             },
-                            l2.map(aVoid -> new Tuple<>(blobFileRanges, offsetsToWarm))
+                            l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm))
                         );
                     } else {
                         l2.onResponse(null);
                     }
-                }).addListener(l.delegateFailureAndWrap((l3, blobFileRangesAndOffsetsToWarm) -> {
+                }).addListener(l.delegateFailureAndWrap((l3, warmingInputs) -> {
                     final var resumeRecovery = new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {
@@ -513,8 +517,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                         }
                     };
 
-                    if (blobFileRangesAndOffsetsToWarm != null) {
-                        searchDirectory.updateCommit(compoundCommit, blobFileRangesAndOffsetsToWarm.v1());
+                    if (warmingInputs != null) {
+                        searchDirectory.updateCommit(compoundCommit, warmingInputs.blobFileRanges());
                     } else {
                         searchDirectory.updateCommit(compoundCommit);
                     }
@@ -523,12 +527,19 @@ class StatelessIndexEventListener implements IndexEventListener {
                         indexShard,
                         compoundCommit,
                         searchDirectory,
-                        blobFileRangesAndOffsetsToWarm != null ? blobFileRangesAndOffsetsToWarm.v2() : null,
+                        warmingInputs != null ? warmingInputs.targetsToWarm() : null,
                         resumeRecovery
                     );
                 }));
             })
         );
+    }
+
+    private record SearchRecoveryWarmingInputs(Map<String, BlobFileRanges> blobFileRanges, Map<BlobFile, WarmTarget> targetsToWarm) {
+        public SearchRecoveryWarmingInputs {
+            Objects.requireNonNull(blobFileRanges);
+            Objects.requireNonNull(targetsToWarm);
+        }
     }
 
     @Override

@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -32,23 +33,19 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
 
     private static List<IndexMode> indexModesUnderTest() {
         List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.STANDARD, IndexMode.LOGSDB));
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.add(IndexMode.COLUMNAR);
-            modes.add(IndexMode.LOGSDB_COLUMNAR);
-        }
+        modes.add(IndexMode.COLUMNAR);
+        modes.add(IndexMode.LOGSDB_COLUMNAR);
         return modes;
     }
 
-    public void testES95SettingRegistrationMatchesFeatureFlag() {
-        assertEquals(
-            "index.time_series.es95_codec.enabled registration must match the es95_codec feature flag state",
-            IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled(),
+    public void testES95SettingAlwaysRegistered() {
+        assertTrue(
+            "index.time_series.es95_codec.enabled must always be registered",
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.contains(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING)
         );
     }
 
     public void testES95OnlySelectedForTimeSeriesWhenSettingEnabled() {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
         final IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG,
             IndexVersion.current()
@@ -64,7 +61,6 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
     }
 
     public void testES819SelectedAcrossModesWhenSettingDisabled() {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
         for (IndexMode mode : indexModesUnderTest()) {
             final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, IndexVersion.current(), false), null);
             assertThat("mode=" + mode, format.getName(), startsWith("ES819"));
@@ -72,7 +68,6 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
     }
 
     public void testVersionBoundary() {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
         final IndexVersion justBefore = IndexVersionUtils.getPreviousVersion(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG);
         final IndexVersion exact = IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG;
 
@@ -92,7 +87,7 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         assertThat(format.getName(), startsWith("ES819"));
     }
 
-    private static IndexSettings indexSettings(final IndexMode mode, final IndexVersion version, final boolean es95Enabled) {
+    private static IndexSettings indexSettings(final IndexMode mode, final IndexVersion version, boolean es95Enabled) {
         final Settings.Builder builder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -103,10 +98,53 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         if (mode == IndexMode.TIME_SERIES) {
             builder.put("index.routing_path", "dimension");
         }
-        if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
-            builder.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), es95Enabled);
-        }
+        builder.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), es95Enabled);
         final IndexMetadata metadata = IndexMetadata.builder("test").settings(builder).build();
         return new IndexSettings(metadata, Settings.EMPTY);
+    }
+
+    public void testDefaultEnabledForTimeSeriesOnOrAfterDefaultVersion() {
+        final IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT,
+            IndexVersion.current()
+        );
+        assertTrue(defaultEs95Enabled(IndexMode.TIME_SERIES, version, false));
+    }
+
+    public void testDefaultDisabledForTimeSeriesBeforeDefaultVersion() {
+        final IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
+        assertFalse(defaultEs95Enabled(IndexMode.TIME_SERIES, version, false));
+    }
+
+    public void testDefaultDisabledForStatelessTimeSeries() {
+        final IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT,
+            IndexVersion.current()
+        );
+        assertFalse(defaultEs95Enabled(IndexMode.TIME_SERIES, version, true));
+    }
+
+    public void testDefaultDisabledForNonTimeSeries() {
+        final IndexVersion version = IndexVersion.current();
+        assertFalse(defaultEs95Enabled(IndexMode.STANDARD, version, false));
+        assertFalse(defaultEs95Enabled(IndexMode.LOGSDB, version, false));
+    }
+
+    private static boolean defaultEs95Enabled(final IndexMode mode, final IndexVersion version, boolean stateless) {
+        final Settings.Builder indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        if (mode != IndexMode.STANDARD) {
+            indexSettings.put("index.mode", mode.getName());
+        }
+        if (mode == IndexMode.TIME_SERIES) {
+            indexSettings.put("index.routing_path", "dimension");
+        }
+        final Settings nodeSettings = stateless
+            ? Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build()
+            : Settings.EMPTY;
+        final IndexMetadata metadata = IndexMetadata.builder("test").settings(indexSettings).build();
+        return new IndexSettings(metadata, nodeSettings).isTimeSeriesEs95CodecEnabled();
     }
 }

@@ -59,6 +59,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -3379,6 +3380,79 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertHitCount(prepareSearch(indexName), numDocs);
     }
 
+    /**
+     * Verifies split target shards recover after a master restart during split initiation.
+     * <p>
+     * A hot master failover (standby taking over with in-memory routing) does not exercise the fix.
+     * Restarting the sole master forces gateway recovery: {@code ClusterStateUpdaters.updateRoutingTable}
+     * rebuilds routing via {@code addAsRecovery} → {@code IndexRoutingTable.Builder.initializeEmpty}.
+     * Split targets without {@code inSyncAllocationIds} must receive {@link RecoverySource.Type#RESHARD_SPLIT}
+     * and {@link UnassignedInfo.Reason#RESHARD_ADDED}, not {@link RecoverySource.Type#EMPTY_STORE}.
+     */
+    public void testTargetRecoversAfterMasterRestartDuringSplit() throws RuntimeException {
+        String masterNode = startMasterNodeForRestartTest();
+        String indexNode = startIndexNode();
+        startSearchNodes(2);
+        ensureStableCluster(4);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+        final int numDocs = randomIntBetween(10, 50);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), numDocs);
+
+        // Second index node hosts the target primary after reshard
+        startIndexNode();
+        ensureStableCluster(5);
+
+        CountDownLatch splitInitiated = new CountDownLatch(1);
+        CountDownLatch allowSplitToProceed = new CountDownLatch(1);
+        AtomicBoolean disruptionTriggered = new AtomicBoolean(false);
+        MockTransportService sourceTransport = MockTransportService.getInstance(indexNode);
+        // Block START_SPLIT on source (indexNode) so target is still unassigned
+        // and has no inSyncAllocationIds when master node restarts.
+        sourceTransport.addRequestHandlingBehavior(
+            TransportReshardSplitAction.START_SPLIT_ACTION_NAME,
+            (handler, request, channel, task) -> {
+                if (disruptionTriggered.compareAndSet(false, true)) {
+                    splitInitiated.countDown();
+                    Thread failoverThread = new Thread(() -> {
+                        try {
+                            awaitClusterState(state -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
+                            logger.info("--> restarting current master during split initiation");
+                            internalCluster().restartNode(masterNode);
+                            assertBusy(() -> ensureStableCluster(5)); // master back, gateway recovery done
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        } finally {
+                            allowSplitToProceed.countDown();
+                        }
+                    }, "master-restart-during-split");
+                    failoverThread.start();
+                    safeAwait(allowSplitToProceed);
+                }
+                handler.messageReceived(request, channel, task);
+            }
+        );
+        try {
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
+            safeAwait(splitInitiated);
+            safeAwait(allowSplitToProceed);
+            logger.info("--> wait for reshard completion");
+            waitForReshardCompletion(indexName);
+            logger.info("--> reshard complete");
+            ensureGreen(indexName);
+            refresh(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
+        } finally {
+            sourceTransport.clearAllRules();
+        }
+    }
+
     public void testSourceRelocationAndTargetRestart() throws Exception {
         Set<String> copiesInProgress = ConcurrentHashMap.newKeySet();
         var blobToBlock = new AtomicReference<String>();
@@ -4781,6 +4855,18 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     private static void checkNumberOfShardsSetting(String indexNode, String indexName, int expectedShards) {
         ReshardingTestHelpers.checkNumberOfShardsSetting(client(indexNode), indexName, expectedShards);
+    }
+
+    /* Starts a master with a short store-heartbeat expiry so it can re-elect after restart.
+     * Without this, the pre-restart heartbeat in the object store blocks election for hours
+     * see AbstractStatelessPluginIntegTestCase#DEFAULT_TEST_MAX_MISSED_HEARTBEATS
+     */
+    private String startMasterNodeForRestartTest() {
+        return internalCluster().startMasterOnlyNode(
+            nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
+                .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
     }
 
     public PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {

@@ -105,8 +105,8 @@ public class ExternalUncompressedMultiFileSegmentCapIT extends AbstractExternalD
         long rows = writeQuotedMultilineCsvFile(dir.resolve("quoted-multiline.csv"));
         // Strict (default) proves no spurious parse errors: any mis-split would throw rather than return.
         assertGlobAggregates(globUri(dir, "*.csv"), Map.of("target_split_size", "256mb"), rows);
-        // null_field is the mode where a mis-split previously miscounted silently (HTTP 200, wrong COUNT).
-        // Assert the exact row count still holds under it.
+        // null_field is the mode where a quote-blind mis-split miscounts silently (HTTP 200, wrong COUNT)
+        // instead of erroring. Assert the exact row count still holds under it.
         assertGlobAggregates(globUri(dir, "*.csv"), Map.of("target_split_size", "256mb", "error_mode", "null_field"), rows);
     }
 

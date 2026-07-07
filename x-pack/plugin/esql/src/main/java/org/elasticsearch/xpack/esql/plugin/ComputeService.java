@@ -255,7 +255,13 @@ public class ComputeService {
         return formatReaderRegistry;
     }
 
-    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo, BooleanSupplier isCancelled) {
+    PhysicalPlan discoverSplits(
+        PhysicalPlan plan,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled,
+        boolean quotedMacroSplitsEnabled
+    ) {
         if (operatorFactoryRegistry == null) {
             return plan;
         }
@@ -264,7 +270,8 @@ public class ComputeService {
                 plan,
                 operatorFactoryRegistry.sourceFactories(),
                 maxRecordBytes(configuration),
-                isCancelled
+                isCancelled,
+                quotedMacroSplitsEnabled
             );
             recordExternalScanStats(execInfo, result);
             return coalesceSplits(result.plan());
@@ -320,9 +327,10 @@ public class ComputeService {
         PhysicalPlan plan,
         Configuration configuration,
         EsqlExecutionInfo execInfo,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        boolean quotedMacroSplitsEnabled
     ) {
-        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration, execInfo, isCancelled);
+        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration, execInfo, isCancelled, quotedMacroSplitsEnabled);
         if (externalSplits.isEmpty()) {
             return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
         }
@@ -359,7 +367,8 @@ public class ComputeService {
         PhysicalPlan plan,
         Configuration configuration,
         EsqlExecutionInfo execInfo,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        boolean quotedMacroSplitsEnabled
     ) {
         List<ExternalSplit> splits = new ArrayList<>();
         // A physical plan is produced by a single mapper, so top-level ExternalSourceExec nodes and
@@ -371,7 +380,7 @@ public class ComputeService {
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
             if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {
-                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
+                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled, quotedMacroSplitsEnabled);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
                     if (coalesced != splits) {
@@ -474,7 +483,8 @@ public class ComputeService {
         List<ExternalSplit> splits,
         int maxRecordBytes,
         EsqlExecutionInfo execInfo,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        boolean quotedMacroSplitsEnabled
     ) {
         if (operatorFactoryRegistry == null) {
             return;
@@ -486,7 +496,8 @@ public class ComputeService {
                     tempExec,
                     operatorFactoryRegistry.sourceFactories(),
                     maxRecordBytes,
-                    isCancelled
+                    isCancelled,
+                    quotedMacroSplitsEnabled
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
@@ -526,6 +537,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
+        boolean quotedMacroSplitsEnabled,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
@@ -560,6 +572,7 @@ public class ComputeService {
                 configuration,
                 foldContext,
                 execInfo,
+                quotedMacroSplitsEnabled,
                 null,
                 listener,
                 null,
@@ -635,6 +648,7 @@ public class ComputeService {
                 configuration,
                 foldContext,
                 execInfo,
+                quotedMacroSplitsEnabled,
                 queryPragmas,
                 mainExchangeSource,
                 initialClusterStatuses
@@ -657,6 +671,7 @@ public class ComputeService {
         final Configuration configuration;
         final FoldContext foldContext;
         final EsqlExecutionInfo execInfo;
+        final boolean quotedMacroSplitsEnabled;
         final QueryPragmas queryPragmas;
         final ExchangeSourceHandler mainExchangeSource;
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
@@ -673,6 +688,7 @@ public class ComputeService {
             Configuration configuration,
             FoldContext foldContext,
             EsqlExecutionInfo execInfo,
+            boolean quotedMacroSplitsEnabled,
             QueryPragmas queryPragmas,
             ExchangeSourceHandler mainExchangeSource,
             Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses
@@ -691,6 +707,7 @@ public class ComputeService {
             this.configuration = configuration;
             this.foldContext = foldContext;
             this.execInfo = execInfo;
+            this.quotedMacroSplitsEnabled = quotedMacroSplitsEnabled;
             this.queryPragmas = queryPragmas;
             this.mainExchangeSource = mainExchangeSource;
             this.initialClusterStatuses = initialClusterStatuses;
@@ -724,6 +741,7 @@ public class ComputeService {
                 configuration,
                 foldContext,
                 execInfo,
+                quotedMacroSplitsEnabled,
                 "subplan-" + subPlanIndex,
                 ActionListener.wrap(result -> {
                     if (LOGGER.isDebugEnabled()) {
@@ -767,6 +785,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
+        boolean quotedMacroSplitsEnabled,
         String profileQualifier,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier,
@@ -779,8 +798,14 @@ public class ComputeService {
             // Phase 2 split discovery runs synchronously here and can be long (thousands of footer
             // reads); thread the query's cancellation signal so a cancel aborts it promptly. A cancel
             // (or any discovery failure) is surfaced through the listener rather than thrown raw.
-            splitPlan = discoverSplits(physicalPlan, configuration, execInfo, rootTask::isCancelled);
-            distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, rootTask::isCancelled);
+            splitPlan = discoverSplits(physicalPlan, configuration, execInfo, rootTask::isCancelled, quotedMacroSplitsEnabled);
+            distributionResult = applyExternalDistributionStrategy(
+                splitPlan,
+                configuration,
+                execInfo,
+                rootTask::isCancelled,
+                quotedMacroSplitsEnabled
+            );
         } catch (Exception e) {
             listener.onFailure(e);
             return;

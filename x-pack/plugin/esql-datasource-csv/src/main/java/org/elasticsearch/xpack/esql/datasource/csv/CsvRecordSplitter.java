@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 
 import java.io.BufferedInputStream;
@@ -14,6 +15,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 /**
  * CSV record-boundary splitter for byte-oriented parallel parsing.
@@ -77,6 +79,360 @@ final class CsvRecordSplitter implements RecordSplitter {
     @Override
     public boolean supportsStridedProbing() {
         return false;
+    }
+
+    /**
+     * The quoted-fields grammar (quoting and/or escaping, no bracket MVC) can prove a record start at an
+     * arbitrary offset via {@link #findProvenRecordBoundary(InputStream)} plus the
+     * {@link #findRecordStartAtOrAfter(InputStream, long, BooleanSupplier)} exact walk, restoring cross-node
+     * macro splitting for quoted CSV/TSV. Bracket MVC is excluded: {@code bracketDepth} is unbounded, so the
+     * entry states at a mid-file offset cannot be enumerated, and it stays whole-file.
+     */
+    @Override
+    public boolean supportsProvenProbing() {
+        return options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS;
+    }
+
+    /**
+     * Upper bound on how far a single {@link #findProvenRecordBoundary(InputStream)} pass reads before giving up.
+     * A probe runs at every stride/segment boundary, so a probe that fails to converge must stay cheap; this caps
+     * that worst case. It is a performance knob, not a correctness one: a probe that cannot converge within it
+     * yields {@link #AMBIGUOUS} and the caller falls back to the exact walk.
+     */
+    private static final long PROBE_CONVERGENCE_WINDOW_BYTES = 1024L * 1024L; // 1 MiB
+
+    /**
+     * Hard cap on a single {@link #findProvenRecordBoundary(InputStream)} pass (advance to a clean symbol plus the
+     * lockstep scan). Bounded by {@code maxRecordBytes} so the probe can never converge inside a record that the
+     * exact walk would reject as {@link #RECORD_TOO_LARGE}; capped at {@link #PROBE_CONVERGENCE_WINDOW_BYTES} so a
+     * failed probe on a quote-free window reads little before falling back. This is a performance knob, not a
+     * correctness one: any real record longer than it simply yields {@link #AMBIGUOUS} and defers to the exact walk.
+     */
+    private long convergenceWindow() {
+        return Math.min((long) maxRecordBytes, PROBE_CONVERGENCE_WINDOW_BYTES);
+    }
+
+    /** Poll the cancellation supplier this often (in bytes) during the exact walk. */
+    private static final long CANCEL_CHECK_INTERVAL_BYTES = 64 * 1024;
+
+    /**
+     * Whether {@code b} (an unsigned byte value {@code 0..255}) is a "clean symbol": non-whitespace plain content
+     * under the enabled options, i.e. not a structural byte ({@code "} when quoting, the escape char when escaping,
+     * the delimiter, {@code \r}, {@code \n}) and not ASCII field-leading whitespace. Reading such a byte lands both
+     * hypotheses in {@code (·, content)} regardless of the entry state, collapsing the five feasible entry states
+     * to two. Over-including a byte only forces more {@link #AMBIGUOUS} fallbacks, never a wrong boundary.
+     */
+    private boolean isCleanSymbol(int b, boolean quoteAware, boolean escapeAware, int quoteChar, int escapeChar, int delimiter) {
+        if (b == '\r' || b == '\n' || b == delimiter) {
+            return false;
+        }
+        if (quoteAware && b == quoteChar) {
+            return false;
+        }
+        if (escapeAware && b == escapeChar) {
+            return false;
+        }
+        return CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(b) == false;
+    }
+
+    /**
+     * Per-hypothesis parse state for the lockstep probe. The one-byte lookaheads the peek-based scanners do via
+     * stream reads (doubled {@code ""}, CRLF) are re-expressed here as pending flags so the single shared cursor
+     * advances exactly one byte per step while two hypotheses that interpret the same byte differently stay synced.
+     * At most one pending flag is set at a time (each is set by a distinct byte and cleared on the next).
+     */
+    private static final class ProbeState {
+        boolean inQuotes;
+        boolean fieldHasNonWhitespace;
+        /** Previous byte was the escape char; this byte is escaped content (consumed verbatim). */
+        boolean pendingEscape;
+        /** Inside quotes, previous byte was a quote char; this byte decides doubled-literal vs field close. */
+        boolean pendingQuote;
+        /** Outside quotes, previous byte was {@code \r}; this byte decides CRLF vs lone-CR terminator. */
+        boolean pendingCr;
+        /** Offset (bytes consumed) through the most recently completed record terminator. */
+        long boundaryOffset;
+    }
+
+    /**
+     * Feeds one byte to one hypothesis, mirroring {@link CsvLogicalRecordReader#readRecord}'s byte ordering
+     * (escape before quote; quote open only at field start). Returns the offset (bytes consumed through the
+     * terminator) if a record terminator <em>finalized</em> during this step, otherwise {@code -1}. A {@code \r}
+     * defers finalization to the next byte (CRLF vs lone-CR); when a pending lookahead resolves, the current byte
+     * is interpreted in the resolved state within the same step.
+     *
+     * @param consumed number of bytes consumed including {@code b}
+     */
+    private long stepProbe(
+        ProbeState s,
+        int b,
+        long consumed,
+        boolean quoteAware,
+        boolean escapeAware,
+        int quoteChar,
+        int escapeChar,
+        int delimiter
+    ) {
+        if (s.pendingCr) {
+            s.pendingCr = false;
+            if (b == '\n') {
+                // CRLF: extend the terminator to include this \n. State was reset to record-start at the \r.
+                s.boundaryOffset = consumed;
+                return consumed;
+            }
+            // Lone CR: the terminator finalized at the \r; reprocess b as the first byte of the new record.
+            long loneCr = s.boundaryOffset;
+            processOutOfQuote(s, b, consumed, quoteAware, escapeAware, quoteChar, escapeChar, delimiter);
+            return loneCr;
+        }
+        if (s.pendingQuote) {
+            s.pendingQuote = false;
+            if (b == quoteChar) {
+                // Doubled "" literal inside the quoted field: stay in quotes.
+                return -1;
+            }
+            // Lone quote closed the field; interpret b in the resolved out-of-quote state.
+            s.inQuotes = false;
+            return processOutOfQuote(s, b, consumed, quoteAware, escapeAware, quoteChar, escapeChar, delimiter);
+        }
+        if (s.pendingEscape) {
+            s.pendingEscape = false;
+            if (s.inQuotes == false) {
+                s.fieldHasNonWhitespace = true;
+            }
+            return -1;
+        }
+        if (escapeAware && b == escapeChar) {
+            s.pendingEscape = true;
+            return -1;
+        }
+        if (s.inQuotes) {
+            if (b == quoteChar) {
+                s.pendingQuote = true;
+            }
+            return -1;
+        }
+        return processOutOfQuote(s, b, consumed, quoteAware, escapeAware, quoteChar, escapeChar, delimiter);
+    }
+
+    /**
+     * Processes {@code b} for a hypothesis known to be out of quotes (fresh record-start or mid-field). Returns the
+     * finalized terminator offset for a lone {@code \n}, {@code -1} otherwise (a {@code \r} defers via
+     * {@link ProbeState#pendingCr}).
+     */
+    private long processOutOfQuote(
+        ProbeState s,
+        int b,
+        long consumed,
+        boolean quoteAware,
+        boolean escapeAware,
+        int quoteChar,
+        int escapeChar,
+        int delimiter
+    ) {
+        if (escapeAware && b == escapeChar) {
+            s.pendingEscape = true;
+            return -1;
+        }
+        if (b == '\n') {
+            s.boundaryOffset = consumed;
+            s.fieldHasNonWhitespace = false;
+            return consumed;
+        }
+        if (b == '\r') {
+            // Terminator finalizes here at the earliest (lone CR); may extend to CRLF on the next byte.
+            s.boundaryOffset = consumed;
+            s.fieldHasNonWhitespace = false;
+            s.pendingCr = true;
+            return -1;
+        }
+        if (b == delimiter) {
+            s.fieldHasNonWhitespace = false;
+            return -1;
+        }
+        if (quoteAware && b == quoteChar && s.fieldHasNonWhitespace == false) {
+            s.inQuotes = true;
+            return -1;
+        }
+        if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(b) == false) {
+            s.fieldHasNonWhitespace = true;
+        }
+        return -1;
+    }
+
+    /**
+     * Bounded two-hypothesis probe for a proven record start (see the class-level contract on
+     * {@link RecordSplitter#findProvenRecordBoundary(InputStream)}). Advances grammar-blind to a clean symbol
+     * {@code q}, then runs an out-of-quote hypothesis and (when quoting is on) an in-quote hypothesis forward in
+     * lockstep, emitting a boundary only at the first record terminator where both are simultaneously out of quote.
+     * When quoting is off the single deterministic hypothesis proves the boundary at its first terminator. Bounded
+     * by {@link #convergenceWindow()}; returns {@link #AMBIGUOUS} on window exhaustion, EOF, or no clean symbol.
+     */
+    @Override
+    public long findProvenRecordBoundary(InputStream stream) throws IOException {
+        if (supportsProvenProbing() == false) {
+            throw new UnsupportedOperationException("bracket multi-value CSV does not support proven probing");
+        }
+        BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
+        boolean quoteAware = options.quoting();
+        boolean escapeAware = options.escaping();
+        int quoteChar = options.quoteChar();
+        int escapeChar = options.escapeChar();
+        int delimiter = options.delimiter();
+        long window = convergenceWindow();
+        long consumed = 0;
+
+        // Phase 1: advance grammar-blind to a clean symbol q. q's interpretation is entry-state-independent, so
+        // mis-seeding (skipping an embedded terminator, quote, or escape pair) is harmless: nothing is emitted
+        // until a proven convergence.
+        boolean foundClean = false;
+        while (consumed < window) {
+            int ib = bis.read();
+            if (ib == -1) {
+                return AMBIGUOUS;
+            }
+            consumed++;
+            if (isCleanSymbol(ib, quoteAware, escapeAware, quoteChar, escapeChar, delimiter)) {
+                foundClean = true;
+                break;
+            }
+        }
+        if (foundClean == false) {
+            return AMBIGUOUS;
+        }
+
+        // Phase 2: q is consumed; both hypotheses are now (·, content).
+        ProbeState hOut = new ProbeState();
+        hOut.fieldHasNonWhitespace = true;
+        ProbeState hIn = null;
+        if (quoteAware) {
+            hIn = new ProbeState();
+            hIn.inQuotes = true;
+        }
+
+        // Phase 3: lockstep scan.
+        while (consumed < window) {
+            int ib = bis.read();
+            if (ib == -1) {
+                return AMBIGUOUS;
+            }
+            consumed++;
+            long bOut = stepProbe(hOut, ib, consumed, quoteAware, escapeAware, quoteChar, escapeChar, delimiter);
+            if (quoteAware == false) {
+                if (bOut >= 0) {
+                    return bOut;
+                }
+                continue;
+            }
+            long bIn = stepProbe(hIn, ib, consumed, quoteAware, escapeAware, quoteChar, escapeChar, delimiter);
+            if (bOut >= 0 && bOut == bIn) {
+                // Both hypotheses out of quotes at the same terminator: proven record start whichever is true.
+                return bOut;
+            }
+        }
+        return AMBIGUOUS;
+    }
+
+    /**
+     * Exact forward walk from a stream opened at a known record start (see the contract on
+     * {@link RecordSplitter#findRecordStartAtOrAfter(InputStream, long, BooleanSupplier)}). Single quote-aware pass
+     * keeping {@code inQuotes} across records, returning the first record-start offset {@code >= minSkip}.
+     */
+    @Override
+    public long findRecordStartAtOrAfter(InputStream stream, long minSkip, BooleanSupplier isCancelled) throws IOException {
+        if (supportsProvenProbing() == false) {
+            throw new UnsupportedOperationException("bracket multi-value CSV does not support proven probing");
+        }
+        assert minSkip > 0 : "minSkip must be positive so the opening record start at offset 0 is never returned, got " + minSkip;
+        BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
+        boolean quoteAware = options.quoting();
+        boolean escapeAware = options.escaping();
+        byte quoteAsByte = (byte) options.quoteChar();
+        byte escAsByte = (byte) options.escapeChar();
+        byte delimAsByte = (byte) options.delimiter();
+        long consumed = 0;
+        long recordStart = 0;
+        boolean inQuotes = false;
+        boolean fieldHasNonWhitespace = false;
+        long sinceCancelCheck = 0;
+
+        while (true) {
+            int ib = bis.read();
+            if (ib == -1) {
+                return -1;
+            }
+            consumed++;
+            if (++sinceCancelCheck >= CANCEL_CHECK_INTERVAL_BYTES) {
+                sinceCancelCheck = 0;
+                if (isCancelled.getAsBoolean()) {
+                    throw new TaskCancelledException("split discovery cancelled");
+                }
+            }
+            if (consumed - recordStart > maxRecordBytes) {
+                return RECORD_TOO_LARGE;
+            }
+            byte b = (byte) ib;
+            if (escapeAware && b == escAsByte) {
+                int esc = bis.read();
+                if (esc != -1) {
+                    consumed++;
+                    if (consumed - recordStart > maxRecordBytes) {
+                        return RECORD_TOO_LARGE;
+                    }
+                }
+                if (inQuotes == false) {
+                    fieldHasNonWhitespace = true;
+                }
+                continue;
+            }
+            if (inQuotes) {
+                if (b == quoteAsByte) {
+                    if ((byte) peekByte(bis) == quoteAsByte) {
+                        bis.read();
+                        consumed++;
+                        if (consumed - recordStart > maxRecordBytes) {
+                            return RECORD_TOO_LARGE;
+                        }
+                        continue;
+                    }
+                    inQuotes = false;
+                }
+                continue;
+            }
+            if (b == '\n') {
+                recordStart = consumed;
+                fieldHasNonWhitespace = false;
+                if (recordStart >= minSkip) {
+                    return recordStart;
+                }
+                continue;
+            }
+            if (b == '\r') {
+                bis.mark(1);
+                int next = bis.read();
+                if (next == '\n') {
+                    consumed++;
+                    if (consumed - recordStart > maxRecordBytes) {
+                        return RECORD_TOO_LARGE;
+                    }
+                } else if (next != -1) {
+                    bis.reset();
+                }
+                recordStart = consumed;
+                fieldHasNonWhitespace = false;
+                if (recordStart >= minSkip) {
+                    return recordStart;
+                }
+                continue;
+            }
+            if (b == delimAsByte) {
+                fieldHasNonWhitespace = false;
+            } else if (quoteAware && b == quoteAsByte && fieldHasNonWhitespace == false) {
+                inQuotes = true;
+            } else if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
+                fieldHasNonWhitespace = true;
+            }
+        }
     }
 
     private int findLastRecordBoundaryByForwardScan(byte[] buf, int offset, int length) throws IOException {

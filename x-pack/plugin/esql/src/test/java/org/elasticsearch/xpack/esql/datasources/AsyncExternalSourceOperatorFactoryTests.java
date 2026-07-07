@@ -1390,7 +1390,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
     /**
      * A quoting-on reader hands out a non-strided splitter, so with parsing parallelism the factory must
-     * dispatch to the sequential (whole-file, quote-aware) branch. This pins the {@code describe()} label
+     * dispatch to the sequential (whole-file, quote-aware) branch. This asserts the {@code describe()} label
      * the end-to-end IT relies on but cannot itself observe (the profile shows the clean operator name,
      * not the parse mode).
      */
@@ -2636,8 +2636,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * split at offset 0. A partial split (no file leader, a non-zero offset, or a record-aligned macro-split
      * that covers only part of the file) can only arrive from an older coordinator in a mixed-version
      * cluster. Reading one mid-file would misread an in-quote newline as a record terminator, so the
-     * sequential branch fails loud rather than resurrecting the silent wrong-count bug the whole-file gate
-     * removes.
+     * sequential branch fails loud rather than reading mid-file and silently miscounting.
      */
     public void testOpenWithParallelismQuotedSequentialRejectsPartialSplits() throws IOException {
         AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(

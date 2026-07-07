@@ -2284,7 +2284,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return ParallelDispatchMode.STREAM_ONLY_COMPRESSED;
         }
         RecordSplitter splitter = seg.recordSplitter();
-        // A null splitter (only reachable from mocks) keeps the strided default, i.e. the prior behavior.
+        // A null splitter (only reachable from mocks) keeps the strided default.
         if (splitter != null && splitter.supportsStridedProbing() == false) {
             return ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL;
         }
@@ -2332,12 +2332,37 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 );
             }
             case SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL -> {
-                // Quoted CSV/TSV: the file cannot be probed at arbitrary stride offsets (an in-quote newline
-                // would be misread as a record terminator). FileSplitProvider therefore leaves such files as a
-                // single whole-file split; here we read that one sequential stream through the streaming
-                // coordinator, which finds record boundaries quote-aware in a single pass and parses the
-                // resulting chunks in parallel. The stream begins at the file leader (whole-file split), so
-                // chunk 0 carries the header exactly as the streaming path expects.
+                SegmentableFormatReader seg = resolveSegmentableReader(reader);
+                RecordSplitter splitter = seg.recordSplitter();
+                boolean macroSplit = recordAlignedMacroSplit || baseFileOffset != 0L;
+                // Proven-capable quoted/escaped CSV/TSV macro-split: the proven probe and exact walk guarantee
+                // every split boundary is a true record start, so a non-leader range reads correctly. Route it to
+                // the record-aligned coordinator (leader-aware, baseFileOffset-correct, absolute _stats coverage)
+                // rather than the whole-file streaming path below, which is built for a leader-bearing stream.
+                if (splitter != null && splitter.supportsProvenProbing() && macroSplit) {
+                    return ParallelParsingCoordinator.parallelRead(
+                        seg,
+                        obj,
+                        cols,
+                        batchSize,
+                        parsingParallelism,
+                        executor,
+                        policy,
+                        recordAlignedMacroSplit,
+                        splitIncludesFileLeader,
+                        perFileReadSchema,
+                        baseFileOffset,
+                        maxConcurrentOpenSegments,
+                        captureSink,
+                        maxRecordBytes,
+                        externalSourceMetrics
+                    );
+                }
+                // Otherwise (whole-file quoted split, or bracket MVC which cannot prove a mid-file start): read the
+                // one sequential stream through the streaming coordinator, which finds record boundaries
+                // quote-aware in a single pass and parses the resulting chunks in parallel. The stream begins at
+                // the file leader (whole-file split), so chunk 0 carries the header exactly as the streaming path
+                // expects.
                 //
                 // Split discovery gates quoted files to a single whole-file split, so this branch should only
                 // ever see the whole file: a leader-bearing split at offset 0 that is not a record-aligned
@@ -2345,10 +2370,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // fail loud rather than fall back: the split covers only part of the file and cannot be probed
                 // at its arbitrary start (an in-quote newline would be misread as a record terminator), so
                 // neither this streaming path nor the single-threaded fallback can read it correctly. The
-                // reachable cause is a mixed-version cluster where an older coordinator (which lacks this fix)
-                // produced a strided split for a quoted file and shipped it here (FileSplit is a
-                // NamedWriteable). Declining to a single-threaded mid-file read would resurrect the silent
-                // wrong-count bug this fix removes, so throw instead.
+                // reachable cause is a mixed-version cluster where an older coordinator that predates whole-file
+                // gating produced a strided split for a quoted file and shipped it here (FileSplit is a
+                // NamedWriteable). Declining to a single-threaded mid-file read would read mid-file and silently
+                // miscount, so throw instead.
                 if (splitIncludesFileLeader == false || baseFileOffset != 0L || recordAlignedMacroSplit) {
                     throw new IllegalStateException(
                         "quoted uncompressed reads must be whole-file splits; got leader="
@@ -2359,7 +2384,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                             + recordAlignedMacroSplit
                     );
                 }
-                SegmentableFormatReader seg = resolveSegmentableReader(reader);
                 InputStream raw = obj.newStream();
                 try {
                     return StreamingParallelParsingCoordinator.parallelRead(
@@ -2445,7 +2469,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Mirror the uncompressed guard: a quoted (non-strided) file cannot be read from an arbitrary
                 // mid-file offset, so a block-aligned or otherwise mid-file split of one has no correct read.
                 // Discovery gates such files to a single whole-file split, so this can only happen with a stale
-                // split from an older, unfixed coordinator (FileSplit is a NamedWriteable). Fail loud instead of
+                // split from an older coordinator that predates whole-file gating (FileSplit is a
+                // NamedWriteable). Fail loud instead of
                 // dropping to the single-threaded fallback below, which would read mid-file and silently
                 // miscount. A null splitter (mocks) keeps the strided default and takes the normal fallback.
                 SegmentableFormatReader compressedSeg = resolveSegmentableReader(reader);

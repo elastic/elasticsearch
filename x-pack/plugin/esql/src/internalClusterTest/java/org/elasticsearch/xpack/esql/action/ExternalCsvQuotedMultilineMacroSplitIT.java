@@ -30,26 +30,26 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * End-to-end regression coverage for CSV with quoted multi-line fields, where a quoted value's embedded
- * newlines belong to one logical row. A start-anywhere boundary probe assumes {@code inQuotes=false} at
- * its offset, so probing a quoted file at an arbitrary stride can land <em>inside</em> a quoted value and
- * misread an interior newline as a record terminator. That once produced two symptoms depending on
+ * newlines belong to one logical row. A quote-blind stride probe assumes {@code inQuotes=false} at its
+ * offset, so probing a quoted file at an arbitrary stride can land <em>inside</em> a quoted value and
+ * misread an interior newline as a record terminator. That produces two symptoms depending on
  * {@code error_mode}: a silently inflated {@code COUNT(*)} at HTTP 200 under {@code null_field}, and a
  * spurious parse error under the default {@code strict} mode, both on files that are perfectly valid.
  * <p>
- * The shipped fix does not make the probe quote-aware; instead it disables start-anywhere splitting for
- * quoted CSV/TSV. {@code CsvRecordSplitter#supportsStridedProbing()} returns {@code false}, so
- * {@code FileSplitProvider} emits a single whole-file split and the file is read as one sequential,
- * quote-aware stream. Consequently {@code target_split_size} is a no-op for quoted files here (they are
- * never macro-split), and both cases below now return the true row count.
+ * {@code CsvRecordSplitter} is not strided ({@code supportsStridedProbing()} is {@code false}) but is
+ * proven-capable ({@code supportsProvenProbing()} is {@code true}): it macro-splits a quoted file by
+ * proving each split boundary is a true record start (a bounded two-hypothesis probe with a monotonic
+ * exact-walk fallback), so a boundary is never cut inside a quoted value. The file is therefore fanned
+ * out into {@code target_split_size} macro-splits across nodes and each split reads correctly.
  * <ul>
  *   <li>{@code null_field} ({@link #testCountWithQuotedMultilineFieldStraddlingMacroSplitNullField}):
- *       no longer over-counts.</li>
+ *       does not over-count even though the file is macro-split.</li>
  *   <li>default {@code strict} ({@link #testCountWithQuotedMultilineFieldStraddlingMacroSplitStrict}):
- *       no longer throws.</li>
+ *       parses without a spurious error.</li>
  * </ul>
- * The body is multi-MB so that, absent the fix, macro-splits would form (a file must exceed twice the
- * reader's {@code minimumSegmentSize()} of 1 MB to be split); it stays large so this pins the whole-file
- * gate rather than trivially avoiding splits by being small.
+ * The body is multi-MB so macro-splits form (a file must exceed twice the reader's
+ * {@code minimumSegmentSize()} of 1 MB to be split); the count stays exact because every split boundary
+ * is a proven record start.
  */
 public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalDataSourceIT {
 
@@ -69,9 +69,9 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
     }
 
     /**
-     * {@code error_mode=null_field}: without the fix a mid-quote split would null-fill the interior lines
-     * and keep them, inflating {@code COUNT(*)} at HTTP 200. With quoted files gated to a whole-file
-     * sequential read, the count is exact.
+     * {@code error_mode=null_field}: a quote-blind mid-quote split would null-fill the interior lines and
+     * keep them, inflating {@code COUNT(*)} at HTTP 200. Proven macro-splitting cuts only at true record
+     * starts, so the count is exact even though the file is fanned out into multiple splits.
      */
     public void testCountWithQuotedMultilineFieldStraddlingMacroSplitNullField() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -109,9 +109,9 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
 
     /**
      * Default {@code strict} mode (no {@code error_mode} option): the same valid file must parse and count
-     * correctly. Without the fix a mid-quote macro-split makes the reader see a "missing closing quote" /
-     * "unexpected character" and fail the query even though no record is malformed, the more serious face
-     * of the bug (a valid file rejected purely because of how it was split). The whole-file gate removes it.
+     * correctly. A quote-blind mid-quote macro-split makes the reader see a "missing closing quote" /
+     * "unexpected character" and fail the query even though no record is malformed, the more serious failure
+     * mode (a valid file rejected purely because of how it was split). Proven boundaries prevent it.
      */
     public void testCountWithQuotedMultilineFieldStraddlingMacroSplitStrict() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -139,20 +139,18 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
     }
 
     /**
-     * Exercises the parallel streaming path end-to-end. The other two tests reach the correct count even
-     * single-threaded (the whole-file gate alone is enough), so on their own they do not prove the
-     * {@code SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL} branch is quote-safe. Here {@code parsing_parallelism>1}
-     * makes {@code AsyncExternalSourceOperatorFactory#openWithParallelism} pass its {@code <=1} short-circuit
-     * and, for a quoted (non-strided) reader, route the single whole-file stream into
-     * {@code StreamingParallelParsingCoordinator}, which segments it quote-aware and parses the chunks
-     * concurrently. A correct count under concurrent parsing is the regression signal: were segmentation
-     * not quote-aware, the concurrently parsed chunks would miscount the multi-line rows.
+     * Exercises the quoted read path with in-node parse parallelism end-to-end. With
+     * {@code parsing_parallelism>1} the ~3 MB quoted file is parsed concurrently; a correct count under
+     * concurrent parsing is the regression signal: were segmentation not quote-aware, the concurrently
+     * parsed chunks would miscount the multi-line rows. At least one external source operator must appear
+     * in the profile.
      * <p>
-     * The parse-mode label ({@code quoted-sequential-parse(N)}) is not observable here: the profile reports
-     * the clean operator name {@code ExternalDataSourceOperator}, and the mode lives only in the factory's
-     * {@code describe()}. So this test pins the observable half, that the quoted file is read as a single
-     * whole-file split ({@code splitsTotal == 1}, i.e. never macro-split), while the deterministic routing
-     * onto the sequential branch is pinned separately by {@code AsyncExternalSourceOperatorFactoryTests}.
+     * This test does not assert a macro-split fan-out: whether a quoted file macro-splits depends on the
+     * cluster's negotiated minimum transport version (the {@code esql_quoted_csv_macro_split} capability
+     * gate), which is environment-dependent here. The macro-split gate itself is covered deterministically by
+     * {@code FileSplitProviderTests#testDiscoverSplitsMacroSplitsQuotedCsvWhenFlagEnabled}, and proven
+     * boundary correctness by {@code CsvProvenProbeTests}; the routing onto the record-aligned coordinator
+     * by {@code AsyncExternalSourceOperatorFactoryTests}.
      */
     public void testStreamingBranchCountsCorrectlyWithParsingParallelism() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -165,8 +163,8 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
 
             var request = syncEsqlQueryRequest(query);
             // Explicit pragma: run(request, ...) does not apply getPragmas(), and the default parallelism is
-            // allocatedProcessors (machine-dependent). Pin it >1 so this deterministically takes the parallel
-            // streaming branch regardless of host core count.
+            // allocatedProcessors (machine-dependent). Set it >1 so this deterministically exercises in-node
+            // parse parallelism regardless of host core count.
             request.pragmas(new QueryPragmas(Settings.builder().put("parsing_parallelism", between(2, 4)).build()));
             request.profile(true);
 
@@ -184,10 +182,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
                     .filter(AsyncExternalSourceOperator.Status.class::isInstance)
                     .map(AsyncExternalSourceOperator.Status.class::cast)
                     .toList();
-                assertThat((long) externalStatuses.size(), greaterThanOrEqualTo(1L));
-                for (AsyncExternalSourceOperator.Status status : externalStatuses) {
-                    assertThat("quoted file must be read as a single whole-file split", status.splitsTotal(), equalTo(1));
-                }
+                assertThat("profile must report at least one external source operator", externalStatuses.size(), greaterThanOrEqualTo(1));
             }
         } finally {
             Files.deleteIfExists(csvFile);

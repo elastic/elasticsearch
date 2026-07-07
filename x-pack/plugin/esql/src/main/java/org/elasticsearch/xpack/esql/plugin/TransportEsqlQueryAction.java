@@ -381,17 +381,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
-        PlanRunner planRunner = (plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
-            sessionId,
-            (CancellableTask) task,
-            flags,
-            plan,
-            configuration,
-            foldCtx,
-            executionInfo,
-            planTimeProfile,
-            resultListener
-        );
+        PlanRunner planRunner = (plan, configuration, foldCtx, planTimeProfile, quotedMacroSplitsEnabled, resultListener) -> computeService
+            .execute(
+                sessionId,
+                (CancellableTask) task,
+                flags,
+                plan,
+                configuration,
+                foldCtx,
+                executionInfo,
+                quotedMacroSplitsEnabled,
+                planTimeProfile,
+                resultListener
+            );
         planExecutor.esql(
             request,
             sessionId,

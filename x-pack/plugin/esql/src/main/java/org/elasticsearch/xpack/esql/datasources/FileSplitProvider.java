@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -309,7 +310,17 @@ public class FileSplitProvider implements SplitProvider {
             }
 
             tasks.add(
-                new FileTask(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema, context.maxRecordBytes())
+                new FileTask(
+                    filePath,
+                    fileLength,
+                    format,
+                    config,
+                    partitionValues,
+                    columnMapping,
+                    readSchema,
+                    context.maxRecordBytes(),
+                    context.quotedMacroSplitsEnabled()
+                )
             );
         }
 
@@ -379,7 +390,8 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> partitionValues,
         @Nullable ColumnMapping columnMapping,
         @Nullable List<Attribute> readSchema,
-        int maxRecordBytes
+        int maxRecordBytes,
+        boolean quotedMacroSplitsEnabled
     ) {}
 
     /**
@@ -394,10 +406,11 @@ public class FileSplitProvider implements SplitProvider {
         }
         // Carry the cancellation signal as ambient thread-local state so the synchronous retry/throttle
         // backoff inside the footer reads below can abort a parked sleep on cancel.
-        return StorageRetryCancellation.callWithCancellation(isCancelled, () -> processFileForSplits(task, hoistedProvider));
+        return StorageRetryCancellation.callWithCancellation(isCancelled, () -> computeFileSplits(task, hoistedProvider, isCancelled));
     }
 
-    private List<ExternalSplit> processFileForSplits(FileTask task, @Nullable StorageProvider hoistedProvider) throws IOException {
+    private List<ExternalSplit> computeFileSplits(FileTask task, @Nullable StorageProvider hoistedProvider, BooleanSupplier isCancelled)
+        throws IOException {
         List<ExternalSplit> fileSplits = new ArrayList<>();
 
         // Resolve the config-aware reader once and reuse it for both the sequential-whole-file gate and the
@@ -409,7 +422,7 @@ public class FileSplitProvider implements SplitProvider {
         // splitting is safe: not newline-aligned macro-splits, nor compressed block/frame-aligned splits.
         // Emit a single whole-file split (identical to the fallback below); the reader consumes it as one
         // sequential stream and finds boundaries quote/escape-aware.
-        if (requiresSequentialWholeFileRead(configuredReader)) {
+        if (requiresSequentialWholeFileRead(configuredReader, task.quotedMacroSplitsEnabled())) {
             fileSplits.add(
                 FileSplit.withReadSchema(
                     "file",
@@ -478,7 +491,8 @@ public class FileSplitProvider implements SplitProvider {
             task.maxRecordBytes(),
             fileSplits,
             hoistedProvider,
-            configuredReader
+            configuredReader,
+            isCancelled
         )) {
             return fileSplits;
         }
@@ -514,18 +528,22 @@ public class FileSplitProvider implements SplitProvider {
             FormatReader configured = base.withConfig(config);
             return configured != null ? configured : base;
         } catch (RuntimeException e) {
-            LOGGER.debug(() -> "Cannot resolve reader for [" + objectName + "]; treating it as non-segmentable", e);
+            LOGGER.debug(() -> Strings.format("Cannot resolve reader for [%s]; treating it as non-segmentable", objectName), e);
             return null;
         }
     }
 
     /**
-     * Whether the file's config-resolved record splitter cannot be probed at arbitrary offsets (quoted or
-     * escaped CSV/TSV, whose records may span a raw newline), so every start-anywhere splitting strategy
-     * must be disabled and the file read as one sequential stream. Returns {@code false} when splitting is
-     * safe, or when the reader could not be resolved, preserving prior behavior.
+     * Whether the file's config-resolved record splitter forces one sequential whole-file stream instead of any
+     * start-anywhere split. A strided splitter (plain CSV/TSV, NDJSON) is always splittable. A non-strided
+     * splitter (quoted or escaped CSV/TSV, whose records may span a raw newline) is splittable only when it can
+     * <em>prove</em> a record start at an arbitrary offset ({@link RecordSplitter#supportsProvenProbing()}), the
+     * coordinator-decided {@code quotedMacroSplitsEnabled} flag is on (every node in the plan supports it), and it
+     * is not a compression-delegating reader (a quoted {@code .csv.bz2} stays whole-file: the probe would run
+     * against compressed bytes). Returns {@code false} (splitting allowed) when the reader could not be resolved,
+     * so an unresolvable reader is treated as splittable.
      */
-    private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
+    private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader, boolean quotedMacroSplitsEnabled) {
         if (reader == null) {
             return false;
         }
@@ -535,7 +553,13 @@ public class FileSplitProvider implements SplitProvider {
         }
         RecordSplitter splitter = seg.recordSplitter();
         // A null splitter (only reachable from mocks) keeps the strided default: splitting stays enabled.
-        return splitter != null && splitter.supportsStridedProbing() == false;
+        if (splitter == null || splitter.supportsStridedProbing()) {
+            return false;
+        }
+        boolean provenMacroSplittable = quotedMacroSplitsEnabled
+            && splitter.supportsProvenProbing()
+            && reader instanceof CompressionDelegatingFormatReader == false;
+        return provenMacroSplittable == false;
     }
 
     /**
@@ -768,7 +792,8 @@ public class FileSplitProvider implements SplitProvider {
         int maxRecordBytes,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider,
-        @Nullable FormatReader reader
+        @Nullable FormatReader reader,
+        BooleanSupplier isCancelled
     ) throws IOException {
         if (formatRegistry == null || storageRegistry == null || targetStrideBytes <= 0 || fileLength <= targetStrideBytes) {
             return false;
@@ -789,7 +814,14 @@ public class FileSplitProvider implements SplitProvider {
         SegmentableFormatReader segmentableReader = (SegmentableFormatReader) reader;
         StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
         StorageObject object = provider.newObject(filePath, fileLength);
-        List<Long> starts = computeRecordAlignedMacroSplitStarts(segmentableReader, object, fileLength, targetStrideBytes, maxRecordBytes);
+        List<Long> starts = computeRecordAlignedMacroSplitStarts(
+            segmentableReader,
+            object,
+            fileLength,
+            targetStrideBytes,
+            maxRecordBytes,
+            isCancelled
+        );
         if (starts.size() <= 1) {
             return false;
         }
@@ -834,47 +866,88 @@ public class FileSplitProvider implements SplitProvider {
         StorageObject storageObject,
         long fileLength,
         long targetStrideBytes,
-        int maxRecordBytes
+        int maxRecordBytes,
+        BooleanSupplier isCancelled
     ) throws IOException {
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
         long minSegment = reader.minimumSegmentSize();
         RecordSplitter splitter = reader.recordSplitter(maxRecordBytes);
-        // Macro-splitting probes record boundaries at arbitrary stride offsets, which is only correct when a
-        // raw newline is unambiguously a record terminator. A non-strided splitter (quoted CSV/TSV) must be
-        // routed to a whole-file split by requiresSequentialWholeFileRead before reaching here; if one arrives,
+        boolean strided = splitter.supportsStridedProbing();
+        boolean proven = splitter.supportsProvenProbing();
+        // A strided splitter (plain CSV/TSV, NDJSON) probes any stride offset directly. A non-strided splitter
+        // (quoted/escaped CSV/TSV) can still be macro-split when it supports proven probing: the file start is a
+        // known record start, so exactCursor seeds at 0 and every emitted boundary is a proven record start.
+        // A splitter that is neither must have been routed to a whole-file split upstream; if one arrives here
         // that gate failed, so fail loud rather than emit mis-aligned macro-splits that silently mis-count.
-        if (splitter.supportsStridedProbing() == false) {
+        if (strided == false && proven == false) {
             throw new IllegalStateException(
-                "record splitter [" + splitter.getClass().getName() + "] does not support strided probing and cannot be macro-split"
+                "record splitter ["
+                    + splitter.getClass().getName()
+                    + "] supports neither strided nor proven probing and cannot be macro-split"
             );
         }
+        // The last proven record start, i.e. the base offset the exact walk streams from when the probe is
+        // AMBIGUOUS. The file start is always a record start, so it seeds at 0.
+        long exactCursor = 0L;
         long pos = targetStrideBytes;
         while (pos < fileLength) {
             long remaining = fileLength - pos;
             if (remaining < minSegment) {
                 break;
             }
-            InputStream stream = storageObject.newStream(pos, remaining);
-            // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
-            // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
-            try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
-                long skipped = splitter.findNextRecordBoundary(stream);
-                if (skipped == RecordSplitter.RECORD_TOO_LARGE) {
+            long boundary;
+            if (strided) {
+                InputStream stream = storageObject.newStream(pos, remaining);
+                // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
+                // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
+                try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
+                    long skipped = splitter.findNextRecordBoundary(stream);
+                    if (skipped == RecordSplitter.RECORD_TOO_LARGE || skipped < 0) {
+                        break;
+                    }
+                    boundary = pos + skipped;
+                }
+            } else {
+                long probed;
+                InputStream probeStream = storageObject.newStream(pos, remaining);
+                try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
+                    probed = splitter.findProvenRecordBoundary(probeStream);
+                }
+                if (probed >= 0) {
+                    boundary = pos + probed;
+                } else if (probed == RecordSplitter.AMBIGUOUS) {
+                    // Bounded probe could not prove a boundary near pos; fall back to an exact walk from the last
+                    // proven record start. minSkip is stream-relative (pos - exactCursor) and always > 0.
+                    long walkRemaining = fileLength - exactCursor;
+                    InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
+                    long start;
+                    try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
+                        start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, isCancelled);
+                    }
+                    if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
+                        break;
+                    }
+                    boundary = exactCursor + start;
+                } else {
+                    // findProvenRecordBoundary only ever returns a boundary (>= 0) or AMBIGUOUS.
+                    assert false : "findProvenRecordBoundary returned an unexpected sentinel: " + probed;
                     break;
                 }
-                if (skipped < 0) {
-                    break;
-                }
-                long boundary = pos + skipped;
-                if (boundary >= fileLength) {
-                    break;
-                }
-                if (fileLength - boundary < minSegment) {
-                    break;
-                }
-                boundaries.add(boundary);
-                pos = boundary + targetStrideBytes;
+            }
+            if (boundary >= fileLength) {
+                break;
+            }
+            if (fileLength - boundary < minSegment) {
+                break;
+            }
+            assert boundary > boundaries.get(boundaries.size() - 1) : "macro-split boundary must be strictly increasing";
+            boundaries.add(boundary);
+            // Every emitted boundary is a proven record start, so it becomes the next exact-walk base.
+            exactCursor = boundary;
+            pos = boundary + targetStrideBytes;
+            if (isCancelled.getAsBoolean()) {
+                throw new TaskCancelledException("split discovery cancelled");
             }
         }
         return boundaries;

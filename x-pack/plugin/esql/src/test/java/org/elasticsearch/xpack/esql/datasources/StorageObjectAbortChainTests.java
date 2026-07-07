@@ -118,7 +118,8 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             chain,
             fileLength,
             stride,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false
         );
 
         assertThat("expected multiple macro-split boundaries", starts.size(), Matchers.greaterThan(1));

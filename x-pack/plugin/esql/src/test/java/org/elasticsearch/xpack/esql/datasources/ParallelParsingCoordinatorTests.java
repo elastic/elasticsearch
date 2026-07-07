@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.hamcrest.Matchers;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,6 +59,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
@@ -158,28 +161,68 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * A splitter that does not support strided probing (default/quoted CSV, whose quoted fields may embed
-     * newlines) must never be segmented: {@link ParallelParsingCoordinator#computeSegments} probes record
-     * boundaries at arbitrary offsets and could misread an in-quote newline as a boundary. The primitive
-     * self-defends by throwing, so a routing bug that fed such a reader here fails loud instead of silently
-     * mis-splitting. Production routes quoted CSV to the whole-file sequential reader, so this never fires
-     * there; this adapts the upstream repro that expected the probe itself to become quote-aware.
+     * A non-strided but proven-capable splitter (default/quoted CSV, whose quoted fields may embed newlines) is
+     * segmented via the proven-probe path: {@link ParallelParsingCoordinator#computeSegments} emits segments
+     * whose boundaries are all true record starts. Correctness is checked against the trusted sequential scanner
+     * {@link RecordSplitter#findNextRecordBoundary} looped from the file start (its prefix sums are the true
+     * record starts), so a boundary cut inside a quoted field or after a lone {@code \r} would fail. The segments
+     * must also cover the whole file with no gaps.
      */
-    public void testComputeSegmentsRejectsNonStridedSplitter() throws IOException {
+    public void testComputeSegmentsProvesQuotedSplitterBoundaries() throws IOException {
         StringBuilder csv = new StringBuilder("id,name\n");
+        int row = 0;
         while (csv.length() < 3 * 1024 * 1024) {
-            csv.append(csv.length()).append(",\"value\"\n");
+            if (row % 2 == 0) {
+                csv.append(row).append(",\"embedded\nnewline \"\"q\"\"\"\n");
+            } else {
+                csv.append(row).append(",\"value\"\r\n"); // CRLF row so the oracle also guards \r handling
+            }
+            row++;
         }
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
         StorageObject obj = new InMemoryStorageObject(payload);
-        // Default construction => quoting on => CsvRecordSplitter, which reports supportsStridedProbing()==false.
+        // Default construction => quoting on => CsvRecordSplitter: non-strided but proven-capable.
         CsvFormatReader csvReader = new CsvFormatReader(blockFactory());
+        Set<Long> trueStarts = trueRecordStarts(csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES), payload);
 
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> ParallelParsingCoordinator.computeSegments(csvReader, obj, payload.length, 4, csvReader.minimumSegmentSize())
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(
+            csvReader,
+            obj,
+            payload.length,
+            4,
+            csvReader.minimumSegmentSize()
         );
-        assertThat(e.getMessage(), Matchers.containsString("does not support strided probing"));
+
+        assertThat("expected multiple proven segments", segments.size(), Matchers.greaterThan(1));
+        long covered = 0;
+        long cursor = 0;
+        for (long[] seg : segments) {
+            assertEquals("segments must be contiguous with no gaps", cursor, seg[0]);
+            covered += seg[1];
+            cursor = seg[0] + seg[1];
+            if (seg[0] == 0L) {
+                continue;
+            }
+            assertTrue("segment boundary " + seg[0] + " must be a true record start", trueStarts.contains(seg[0]));
+        }
+        assertEquals("segments must cover the entire file", payload.length, covered);
+    }
+
+    /**
+     * True record starts: the file start (0) plus every prefix sum of {@link RecordSplitter#findNextRecordBoundary}
+     * consumed lengths from the trusted sequential scanner.
+     */
+    private static Set<Long> trueRecordStarts(RecordSplitter splitter, byte[] payload) throws IOException {
+        Set<Long> starts = new TreeSet<>();
+        starts.add(0L);
+        long acc = 0;
+        BufferedInputStream in = new BufferedInputStream(new ByteArrayInputStream(payload));
+        long consumed;
+        while ((consumed = splitter.findNextRecordBoundary(in)) >= 0) {
+            acc += consumed;
+            starts.add(acc);
+        }
+        return starts;
     }
 
     /**

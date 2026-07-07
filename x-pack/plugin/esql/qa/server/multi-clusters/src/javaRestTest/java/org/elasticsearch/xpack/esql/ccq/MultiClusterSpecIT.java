@@ -44,7 +44,6 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
@@ -123,7 +122,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
-        return SpecReader.readScriptSpec(urls, specParser());
+        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
     }
 
     public MultiClusterSpecIT(

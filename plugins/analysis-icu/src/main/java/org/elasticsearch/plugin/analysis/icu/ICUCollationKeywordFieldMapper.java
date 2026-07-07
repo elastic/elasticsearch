@@ -301,7 +301,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
             this.indexDisabledByDefault = indexDisabledByDefault;
             this.indexMode = indexMode;
-            this.docValuesPameters = DocValuesParameter.of(defaultDocValuesParameters(indexMode), m -> toType(m).docValuesParams());
+            this.docValuesPameters = DocValuesParameter.of(
+                defaultDocValuesParameters(indexMode),
+                m -> toType(m).docValuesParams(),
+                indexMode.isStrictColumnar()
+            );
         }
 
         Builder nullValue(String nullValue) {

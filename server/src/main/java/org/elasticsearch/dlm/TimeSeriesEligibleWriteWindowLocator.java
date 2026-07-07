@@ -58,7 +58,7 @@ public class TimeSeriesEligibleWriteWindowLocator {
         long requestStartTimestamp
     ) {
         // Eligible write window is only applicable for time series data streams
-        if (dataStream.getIndexMode() != IndexMode.TIME_SERIES || dataStream.isSystem()) {
+        if (IndexMode.isTsdb(dataStream.getIndexMode()) == false || dataStream.isSystem()) {
             return -1;
         }
         String ilmPolicy = getEffectiveIlmPolicy(dataStream, projectMetadata);

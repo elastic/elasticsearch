@@ -80,10 +80,12 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        boolean multiValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
-            || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        boolean nullability = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
-            || FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || indexSettings.getMode().isStrictColumnar() == false) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
+        }
+
+        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
         return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability);
     }
 
@@ -123,7 +125,8 @@ public class BooleanFieldMapper extends FieldMapper {
             this.indexSettings = Objects.requireNonNull(indexSettings);
             this.docValuesParameters = DocValuesParameter.of(
                 defaultDocValuesParameters(indexSettings),
-                m -> toType(m).docValuesParameters()
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",

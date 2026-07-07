@@ -167,7 +167,7 @@ public class AnalyticsProcessManager {
         }
 
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-            SearchResponse searchResponse = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+            SearchResponse searchResponse = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns())
                 .setSize(1)
                 .setFetchSource(false)
                 .setQuery(QueryBuilders.idsQuery().addIds(config.getAnalysis().getStateDocIdPrefix(config.getId()) + "1"))

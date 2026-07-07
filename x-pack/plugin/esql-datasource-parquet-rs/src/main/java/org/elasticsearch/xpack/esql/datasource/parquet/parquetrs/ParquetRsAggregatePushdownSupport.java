@@ -35,7 +35,7 @@ import java.util.List;
  * <p>Anything else — e.g. {@code COUNT(a + b)}, {@code MIN(LENGTH(s))}, or any aggregate
  * with a {@code WHERE} filter — cannot be answered from file stats and is reported as
  * not pushable. The predicate intentionally mirrors what
- * {@code PushAggregatesToExternalSource.resolveFromStats} actually accepts; keep the two
+ * {@code ExternalSourceAggregatePushdown.resolveFromStats} actually accepts; keep the two
  * in sync.
  */
 public class ParquetRsAggregatePushdownSupport implements AggregatePushdownSupport {

@@ -968,6 +968,31 @@ public enum IndexMode {
     }
 
     /**
+     * Whether this index mode represents a time series (tsdb) index.
+     */
+    public boolean isTsdb() {
+        return this == TIME_SERIES;
+    }
+
+    /**
+     * Null-safe variant of {@link #isTsdb()} for callers holding a possibly-{@code null}
+     * {@link IndexMode} (e.g. a {@code @Nullable} field that defaults to {@code null} rather
+     * than {@link #STANDARD}).
+     */
+    public static boolean isTsdb(@Nullable IndexMode mode) {
+        return mode != null && mode.isTsdb();
+    }
+
+    /**
+     * Whether the given raw {@code index.mode} setting value names a time series (tsdb) index
+     * mode, case-insensitively. Use this instead of comparing against {@link #TIME_SERIES}'s
+     * {@link #getName()} directly when the value hasn't been parsed with {@link #fromString} yet.
+     */
+    public static boolean isTsdbName(@Nullable String name) {
+        return name != null && TIME_SERIES.getName().equalsIgnoreCase(name);
+    }
+
+    /**
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {

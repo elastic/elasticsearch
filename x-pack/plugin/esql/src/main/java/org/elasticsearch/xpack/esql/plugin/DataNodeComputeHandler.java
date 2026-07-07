@@ -858,7 +858,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // Run localPlan() to expand FragmentExec(ExternalRelation) -> ExternalSourceExec
         // This runs LocalLogicalPlanOptimizer, LocalMapper, and LocalPhysicalPlanOptimizer
         // (including filter pushdown via FormatReader.filterPushdownSupport())
-        // Splits are injected before physical optimization so rules like PushAggregatesToExternalSource see them.
+        // Splits are injected before physical optimization so rules like PushStatsToExternalSource see them.
         PhysicalPlan planWithSplits = PlannerUtils.localPlan(
             plannerSettings,
             flags,

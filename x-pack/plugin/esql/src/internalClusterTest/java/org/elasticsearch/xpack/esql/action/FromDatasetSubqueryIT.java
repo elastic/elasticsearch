@@ -10,19 +10,10 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -32,9 +23,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,53 +45,16 @@ import static org.hamcrest.Matchers.notNullValue;
  * {@code UnresolvedExternalRelation} composes correctly with the {@code UnionAll} the subquery-in-FROM machinery emits.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
+public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
 
-    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private Path csvFixture;
     private Path csvFixtureAlt;
     private Path csvFixtureSalaryInt;
     private Path csvFixtureSalaryLong;
 
-    public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
-        @Override
-        public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-            return Map.of("test", new TestValidator());
-        }
-    }
-
-    private static final class TestValidator implements DataSourceValidator {
-        @Override
-        public String type() {
-            return "test";
-        }
-
-        @Override
-        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
-            Map<String, DataSourceSetting> out = new HashMap<>();
-            for (Map.Entry<String, Object> e : datasourceSettings.entrySet()) {
-                out.put(e.getKey(), new DataSourceSetting(e.getValue(), e.getKey().startsWith("secret_")));
-            }
-            return out;
-        }
-
-        @Override
-        public Map<String, Object> validateDataset(
-            Map<String, DataSourceSetting> datasourceSettings,
-            String resource,
-            Map<String, Object> datasetSettings
-        ) {
-            return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        plugins.add(TestDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class);
     }
 
     @Override
@@ -165,17 +117,16 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    /**
-     * Names every dataset {@code testXxx} bodies PUT. New tests must register their dataset name here so the SUITE-scoped cluster
-     * doesn't carry state across methods.
-     */
-    private static final Set<String> CREATED_DATASETS = Set.of("employees", "employees_alt", "salaries_int", "salaries_long");
-
     /** Names every view {@code testXxx} bodies PUT, dropped after each method so the SUITE cluster stays clean. */
     private static final Set<String> CREATED_VIEWS = Set.of("emp_meta_view");
 
+    /**
+     * Datasets and the {@code local_ds} data source are registered through the base
+     * {@link AbstractExternalDataSourceIT#registerDataset}/{@link AbstractExternalDataSourceIT#registerDataSource}
+     * helpers, so the base {@code cleanupRegistry()} tears them down. Only views need bespoke teardown here.
+     */
     @After
-    public void cleanupRegistry() {
+    public void cleanupViews() {
         try {
             client().execute(
                 DeleteViewAction.INSTANCE,
@@ -185,22 +136,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             // none created by this test
         } catch (Exception e) {
             logger.warn("view cleanup failed", e);
-        }
-        for (String ds : CREATED_DATASETS) {
-            try {
-                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).actionGet(TIMEOUT);
-            } catch (ResourceNotFoundException ignored) {
-                // already deleted by the test itself
-            } catch (Exception e) {
-                logger.warn("dataset cleanup [{}] failed", ds, e);
-            }
-        }
-        try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds")).actionGet(TIMEOUT);
-        } catch (ResourceNotFoundException ignored) {
-            // already deleted by the test itself
-        } catch (Exception e) {
-            logger.warn("data source cleanup [local_ds] failed", e);
         }
     }
 
@@ -953,16 +888,33 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    // Full-text functions against external data sources
-
-    public void testMatchOnDatasetFieldRejected() {
+    public void testMatchAfterSubquery() {
         registerEmployees();
+        registerEmployeesAlt();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE MATCH(first_name, \"Alice\"))"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "[MATCH] function cannot operate on [first_name], which is not a field from an index mapping");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees METADATA _index), (FROM employees_alt METADATA _index)
+            | WHERE MATCH(first_name, "Alice")
+            | KEEP first_name, last_name, _index
+            | SORT _index
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name", "_index"));
+            assertColumnTypes(response.columns(), List.of("keyword", "keyword", "keyword"));
+            assertValues(response.values(), List.of(List.of("Alice", "Anderson", "employees")));
+        }
+    }
+
+    // Full-text functions against external data sources
+    public void testMatchOnDatasetField() {
+        registerEmployees();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | WHERE MATCH(first_name, "Alice"))
+            | KEEP first_name, last_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+            assertColumnTypes(response.columns(), List.of("keyword", "keyword"));
+            assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+        }
     }
 
     public void testMatchPhraseOnDatasetFieldRejected() {
@@ -995,14 +947,14 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         assertCauseMessageContains(ex, "[QSTR] function cannot be used after [FROM employees]");
     }
 
-    public void testMatchAfterSubqueryRejected() {
+    public void testMatchPhraseAfterSubqueryRejected() {
         registerEmployees();
         registerEmployeesAlt();
 
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("""
-            FROM (FROM employees), (FROM employees_alt) | WHERE MATCH(first_name, "Alice")
+            FROM (FROM employees), (FROM employees_alt) | WHERE MATCH_PHRASE(first_name, "Alice")
             """), TIMEOUT));
-        assertCauseMessageContains(ex, "[MATCH] function cannot operate on [first_name], which is not a field from an index mapping");
+        assertCauseMessageContains(ex, "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping");
     }
 
     // Mixed data types across subquery branches
@@ -1446,13 +1398,8 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     private void registerEmployees() {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
     }
 
     private void createView(String name, String query) {
@@ -1462,34 +1409,19 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     private void registerEmployeesAlt() {
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
     }
 
     /** Registers {@code salaries_int} whose {@code salary} column is typed {@code integer}. */
     private void registerSalariesInt() {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("salaries_int", "local_ds", csvFixtureSalaryInt.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("salaries_int", "local_ds", csvFixtureSalaryInt.toUri().toString(), Map.of("format", "csv"));
     }
 
     /** Registers {@code salaries_long} whose {@code salary} column is typed {@code long}. */
     private void registerSalariesLong() {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("salaries_long", "local_ds", csvFixtureSalaryLong.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("salaries_long", "local_ds", csvFixtureSalaryLong.toUri().toString(), Map.of("format", "csv"));
     }
 
     private static void assertCauseMessageContains(Throwable throwable, String fragment) {
@@ -1498,26 +1430,5 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             cause = cause.getCause();
         }
         assertThat("error chain should contain message fragment [" + fragment + "]", cause, org.hamcrest.Matchers.notNullValue());
-    }
-
-    private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
-    }
-
-    private static PutDatasetAction.Request putDatasetRequest(
-        String name,
-        String dataSource,
-        String resource,
-        Map<String, Object> settings
-    ) {
-        return new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resource, null, new HashMap<>(settings));
-    }
-
-    private static DeleteDataSourceAction.Request deleteDataSourceRequest(String name) {
-        return new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
-    }
-
-    private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
-        return new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
     }
 }

@@ -78,7 +78,6 @@ public class SemanticFieldFieldsApiIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws Exception {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
         IntegrationTestUtils.createInferenceEndpoint(client(), TaskType.EMBEDDING, INFERENCE_ID, EMBEDDING_SERVICE_SETTINGS);
         createIndex();
     }

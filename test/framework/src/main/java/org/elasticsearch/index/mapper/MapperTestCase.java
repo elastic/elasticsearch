@@ -2276,7 +2276,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testMultiValueFalseAcceptsSingleValue() throws Exception {
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -2286,7 +2286,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testMultiValueFalseRejectsArray() throws Exception {
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -2302,7 +2302,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testMultiValueFalseDocValuesType() throws Exception {
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -2340,10 +2340,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         // getSampleValueForDocument() is deterministic for most types, so a single call is enough.
         Object sample = getSampleValueForDocument();
 
-        MapperService mvFalse = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
-        }));
+        MapperService mvFalse = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.startObject("doc_values").field("multi_value", false).endObject();
+            })
+        );
         MapperService defaults = createMapperService(fieldMapping(this::minimalMapping));
 
         Object[] mvFalseBlock = loadThreeDocs(mvFalse, sample);
@@ -2374,14 +2377,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testNullabilityFalseAcceptsValue() throws Exception {
         assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
-        DocumentMapper mapper = createDocumentMapper(nullabilityFalseMapping());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(nullabilityFalseMapping());
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
         assertNotNull(doc.rootDoc().getField("field"));
     }
 
     public void testNullabilityFalseAcceptsArrayWithValue() throws Exception {
         assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
-        DocumentMapper mapper = createDocumentMapper(nullabilityFalseMapping());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(nullabilityFalseMapping());
         // A single non-null element satisfies the requirement even when other elements are null.
         ParsedDocument doc = mapper.parse(
             source(b -> { b.startArray("field").value(getSampleValueForDocument()).nullValue().endArray(); })
@@ -2408,7 +2411,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private void assertNullabilityFalseRejects(CheckedConsumer<XContentBuilder, IOException> document) throws Exception {
         assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
-        DocumentMapper mapper = createDocumentMapper(nullabilityFalseMapping());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(nullabilityFalseMapping());
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(document)));
         assertThat(e.getMessage(), containsString("configured with [nullability=false] but no value was provided"));
     }

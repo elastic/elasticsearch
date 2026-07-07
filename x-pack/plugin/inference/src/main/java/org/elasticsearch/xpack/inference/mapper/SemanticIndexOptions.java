@@ -23,22 +23,22 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Represents index options for a semantic_text field.
- * We represent semantic_text index_options as nested within their respective type. For example:
+ * Represents index options for a semantic or semantic_text field.
+ * We represent these index_options as nested within their respective type. For example:
  * "index_options": {
  *   "dense_vector": {
  *    "type": "bbq_hnsw
  *    }
  *  }
  */
-public class SemanticTextIndexOptions implements ToXContent {
+public class SemanticIndexOptions implements ToXContent {
 
     private static final String TYPE_FIELD = "type";
 
     private final SupportedIndexOptions type;
     private final IndexOptions indexOptions;
 
-    public SemanticTextIndexOptions(SupportedIndexOptions type, IndexOptions indexOptions) {
+    public SemanticIndexOptions(SupportedIndexOptions type, IndexOptions indexOptions) {
         this.type = type;
         this.indexOptions = indexOptions;
     }
@@ -61,8 +61,8 @@ public class SemanticTextIndexOptions implements ToXContent {
             return false;
         }
 
-        SemanticTextIndexOptions otherSemanticTextIndexOptions = (SemanticTextIndexOptions) other;
-        return type == otherSemanticTextIndexOptions.type && Objects.equals(indexOptions, otherSemanticTextIndexOptions.indexOptions);
+        SemanticIndexOptions otherSemanticIndexOptions = (SemanticIndexOptions) other;
+        return type == otherSemanticIndexOptions.type && Objects.equals(indexOptions, otherSemanticIndexOptions.indexOptions);
     }
 
     @Override

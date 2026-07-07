@@ -189,7 +189,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
                 () -> defaultDocValuesParameters(indexMode),
                 defaultDocValuesParameters(indexMode),
-                m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters
+                m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters,
+                indexMode.isStrictColumnar()
             );
         }
 

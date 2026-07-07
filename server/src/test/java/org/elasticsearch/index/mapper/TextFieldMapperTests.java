@@ -2543,6 +2543,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testTextKeepsOwnDocValuesInColumnarMode() throws IOException {
+
         // In columnar mode a text field always keeps its own doc values and reconstructs _source from them, regardless
         // of any keyword multi-field. A keyword multi-field is never used as a doc-values delegate, so its own config
         // (plain, null_value, ignore_above, or doc_values:false for a search-only analyzer copy) does not matter.
@@ -2737,6 +2738,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesHighCardinalityNoLengthLimit() throws IOException {
+
         // with HIGH cardinality (binary doc values), there's no length limit
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
 
@@ -2790,7 +2792,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSingleFallbackValueIsAcceptedWhenMultiValueFalse() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
         );
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
@@ -2804,7 +2806,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * While these are technically two separate fields, single values are enforced on a document-level, so the second value is rejected.
      */
     public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalseAndFirstValueInRegularField() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
         );
         String shortValue = randomAlphanumericOfLength(5);
@@ -2823,7 +2825,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * Mirror of {@link #testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalseAndFirstValueInRegularField} with the order reversed.
      */
     public void testSecondValueInRegularFieldIsRejectedWhenMultiValueFalseAndFirstValueInFallbackField() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
         );
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
@@ -2842,7 +2844,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      * We have two values for a field, both of which exceed MAX_TERM_LENGTH and would route to the {@code ._original} fallback field.
      */
     public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalse() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
         );
         String longValue1 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);

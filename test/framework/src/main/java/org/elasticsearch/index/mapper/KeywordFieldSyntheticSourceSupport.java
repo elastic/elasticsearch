@@ -51,19 +51,22 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         return isColumnar;
     }
 
-    public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource) {
+    public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource, boolean isColumnar) {
+        // multi_value=false is only valid in strict-columnar index modes.
+        boolean multiValue = isColumnar == false || ESTestCase.randomBoolean();
+
         // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
             case 0 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                ESTestCase.randomBoolean(),
+                multiValue,
                 true
             );
             case 1 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                ESTestCase.randomBoolean(),
+                multiValue,
                 true
             );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;

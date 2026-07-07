@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -47,6 +48,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -164,6 +166,167 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertThat("decryptInPlace materialises the plaintext canary", decrypted.get("secret_access_key"), equalTo("AKIAXYZ"));
 
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    /**
+     * Regression: a PUT that omits an already-stored secret (as Kibana's edit-and-save flow does, since the
+     * corresponding GET masks it) must carry the secret forward rather than wiping it.
+     */
+    public void testPutOmittingSecretPreservesExistingSecret() throws Exception {
+        final String dsName = "omit_secret_ds";
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                putDataSourceRequest(dsName, Map.of("region", "us-east-1", "secret_access_key", "AKIAXYZ"))
+            )
+        );
+
+        // Update omitting the secret entirely; only region changes.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-west-2"))));
+
+        DataSource after = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName))
+            .get()
+            .getDataSources()
+            .iterator()
+            .next();
+        assertThat(after.settings().get("region").nonSecretValue(), equalTo("us-west-2"));
+        DataSourceSetting secretAfter = after.settings().get("secret_access_key");
+        assertNotNull("secret omitted from an update must be carried forward, not wiped", secretAfter);
+        assertTrue("carried-forward secret must remain encrypted", secretAfter.isEncrypted());
+        assertThat("carried-forward secret must decrypt to the original value", decryptSecret(secretAfter), equalTo("AKIAXYZ"));
+
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    /**
+     * Counterpart to {@link #testPutOmittingSecretPreservesExistingSecret}: an explicit JSON {@code null}
+     * clears a secret, rather than carrying the old value forward.
+     */
+    public void testPutExplicitNullClearsSecret() throws Exception {
+        final String dsName = "null_clear_ds";
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                putDataSourceRequest(dsName, Map.of("region", "us-east-1", "secret_access_key", "AKIAXYZ"))
+            )
+        );
+
+        Map<String, Object> clearing = new HashMap<>();
+        clearing.put("region", "us-east-1");
+        clearing.put("secret_access_key", null);
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, clearing)));
+
+        DataSource after = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName))
+            .get()
+            .getDataSources()
+            .iterator()
+            .next();
+        DataSourceSetting secretAfter = after.settings().get("secret_access_key");
+        assertTrue(
+            "an explicit null must clear the secret rather than carry it forward",
+            secretAfter == null || secretAfter.rawValue() == null
+        );
+
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    /**
+     * Regression: an explicitly-supplied secret value must stand on its own and satisfy completeness on its
+     * own merits, not inherit "still there" credit from the stored value it's replacing just because some
+     * other required secret is genuinely omitted on the same request. Uses
+     * {@link RequiredSecretTestValidator}, which requires {@code secret_access_key} either in the request or
+     * carried forward, closely mirroring a real CSP's {@code hasCredentials()}.
+     */
+    public void testPutWithBlankSecretDoesNotInheritCarryForwardCredit() throws Exception {
+        final String dsName = "blank_secret_ds";
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                requiredSecretDataSourceRequest(dsName, Map.of("region", "us-east-1", "secret_access_key", "AKIAXYZ"))
+            )
+        );
+
+        // An empty value must fail validation on its own, not pass by inheriting the credit the omitted case
+        // would get.
+        ExecutionException err = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(
+                PutDataSourceAction.INSTANCE,
+                requiredSecretDataSourceRequest(dsName, Map.of("region", "us-west-2", "secret_access_key", ""))
+            ).get()
+        );
+        assertThat(err.getCause(), instanceOf(ValidationException.class));
+
+        // The rejected PUT must not have touched the real secret.
+        DataSource after = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName))
+            .get()
+            .getDataSources()
+            .iterator()
+            .next();
+        assertThat(after.settings().get("region").nonSecretValue(), equalTo("us-east-1"));
+        assertThat(decryptSecret(after.settings().get("secret_access_key")), equalTo("AKIAXYZ"));
+
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    /**
+     * Regression: {@code DataSourceService.putDataSource} must re-validate against the authoritative state it
+     * reads inside the cluster-state-update task, not just the pre-encryption snapshot taken before submitting
+     * it. Races two PUTs behind a blocked master task queue (mirrors {@link #testDispatchVsTaskExecuteRace}):
+     * both are coordinator-pre-validated against the same state (secret still present), but the one that
+     * clears the secret is submitted first, so by the time the second PUT's task actually runs, the secret it
+     * was relying on to carry forward is gone. That PUT must fail, not silently persist an incomplete data
+     * source.
+     */
+    public void testPutRevalidatesCarriedForwardSecretAgainstAuthoritativeState() throws Exception {
+        final String dsName = "race_required_secret";
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                requiredSecretDataSourceRequest(dsName, Map.of("region", "us-east-1", "secret_access_key", "AKIAXYZ"))
+            )
+        );
+
+        ClusterService masterCs = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        masterCs.submitUnbatchedStateUpdateTask("test-block", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                safeAwait(barrier);
+                safeAwait(barrier);
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("blocking task failed", e);
+            }
+        });
+        safeAwait(barrier); // master is now blocked inside the no-op task
+
+        // Both requests are coordinator-pre-validated against the same pre-block state, where the data source
+        // (and its secret) still exists, so the PUT's pre-check passes. Submission order controls processing
+        // order once the barrier releases: the delete runs first, so by the time the PUT's task actually runs,
+        // the entry it was relying on to carry the secret forward from is already gone.
+        ActionFuture<AcknowledgedResponse> deleteFuture = client().execute(
+            DeleteDataSourceAction.INSTANCE,
+            deleteDataSourceRequest(dsName)
+        );
+        ActionFuture<AcknowledgedResponse> omitFuture = client().execute(
+            PutDataSourceAction.INSTANCE,
+            requiredSecretDataSourceRequest(dsName, Map.of("region", "us-west-2"))
+        );
+
+        safeAwait(barrier); // release; master processes the delete, then the PUT
+
+        assertAcked(deleteFuture.get(30, TimeUnit.SECONDS));
+
+        ExecutionException err = expectThrows(ExecutionException.class, () -> omitFuture.get(30, TimeUnit.SECONDS));
+        assertThat(err.getCause(), instanceOf(ValidationException.class));
+        assertThat(err.getCause().getMessage(), containsString("secret_access_key is required"));
+
+        // The PUT must not have silently created an incomplete data source in place of the deleted one.
+        expectDataSourceMissing(dsName);
     }
 
     public void testGatewayPersistence() throws Exception {
@@ -658,6 +821,28 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
 
+    private static PutDataSourceAction.Request requiredSecretDataSourceRequest(String name, Map<String, Object> settings) {
+        return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test_requires_secret", null, new HashMap<>(settings));
+    }
+
+    /** Decrypts a secret setting's carrier using the test encryption key from {@link TestEncryptionServicePlugin}. */
+    private static Object decryptSecret(DataSourceSetting secret) {
+        DataSourceCredentials credentials = new DataSourceCredentials(new EncryptionService() {
+            @Override
+            public EncryptedData encrypt(byte[] bytes) {
+                return new EncryptedData(TestEncryptionServicePlugin.TEST_KEY_ID, bytes);
+            }
+
+            @Override
+            public byte[] decrypt(EncryptedData encryptedData) {
+                return encryptedData.payload();
+            }
+        });
+        Map<String, Object> input = new HashMap<>();
+        input.put("secret", secret.rawValue());
+        return credentials.decryptInPlace(input).get("secret");
+    }
+
     private static PutDatasetAction.Request putDatasetRequest(
         String name,
         String dataSource,
@@ -747,7 +932,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
     public static class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
         @Override
         public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-            return Map.of("test", new TestValidator());
+            return Map.of("test", new TestValidator(), "test_requires_secret", new RequiredSecretTestValidator());
         }
     }
 
@@ -786,6 +971,54 @@ public class DataSourceCrudIT extends ESIntegTestCase {
                 ve.addValidationError("test validator rejected dataset: " + REJECT_SENTINEL + " sentinel present");
                 throw ve;
             }
+            return new HashMap<>(datasetSettings);
+        }
+    }
+
+    /**
+     * Requires {@code secret_access_key} (present in the request or carried forward), mirroring a real CSP's
+     * {@code hasCredentials()} closely enough to exercise {@code DataSourceService}'s carry-forward and
+     * re-validation behavior in tests, without needing a real S3/GCS/Azure setup. Kept separate from
+     * {@link TestValidator} so it doesn't impose this requirement on the many other tests in this file that
+     * never supply a secret at all.
+     */
+    static class RequiredSecretTestValidator implements DataSourceValidator {
+        static final String REQUIRED_SECRET = "secret_access_key";
+
+        @Override
+        public String type() {
+            return "test_requires_secret";
+        }
+
+        @Override
+        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+            return validateDatasource(datasourceSettings, Set.of());
+        }
+
+        @Override
+        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings, Set<String> existingSecretKeys) {
+            Object provided = datasourceSettings.get(REQUIRED_SECRET);
+            boolean hasRequiredSecret = Strings.hasText(provided == null ? null : provided.toString())
+                || existingSecretKeys.contains(REQUIRED_SECRET);
+            if (hasRequiredSecret == false) {
+                ValidationException ve = new ValidationException();
+                ve.addValidationError("test validator rejected: " + REQUIRED_SECRET + " is required");
+                throw ve;
+            }
+            Map<String, DataSourceSetting> out = new HashMap<>();
+            for (Map.Entry<String, Object> e : datasourceSettings.entrySet()) {
+                boolean secret = e.getKey().startsWith("secret_");
+                out.put(e.getKey(), new DataSourceSetting(e.getValue(), secret));
+            }
+            return out;
+        }
+
+        @Override
+        public Map<String, Object> validateDataset(
+            Map<String, DataSourceSetting> datasourceSettings,
+            String resource,
+            Map<String, Object> datasetSettings
+        ) {
             return new HashMap<>(datasetSettings);
         }
     }

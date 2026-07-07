@@ -504,7 +504,7 @@ public class IpFieldMapperTests extends MapperTestCase {
 
     @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
-        return DocValuesType.SORTED_SET;
+        return DocValuesType.BINARY;
     }
 
     /**
@@ -548,7 +548,7 @@ public class IpFieldMapperTests extends MapperTestCase {
      * fires, so enforcement does not trip.
      */
     public void testMultiValueFalseAcceptsSingleIgnoreMalformedValue() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -560,7 +560,7 @@ public class IpFieldMapperTests extends MapperTestCase {
      * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
      */
     public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -575,7 +575,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testMultiValueFalseRejectsNormalPlusIgnoreMalformedFallback() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -595,7 +595,7 @@ public class IpFieldMapperTests extends MapperTestCase {
      * call.
      */
     public void testMultiValueFalseRejectsIgnoreMalformedFallbackPlusNormal() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));

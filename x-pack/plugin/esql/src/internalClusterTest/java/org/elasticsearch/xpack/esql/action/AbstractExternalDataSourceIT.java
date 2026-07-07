@@ -352,4 +352,39 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
             }
         };
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // Shared Hive-partition fixture + external-scan profile assertions.
+    // ---------------------------------------------------------------------------------------------
+
+    /** Operator-name prefix identifying an external-source scan in a query profile. */
+    private static final String EXTERNAL_SCAN_OPERATOR_PREFIX = "ExternalDataSource";
+
+    /**
+     * Writes a single-column ({@code id: int32}) Parquet file named {@code data.parquet} under {@code dir}, carrying
+     * {@code rowCount} rows with ids {@code 0..rowCount-1}. The shared fixture for Hive-partition tests: the partition
+     * column is path-derived, so the file payload only needs one trivial data column.
+     */
+    protected static Path writeSingleColumnIdParquet(Path dir, int rowCount) throws IOException {
+        Files.createDirectories(dir);
+        return writeParquet(dir.resolve("data.parquet"), "message test { required int32 id; }", rowCount, 1024, (g, i) -> g.add("id", i));
+    }
+
+    /**
+     * The set of data-node names whose profile contains an external-source scan operator. Requires the query to have
+     * run with {@code profile(true)}. Callers assert on the set: a non-empty set proves the read scanned (rather than
+     * warm-folding to a constant), and {@code >= 2} distinct names proves it distributed across data nodes rather than
+     * short-circuiting coordinator-local.
+     */
+    protected static Set<String> externalScanNodeNames(EsqlQueryResponse response) {
+        Set<String> nodes = new LinkedHashSet<>();
+        for (var driver : response.profile().drivers()) {
+            for (var op : driver.operators()) {
+                if (op.operator().startsWith(EXTERNAL_SCAN_OPERATOR_PREFIX)) {
+                    nodes.add(driver.nodeName());
+                }
+            }
+        }
+        return nodes;
+    }
 }

@@ -7,22 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.parquet.conf.PlainParquetConfiguration;
-import org.apache.parquet.example.data.Group;
-import org.apache.parquet.example.data.simple.SimpleGroupFactory;
-import org.apache.parquet.hadoop.ParquetWriter;
-import org.apache.parquet.hadoop.example.ExampleParquetWriter;
-import org.apache.parquet.hadoop.metadata.CompressionCodecName;
-import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
-import org.apache.parquet.schema.Types;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
@@ -65,8 +53,8 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         Path root = createTempDir().resolve("hive_parquet_count");
-        writeIdParquet(root.resolve("p=a"), 3); // ids 0,1,2
-        writeIdParquet(root.resolve("p=b"), 2); // ids 0,1
+        writeSingleColumnIdParquet(root.resolve("p=a"), 3); // ids 0,1,2
+        writeSingleColumnIdParquet(root.resolve("p=b"), 2); // ids 0,1
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.parquet";
         String dataset = registerDataset("hive_parquet_count", glob, Map.of("hive_partitioning", true));
@@ -79,15 +67,10 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
         var request = syncEsqlQueryRequest(query);
         request.profile(true);
         try (var response = run(request)) {
-            boolean scanned = false;
-            for (var d : response.profile().drivers()) {
-                for (var op : d.operators()) {
-                    if (op.operator().startsWith("ExternalDataSource")) {
-                        scanned = true;
-                    }
-                }
-            }
-            assertTrue("COUNT(partition_column) must safe-miss to a scan on the data node, not warm-fold to 0", scanned);
+            assertFalse(
+                "COUNT(partition_column) must safe-miss to a scan on the data node, not warm-fold to 0",
+                externalScanNodeNames(response).isEmpty()
+            );
 
             List<List<Object>> rows = getValuesList(response);
             assertThat("COUNT(p) returns a single row", rows.size(), equalTo(1));
@@ -97,28 +80,5 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
                 equalTo(5L)
             );
         }
-    }
-
-    /** Writes a single-column ({@code id: INT32}) Parquet file with {@code rowCount} rows (ids 0..rowCount-1). */
-    private void writeIdParquet(Path dir, int rowCount) throws IOException {
-        Files.createDirectories(dir);
-        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("id").named("test_schema");
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
-                .withConf(new PlainParquetConfiguration())
-                .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
-                .build()
-        ) {
-            for (int i = 0; i < rowCount; i++) {
-                Group g = factory.newGroup();
-                g.add("id", i);
-                writer.write(g);
-            }
-        }
-        Files.write(dir.resolve("data.parquet"), baos.toByteArray());
     }
 }

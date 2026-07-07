@@ -20,10 +20,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -71,8 +69,8 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
      */
     public void testParquetHivePartitionValuesAttachOnDistributedRead() throws Exception {
         Path root = createTempDir().resolve("hive_parquet_values");
-        writeIdParquet(root.resolve("p=a"), 3);
-        writeIdParquet(root.resolve("p=b"), 2);
+        writeSingleColumnIdParquet(root.resolve("p=a"), 3);
+        writeSingleColumnIdParquet(root.resolve("p=b"), 2);
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.parquet";
         String dataset = registerDataset("hive_parquet_values", glob, Map.of("hive_partitioning", true));
@@ -103,8 +101,8 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
      */
     public void testIntegerHivePartitionValuesAttachOnDistributedRead() throws Exception {
         Path root = createTempDir().resolve("hive_int_values");
-        writeIdParquet(root.resolve("n=1"), 3);
-        writeIdParquet(root.resolve("n=2"), 2);
+        writeSingleColumnIdParquet(root.resolve("n=1"), 3);
+        writeSingleColumnIdParquet(root.resolve("n=2"), 2);
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.parquet";
         String dataset = registerDataset("hive_int_values", glob, Map.of("hive_partitioning", true));
@@ -158,17 +156,13 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
         request.acceptedPragmaRisks(true); // pragmas are rejected on non-snapshot builds without this
         request.profile(true);
         try (var response = run(request)) {
-            // The ExternalDataSource scan must have run on >= 2 distinct data nodes. A coordinator-local run would
-            // resolve partition values from the FileList and never test the distributed attachment leg (false green).
-            Set<String> scanNodes = new HashSet<>();
-            for (var driver : response.profile().drivers()) {
-                for (var op : driver.operators()) {
-                    if (op.operator().startsWith("ExternalDataSource")) {
-                        scanNodes.add(driver.nodeName());
-                    }
-                }
-            }
-            assertThat("external scan must distribute across >= 2 data nodes", scanNodes.size(), greaterThanOrEqualTo(2));
+            // A coordinator-local run would resolve partition values from the FileList and never test the distributed
+            // attachment leg (false green), so require the external scan to have run on >= 2 distinct data nodes.
+            assertThat(
+                "external scan must distribute across >= 2 data nodes",
+                externalScanNodeNames(response).size(),
+                greaterThanOrEqualTo(2)
+            );
 
             List<String> columns = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
             int cIdx = columns.indexOf("c");
@@ -179,12 +173,6 @@ public class ExternalHivePartitionDistributedValueIT extends AbstractExternalDat
 
     /** Columns + rows lifted out of a (closed) response so callers can assert partition groups. */
     private record QueryResult(List<String> columns, List<List<Object>> rows) {}
-
-    /** Writes a single-column ({@code id: int32}) Parquet file with {@code rowCount} rows (ids 0..rowCount-1). */
-    private void writeIdParquet(Path dir, int rowCount) throws IOException {
-        Files.createDirectories(dir);
-        writeParquet(dir.resolve("data.parquet"), "message test { required int32 id; }", rowCount, 1024, (g, i) -> g.add("id", i));
-    }
 
     /** Writes a single-column ({@code id}) CSV file with {@code rowCount} rows (ids 0..rowCount-1). */
     private static void writeIdCsv(Path dir, int rowCount) throws IOException {

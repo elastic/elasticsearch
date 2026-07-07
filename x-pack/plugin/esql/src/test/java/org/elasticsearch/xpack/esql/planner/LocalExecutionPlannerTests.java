@@ -270,36 +270,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testExternalSourceUsesSliceQueueWhenGenericFileListIsUnresolved() throws IOException {
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
-        SourceOperatorFactoryProvider provider = context -> {
-            captured.set(context);
-            return new SourceOperator.SourceOperatorFactory() {
-                @Override
-                public SourceOperator get(DriverContext driverContext) {
-                    return new SourceOperator() {
-                        @Override
-                        public Page getOutput() {
-                            return null;
-                        }
-
-                        @Override
-                        public boolean isFinished() {
-                            return true;
-                        }
-
-                        @Override
-                        public void finish() {}
-
-                        @Override
-                        public void close() {}
-                    };
-                }
-
-                @Override
-                public String describe() {
-                    return "test-source";
-                }
-            };
-        };
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
 
         List<Attribute> attrs = List.of(
@@ -359,36 +330,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      */
     public void testExternalSourceUsesSliceQueueWhenResolvedFileListHasAssignedSplits() throws IOException {
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
-        SourceOperatorFactoryProvider provider = context -> {
-            captured.set(context);
-            return new SourceOperator.SourceOperatorFactory() {
-                @Override
-                public SourceOperator get(DriverContext driverContext) {
-                    return new SourceOperator() {
-                        @Override
-                        public Page getOutput() {
-                            return null;
-                        }
-
-                        @Override
-                        public boolean isFinished() {
-                            return true;
-                        }
-
-                        @Override
-                        public void finish() {}
-
-                        @Override
-                        public void close() {}
-                    };
-                }
-
-                @Override
-                public String describe() {
-                    return "test-source";
-                }
-            };
-        };
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
 
         List<Attribute> attrs = List.of(
@@ -446,36 +388,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      */
     public void testPlanExternalSourcePassesDistinctExecutorsToSourceOperatorContext() throws IOException {
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
-        SourceOperatorFactoryProvider provider = context -> {
-            captured.set(context);
-            return new SourceOperator.SourceOperatorFactory() {
-                @Override
-                public SourceOperator get(DriverContext driverContext) {
-                    return new SourceOperator() {
-                        @Override
-                        public Page getOutput() {
-                            return null;
-                        }
-
-                        @Override
-                        public boolean isFinished() {
-                            return true;
-                        }
-
-                        @Override
-                        public void finish() {}
-
-                        @Override
-                        public void close() {}
-                    };
-                }
-
-                @Override
-                public String describe() {
-                    return "test-source";
-                }
-            };
-        };
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
         Executor mainExecutor = r -> r.run();
         Executor fileReadExecutor = r -> r.run();
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
@@ -540,36 +453,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      */
     public void testExternalSourceCountStarYieldsEmptyProjection() throws IOException {
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
-        SourceOperatorFactoryProvider provider = context -> {
-            captured.set(context);
-            return new SourceOperator.SourceOperatorFactory() {
-                @Override
-                public SourceOperator get(DriverContext driverContext) {
-                    return new SourceOperator() {
-                        @Override
-                        public Page getOutput() {
-                            return null;
-                        }
-
-                        @Override
-                        public boolean isFinished() {
-                            return true;
-                        }
-
-                        @Override
-                        public void finish() {}
-
-                        @Override
-                        public void close() {}
-                    };
-                }
-
-                @Override
-                public String describe() {
-                    return "test-source";
-                }
-            };
-        };
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
 
         // Mirrors what ProjectAwayColumns inserts when COUNT(*) prunes every real column.
@@ -617,36 +501,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      */
     public void testExternalSourceUnionsPartitionColumnNamesFromSourceMetadataStamp() throws IOException {
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
-        SourceOperatorFactoryProvider provider = context -> {
-            captured.set(context);
-            return new SourceOperator.SourceOperatorFactory() {
-                @Override
-                public SourceOperator get(DriverContext driverContext) {
-                    return new SourceOperator() {
-                        @Override
-                        public Page getOutput() {
-                            return null;
-                        }
-
-                        @Override
-                        public boolean isFinished() {
-                            return true;
-                        }
-
-                        @Override
-                        public void finish() {}
-
-                        @Override
-                        public void close() {}
-                    };
-                }
-
-                @Override
-                public String describe() {
-                    return "test-source";
-                }
-            };
-        };
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
 
         // Only the data column 'id' is in the output — the partition column 'p' is NOT, so the sole path that can put
@@ -901,6 +756,44 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             return equalTo(SourceOperator.MIN_TARGET_PAGE_SIZE);
         }
         return equalTo(SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
+    }
+
+    /**
+     * A {@link SourceOperatorFactoryProvider} that captures the {@link SourceOperatorContext} the planner hands it and
+     * returns a no-op {@link SourceOperator} (never produces a page). Lets a test assert on the context the planner
+     * built for an external source without running a real read.
+     */
+    private static SourceOperatorFactoryProvider capturingProvider(AtomicReference<SourceOperatorContext> captured) {
+        return context -> {
+            captured.set(context);
+            return new SourceOperator.SourceOperatorFactory() {
+                @Override
+                public SourceOperator get(DriverContext driverContext) {
+                    return new SourceOperator() {
+                        @Override
+                        public Page getOutput() {
+                            return null;
+                        }
+
+                        @Override
+                        public boolean isFinished() {
+                            return true;
+                        }
+
+                        @Override
+                        public void finish() {}
+
+                        @Override
+                        public void close() {}
+                    };
+                }
+
+                @Override
+                public String describe() {
+                    return "test-source";
+                }
+            };
+        };
     }
 
     private LocalExecutionPlanner planner() throws IOException {

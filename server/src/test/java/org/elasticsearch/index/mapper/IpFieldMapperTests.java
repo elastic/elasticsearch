@@ -104,7 +104,6 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultsColumnarMode() throws IOException {
-        assumeTrue("feature under test must be present", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
@@ -513,7 +512,6 @@ public class IpFieldMapperTests extends MapperTestCase {
      * the current index version.
      */
     public void testHighCardinalityDocValuesUsesSeparateCountFormat() throws IOException {
-        assumeTrue("columnar index modes require snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "ip")));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
@@ -531,7 +529,6 @@ public class IpFieldMapperTests extends MapperTestCase {
      * SeparateCount output regardless of indexCreatedVersion so the read path can decode it.
      */
     public void testHighCardinalityDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
-        assumeTrue("columnar index modes require snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
         Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(legacyVersion, columnarSettings, fieldMapping(b -> b.field("type", "ip")))
@@ -551,7 +548,6 @@ public class IpFieldMapperTests extends MapperTestCase {
      * fires, so enforcement does not trip.
      */
     public void testMultiValueFalseAcceptsSingleIgnoreMalformedValue() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -564,7 +560,6 @@ public class IpFieldMapperTests extends MapperTestCase {
      * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
      */
     public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -580,7 +575,6 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testMultiValueFalseRejectsNormalPlusIgnoreMalformedFallback() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -601,7 +595,6 @@ public class IpFieldMapperTests extends MapperTestCase {
      * call.
      */
     public void testMultiValueFalseRejectsIgnoreMalformedFallbackPlusNormal() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -617,7 +610,6 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testHighCardinalityAllowedForIndexSortField() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // LOGSDB_COLUMNAR (strict columnar) defaults doc values to high cardinality; cardinality is not user-configurable.
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.name())
@@ -635,7 +627,6 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "ip").endObject()))
             .documentMapper();

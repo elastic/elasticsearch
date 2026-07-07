@@ -12,5 +12,8 @@ public final class EsqlDataSourcesCapabilities {
     /** Advertises that this node exposes the data_sources + datasets CRUD endpoints. */
     public static final String DATA_SOURCES = "data_sources";
 
+    /** The dataset PUT body accepts a declared `mappings` block (types, path renames, copy_to, _source, _id). */
+    public static final String DATASET_DECLARED_SCHEMA = "dataset_declared_schema";
+
     private EsqlDataSourcesCapabilities() {}
 }

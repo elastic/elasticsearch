@@ -29,7 +29,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -88,16 +87,13 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+        if (indexSettings.getMode().isStrictColumnar() == false) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
         }
 
         boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        if (indexSettings.getMode().isStrictColumnar()) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue);
-        }
-
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
+        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability);
     }
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
@@ -138,7 +134,8 @@ public class IpFieldMapper extends FieldMapper {
 
             this.docValuesParameters = DocValuesParameter.of(
                 defaultDocValuesParameters(indexSettings),
-                m -> toType(m).docValuesParameters()
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
             );
 
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
@@ -788,6 +785,11 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    public boolean isNullable() {
+        return docValuesParameters.nullability() || nullValueAsString != null;
     }
 
     @Override

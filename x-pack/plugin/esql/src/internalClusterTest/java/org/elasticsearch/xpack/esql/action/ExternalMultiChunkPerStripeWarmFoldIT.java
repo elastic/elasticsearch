@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
@@ -67,6 +69,17 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
         return List.of(CsvDataSourcePlugin.class, NdJsonDataSourcePlugin.class, GzipDataSourcePlugin.class);
     }
 
+    /**
+     * Registers {@link InternalExchangePlugin} so the short inactive-sink reap interval below is a known
+     * node setting. Without it the reaper runs at its 5-minute default and a data-node exchange sink whose
+     * async post-query cleanup lags the test's teardown window is not removed in time — the CI-only
+     * "Leftover exchanges" / "Request breaker not reset" teardown failure the sibling multi-file fold IT hit.
+     */
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalExchangePlugin.class);
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
@@ -75,6 +88,9 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
             // the per-stripe interval-cover must stitch fragments from more than one parallel chunk. This is the
             // "multiple chunks per stripe" geometry the sibling fold ITs (64kb stripe, or parallelism 1) never hit.
             .put("esql.source.cache.stripe.size", "6mb")
+            // Reap inactive exchange sinks within a few seconds (default is 5 minutes) so a data-node sink whose
+            // async cleanup trails the query response is released well inside the exchange/breaker teardown checks.
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .build();
     }
 

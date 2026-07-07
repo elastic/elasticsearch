@@ -3703,6 +3703,34 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
+    public void testReshardFailureMetrics() {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        var startSplitFailedOnce = new AtomicBoolean(false);
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
+                if (startSplitFailedOnce.compareAndSet(false, true)) {
+                    channel.sendResponse(new ElasticsearchException("simulated start split failure"));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        waitForReshardCompletion(indexName);
+
+        var telemetryPlugin = getTelemetryPlugin(indexNode);
+        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_RECOVERY_FAILURE_COUNT, telemetryPlugin), equalTo(1L));
+        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_FAILURE_COUNT, telemetryPlugin), equalTo(0L));
+    }
+
     public void testSourceShardMonitoringSucceedsWhenTargetsAreAlreadyDone() throws InterruptedException, BrokenBarrierException {
         startMasterOnlyNode();
         String indexNode = startIndexNode();

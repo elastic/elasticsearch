@@ -349,6 +349,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
 
         /**
+         * With {@code unmapped_fields="nullify"} or {@code "load"}, a {@code DROP} wildcard that matches no field is a no-op
+         * instead of failing with "No matches found for pattern".
+         * See https://github.com/elastic/elasticsearch/issues/143226
+         */
+        OPTIONAL_FIELDS_DROP_NON_MATCHING_PATTERN_NOOP,
+
+        /**
          * Fixes count on an unmapped field. Previously, it tried to push down a query filter on the unmapped field, leading to a 0-count
          * since the field isn't mapped.
          * See https://github.com/elastic/elasticsearch/issues/152884.

@@ -8,11 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class MergedSplitStatsTests extends ESTestCase {
 
@@ -114,6 +111,26 @@ public class MergedSplitStatsTests extends ESTestCase {
         assertEquals(90, merged.columnMax("bonus"));
     }
 
+    public void testColumnMinMaxUsesChildValueWhenNullCountUnknownButMinMaxPresent() {
+        // Regression for the multi-FILE warm MIN/MAX short-circuit: a per-file SplitStats can legitimately
+        // carry a known min/max for a column while its null_count is unknown (-1). This happens when the
+        // file's own multi-stripe fold poison-dropped the null_count (a stripe that presented the column
+        // without a null_count value) but retained the min/max — SourceStatisticsSerializer.mergeStatistics
+        // drops only the null_count entry, never the min/max. Such a child contributes a valid extremum
+        // candidate: the min stat is the minimum of the column's non-null values regardless of how many
+        // nulls there are. Poisoning the whole dataset min/max here is what made warm MIN/MAX full-scan a
+        // multi-file glob while COUNT(*) (which never reads null_count for COUNT(*)) short-circuited.
+        SplitStats a = splitStatsRowCountWithColumn(100, "EventDate", 0L, 10, 90, 400);
+        // B: column present with a real min/max but null_count unknown (-1).
+        SplitStats.Builder bb = new SplitStats.Builder().rowCount(50);
+        bb.addColumn("EventDate", -1L, 5, 95, 200);
+        SplitStats b = bb.build();
+        SplitStats c = splitStatsRowCountWithColumn(100, "EventDate", 0L, 20, 80, 400);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b, c));
+        assertEquals("min must merge B's known value (5) despite B's unknown null_count", 5, merged.columnMin("EventDate"));
+        assertEquals("max must merge B's known value (95) despite B's unknown null_count", 95, merged.columnMax("EventDate"));
+    }
+
     public void testColumnMinPoisonedByPresentButStatsLessChild() {
         // Child A: has bonus with full stats. Child B: column physically present (column added)
         // but null count is unknown (-1). Defensive: poison rather than fabricate.
@@ -192,61 +209,21 @@ public class MergedSplitStatsTests extends ESTestCase {
         assertEquals(-1, merged.columnSizeBytes("age"));
     }
 
-    // -- temporal-unit reconciliation (millis DATETIME vs nanos DATE_NANOS) --
+    // -- pure value-fold: unit/representation reconciliation is owned UPSTREAM by
+    // SourceStatisticsSerializer.normalizeStatsToReconciled (applied in ExternalSourceResolver.aggregateFileStatistics
+    // and FileSplitProvider), NOT here. The merge folds already-normalized values. --
 
-    public void testColumnMinMaxMixedTemporalUnitsRescaleToNanos() {
-        // File A: ts is DATETIME (epoch-millis), min=2 max=5 -> 2_000_000 / 5_000_000 ns.
-        // File B: ts is DATE_NANOS (epoch-nanos), min=1 max=9_999_999 ns.
-        SplitStats a = temporalColumn("ts", 2L, 5L);
-        SplitStats b = temporalColumn("ts", 1L, 9_999_999L);
-        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATETIME, DataType.DATE_NANOS));
-        assertEquals("min widened to epoch-nanos", 1L, ((Number) merged.columnMin("ts")).longValue());
-        assertEquals("max widened to epoch-nanos", 9_999_999L, ((Number) merged.columnMax("ts")).longValue());
-    }
-
-    public void testColumnMinMaxUniformDatetimeStaysMillis() {
-        // Both files DATETIME: no rescale, result stays epoch-millis (reconciled type is DATETIME).
-        SplitStats a = temporalColumn("ts", 2L, 5L);
-        SplitStats b = temporalColumn("ts", 1L, 9L);
-        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATETIME, DataType.DATETIME));
-        assertEquals(1L, ((Number) merged.columnMin("ts")).longValue());
-        assertEquals(9L, ((Number) merged.columnMax("ts")).longValue());
-    }
-
-    public void testColumnMinMaxUniformDateNanosUnchanged() {
-        SplitStats a = temporalColumn("ts", 2000L, 5000L);
-        SplitStats b = temporalColumn("ts", 1000L, 9000L);
-        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATE_NANOS, DataType.DATE_NANOS));
-        assertEquals(1000L, ((Number) merged.columnMin("ts")).longValue());
-        assertEquals(9000L, ((Number) merged.columnMax("ts")).longValue());
-    }
-
-    public void testColumnMinMaxTemporalWithUnknownTypeIsPoisoned() {
-        // Column is temporal in file A but file B carries no per-file type; we cannot safely rescale -> poison.
-        SplitStats a = temporalColumn("ts", 2L, 5L);
-        SplitStats b = temporalColumn("ts", 1L, 9L);
-        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATE_NANOS, null));
-        assertNull(merged.columnMin("ts"));
-        assertNull(merged.columnMax("ts"));
-    }
-
-    public void testColumnMinMaxMillisOverflowingNanosIsPoisoned() {
-        // File A DATETIME value has no nanosecond representation (millis * 1e6 overflows a long) -> poison.
-        SplitStats a = temporalColumn("ts", 10_000_000_000_000L, 20_000_000_000_000L);
-        SplitStats b = temporalColumn("ts", 1L, 9L);
-        MergedSplitStats merged = new MergedSplitStats(List.of(a, b), types(DataType.DATETIME, DataType.DATE_NANOS));
-        assertNull(merged.columnMin("ts"));
-        assertNull(merged.columnMax("ts"));
-    }
-
-    public void testColumnMinMaxMixedUnitsWithoutTypesMergesUnitBlind() {
-        // No per-file types (old-node / self-infer path): behavior is unchanged value-only merge. Documents that
-        // the reconciliation only kicks in when per-file types are available.
-        SplitStats a = temporalColumn("ts", 2L, 5L);
-        SplitStats b = temporalColumn("ts", 1L, 9L);
+    public void testColumnMinMaxIsPureValueFoldNoRescale() {
+        // Regression guard for the double-rescale bug: per-file stats are normalized to the reconciled unit at
+        // split construction BEFORE reaching the merge, so both children below are already epoch-nanos. A merge
+        // that re-reconciled units (reading the split's file-local DATETIME type and multiplying an already-nanos
+        // value by 1e6, as the removed childColumnTypes/mergeExtremum rescale did) would return 1_000_000_000_000
+        // for the min instead of 1_000_000. The merge must fold value-only.
+        SplitStats a = temporalColumn("ts", 2_000_000L, 5_000_000L);
+        SplitStats b = temporalColumn("ts", 1_000_000L, 9_000_000L);
         MergedSplitStats merged = new MergedSplitStats(List.of(a, b));
-        assertEquals(1L, ((Number) merged.columnMin("ts")).longValue());
-        assertEquals(9L, ((Number) merged.columnMax("ts")).longValue());
+        assertEquals("min folded value-only, no ×1e6 rescale", 1_000_000L, ((Number) merged.columnMin("ts")).longValue());
+        assertEquals("max folded value-only, no ×1e6 rescale", 9_000_000L, ((Number) merged.columnMax("ts")).longValue());
     }
 
     // -- children() --
@@ -316,13 +293,5 @@ public class MergedSplitStatsTests extends ESTestCase {
         SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
         b.addColumn(name, 0L, minEpoch, maxEpoch, 400);
         return b.build();
-    }
-
-    private static List<Map<String, DataType>> types(DataType... perChild) {
-        List<Map<String, DataType>> result = new ArrayList<>(perChild.length);
-        for (DataType type : perChild) {
-            result.add(type == null ? null : Map.of("ts", type));
-        }
-        return result;
     }
 }

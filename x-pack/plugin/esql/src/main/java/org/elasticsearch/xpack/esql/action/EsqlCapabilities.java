@@ -336,6 +336,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_DENSE_VECTOR,
 
         /**
+         * Warn when a partially unmapped field with a single non-KEYWORD mapped type is referenced explicitly, but its type has no
+         * KEYWORD converter and so cannot be loaded from _source: it falls back to null in the indices where it is unmapped.
+         */
+        OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -928,9 +934,10 @@ public class EsqlCapabilities {
         BUCKET_WHOLE_NUMBER_AS_SPAN,
 
         /**
-         * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns.
+         * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns, gated behind the
+         * {@code SET column_metadata=true} setting. Without the setting, non-approximation metadata is omitted.
          */
-        COLUMN_METADATA_BUCKET(Build.current().isSnapshot()),
+        COLUMN_METADATA_BUCKET_V2,
 
         /**
          * Allow mixed numeric types in coalesce
@@ -2031,7 +2038,7 @@ public class EsqlCapabilities {
          * {@code RECHECK} so the row-level evaluator rechecks each candidate and returns {@code null}
          * for multi-valued positions, which {@code FilterOperator} treats as {@code false}.
          */
-        DATE_RANGE_FIELD_TYPE_V6(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V6,
 
         /**
          * Network direction function.
@@ -3208,6 +3215,11 @@ public class EsqlCapabilities {
         MV_FIRST_LAST_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
+         * Support for COUNT, COUNT_APPROXIMATE, PRESENT, ABSENT, MV_COUNT with date_range type.
+         */
+        AGG_BASIC_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
          * Support for ESQL parameters in PromQL label matchers:
          * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
          */
@@ -3324,6 +3336,16 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
          */
         EMPTY_LIST_PARAM_AS_NULL,
+
+        /**
+         * Invalid BBOX envelopes (e.g. maxY &lt; minY, or maxX &lt; minX for cartesian coordinates) are now
+         * consistently handled as a null result with a registered warning, both at fold time and at
+         * runtime, instead of either being silently accepted (cartesian x-ordering was never validated) or
+         * causing an uncaught exception in downstream consumers (ST_GEOHASH/ST_GEOTILE/ST_GEOHEX bounds,
+         * ST_DISTANCE, ST_INTERSECTS/ST_DISJOINT/etc. pushdown to Lucene).
+         * See <a href="https://github.com/elastic/elasticsearch/pull/152877">#152877</a>.
+         */
+        SPATIAL_BBOX_VALIDATION_FIX,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

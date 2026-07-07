@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -833,7 +832,6 @@ public enum IndexMode {
         ).collect(toSet())
     );
 
-    public static final FeatureFlag COLUMNAR_FEATURE_FLAG = new FeatureFlag("columnar_index_mode");
     public static final TransportVersion COLUMNAR_INDEX_MODES_ADDED = TransportVersion.fromName("columnar_index_modes_added");
 
     /**
@@ -852,13 +850,10 @@ public enum IndexMode {
     }
 
     /**
-     * Returns only the index modes that are available in the current build.
-     * Columnar modes are excluded in non-snapshot builds where their feature flag is disabled.
+     * Returns all available index modes.
      */
     public static IndexMode[] availableModes() {
-        return Arrays.stream(values())
-            .filter(m -> COLUMNAR_FEATURE_FLAG.isEnabled() || (m != COLUMNAR && m != LOGSDB_COLUMNAR))
-            .toArray(IndexMode[]::new);
+        return values();
     }
 
     private final String name;
@@ -968,6 +963,31 @@ public enum IndexMode {
     }
 
     /**
+     * Whether this index mode represents a time series (tsdb) index.
+     */
+    public boolean isTsdb() {
+        return this == TIME_SERIES;
+    }
+
+    /**
+     * Null-safe variant of {@link #isTsdb()} for callers holding a possibly-{@code null}
+     * {@link IndexMode} (e.g. a {@code @Nullable} field that defaults to {@code null} rather
+     * than {@link #STANDARD}).
+     */
+    public static boolean isTsdb(@Nullable IndexMode mode) {
+        return mode != null && mode.isTsdb();
+    }
+
+    /**
+     * Whether the given raw {@code index.mode} setting value names a time series (tsdb) index
+     * mode, case-insensitively. Use this instead of comparing against {@link #TIME_SERIES}'s
+     * {@link #getName()} directly when the value hasn't been parsed with {@link #fromString} yet.
+     */
+    public static boolean isTsdbName(@Nullable String name) {
+        return name != null && TIME_SERIES.getName().equalsIgnoreCase(name);
+    }
+
+    /**
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
@@ -988,9 +1008,6 @@ public enum IndexMode {
             );
         };
 
-        if ((mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR) && COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
-        }
         return mode;
     }
 

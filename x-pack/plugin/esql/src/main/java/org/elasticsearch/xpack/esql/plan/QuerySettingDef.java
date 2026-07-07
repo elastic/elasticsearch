@@ -130,7 +130,8 @@ import java.util.function.UnaryOperator;
  * <h2>Factories</h2>
  *
  * {@link #string(String)}, {@link #string(String, FromString)} (function errors surface as the
- * user-visible message), {@link #object(String, JsonReader, ExpressionReader)}, {@link #builder(String)}.
+ * user-visible message), {@link #bool(String)}, {@link #object(String, JsonReader, ExpressionReader)},
+ * {@link #builder(String)}.
  *
  * <h2>When things go wrong</h2>
  *
@@ -156,6 +157,16 @@ public final class QuerySettingDef<T> {
 
     public static <T> Builder<T> string(String name, FromString<T> from) {
         return Builder.<T>of(name, DataType.KEYWORD).fromString(from);
+    }
+
+    public static Builder<Boolean> bool(String name) {
+        return Builder.<Boolean>of(name, DataType.BOOLEAN).jsonReader(XContentParser::booleanValue).expressionReader(e -> {
+            Object value = Foldables.literalValueOf(e);
+            if (value instanceof Boolean b) {
+                return b;
+            }
+            throw new IllegalArgumentException("Setting [" + name + "] must be a boolean, got [" + value + "]");
+        }).streamFormat((out, value) -> out.writeBoolean(value), StreamInput::readBoolean);
     }
 
     /** Escape hatch for non-primitive types. Supply both a JSON and an expression parser. */

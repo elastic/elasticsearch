@@ -81,14 +81,13 @@ final class ColumnarSourceWriter {
             cachedColumnarPerThread.set(perThread);
         }
 
-        // Make the full in-memory document tree (root + nested children, in document order) available to the
-        // reconstruction so nested loaders can select their children by parent-pointer match. For a document with no
-        // nested fields this is just the single root document and nothing downstream looks at it.
-        List<LuceneDocument> allDocs = new ArrayList<>();
-        allDocs.add(context.doc());
-        for (LuceneDocument child : context.nonRootDocuments()) {
-            allDocs.add(child);
-        }
+        // Make the full in-memory document tree (root + nested children) available to the reconstruction so nested
+        // loaders can select their children. Shard-index order places each child before its parent, matching the order
+        // in which the synthetic source loader reads them from a real segment; this is what preserves array order across
+        // nested documents, including the deeper documents that subobjects:false creates for object sub-fields and
+        // arrays inside a nested field. For a document with no nested fields this is just the single root document and
+        // nothing downstream looks at it.
+        List<LuceneDocument> allDocs = context.luceneDocumentsInShardIndexOrder();
         perThread.leafReader().setAllDocs(allDocs);
         perThread.leafReader().repopulate(context.doc());
         perThread.fieldLoader().reset();

@@ -1,5 +1,16 @@
 // This test file covers type conflict resolution with unmapped fields, which is similar to union types.
 
+// Many tests below have "- old data node" / "- old coordinator" siblings that pin the
+// missing_capability_data_node / missing_capability_coordinator directive, exercising
+// MultiClusterSpecIT against a real old-version cluster to prove that auto-casting a two-legged
+// PUNK is decided solely by the coordinating node's own version, regardless of the data node's.
+// Siblings whose query includes "METADATA _index" also declare
+// required_capability: metadata_fields_remote_test. MultiClusterSpecIT otherwise skips any test
+// whose query contains "METADATA _index" (see hasIndexMetadata()/shouldSkipTest() in
+// MultiClusterSpecIT), because a projected _index value depends on which physical cluster the
+// randomized dataLocation happened to place the data on; that's also why those siblings strip the
+// "remote_cluster:" prefix via EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), ...).
+
 ######################################
 # Mapped and unmapped conflict tests #
 ######################################

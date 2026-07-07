@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -117,6 +119,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ActivityLogger<EsqlLogContext> activityLogger;
     @SuppressWarnings("unused") // retained for lifecycle; registers the execute_abstraction transport handler in its ctor
     private final AbstractionComputeHandler abstractionComputeHandler;
+    @SuppressWarnings("unused") // retained for lifecycle; registers the resolve_abstraction_schema transport handler in its ctor
+    private final AbstractionSchemaHandler abstractionSchemaHandler;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -257,6 +261,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             transportService,
             requestExecutor,
             this::resolveAndExecuteAbstraction
+        );
+
+        // The schema half's home-cluster receiver: resolves an abstraction name to its real output attributes (no rows) so
+        // the coordinator can build a Boundary.REMOTE leaf with an honest output(). Registers the resolve_abstraction_schema
+        // transport handler in its ctor. Same construction home as the execution handler, for the same reason.
+        this.abstractionSchemaHandler = new AbstractionSchemaHandler(
+            transportService,
+            requestExecutor,
+            (resolution, listener) -> resolveAbstractionSchema(resolution.abstractionName(), resolution.parentTask(), listener)
         );
 
         this.activityLogger = new QueryLogger<>(
@@ -497,6 +510,26 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             parentTask::isCancelled,
             listener.map(Versioned::inner)
         );
+    }
+
+    /**
+     * The schema half of the home-cluster resolve seam: resolve {@code abstractionName} through the home cluster's own
+     * kind-blind umbrella (view body analyzed against this node's state, dataset footer read on this node where the source
+     * is reachable) and return its real output attributes — WITHOUT executing. This is exactly the resolution
+     * {@link #resolveAndExecuteAbstraction} runs, stopped one step earlier: the {@code PlanRunner} captures the resolved
+     * physical plan's {@code output()} and completes with an empty {@code Result} instead of driving compute. The
+     * coordinator uses the returned attributes to build the {@code Boundary.REMOTE} leaf's {@code output()}; because it is
+     * the same resolution the execution leg re-runs, the schema-drift guard ({@code AbstractionComputeHandler}'s
+     * {@code validateSchema}) matches by construction.
+     */
+    void resolveAbstractionSchema(String abstractionName, CancellableTask parentTask, ActionListener<List<Attribute>> listener) {
+        resolveAndExecuteAbstraction(abstractionName, parentTask, execInfo -> (plan, configuration, foldCtx, planTimeProfile, l) -> {
+            // Capture the resolved plan's output schema and complete without executing. Result.pages() empty: the schema
+            // leg produces no rows; the coordinator only reads the returned attributes.
+            List<Attribute> output = plan.output();
+            l.onResponse(new Result(output, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, execInfo));
+            listener.onResponse(output);
+        }, ActionListener.noop());
     }
 
     /**

@@ -226,6 +226,57 @@ public class FederationExecutionService {
     }
 
     /**
+     * Resolves a remote abstraction's real output schema on its home cluster — the SCHEMA half of the dispatch, sent
+     * during resolution (before execution) so the coordinator can build a {@code Boundary.REMOTE} leaf with an honest
+     * {@code output()}. Sends a {@link ResolveAbstractionSchemaRequest} over {@code handle}'s connection; the home cluster
+     * resolves the name through its own umbrella and returns the attributes. Because that is the same resolution the
+     * execution leg re-runs, the returned schema matches the plan the execution leg later validates against.
+     *
+     * @param handle          the cluster alias of the abstraction's home cluster (empty string for local/same-cluster)
+     * @param abstractionName the view/dataset name to resolve on the home cluster
+     * @param parentTask      the task the child request is parented to for cancellation propagation
+     * @param listener        completes with the resolved output attributes, or exceptionally on any failure
+     */
+    public void fetchAbstractionSchema(
+        String handle,
+        String abstractionName,
+        CancellableTask parentTask,
+        ActionListener<List<Attribute>> listener
+    ) {
+        final Transport.Connection connection;
+        try {
+            connection = connectionFor(handle);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (connection.getTransportVersion().supports(ExecuteAbstractionRequest.ESQL_EXECUTE_ABSTRACTION) == false) {
+            listener.onFailure(
+                new IllegalStateException(
+                    "cannot resolve abstraction ["
+                        + abstractionName
+                        + "] on cluster ["
+                        + clusterLabel(handle)
+                        + "]: it is on an older version that does not support remote abstraction execution"
+                )
+            );
+            return;
+        }
+        transportService.sendChildRequest(
+            connection,
+            AbstractionSchemaHandler.RESOLVE_ABSTRACTION_SCHEMA_ACTION_NAME,
+            new ResolveAbstractionSchemaRequest(abstractionName),
+            parentTask,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                listener.map(ResolveAbstractionSchemaResponse::attributes),
+                ResolveAbstractionSchemaResponse::new,
+                searchExecutor
+            )
+        );
+    }
+
+    /**
      * The connection to {@code handle}'s home cluster. A remote handle resolves through {@link RemoteClusterService}; the
      * empty handle is a local/same-cluster abstraction, which uses the local node connection (the same connection the
      * Inc-1 IT dispatches over) — the one place the local case genuinely differs from the cross-cluster one.

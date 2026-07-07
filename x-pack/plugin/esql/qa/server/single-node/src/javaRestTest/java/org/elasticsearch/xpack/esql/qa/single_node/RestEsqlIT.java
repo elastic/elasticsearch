@@ -1683,8 +1683,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testBucketColumnMetadataCsvTxtFormat() throws IOException {
-        assumeTrue("requires column_metadata_bucket_v2 capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET_V2.isEnabled());
-
         Request indexRequest = new Request("POST", "/bucket_csv_test/_doc/");
         indexRequest.addParameter("refresh", "true");
         indexRequest.setJsonEntity("{\"date\":\"1985-07-09T00:00:00.000Z\"}");

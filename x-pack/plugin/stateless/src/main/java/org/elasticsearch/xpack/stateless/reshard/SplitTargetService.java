@@ -79,11 +79,20 @@ public class SplitTargetService {
         Setting.Property.NodeScope
     );
 
+    /// Timeout for internal retries when sending start split request to the source shard.
+    /// This setting is only configured in tests and is not registered.
+    public static final Setting<TimeValue> START_SPLIT_RETRY_TIMEOUT = Setting.positiveTimeSetting(
+        "reshard.split.target_shard_start_split_retry_timeout",
+        TimeValue.timeValueSeconds(60),
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(SplitTargetService.class);
 
     private final Client client;
     private final ClusterService clusterService;
     private final ReshardIndexService reshardIndexService;
+    private final TimeValue startSplitRetryTimeout;
     private final TimeValue searchShardsOnlineTimeout;
     private final TimeValue splitStateAppliedTimeout;
 
@@ -93,6 +102,7 @@ public class SplitTargetService {
         this.client = client;
         this.clusterService = clusterService;
         this.reshardIndexService = reshardIndexService;
+        this.startSplitRetryTimeout = START_SPLIT_RETRY_TIMEOUT.get(settings);
         this.searchShardsOnlineTimeout = RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.get(settings);
         this.splitStateAppliedTimeout = RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT.get(settings);
     }
@@ -481,17 +491,24 @@ public class SplitTargetService {
         }
 
         private void initiateSplitWithSourceShard(State.Clone state) {
-            var action = new InitiateSplitWithSourceShardAction(clusterService, client, split, cancelled, new ActionListener<>() {
-                @Override
-                public void onResponse(Void ignored) {
-                    advance(new State.StartSplitRpcComplete(state.recoveryListener));
-                }
+            var action = new InitiateSplitWithSourceShardAction(
+                clusterService,
+                client,
+                split,
+                cancelled,
+                startSplitRetryTimeout,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void ignored) {
+                        advance(new State.StartSplitRpcComplete(state.recoveryListener));
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    advance(new State.FailedInRecovery(e, state.recoveryListener));
+                    @Override
+                    public void onFailure(Exception e) {
+                        advance(new State.FailedInRecovery(e, state.recoveryListener));
+                    }
                 }
-            });
+            );
             action.run();
         }
 
@@ -764,8 +781,13 @@ public class SplitTargetService {
     }
 
     // visible for tests
-    RetryableAction<Void> createInitiateSplitWithSourceShardAction(Split split, AtomicBoolean cancelled, ActionListener<Void> listener) {
-        return new InitiateSplitWithSourceShardAction(clusterService, client, split, cancelled, listener);
+    RetryableAction<Void> createInitiateSplitWithSourceShardAction(
+        Split split,
+        AtomicBoolean cancelled,
+        TimeValue retryTimeout,
+        ActionListener<Void> listener
+    ) {
+        return new InitiateSplitWithSourceShardAction(clusterService, client, split, cancelled, retryTimeout, listener);
     }
 
     private static class InitiateSplitWithSourceShardAction extends RetryableAction<Void> {
@@ -779,6 +801,7 @@ public class SplitTargetService {
             Client client,
             Split split,
             AtomicBoolean cancelled,
+            TimeValue retryTimeout,
             ActionListener<Void> listener
         ) {
             super(
@@ -788,7 +811,7 @@ public class SplitTargetService {
                 TimeValue.timeValueSeconds(5),
                 // If we haven't made progress in this much time, fail back to allocator.
                 // Maybe the source shard is assigned to a different node now.
-                TimeValue.timeValueSeconds(60),
+                retryTimeout,
                 listener,
                 clusterService.threadPool().generic()
             );

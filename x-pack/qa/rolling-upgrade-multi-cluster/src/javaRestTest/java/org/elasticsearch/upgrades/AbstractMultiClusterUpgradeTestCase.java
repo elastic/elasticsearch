@@ -132,10 +132,10 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
                 closeClients();
                 didClose = true;
             }
-            for (int n = 0; n < targetFollowerNodesUpgraded; n++) {
-                if (upgradedFollowerNodes.add(n)) {
-                    logger.info("Upgrading follower node {} to current version", n);
-                    followerCluster.upgradeNodeToVersion(n, org.elasticsearch.test.cluster.util.Version.CURRENT);
+            for (int i = 0; i < targetFollowerNodesUpgraded; i++) {
+                if (upgradedFollowerNodes.add(i)) {
+                    logger.info("Upgrading follower node {} to current version", i);
+                    followerCluster.upgradeNodeToVersion(i, org.elasticsearch.test.cluster.util.Version.CURRENT);
                 }
             }
             IOUtils.close(followerClient);
@@ -152,10 +152,10 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
                 closeClients();
                 didClose = true;
             }
-            for (int n = 0; n < targetLeaderNodesUpgraded; n++) {
-                if (upgradedLeaderNodes.add(n)) {
-                    logger.info("Upgrading leader node {} to current version", n);
-                    leaderCluster.upgradeNodeToVersion(n, org.elasticsearch.test.cluster.util.Version.CURRENT);
+            for (int i = 0; i < targetLeaderNodesUpgraded; i++) {
+                if (upgradedLeaderNodes.add(i)) {
+                    logger.info("Upgrading leader node {} to current version", i);
+                    leaderCluster.upgradeNodeToVersion(i, org.elasticsearch.test.cluster.util.Version.CURRENT);
                 }
             }
             IOUtils.close(leaderClient);

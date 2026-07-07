@@ -310,17 +310,7 @@ public class FileSplitProvider implements SplitProvider {
             }
 
             tasks.add(
-                new FileTask(
-                    filePath,
-                    fileLength,
-                    format,
-                    config,
-                    partitionValues,
-                    columnMapping,
-                    readSchema,
-                    context.maxRecordBytes(),
-                    context.quotedMacroSplitsEnabled()
-                )
+                new FileTask(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema, context.maxRecordBytes())
             );
         }
 
@@ -390,8 +380,7 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> partitionValues,
         @Nullable ColumnMapping columnMapping,
         @Nullable List<Attribute> readSchema,
-        int maxRecordBytes,
-        boolean quotedMacroSplitsEnabled
+        int maxRecordBytes
     ) {}
 
     /**
@@ -422,7 +411,7 @@ public class FileSplitProvider implements SplitProvider {
         // splitting is safe: not newline-aligned macro-splits, nor compressed block/frame-aligned splits.
         // Emit a single whole-file split (identical to the fallback below); the reader consumes it as one
         // sequential stream and finds boundaries quote/escape-aware.
-        if (requiresSequentialWholeFileRead(configuredReader, task.quotedMacroSplitsEnabled())) {
+        if (requiresSequentialWholeFileRead(configuredReader)) {
             fileSplits.add(
                 FileSplit.withReadSchema(
                     "file",
@@ -537,13 +526,12 @@ public class FileSplitProvider implements SplitProvider {
      * Whether the file's config-resolved record splitter forces one sequential whole-file stream instead of any
      * start-anywhere split. A strided splitter (plain CSV/TSV, NDJSON) is always splittable. A non-strided
      * splitter (quoted or escaped CSV/TSV, whose records may span a raw newline) is splittable only when it can
-     * <em>prove</em> a record start at an arbitrary offset ({@link RecordSplitter#supportsProvenProbing()}), the
-     * coordinator-decided {@code quotedMacroSplitsEnabled} flag is on (every node in the plan supports it), and it
+     * <em>prove</em> a record start at an arbitrary offset ({@link RecordSplitter#supportsProvenProbing()}) and it
      * is not a compression-delegating reader (a quoted {@code .csv.bz2} stays whole-file: the probe would run
      * against compressed bytes). Returns {@code false} (splitting allowed) when the reader could not be resolved,
      * so an unresolvable reader is treated as splittable.
      */
-    private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader, boolean quotedMacroSplitsEnabled) {
+    private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
         if (reader == null) {
             return false;
         }
@@ -556,9 +544,7 @@ public class FileSplitProvider implements SplitProvider {
         if (splitter == null || splitter.supportsStridedProbing()) {
             return false;
         }
-        boolean provenMacroSplittable = quotedMacroSplitsEnabled
-            && splitter.supportsProvenProbing()
-            && reader instanceof CompressionDelegatingFormatReader == false;
+        boolean provenMacroSplittable = splitter.supportsProvenProbing() && reader instanceof CompressionDelegatingFormatReader == false;
         return provenMacroSplittable == false;
     }
 

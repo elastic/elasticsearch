@@ -86,32 +86,21 @@ public final class SplitDiscoveryPhase {
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes
     ) {
-        return resolveExternalSplitsWithStats(plan, sourceFactories, maxRecordBytes, () -> false, false);
+        return resolveExternalSplitsWithStats(plan, sourceFactories, maxRecordBytes, () -> false);
     }
 
     /**
      * Like {@link #resolveExternalSplitsWithStats(PhysicalPlan, Map, int)}, but threads a cancellation
-     * signal and the coordinator-decided {@code quotedMacroSplitsEnabled} capability flag into each
-     * {@link SplitDiscoveryContext} so a long-running discovery aborts promptly on cancel and quoted/escaped
-     * CSV/TSV files macro-split only when every node in the plan supports it.
+     * signal into each {@link SplitDiscoveryContext} so a long-running discovery aborts promptly on cancel.
      */
     public static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
-        BooleanSupplier isCancelled,
-        boolean quotedMacroSplitsEnabled
+        BooleanSupplier isCancelled
     ) {
         ScanStats stats = new ScanStats();
-        PhysicalPlan resolved = resolveRecursive(
-            plan,
-            List.of(),
-            sourceFactories,
-            maxRecordBytes,
-            stats,
-            isCancelled,
-            quotedMacroSplitsEnabled
-        );
+        PhysicalPlan resolved = resolveRecursive(plan, List.of(), sourceFactories, maxRecordBytes, stats, isCancelled);
         return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned);
     }
 
@@ -121,19 +110,10 @@ public final class SplitDiscoveryPhase {
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         ScanStats stats,
-        BooleanSupplier isCancelled,
-        boolean quotedMacroSplitsEnabled
+        BooleanSupplier isCancelled
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            return resolveExternalSource(
-                exec,
-                ancestorFilters,
-                sourceFactories,
-                maxRecordBytes,
-                stats,
-                isCancelled,
-                quotedMacroSplitsEnabled
-            );
+            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
         }
 
         List<Expression> filtersForChildren = ancestorFilters;
@@ -153,15 +133,7 @@ public final class SplitDiscoveryPhase {
         boolean changed = false;
         List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
         for (PhysicalPlan child : children) {
-            PhysicalPlan resolved = resolveRecursive(
-                child,
-                filtersForChildren,
-                sourceFactories,
-                maxRecordBytes,
-                stats,
-                isCancelled,
-                quotedMacroSplitsEnabled
-            );
+            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories, maxRecordBytes, stats, isCancelled);
             if (resolved != child) {
                 changed = true;
             }
@@ -184,8 +156,7 @@ public final class SplitDiscoveryPhase {
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         ScanStats stats,
-        BooleanSupplier isCancelled,
-        boolean quotedMacroSplitsEnabled
+        BooleanSupplier isCancelled
     ) {
         ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
         SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
@@ -211,8 +182,7 @@ public final class SplitDiscoveryPhase {
             querySchema,
             exec.unifiedSchema(),
             maxRecordBytes,
-            isCancelled,
-            quotedMacroSplitsEnabled
+            isCancelled
         );
 
         SplitDiscoveryResult result;

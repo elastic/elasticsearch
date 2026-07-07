@@ -228,9 +228,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // test a failed query: xyz field doesn't exist
             request.query("from test | stats m = max(xyz)");
             request.allowPartialResults(false);
-            EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, quotedMacroSplitsEnabled, r) -> fail(
-                "this shouldn't happen"
-            );
+            EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen");
             IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
                 "",
                 new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
@@ -274,7 +272,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // fix the failing query: foo field does exist
             request.query("from test | stats m = max(foo)");
             var successExecutionInfo = createEsqlExecutionInfo(randomBoolean());
-            runPhase = (p, configuration, foldContext, planTimeProfile, quotedMacroSplitsEnabled, r) -> r.onResponse(
+            runPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
                 createPlanRunnerResult(configuration, successExecutionInfo)
             );
             try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
@@ -349,8 +347,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"UTC\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo1 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runTimeZonePhase = (p, configuration, foldContext, planTimeProfile, quotedMacroSplitsEnabled, r) -> r
-                .onResponse(createPlanRunnerResult(configuration, executionInfo1));
+            EsqlSession.PlanRunner runTimeZonePhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+                createPlanRunnerResult(configuration, executionInfo1)
+            );
 
             executeEsql(planExecutor, request, executionInfo1, runTimeZonePhase, new ActionListener<>() {
                 @Override
@@ -371,13 +370,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET unmapped_fields=\"NULLIFY\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo2 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runUnmappedFieldsPhase = (
-                p,
-                configuration,
-                foldContext,
-                planTimeProfile,
-                quotedMacroSplitsEnabled,
-                r) -> r.onResponse(createPlanRunnerResult(configuration, executionInfo2));
+            EsqlSession.PlanRunner runUnmappedFieldsPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+                createPlanRunnerResult(configuration, executionInfo2)
+            );
             executeEsql(planExecutor, request, executionInfo2, runUnmappedFieldsPhase, new ActionListener<>() {
                 @Override
                 public void onResponse(Versioned<Result> result) {}
@@ -397,8 +392,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"America/New_York\"; SET unmapped_fields=\"NULLIFY\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo3 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runBothSettingsPhase = (p, configuration, foldContext, planTimeProfile, quotedMacroSplitsEnabled, r) -> r
-                .onResponse(createPlanRunnerResult(configuration, executionInfo3));
+            EsqlSession.PlanRunner runBothSettingsPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+                createPlanRunnerResult(configuration, executionInfo3)
+            );
             executeEsql(planExecutor, request, executionInfo3, runBothSettingsPhase, new ActionListener<>() {
                 @Override
                 public void onResponse(Versioned<Result> result) {}
@@ -454,8 +450,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"UTC\"; SET time_zone=\"America/New_York\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo1 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runDedupPhase = (p, configuration, foldContext, planTimeProfile, quotedMacroSplitsEnabled, r) -> r
-                .onResponse(createPlanRunnerResult(configuration, executionInfo1));
+            EsqlSession.PlanRunner runDedupPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+                createPlanRunnerResult(configuration, executionInfo1)
+            );
 
             executeEsql(planExecutor, request, executionInfo1, runDedupPhase, new ActionListener<>() {
                 @Override
@@ -475,8 +472,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"UTC\"; SET time_zone=\"UTC\"; SET time_zone=\"UTC\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo2 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runTripleSetPhase = (p, configuration, foldContext, planTimeProfile, quotedMacroSplitsEnabled, r) -> r
-                .onResponse(createPlanRunnerResult(configuration, executionInfo2));
+            EsqlSession.PlanRunner runTripleSetPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+                createPlanRunnerResult(configuration, executionInfo2)
+            );
             executeEsql(planExecutor, request, executionInfo2, runTripleSetPhase, new ActionListener<>() {
                 @Override
                 public void onResponse(Versioned<Result> result) {}
@@ -532,7 +530,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET approximation=true; FROM test | STATS COUNT(foo)");
             request.allowPartialResults(false);
             var executionInfo = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, quotedMacroSplitsEnabled, r) -> r.onFailure(
+            EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onFailure(
                 new IllegalStateException("skip approximation execution; telemetry collected at parse time")
             );
 
@@ -596,7 +594,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             var request = new EsqlQueryRequest();
             request.query("SET project_routing=\"test\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
-            EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, quotedMacroSplitsEnabled, r) -> fail(
+            EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> fail(
                 "should not reach execution phase"
             );
 

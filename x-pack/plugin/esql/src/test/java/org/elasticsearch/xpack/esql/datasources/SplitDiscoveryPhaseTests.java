@@ -219,8 +219,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
             exec,
             factories,
             org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> true,
-            false
+            () -> true
         );
 
         assertNotNull(recorder.lastContext);

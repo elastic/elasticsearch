@@ -724,20 +724,20 @@ public class FileSplitProviderTests extends ESTestCase {
     // Both tests use a payload above that floor so a single split proves the quoting gate, not mere smallness.
     private static final long CSV_MIN_SEGMENT_BYTES = 1024 * 1024L;
 
-    public void testQuotedCsvIsNotMacroSplit() {
-        // Default CSV is mode=quoted: a quoted field may embed newlines, so probing at arbitrary byte
-        // offsets could misread an in-quote newline as a record boundary. Discovery must therefore collapse
-        // the file to a single whole-file split (read sequentially, quote-aware) even though the file is large
-        // enough that a plain file of the same size would be macro-split.
+    public void testQuotedCsvMacroSplits() {
+        // Default CSV is mode=quoted: a quoted field may embed newlines, so it cannot be probed at arbitrary
+        // byte offsets. It is still macro-split for cross-node parallelism via the proven-probe path, which
+        // proves a record start at each emitted boundary rather than assuming every newline terminates a record.
         List<ExternalSplit> splits = discoverRealDelimitedSplits(Map.of(), "quoted.csv", ".csv", CsvFormatOptions.DEFAULT, "a,b,c\n");
 
-        assertEquals(1, splits.size());
-        FileSplit whole = (FileSplit) splits.get(0);
-        assertEquals(0, whole.offset());
-        // Same shape as the generic whole-file fallback: no macro-split markers set.
-        assertNull(whole.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
-        assertNull(whole.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertNull(whole.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+        assertTrue("quoted CSV should macro-split", splits.size() > 1);
+        for (ExternalSplit s : splits) {
+            FileSplit fileSplit = (FileSplit) s;
+            if (fileSplit.offset() == 0) {
+                continue;
+            }
+            assertEquals("true", fileSplit.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        }
     }
 
     public void testPlainCsvStillMacroSplits() {
@@ -767,10 +767,11 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
-    public void testEscapedModeIsNotMacroSplit() {
-        // mode=escaped keeps quoting off but escaping on: a backslash-escaped raw newline is in-field
-        // content, so the file cannot be probed at arbitrary offsets and must collapse to a single
-        // whole-file sequential split, not macro-splits that would mis-count escaped multi-line records.
+    public void testEscapedModeMacroSplits() {
+        // mode=escaped keeps quoting off but escaping on: a backslash-escaped raw newline is in-field content,
+        // so the file cannot be probed at arbitrary offsets. It is still macro-split via the proven-probe path,
+        // which proves a record start at each emitted boundary rather than assuming every newline terminates a
+        // record.
         List<ExternalSplit> splits = discoverRealDelimitedSplits(
             Map.of("mode", "escaped"),
             "escaped.csv",
@@ -779,15 +780,19 @@ public class FileSplitProviderTests extends ESTestCase {
             "a,b,c\n"
         );
 
-        assertEquals(1, splits.size());
-        FileSplit whole = (FileSplit) splits.get(0);
-        assertEquals(0, whole.offset());
-        assertNull(whole.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        assertTrue("escaped CSV should macro-split", splits.size() > 1);
+        for (ExternalSplit s : splits) {
+            FileSplit fileSplit = (FileSplit) s;
+            if (fileSplit.offset() == 0) {
+                continue;
+            }
+            assertEquals("true", fileSplit.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        }
     }
 
-    public void testQuotedModeOverrideOnTsvIsNotMacroSplit() {
-        // The gate keys off the config-resolved reader, not the extension: mode=quoted turns quoting on for a
-        // .tsv whose baseline is plain, so the file must collapse to a single whole-file sequential split.
+    public void testQuotedModeOverrideOnTsvMacroSplits() {
+        // The proven-probe path keys off the config-resolved reader, not the extension: mode=quoted turns
+        // quoting on for a .tsv whose baseline is plain, and the file still macro-splits through proven probing.
         List<ExternalSplit> splits = discoverRealDelimitedSplits(
             Map.of("mode", "quoted"),
             "quoted-mode.tsv",
@@ -796,10 +801,14 @@ public class FileSplitProviderTests extends ESTestCase {
             "a\tb\tc\n"
         );
 
-        assertEquals(1, splits.size());
-        FileSplit whole = (FileSplit) splits.get(0);
-        assertEquals(0, whole.offset());
-        assertNull(whole.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        assertTrue("quoted-mode TSV should macro-split", splits.size() > 1);
+        for (ExternalSplit s : splits) {
+            FileSplit fileSplit = (FileSplit) s;
+            if (fileSplit.offset() == 0) {
+                continue;
+            }
+            assertEquals("true", fileSplit.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        }
     }
 
     private List<ExternalSplit> discoverRealDelimitedSplits(
@@ -808,17 +817,6 @@ public class FileSplitProviderTests extends ESTestCase {
         String extension,
         CsvFormatOptions baselineOptions,
         String lineContent
-    ) {
-        return discoverRealDelimitedSplits(config, fileName, extension, baselineOptions, lineContent, false);
-    }
-
-    private List<ExternalSplit> discoverRealDelimitedSplits(
-        Map<String, Object> config,
-        String fileName,
-        String extension,
-        CsvFormatOptions baselineOptions,
-        String lineContent,
-        boolean quotedMacroSplitsEnabled
     ) {
         StringBuilder sb = new StringBuilder();
         // ~3.5 MiB: above 2 x CSV_MIN_SEGMENT_BYTES so plain data yields several macro-splits.
@@ -859,31 +857,23 @@ public class FileSplitProviderTests extends ESTestCase {
             ExternalSchema.EMPTY,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            quotedMacroSplitsEnabled
+            () -> false
         );
         return splitter.discoverSplits(ctx).splits();
     }
 
     /**
-     * Full {@link FileSplitProvider#discoverSplits} path for a quoted CSV file: with the capability flag on it
-     * emits multiple record-aligned macro-splits (proving the {@code requiresSequentialWholeFileRead} gate lets a
-     * proven-capable quoted splitter through), and with the flag off the same file is a single whole-file split.
-     * Every emitted macro-split must begin at a proven record start (balanced quotes before it).
+     * Full {@link FileSplitProvider#discoverSplits} path for a quoted CSV file whose quoted fields carry
+     * embedded newlines and {@code ""}-escaped quotes: it emits multiple record-aligned macro-splits (proving
+     * the {@code requiresSequentialWholeFileRead} gate lets a proven-capable quoted splitter through). Every
+     * emitted macro-split must begin at a proven record start (balanced quotes before it).
      */
-    public void testDiscoverSplitsMacroSplitsQuotedCsvWhenFlagEnabled() {
+    public void testDiscoverSplitsMacroSplitsQuotedCsv() {
         String quotedLine = "1,\"embedded\nnewline\",\"has \"\"quote\"\"\"\n";
 
-        List<ExternalSplit> whenEnabled = discoverRealDelimitedSplits(
-            Map.of(),
-            "q.csv",
-            ".csv",
-            CsvFormatOptions.DEFAULT,
-            quotedLine,
-            true
-        );
-        assertThat("flag on: quoted CSV must macro-split", whenEnabled.size(), greaterThan(1));
-        for (ExternalSplit split : whenEnabled) {
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(Map.of(), "q.csv", ".csv", CsvFormatOptions.DEFAULT, quotedLine);
+        assertThat("quoted CSV must macro-split", splits.size(), greaterThan(1));
+        for (ExternalSplit split : splits) {
             FileSplit fileSplit = (FileSplit) split;
             if (fileSplit.offset() == 0) {
                 continue;
@@ -894,17 +884,6 @@ public class FileSplitProviderTests extends ESTestCase {
                 fileSplit.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY)
             );
         }
-
-        List<ExternalSplit> whenDisabled = discoverRealDelimitedSplits(
-            Map.of(),
-            "q.csv",
-            ".csv",
-            CsvFormatOptions.DEFAULT,
-            quotedLine,
-            false
-        );
-        assertEquals("flag off: quoted CSV must stay whole-file", 1, whenDisabled.size());
-        assertEquals(0, ((FileSplit) whenDisabled.get(0)).offset());
     }
 
     /**
@@ -2186,8 +2165,7 @@ public class FileSplitProviderTests extends ESTestCase {
             ExternalSchema.EMPTY,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            cancel,
-            false
+            cancel
         );
 
         expectThrows(TaskCancelledException.class, () -> provider.discoverSplits(ctx));
@@ -2212,8 +2190,7 @@ public class FileSplitProviderTests extends ESTestCase {
             ExternalSchema.EMPTY,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            false
+            () -> false
         );
 
         assertEquals(3, provider.discoverSplits(ctx).splits().size());

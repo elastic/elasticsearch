@@ -180,20 +180,11 @@ public class EsqlSession {
             Configuration configuration,
             FoldContext foldContext,
             PlanTimeProfile planTimeProfile,
-            boolean quotedMacroSplitsEnabled,
             ActionListener<Result> listener
         );
     }
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
-
-    /**
-     * Gates cross-node macro splitting of quoted/escaped CSV/TSV files. When the analysis-derived minimum
-     * transport version of the plan supports this, a quoted/escaped file is macro-split across nodes using the
-     * proven-probe / exact-walk record splitter; otherwise it is emitted as one whole-file split so an old node
-     * in a mixed-version cluster never receives a quoted macro-split it cannot align.
-     */
-    private static final TransportVersion ESQL_QUOTED_CSV_MACRO_SPLIT = TransportVersion.fromName("esql_quoted_csv_macro_split");
 
     private final String sessionId;
     private final TransportVersion localClusterMinimumVersion;
@@ -541,25 +532,10 @@ public class EsqlSession {
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
-        // Decide the quoted/escaped CSV macro-split capability once, from the analysis-derived minimum transport
-        // version (which already accounts for every local and remote node the plan touches), and thread it to
-        // split discovery. Computed here, not on a data node or from cluster-local state, so a mixed-version or
-        // CCS plan gates correctly.
-        boolean quotedMacroSplitsEnabled = minimumVersion.supports(ESQL_QUOTED_CSV_MACRO_SPLIT);
-
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
         // We use the same execution path as normal queries to ensure accuracy.
         listener = explainMode
-            ? createExplainListener(
-                listener,
-                optimizedPlan,
-                request,
-                physicalPlanOptimizer,
-                planTimeProfile,
-                configuration,
-                planRunner,
-                quotedMacroSplitsEnabled
-            )
+            ? createExplainListener(listener, optimizedPlan, request, physicalPlanOptimizer, planTimeProfile, configuration, planRunner)
             : listener;
 
         // Always use the same execution path - executeSubPlans handles both simple queries and those with subplans
@@ -573,7 +549,6 @@ public class EsqlSession {
             request,
             physicalPlanOptimizer,
             planTimeProfile,
-            quotedMacroSplitsEnabled,
             listener
         );
     }
@@ -649,8 +624,7 @@ public class EsqlSession {
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
         Configuration configuration,
-        PlanRunner planRunner,
-        boolean quotedMacroSplitsEnabled
+        PlanRunner planRunner
     ) {
         // Capture the coordinator physical plan string before execution
         PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
@@ -720,15 +694,7 @@ public class EsqlSession {
             }
 
             // Build and return the EXPLAIN table
-            finishExplain(
-                values,
-                configuration,
-                configuration.newFoldContext(),
-                planTimeProfile,
-                planRunner,
-                quotedMacroSplitsEnabled,
-                next
-            );
+            finishExplain(values, configuration, configuration.newFoldContext(), planTimeProfile, planRunner, next);
         });
     }
 
@@ -738,12 +704,11 @@ public class EsqlSession {
         FoldContext foldContext,
         PlanTimeProfile planTimeProfile,
         PlanRunner planRunner,
-        boolean quotedMacroSplitsEnabled,
         ActionListener<Result> listener
     ) {
         var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
         PhysicalPlan resultPlan = new LocalSourceExec(Source.EMPTY, Explain.OUTPUT_ATTRIBUTES, LocalSupplier.of(new Page(blocks)));
-        planRunner.run(resultPlan, configuration, foldContext, planTimeProfile, quotedMacroSplitsEnabled, listener);
+        planRunner.run(resultPlan, configuration, foldContext, planTimeProfile, listener);
     }
 
     private void executeSubPlans(
@@ -756,7 +721,6 @@ public class EsqlSession {
         EsqlQueryRequest request,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
-        boolean quotedMacroSplitsEnabled,
         ActionListener<Result> listener
     ) {
         var subPlansResults = new HashSet<LocalRelation>();
@@ -777,7 +741,6 @@ public class EsqlSession {
                 subPlansResults,
                 physicalPlanOptimizer,
                 planTimeProfile,
-                quotedMacroSplitsEnabled,
                 // Ensure we don't have subplan flag stuck in there on failure
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
@@ -785,17 +748,10 @@ public class EsqlSession {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
             // execute main plan. Wrap the listener so the coordinator reconciles any data-node-captured
             // source stats into ExternalSourceCacheService before delivering Result.
-            runner.run(
-                physicalPlan,
-                configuration,
-                foldContext,
-                planTimeProfile,
-                quotedMacroSplitsEnabled,
-                listener.delegateFailureAndWrap((next, result) -> {
-                    reconcileCapturedSourceStats(result.completionInfo());
-                    next.onResponse(result);
-                })
-            );
+            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
+                reconcileCapturedSourceStats(result.completionInfo());
+                next.onResponse(result);
+            }));
         }
     }
 
@@ -982,7 +938,6 @@ public class EsqlSession {
         Set<LocalRelation> subPlansResults,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
-        boolean quotedMacroSplitsEnabled,
         ActionListener<Result> listener
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlan.subPlan);
@@ -997,70 +952,61 @@ public class EsqlSession {
 
         executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
 
-        runner.run(
-            physicalSubPlan,
-            configuration,
-            foldContext,
-            planTimeProfile,
-            quotedMacroSplitsEnabled,
-            listener.delegateFailureAndWrap((next, result) -> {
-                completionInfoAccumulator.accumulate(result.completionInfo());
-                try {
-                    var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
-                    LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
-                    LOGGER.debug("New main plan after subplan execution:\n{}", newMainPlan);
+        runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
+            completionInfoAccumulator.accumulate(result.completionInfo());
+            try {
+                var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
+                LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
+                LOGGER.debug("New main plan after subplan execution:\n{}", newMainPlan);
 
-                    // look for the next inlinejoin plan
-                    var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
-                    LOGGER.debug("Next subplan: {}", newSubPlan != null ? newSubPlan.subPlan() : "null");
+                // look for the next inlinejoin plan
+                var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
+                LOGGER.debug("Next subplan: {}", newSubPlan != null ? newSubPlan.subPlan() : "null");
 
-                    if (newSubPlan == null) {
-                        executionInfo.finishSubPlans();
-                        var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
-                        runner.run(
-                            newPhysicalPlan,
-                            configuration,
-                            foldContext,
-                            planTimeProfile,
-                            quotedMacroSplitsEnabled,
-                            releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
-                                completionInfoAccumulator.accumulate(finalResult.completionInfo());
-                                DriverCompletionInfo merged = completionInfoAccumulator.finish();
-                                reconcileCapturedSourceStats(merged);
-                                EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
-                                finalListener.onResponse(
-                                    new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
-                                );
-                            })
-                        );
-                    } else {
-                        executeSubPlan(
-                            completionInfoAccumulator,
-                            newSubPlan,
-                            configuration,
-                            foldContext,
-                            approximation,
-                            executionInfo,
-                            runner,
-                            request,
-                            subPlansResults,
-                            physicalPlanOptimizer,
-                            planTimeProfile,
-                            quotedMacroSplitsEnabled,
-                            releasingNext
-                        );
-                    }
-                } catch (Exception e) {
-                    // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks
-                    // off
-                    // the current thread, but with the blocks still referenced
-                    subPlan.cleanup.run();
-                    throw e;
-                } finally {
-                    Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
+                if (newSubPlan == null) {
+                    executionInfo.finishSubPlans();
+                    var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
+                    runner.run(
+                        newPhysicalPlan,
+                        configuration,
+                        foldContext,
+                        planTimeProfile,
+                        releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
+                            completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                            DriverCompletionInfo merged = completionInfoAccumulator.finish();
+                            reconcileCapturedSourceStats(merged);
+                            EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
+                            finalListener.onResponse(
+                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
+                            );
+                        })
+                    );
+                } else {
+                    executeSubPlan(
+                        completionInfoAccumulator,
+                        newSubPlan,
+                        configuration,
+                        foldContext,
+                        approximation,
+                        executionInfo,
+                        runner,
+                        request,
+                        subPlansResults,
+                        physicalPlanOptimizer,
+                        planTimeProfile,
+                        releasingNext
+                    );
                 }
-            })
-        );
+            } catch (Exception e) {
+                // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks
+                // off
+                // the current thread, but with the blocks still referenced
+                subPlan.cleanup.run();
+                throw e;
+            } finally {
+                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
+            }
+        }));
     }
 
     private LocalRelation resultToPlan(Source planSource, Result result) {

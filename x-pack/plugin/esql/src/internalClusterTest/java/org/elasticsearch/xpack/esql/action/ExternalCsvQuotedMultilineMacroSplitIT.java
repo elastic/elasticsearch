@@ -145,12 +145,12 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
      * parsed chunks would miscount the multi-line rows. At least one external source operator must appear
      * in the profile.
      * <p>
-     * This test does not assert a macro-split fan-out: whether a quoted file macro-splits depends on the
-     * cluster's negotiated minimum transport version (the {@code esql_quoted_csv_macro_split} capability
-     * gate), which is environment-dependent here. The macro-split gate itself is covered deterministically by
-     * {@code FileSplitProviderTests#testDiscoverSplitsMacroSplitsQuotedCsvWhenFlagEnabled}, and proven
-     * boundary correctness by {@code CsvProvenProbeTests}; the routing onto the record-aligned coordinator
-     * by {@code AsyncExternalSourceOperatorFactoryTests}.
+     * This test does not assert a macro-split fan-out: the exact number of macro-splits depends on the file
+     * size and segment sizing, which is environment-dependent here. That a quoted file macro-splits via the
+     * proven-probe path is covered deterministically by
+     * {@code FileSplitProviderTests#testDiscoverSplitsMacroSplitsQuotedCsv}, and proven boundary correctness
+     * by {@code CsvProvenProbeTests}; the routing onto the record-aligned coordinator by
+     * {@code AsyncExternalSourceOperatorFactoryTests}.
      */
     public void testStreamingBranchCountsCorrectlyWithParsingParallelism() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());

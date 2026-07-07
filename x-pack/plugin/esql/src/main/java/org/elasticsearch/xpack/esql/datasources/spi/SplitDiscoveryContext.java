@@ -32,13 +32,6 @@ import java.util.function.BooleanSupplier;
  *        Parquet footer reads) aborts promptly when the originating query is cancelled. Defaults to
  *        {@code () -> false} ("never cancelled") for callers and SPI impls that do not carry a
  *        {@code CancellableTask}.
- * @param quotedMacroSplitsEnabled coordinator-decided capability flag: {@code true} only when every node in the
- *        plan supports quoted/escaped CSV/TSV macro splitting (the analysis-derived minimum transport version
- *        supports it). When {@code false}, a quoted/escaped file is emitted as a single whole-file split rather
- *        than macro-split, so an old node in a mixed-version cluster never receives a quoted macro-split. Kept in
- *        this discovery-local context (coordinator only) rather than {@code Configuration} (crosses the wire to
- *        data nodes, which do not run discovery). Defaults to {@code false}: a conservative default so tests do
- *        not silently enable macro-splitting or bypass the gate.
  */
 public record SplitDiscoveryContext(
     SourceMetadata metadata,
@@ -50,8 +43,7 @@ public record SplitDiscoveryContext(
     ExternalSchema querySchema,
     @Nullable ExternalSchema unifiedSchema,
     int maxRecordBytes,
-    BooleanSupplier isCancelled,
-    boolean quotedMacroSplitsEnabled
+    BooleanSupplier isCancelled
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -70,8 +62,7 @@ public record SplitDiscoveryContext(
             ExternalSchema.EMPTY,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            false
+            () -> false
         );
     }
 
@@ -93,8 +84,7 @@ public record SplitDiscoveryContext(
             querySchema,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            false
+            () -> false
         );
     }
 
@@ -117,8 +107,7 @@ public record SplitDiscoveryContext(
             querySchema,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            false
+            () -> false
         );
     }
 

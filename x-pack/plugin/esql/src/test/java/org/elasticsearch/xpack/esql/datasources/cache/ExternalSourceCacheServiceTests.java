@@ -640,6 +640,37 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * A single-file reconcile whose sole entry has expired must still commit its stats. There is no sibling
+     * to sweep, so the pre-write snapshot is never consulted — the lone path's live sweep finds the
+     * expired-but-still-visible entry and revives it — and {@link ExternalSourceCacheService#snapshotEntriesByPath}
+     * skips the whole-cache forEach entirely. This guards that the skip is behavior-preserving for the common
+     * single-file case (the one that would otherwise pay a doubled full-cache scan).
+     */
+    public void testSingleFileStripeCommitSurvivesSchemaTtlExpiry() throws Exception {
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "500ms")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            long mtime = 1000L;
+            String path = "s3://bucket/data/hits_00.ndjson";
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCache(service, key, path, "fp");
+
+            // Let the entry expire (but remain physically cached — expiry evicts lazily).
+            Thread.sleep(1200);
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(path, List.of(stripeFragment(mtime, "fp", 100L, 1024L, 0, 0, 100, true, true, true)))
+            );
+
+            assertEquals("single-file stats must survive the expiry, snapshot-skip notwithstanding", 100L, schemaRowCount(service, path));
+        }
+    }
+
     /** The committed row count of {@code path}'s entry, read expiry-blind via forEach (get() would hide expired entries). */
     private static Object schemaRowCount(ExternalSourceCacheService service, String path) {
         AtomicReference<Object> found = new AtomicReference<>();

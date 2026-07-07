@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternalDataSourceIT {
 
     private static final int FILE_COUNT = 4;
-    private static final int ROWS_PER_FILE = 60_000;
+    private static final int ROWS_PER_FILE = 8_000;
     private static final long TOTAL = (long) FILE_COUNT * ROWS_PER_FILE;
 
     @Override
@@ -72,12 +72,15 @@ public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternal
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            // Small stripe grid -> many per-stripe sub-entries per file. Combined with the small cache below,
-            // this reproduces the bench "thousands of stripes per file" entry-weight pressure at IT scale.
+            // Stripe grid at its 64kb floor: the smallest addressable grid, so a few hundred KB per file yields
+            // several per-stripe sub-entries without a heavy scan. Row VOLUME is irrelevant to the eviction — the
+            // retained per-stripe entry WEIGHT is what overflows the cache; a few stripes over a tiny budget suffice.
             .put("esql.source.cache.stripe.size", "64kb")
-            // Deliberately small schema cache: the retained per-stripe sub-entries push the multi-file working
-            // set over budget, so committed entries are evicted before the warm serve can fold across all files.
-            .put("esql.source.cache.size", "256kb")
+            // Deliberately tiny schema cache: the whole-file base entries fit, but the retained per-stripe
+            // sub-entries push the multi-file working set over the (20%-of-this) schema budget, so committed
+            // entries are evicted before the warm serve can fold across all files. clearStripeState is what
+            // brings the folded entries back to O(1) so they survive.
+            .put("esql.source.cache.size", "40kb")
             // Reap inactive exchange sinks within a few seconds (default is 5 minutes) so a data-node sink whose
             // async cleanup trails the query response is released well inside the exchange/breaker teardown checks.
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))

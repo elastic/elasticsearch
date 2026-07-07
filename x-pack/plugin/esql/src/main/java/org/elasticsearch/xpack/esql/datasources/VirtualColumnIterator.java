@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -89,6 +91,30 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
      * than as raw block contents.
      */
     private final DataType[] dataColumnTypes;
+    /**
+     * Index of the declared {@code _id.path} column within {@link #dataColumnIndices} (i.e. its position in the incoming
+     * data page's block list), or {@code -1} when the dataset declares no {@code _id.path} (synthetic {@code _id}) or the
+     * id column is not present in this file's projection (a UBN-missing carve-out → null {@code _id}). When non-negative
+     * and {@code _id} is projected, each row's {@code _id} is rendered from that column's block instead of the synthetic
+     * (file+row-position) identity. The column travels the same data-page channel as any other projected data column, so
+     * it stays row-aligned with the rest of the page positionally.
+     */
+    private final int idPathDataChannel;
+    /**
+     * Declared {@link DataType} of the {@code _id.path} column, or {@code null} when {@link #idPathDataChannel} is
+     * {@code -1}. Needed to render the column's block to KEYWORD the way {@code TO_STRING} would (DATETIME/DATE_NANOS as
+     * ISO strings, numerics/booleans stringified, KEYWORD/TEXT passed through).
+     */
+    @Nullable
+    private final DataType idPathDataType;
+    /**
+     * The declared {@code _id.path} logical column name, or {@code null} when the dataset declares no {@code _id.path}
+     * (synthetic {@code _id}). Retained (beyond {@link #idPathDataChannel}) so the iterator distinguishes "id column
+     * declared but absent from this file's projection" (UBN carve-out → null {@code _id}) from "no id path declared"
+     * (synthetic path). Only consulted when {@code _id} is projected.
+     */
+    @Nullable
+    private final String idPath;
 
     VirtualColumnIterator(
         CloseableIterator<Page> delegate,
@@ -97,7 +123,18 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         Map<String, Object> partitionValues,
         BlockFactory blockFactory
     ) {
-        this(delegate, fullOutput, partitionColumnNames, partitionValues, blockFactory, null);
+        this(delegate, fullOutput, partitionColumnNames, partitionValues, blockFactory, null, null);
+    }
+
+    VirtualColumnIterator(
+        CloseableIterator<Page> delegate,
+        List<Attribute> fullOutput,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues,
+        BlockFactory blockFactory,
+        @Nullable BytesRef idPrefix
+    ) {
+        this(delegate, fullOutput, partitionColumnNames, partitionValues, blockFactory, idPrefix, null);
     }
 
     /**
@@ -107,6 +144,12 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
      * and reuses it across every page of that file. When {@code _id} is not requested,
      * {@code idPrefix} should be {@code null} and the iterator behaves identically to the
      * legacy two-arg constructor.
+     * <p>
+     * {@code idPath} is the logical name of a data column declared via {@code mappings._id.path}. When non-null and
+     * {@code _id} is projected, each row's {@code _id} is rendered from that column's value (KEYWORD, null→null,
+     * multi-valued→reject) instead of the synthetic {@code idPrefix}-based identity. When the id column is not part of
+     * this file's projection (UBN carve-out), {@code _id} renders as SQL {@code NULL}. {@code null} restores the
+     * synthetic path byte-for-byte.
      */
     VirtualColumnIterator(
         CloseableIterator<Page> delegate,
@@ -114,7 +157,8 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         BlockFactory blockFactory,
-        @Nullable BytesRef idPrefix
+        @Nullable BytesRef idPrefix,
+        @Nullable String idPath
     ) {
         Check.notNull(delegate, "delegate cannot be null");
         Check.isTrue(fullOutput != null && fullOutput.isEmpty() == false, "fullOutput cannot be null or empty");
@@ -134,6 +178,8 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         int sourceIdx = -1;
         int recordRefIdx = -1;
         int rowPosChannelInData = -1;
+        int idPathChannelInData = -1;
+        DataType idPathType = null;
         int nextDataChannel = 0;
         for (int i = 0; i < fullOutput.size(); i++) {
             String name = fullOutput.get(i).name();
@@ -149,9 +195,17 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
             } else {
                 dataIdxList.add(i);
                 dataNames.add(name);
-                dataTypes.add(fullOutput.get(i).dataType());
+                DataType type = fullOutput.get(i).dataType();
+                dataTypes.add(type);
                 if (ColumnExtractor.ROW_POSITION_COLUMN.equals(name)) {
                     rowPosChannelInData = nextDataChannel;
+                }
+                // The _id.path column is a normal projected data column: PruneColumns pins it into the reader
+                // projection (so it rides the same data page even when the query did not KEEP it) and it travels
+                // this same data-page channel as every other data block, keeping it row-aligned with the page.
+                if (idPath != null && idPath.equals(name)) {
+                    idPathChannelInData = nextDataChannel;
+                    idPathType = type;
                 }
                 nextDataChannel++;
             }
@@ -162,13 +216,20 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         this.recordRefOutputIndex = recordRefIdx;
         this.sourceOutputIndex = sourceIdx;
         this.rowPositionDataChannel = rowPosChannelInData;
+        this.idPathDataChannel = idPathChannelInData;
+        this.idPathDataType = idPathType;
+        this.idPath = idPath;
         this.dataColumnNames = dataNames.toArray(new String[0]);
         this.dataColumnTypes = dataTypes.toArray(new DataType[0]);
         Check.isTrue(idPrefix == null || idIdx >= 0, "idPrefix supplied but _id slot missing from fullOutput");
-        // _id and _file.record_ref are both composed from the reader-emitted _rowPosition channel,
+        // Synthetic _id and _file.record_ref are both composed from the reader-emitted _rowPosition channel,
         // which the optimizer injects whenever either is requested. If the slot is present but the
-        // channel is missing, fail loud rather than silently emit wrong identities.
-        Check.isTrue(idIdx < 0 || rowPosChannelInData >= 0, "_id requested but reader did not emit the _rowPosition channel");
+        // channel is missing, fail loud rather than silently emit wrong identities. A declared _id.path uses the
+        // named data column instead of the synthetic path, so it does not require the _rowPosition channel.
+        Check.isTrue(
+            idIdx < 0 || idPath != null || rowPosChannelInData >= 0,
+            "_id requested but reader did not emit the _rowPosition channel"
+        );
         Check.isTrue(
             recordRefIdx < 0 || rowPosChannelInData >= 0,
             "_file.record_ref requested but reader did not emit the _rowPosition channel"
@@ -239,7 +300,18 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         try {
             for (int idx : partitionColumnIndices) {
                 Attribute attr = fullOutput.get(idx);
-                if (idx == idOutputIndex && idPrefix != null) {
+                if (idx == idOutputIndex && idPath != null) {
+                    // Declared _id.path: stamp _id from the named data column's value rather than the synthetic
+                    // identity. The column rides the data page at idPathDataChannel (PruneColumns pinned it into the
+                    // reader projection), so it is row-aligned with the page positionally. When the column is absent
+                    // from this file's projection (UBN carve-out), _id renders as SQL NULL.
+                    if (idPathDataChannel >= 0) {
+                        Block idColumnBlock = dataPage.getBlock(idPathDataChannel);
+                        blocks[idx] = composeIdFromColumn(idColumnBlock, idPathDataType, positions);
+                    } else {
+                        blocks[idx] = blockFactory.newConstantNullBlock(positions);
+                    }
+                } else if (idx == idOutputIndex && idPrefix != null) {
                     // _id = base64url(hash(location) | mtime | masked physical position) from the reader-emitted
                     // _rowPosition channel. Every file reader emits this channel (the optimizer
                     // injects it for _id / _file.record_ref); a split-local counter would reset to 0
@@ -334,6 +406,42 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
             dataPage.releaseBlocks();
             throw t;
         }
+    }
+
+    /**
+     * Composes the {@code _id} KEYWORD block from the declared {@code _id.path} column's block. Rules: a {@code null}
+     * cell renders a {@code null} {@code _id}; a multi-valued cell is rejected ({@code _id} must be scalar); a scalar
+     * cell is rendered to its KEYWORD form the way {@code TO_STRING(col)} / the response layer would (DATETIME /
+     * DATE_NANOS as ISO strings, IP / VERSION decoded, numerics / booleans stringified, KEYWORD / TEXT passed through),
+     * so the stamped {@code _id} reads identically to the column's own value. The rendering mirrors
+     * {@link ExternalScalarRenderer#render}, keeping {@code _id} and {@code _source} value rendering consistent.
+     */
+    private Block composeIdFromColumn(Block idColumnBlock, DataType idColumnType, int positions) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions)) {
+            for (int pos = 0; pos < positions; pos++) {
+                int count = idColumnBlock.getValueCount(pos);
+                if (idColumnBlock.isNull(pos) || count == 0) {
+                    builder.appendNull();
+                } else if (count > 1) {
+                    throw new IllegalArgumentException(
+                        "_id.path column [" + idPath + "] produced a multi-valued value at a row; _id must be a single scalar value per row"
+                    );
+                } else {
+                    Object value = BlockUtils.toJavaObject(idColumnBlock, pos);
+                    builder.appendBytesRef(new BytesRef(renderIdScalar(value, idColumnType)));
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Renders one scalar {@code _id.path} value to its KEYWORD string form: the shared
+     * {@link ExternalScalarRenderer} produces the native value the response layer would (so {@code _id} and
+     * {@code _source} stay consistent), stringified here because {@code _id} is KEYWORD.
+     */
+    private static String renderIdScalar(Object value, DataType type) {
+        return String.valueOf(ExternalScalarRenderer.render(value, type));
     }
 
     boolean hasPartitionColumns() {

@@ -179,9 +179,25 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
     }
 
     public void testTextWithZeroQueryTerms() {
-        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("! ! !"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("! ! !"), TEXT), factory -> bytesRefBlock(factory, builder -> {
             builder.appendBytesRef(new BytesRef("This is a Brown fox"));
             builder.appendBytesRef(new BytesRef("The cat sat on the mat"));
+        }));
+        assertArrayEquals(new Boolean[] { false, false }, result);
+    }
+
+    public void testTextAndTermNormalization() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("cat dog"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("The CAT sat on the mat"));
+            builder.appendBytesRef(new BytesRef("LAZY DOG"));
+        }));
+        assertArrayEquals(new Boolean[] { true, true }, result);
+    }
+
+    public void testTextWithZeroTermsValues() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("fox"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("! !"));
+            builder.appendBytesRef(new BytesRef(""));
         }));
         assertArrayEquals(new Boolean[] { false, false }, result);
     }
@@ -261,7 +277,7 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
     }
 
     public void testTextWithZeroTermsQueryUsesConstantBlock() {
-        Match match = runtimeMatch(KEYWORD, new BytesRef("! ! !"), TEXT);
+        Match match = runtimeMatch(TEXT, new BytesRef("! ! !"), TEXT);
         assertThat(match.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
     }
 

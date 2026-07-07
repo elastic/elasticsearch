@@ -23,7 +23,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -202,7 +201,7 @@ public class RecoveriesCollection {
         }
     }
 
-    /// Marks the recovery with the given id as done (if found)
+    /** Marks the recovery with the given id as done (if found) */
     public void markRecoveryAsDone(long id) {
         RecoveryTarget removed = removeRecoveryTarget(id);
         if (removed != null) {
@@ -215,7 +214,7 @@ public class RecoveriesCollection {
         return onGoingRecoveries.remove(id);
     }
 
-    /// Returns the number of ongoing recoveries
+    /** the number of ongoing recoveries */
     public synchronized int size() {
         return onGoingRecoveries.size();
     }
@@ -229,7 +228,7 @@ public class RecoveriesCollection {
      */
     public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
         boolean cancelled = false;
-        List<RecoveryTarget> matchedRecoveries = removeRecoveryTargets(rt -> rt.shardId().equals(shardId));
+        List<RecoveryTarget> matchedRecoveries = removeRecoveryTargets(shardId);
         for (RecoveryTarget removed : matchedRecoveries) {
             logger.trace(
                 "{} canceled recovery from {}, id [{}] (reason [{}])",
@@ -244,12 +243,12 @@ public class RecoveriesCollection {
         return cancelled;
     }
 
-    private synchronized List<RecoveryTarget> removeRecoveryTargets(Predicate<RecoveryTarget> predicate) {
+    private synchronized List<RecoveryTarget> removeRecoveryTargets(ShardId shardId) {
         List<RecoveryTarget> matchedRecoveries = new ArrayList<>();
         for (Iterator<RecoveryTarget> it = onGoingRecoveries.values().iterator(); it.hasNext();) {
-            RecoveryTarget recoveryTarget = it.next();
-            if (predicate.test(recoveryTarget)) {
-                matchedRecoveries.add(recoveryTarget);
+            RecoveryTarget status = it.next();
+            if (status.shardId().equals(shardId)) {
+                matchedRecoveries.add(status);
                 it.remove();
             }
         }

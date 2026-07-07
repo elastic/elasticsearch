@@ -209,7 +209,10 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             onClientReady();
         } catch (Exception e) {
             // If starting the driver fails, reply immediately with failure
-            logger.error(
+            logExchangeFailure(
+                logger,
+                Level.ERROR,
+                e,
                 "[LookupJoinServer] Failed to start driver after BatchExchangeStatusRequest for exchangeId={}: {}",
                 serverToClientId,
                 e.getMessage()
@@ -342,7 +345,10 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             } catch (Exception e) {
                 // If sending response fails (e.g., channel closed, node closed), log as error but don't propagate
                 // The client waits for the response, so this indicates an unexpected failure
-                logger.error(
+                logExchangeFailure(
+                    logger,
+                    Level.ERROR,
+                    e,
                     "[LookupJoinServer] Failed to send batch exchange status response for exchangeId={}: {}",
                     serverToClientId,
                     e.getMessage()
@@ -396,7 +402,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             try {
                 serverToClientSinkHandler.onFailure(e);
             } catch (Exception ex) {
-                logger.error("[LookupJoinServer] Exception propagating failure to sink handler", ex);
+                logExchangeFailure(logger, Level.ERROR, ex, "[LookupJoinServer] Exception propagating failure to sink handler", ex);
             }
             sendBatchExchangeStatusResponse(e);
         }))) {
@@ -505,7 +511,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                         logger,
                         Level.ERROR,
                         e,
-                        "[LookupJoinServer] Exception during timeout cleanup for exchangeId={}: {}",
+                        "[LookupJoinServer] Exception during timeout cleanup for exchangeId={}",
                         serverToClientId,
                         e
                     );

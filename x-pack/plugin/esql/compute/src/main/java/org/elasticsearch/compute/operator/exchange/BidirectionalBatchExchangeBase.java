@@ -16,7 +16,6 @@ import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
@@ -52,15 +51,11 @@ public abstract class BidirectionalBatchExchangeBase implements Releasable {
      */
     @SuppressLoggerChecks(reason = "safely delegates to logger with a caller-supplied message and params")
     public static void logExchangeFailure(Logger logger, Level nonCancellationLevel, Exception failure, String message, Object... params) {
-        if (isCancellation(failure)) {
+        if (failure != null && ExceptionsHelper.isTaskCancelledException(failure)) {
             logger.debug(message, params);
         } else {
             logger.log(nonCancellationLevel, message, params);
         }
-    }
-
-    private static boolean isCancellation(Exception e) {
-        return ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
     }
 
     /**

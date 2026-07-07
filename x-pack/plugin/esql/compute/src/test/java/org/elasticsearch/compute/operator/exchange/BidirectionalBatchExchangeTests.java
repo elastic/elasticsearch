@@ -368,7 +368,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
      * The client tears down the exchange with a synthesized {@link TaskCancelledException} whenever it
      * stops with in-flight work (for example when the query reaches its LIMIT and the exchange is closed
      * early). Those teardowns must be logged at DEBUG, not ERROR, so genuine failures stay visible. This
-     * asserts the actual log level emitted by {@link BidirectionalBatchExchangeClient#logExchangeFailure}
+     * asserts the actual log level emitted by {@link BidirectionalBatchExchangeBase#logExchangeFailure}
      * for a cancellation, including one wrapped by transport ({@link RemoteTransportException}), which is
      * the shape that actually reaches the setup/status callbacks.
      */
@@ -399,12 +399,12 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     }
 
     /**
-     * Asserts that {@link BidirectionalBatchExchangeClient#logExchangeFailure}, called with
+     * Asserts that {@link BidirectionalBatchExchangeBase#logExchangeFailure}, called with
      * {@code nonCancellationLevel}, logs the given failure at {@code nonCancellationLevel} for a genuine failure,
      * or at DEBUG for a cancellation (which is downgraded), and not at the other of those two levels.
      */
     private static void assertExchangeFailureLoggedAt(Level nonCancellationLevel, Exception failure) {
-        boolean cancellation = ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null;
+        boolean cancellation = ExceptionsHelper.isTaskCancelledException(failure);
         Level expectedLevel = cancellation ? Level.DEBUG : nonCancellationLevel;
         Level unexpectedLevel = cancellation ? nonCancellationLevel : Level.DEBUG;
         Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);

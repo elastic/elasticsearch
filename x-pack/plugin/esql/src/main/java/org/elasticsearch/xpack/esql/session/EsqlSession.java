@@ -1615,7 +1615,7 @@ public class EsqlSession {
 
     /**
      * Whether {@code indexResolution} resolved the lookup index well enough that no retry against a
-     * narrower scope is needed.
+     * narrower (coordinator-only) scope is needed.
      * <p>
      * A resolution can be {@link IndexResolution#isValid()} yet still be missing the index on some cluster
      * in {@code lookupIndexScope} (partial resolution), e.g. when only some remote clusters have a matching
@@ -1623,9 +1623,12 @@ public class EsqlSession {
      * that {@link EsqlExecutionInfo#shouldSkipOnFailure} allows to be skipped doesn't force a retry, since
      * {@link #receiveLookupIndexResolution} will simply mark it as skipped.
      * <p>
-     * The local cluster can never be skipped. If local itself is missing the index, a retry can't help -
-     * it only re-queries local - so we report this as resolved and let {@link #receiveLookupIndexResolution}
-     * raise the precise "not available in local cluster" failure instead of retrying pointlessly.
+     * The coordinator-only retry re-queries the exact same unqualified pattern that is already included in
+     * every call to {@code resolveLookupIndices} (see {@link EsqlCCSUtils#createQualifiedLookupIndexExpressionFromAvailableClusters}),
+     * so it can only ever succeed if the local cluster already resolved here. If the local cluster didn't
+     * resolve the index either, retrying can't help - it would just discard this resolution's precise
+     * per-cluster failure in favor of a doomed retry, so we report this as resolved and let
+     * {@link #receiveLookupIndexResolution} raise the specific "not available" failure instead.
      */
     private static boolean isLookupJoinIndexResolved(
         IndexResolution indexResolution,
@@ -1641,7 +1644,7 @@ public class EsqlSession {
         }
         for (var clusterAlias : lookupIndexScope) {
             if (resolvedClusters.contains(clusterAlias) == false && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
-                return false;
+                return resolvedClusters.contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false;
             }
         }
         return true;

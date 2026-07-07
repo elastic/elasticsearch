@@ -2001,7 +2001,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ///
     /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
     /// @throws IllegalStateException if the ongoing recovery is not of a supported type
-    public void requestRecoveryCancellation(RecoveryCancelledException cause) throws ShardRecoveryNotCancellableException {
+    public void requestRecoveryCancellation(RecoveryCancelledException cause) {
         synchronized (mutex) {
             if (state == IndexShardState.CREATED) {
                 // Recovery type not yet known. Store the flag.

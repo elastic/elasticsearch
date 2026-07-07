@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -165,21 +166,29 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         @Nullable String similarity,
         @Nullable Integer dimensions,
         @Nullable String elementType,
-        @Nullable Map<String, Object> chunkingSettings
+        @Nullable Map<String, Object> chunkingSettings,
+        @Nullable Reasoning reasoning
     ) {
 
-        public static final Configuration EMPTY = new Configuration(null, null, null, null);
+        public static final Configuration EMPTY = new Configuration(null, null, null, null, null);
 
         public static final String SIMILARITY = "similarity";
         public static final String DIMENSIONS = "dimensions";
         public static final String ELEMENT_TYPE = "element_type";
         public static final String CHUNKING_SETTINGS = "chunking_settings";
+        public static final String REASONING = "reasoning";
 
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<Configuration, Void> PARSER = new ConstructingObjectParser<>(
             Configuration.class.getSimpleName(),
             true,
-            args -> new Configuration((String) args[0], (Integer) args[1], (String) args[2], (Map<String, Object>) args[3])
+            args -> new Configuration(
+                (String) args[0],
+                (Integer) args[1],
+                (String) args[2],
+                (Map<String, Object>) args[3],
+                (Reasoning) args[4]
+            )
         );
 
         static {
@@ -187,6 +196,9 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
             PARSER.declareInt(optionalConstructorArg(), new ParseField(DIMENSIONS));
             PARSER.declareString(optionalConstructorArg(), new ParseField(ELEMENT_TYPE));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), new ParseField(CHUNKING_SETTINGS));
+            // Lenient parser: this is a server-to-server payload, so unknown reasoning fields from a
+            // newer EIS gateway should be ignored rather than rejected.
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> Reasoning.LENIENT_PARSER.apply(p, null), new ParseField(REASONING));
         }
     }
 

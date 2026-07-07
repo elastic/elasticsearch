@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.inference.metadata.EndpointMetadata.Display;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
@@ -43,6 +45,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
+import static org.elasticsearch.inference.completion.Reasoning.ReasoningSummary;
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -117,6 +121,42 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
               ],
               "release_date": "2024-05-01",
               "end_of_life_date": "2024-05-02",
+              "display": {
+                "name": "Rainbow Sprinkles",
+                "model_creator": "Elastic"
+              },
+              "fingerprint": "fingerprint123"
+            }
+          ]
+        }
+        """;
+
+    // Same as EIS_RAINBOW_SPRINKLES_RESPONSE but with a reasoning configuration. The unknown field inside
+    // "reasoning" exercises Reasoning.LENIENT_PARSER, which the Configuration parser uses for this field -
+    // it should be silently ignored rather than causing a parse failure.
+    public static final String EIS_RAINBOW_SPRINKLES_REASONING_RESPONSE = """
+        {
+          "inference_endpoints": [
+            {
+              "id": ".rainbow-sprinkles-elastic",
+              "model_name": "rainbow-sprinkles",
+              "task_types": {
+                "eis": "chat",
+                "elasticsearch": "chat_completion"
+              },
+              "status": "ga",
+              "properties": [
+                "multilingual"
+              ],
+              "release_date": "2024-05-01",
+              "end_of_life_date": "2024-05-02",
+              "configuration": {
+                "reasoning": {
+                  "effort": "medium",
+                  "summary": "detailed",
+                  "unknown_field": "ignored"
+                }
+              },
               "display": {
                 "name": "Rainbow Sprinkles",
                 "model_creator": "Elastic"
@@ -406,6 +446,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
     private static final String RERANK_V1_FINGERPRINT = "fingerprint567";
     private static final LocalDate RELEASE_DATE_PARSED = LocalDate.parse(RELEASE_DATE_STRING);
     private static final LocalDate END_OF_LIFE_DATE_PARSED = LocalDate.parse(END_OF_LIFE_DATE_STRING);
+    private static final Reasoning MEDIUM_DETAILED_REASONING = new Reasoning(ReasoningEffort.MEDIUM, ReasoningSummary.DETAILED, null, null);
 
     public static EisAuthorizationResponse getEisElserAuthorizationResponse(String url) {
         var authorizedEndpoints = List.of(createElserAuthorizedEndpoint());
@@ -452,7 +493,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 null,
                 null,
                 null,
-                Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
+                Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1),
+                null
             ),
             ELSER_V2_DISPLAY,
             ELSER_V2_FINGERPRINT,
@@ -531,7 +573,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 List.of(),
                 false
             ),
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
     }
 
@@ -604,7 +646,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 List.of(),
                 false
             ),
-            ImmutableEmptyTaskSettings.INSTANCE
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
         );
     }
 
@@ -619,6 +661,68 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             EIS_RAINBOW_SPRINKLES_RESPONSE,
             new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints, Set.of()),
             List.of(createRainbowSprinklesExpectedEndpoint(url)),
+            inferenceIds
+        );
+    }
+
+    private static
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint
+        createRainbowSprinklesReasoningAuthorizedEndpoint() {
+        return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+            RAINBOW_SPRINKLES_ENDPOINT_ID,
+            RAINBOW_SPRINKLES_MODEL_NAME,
+            createTaskTypeObject(EIS_CHAT_PATH, "chat_completion"),
+            "ga",
+            List.of("multilingual"),
+            RELEASE_DATE_STRING,
+            END_OF_LIFE_DATE_STRING,
+            new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(null, null, null, null, MEDIUM_DETAILED_REASONING),
+            RAINBOW_SPRINKLES_DISPLAY,
+            RAINBOW_SPRINKLES_FINGERPRINT,
+            List.of(),
+            false
+        );
+    }
+
+    private static ElasticInferenceServiceModel createRainbowSprinklesReasoningExpectedEndpoint(String url) {
+        return new ElasticInferenceServiceCompletionModel(
+            RAINBOW_SPRINKLES_ENDPOINT_ID,
+            TaskType.CHAT_COMPLETION,
+            new ElasticInferenceServiceCompletionServiceSettings(RAINBOW_SPRINKLES_MODEL_NAME),
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(
+                    List.of("multilingual"),
+                    StatusHeuristic.fromString("ga"),
+                    RELEASE_DATE_PARSED,
+                    END_OF_LIFE_DATE_PARSED
+                ),
+                new EndpointMetadata.Internal(RAINBOW_SPRINKLES_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
+                RAINBOW_SPRINKLES_DISPLAY,
+                List.of(),
+                false
+            ),
+            new ElasticInferenceServiceChatCompletionTaskSettings(MEDIUM_DETAILED_REASONING)
+        );
+    }
+
+    /**
+     * Same as {@link #getEisRainbowSprinklesAuthorizationResponse(String)} except the authorized endpoint's
+     * configuration includes a reasoning block, so the resulting chat completion endpoint is expected to
+     * carry {@link ElasticInferenceServiceChatCompletionTaskSettings} populated with {@link Reasoning}
+     * instead of {@link ImmutableEmptyTaskSettings}.
+     */
+    public static EisAuthorizationResponse getEisChatCompletionWithReasoningAuthorizationResponse(String url) {
+        var authorizedEndpoints = List.of(createRainbowSprinklesReasoningAuthorizedEndpoint());
+
+        var inferenceIds = authorizedEndpoints.stream()
+            .map(ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint::id)
+            .collect(Collectors.toSet());
+
+        return new EisAuthorizationResponse(
+            EIS_RAINBOW_SPRINKLES_REASONING_RESPONSE,
+            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints, Set.of()),
+            List.of(createRainbowSprinklesReasoningExpectedEndpoint(url)),
             inferenceIds
         );
     }
@@ -651,7 +755,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 "cosine",
                 1024,
                 "float",
-                Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
+                Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2),
+                null
             ),
             JINA_EMBED_V3_DISPLAY,
             JINA_EMBED_V3_FINGERPRINT,
@@ -695,7 +800,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 "cosine",
                 1024,
                 "float",
-                Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
+                Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1),
+                null
             ),
             JINA_EMBED_V5_DISPLAY,
             JINA_EMBED_V5_FINGERPRINT,
@@ -734,7 +840,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 "cosine",
                 1024,
                 "float",
-                Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
+                Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2),
+                null
             ),
             JINA_CLIP_V2_DISPLAY,
             JINA_CLIP_V2_FINGERPRINT,
@@ -888,6 +995,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                     randomFrom(SimilarityMeasure.values()).toString(),
                     randomInt(),
                     DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                    null,
                     null
                 ),
                 new Display("Text Embedding Connector", "Text Creator"),
@@ -907,6 +1015,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                     randomFrom(SimilarityMeasure.values()).toString(),
                     randomInt(),
                     DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                    null,
                     null
                 ),
                 new Display("Embedding Connector", "Embedding Creator"),
@@ -978,6 +1087,26 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             containsInAnyOrder(responseData.expectedEndpoints().toArray(ElasticInferenceServiceModel[]::new))
         );
         assertThat(authModel.getRemovedEndpoints(), containsInAnyOrder("removed-endpoint-1", "removed-endpoint-2"));
+    }
+
+    public void testParse_GivenReasoningConfiguration() throws IOException {
+        var url = "http://example.com/authorize";
+        var responseData = getEisChatCompletionWithReasoningAuthorizationResponse(url);
+        var entity = parse(responseData.responseJson());
+
+        // The unknown field inside "reasoning" in EIS_RAINBOW_SPRINKLES_REASONING_RESPONSE is dropped by
+        // Reasoning.LENIENT_PARSER, so the parsed entity still equals the expected entity built without it.
+        assertThat(entity, is(responseData.responseEntity()));
+
+        var authModel = ElasticInferenceServiceAuthorizationModel.of(
+            responseData.responseEntity(),
+            url,
+            createFullyUpgradedCompletionCompatibilityService()
+        );
+        assertThat(
+            authModel.getEndpoints(responseData.inferenceIds()),
+            containsInAnyOrder(responseData.expectedEndpoints().toArray(ElasticInferenceServiceModel[]::new))
+        );
     }
 
     public void testParseEmptyResponse() throws IOException {

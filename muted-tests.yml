@@ -334,12 +334,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testFromStatsGroupingByDate
   issue: https://github.com/elastic/elasticsearch/issues/152475
-- class: org.elasticsearch.packaging.test.PackageUpgradeTests
-  method: test12SetupBwcVersion
-  issue: https://github.com/elastic/elasticsearch/issues/152819
-- class: org.elasticsearch.packaging.test.PackageUpgradeTests
-  method: test21CheckUpgradedVersion
-  issue: https://github.com/elastic/elasticsearch/issues/152909
 - class: org.elasticsearch.xpack.transform.integration.TransformTaskFailedStateIT
   method: testStartFailedTransform
   issue: https://github.com/elastic/elasticsearch/issues/153065

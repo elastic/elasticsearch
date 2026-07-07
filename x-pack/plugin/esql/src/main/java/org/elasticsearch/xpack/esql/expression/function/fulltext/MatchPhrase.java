@@ -163,7 +163,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
 
     @Override
     public String functionName() {
-        return ENTRY.name;
+        return "MATCH_PHRASE";
     }
 
     private static MatchPhrase readFrom(StreamInput in) throws IOException {

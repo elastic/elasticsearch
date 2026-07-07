@@ -23,7 +23,7 @@ public class GenerativeRestTestTests extends ESTestCase {
 
     public void testFullTextAfterSubqueryMatchesMultiSourceSubqueryMessage() {
         String query = "FROM all_types, (FROM colors | MV_EXPAND hex_code) | WHERE match_phrase(hex_code, \"world search\")";
-        String error = "verification_exception: line 1:973: [MatchPhrase] function cannot be used after "
+        String error = "verification_exception: line 1:973: [MATCH_PHRASE] function cannot be used after "
             + "all_types,(from colors | mv_expand hex_code)";
 
         assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
@@ -32,7 +32,7 @@ public class GenerativeRestTestTests extends ESTestCase {
     public void testFullTextAfterSubqueryMatchesSubqueryFirstMultiSourceMessage() {
         String query = "FROM (FROM message_types | KEEP type | DROP type),no_mapping_sample_data,service_owners "
             + "| WHERE match_phrase(service_id, \"fox world\")";
-        String error = "verification_exception: line 1:91: [MatchPhrase] function cannot be used after "
+        String error = "verification_exception: line 1:91: [MATCH_PHRASE] function cannot be used after "
             + "(from message_types | keep type | drop type),no_mapping_sample_data,service_owners";
 
         assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
@@ -44,7 +44,7 @@ public class GenerativeRestTestTests extends ESTestCase {
             + "| where match_phrase(registered_domain, \"test data\")";
         // The UnionAll source text in the verifier message is truncated to Node.TO_STRING_MAX_WIDTH chars + "...",
         // so it can be cut off mid-branch, before the comma separating the union branches.
-        String error = "verification_exception: line 1:1800: [MatchPhrase] function cannot be used after "
+        String error = "verification_exception: line 1:1800: [MATCH_PHRASE] function cannot be used after "
             + "(from all_types_short_as_long | enrich languages_policy on wildcard | dissect language_name \"%{HkOuTBPphONE} %...";
 
         assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
@@ -52,7 +52,7 @@ public class GenerativeRestTestTests extends ESTestCase {
 
     public void testFullTextAfterSubqueryRequiresKnownErrorShape() {
         String query = "FROM all_types, (FROM colors | MV_EXPAND hex_code) | WHERE match_phrase(hex_code, \"world search\")";
-        String error = "verification_exception: line 1:973: [MatchPhrase] function cannot be used after field "
+        String error = "verification_exception: line 1:973: [MATCH_PHRASE] function cannot be used after field "
             + "with details (from an unrelated diagnostic)";
 
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));

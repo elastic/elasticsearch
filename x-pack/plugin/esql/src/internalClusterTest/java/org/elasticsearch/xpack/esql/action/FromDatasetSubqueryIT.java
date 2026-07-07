@@ -924,7 +924,10 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE MATCH_PHRASE(first_name, \"Alice\"))"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping");
+        assertCauseMessageContains(
+            ex,
+            "[MATCH_PHRASE] function cannot operate on [first_name], which is not a field from an index mapping"
+        );
     }
 
     public void testKQLOnDatasetRejected() {
@@ -954,7 +957,10 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("""
             FROM (FROM employees), (FROM employees_alt) | WHERE MATCH_PHRASE(first_name, "Alice")
             """), TIMEOUT));
-        assertCauseMessageContains(ex, "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping");
+        assertCauseMessageContains(
+            ex,
+            "[MATCH_PHRASE] function cannot operate on [first_name], which is not a field from an index mapping"
+        );
     }
 
     // Mixed data types across subquery branches

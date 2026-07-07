@@ -14,9 +14,11 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -67,6 +69,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -2774,6 +2777,80 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    // ===== Security context preservation tests =====
+
+    /**
+     * Regression test for a lost security context (issue 152978): when an async metadata read
+     * completes on a thread the resolver does not control -- e.g. a native async storage SDK's own
+     * I/O thread (AWS's Netty-backed S3 client, for a real Parquet-on-S3 query), which never had the
+     * calling request's {@link ThreadContext} installed -- the {@code resolve()} completion listener
+     * must still observe the calling request's context. Without the fix, the listener chain runs
+     * synchronously on that foreign thread all the way back into {@code EsqlSession} and the
+     * subsequent compute transport send, which finds no {@code Authentication} in context and throws
+     * "there should always be a user". {@link AsyncStubFormatReader} stands in for the native SDK by
+     * completing on a dedicated pool distinct from both the resolver executor and this test thread.
+     */
+    public void testResolveRestoresCallerThreadContextAcrossAsyncCompletion() throws Exception {
+        String headerName = "x-test-auth-marker";
+        String headerValue = "authenticated-user";
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(headerName, headerValue);
+
+        String path = "s3://bucket/data/file.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("id", DataType.LONG)));
+        String glob = "s3://bucket/data/*.parquet";
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of(glob).patternPrefix().toString(), List.of(entry(path, 100)));
+
+        ExecutorService resolverExecutor = Executors.newSingleThreadExecutor();
+        // Distinct from resolverExecutor and from this test thread: stands in for a native async
+        // storage SDK's own I/O thread, which the resolver never dispatches onto and which never had
+        // this request's ThreadContext installed.
+        ExecutorService ioPool = Executors.newSingleThreadExecutor();
+        AsyncStubFormatReader reader = new AsyncStubFormatReader(schemasByPath, ioPool, null, 0, null);
+        try {
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(
+                schemasByPath,
+                listingsByPrefix,
+                reader,
+                resolverExecutor,
+                ExternalSourceResolver.DEFAULT_METADATA_READ_CONCURRENCY,
+                threadContext
+            );
+
+            AtomicReference<String> observedHeaderOnResponse = new AtomicReference<>();
+            AtomicReference<Thread> completionThread = new AtomicReference<>();
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            // Captures the header inside the resolve() completion callback itself: ContextPreservingActionListener
+            // only restores the calling request's context for the duration of that callback, so the assertion must
+            // happen there rather than after future.actionGet() returns on this (unrelated) test thread.
+            ActionListener<ExternalSourceResolution> capturingListener = ActionListener.wrap(resolution -> {
+                observedHeaderOnResponse.set(threadContext.getHeader(headerName));
+                completionThread.set(Thread.currentThread());
+                future.onResponse(resolution);
+            }, future::onFailure);
+
+            resolver.resolve(List.of(glob), Map.of(glob, Map.of()), capturingListener);
+            ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
+
+            assertNotNull(resolution.resolvedSource(glob));
+            assertNotEquals(
+                "the completion must run off this test thread to actually exercise cross-thread context restoration",
+                Thread.currentThread(),
+                completionThread.get()
+            );
+            assertEquals(
+                "the calling request's ThreadContext header must be visible inside the resolve() completion listener "
+                    + "even though the async metadata read completed on an unrelated I/O thread",
+                headerValue,
+                observedHeaderOnResponse.get()
+            );
+        } finally {
+            resolverExecutor.shutdownNow();
+            ioPool.shutdownNow();
+        }
+    }
+
     private ExternalSourceResolution resolveWithAsyncReader(
         String glob,
         Map<String, List<Attribute>> schemasByPath,
@@ -2797,6 +2874,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         FormatReader formatReader,
         Executor resolverExecutor,
         int permits
+    ) {
+        return createResolverWithAsyncReader(schemasByPath, listingsByPrefix, formatReader, resolverExecutor, permits, null);
+    }
+
+    private ExternalSourceResolver createResolverWithAsyncReader(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        FormatReader formatReader,
+        Executor resolverExecutor,
+        int permits,
+        @Nullable ThreadContext threadContext
     ) {
         StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
         DataSourcePlugin plugin = new DataSourcePlugin() {
@@ -2832,7 +2920,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
-        return new ExternalSourceResolver(resolverExecutor, module, Settings.EMPTY, null, permits);
+        return new ExternalSourceResolver(resolverExecutor, module, Settings.EMPTY, null, null, permits, threadContext);
     }
 
     /**

@@ -1,5 +1,0 @@
-summary: Resolve prefixed searchable-snapshot backing indices to their data stream in `METRICS_INFO`/`TS_INFO`
-area: ES|QL
-type: bug
-issues:
- - 153073

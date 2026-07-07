@@ -103,7 +103,13 @@ You can route on any project tag:
 - Predefined tags, such as `_alias`, `_csp`, and `_region`. For the full list, refer to [Tags in CPS](docs-content://explore-analyze/cross-project-search/cross-project-search-tags.md).
 - Custom tags that you define in the {{ecloud}} UI.
 
-You can combine tags with the `AND`, `OR`, and `NOT` operators, group terms with parentheses, and use prefix or suffix wildcards (`*`) to match part of a tag value. Tag value matching is case-insensitive, so `_csp:AWS` matches the value `aws`. Tag names are case-sensitive, so use `_csp`, not `_CSP`. The syntax is the same for {{esql}} and the `_search` API.
+In an expression, you can:
+
+- Combine tags with the `AND`, `OR`, and `NOT` operators.
+- Group terms with parentheses.
+- Match part of a tag value with a prefix or suffix wildcard (`*`).
+
+Tag value matching is case-insensitive, so `_csp:AWS` matches the value `aws`. Tag names are case-sensitive, so use `_csp`, not `_CSP`. The syntax is the same for {{esql}} and the `_search` API.
 
 :::{note}
 You can optionally add the `_project.` prefix to a tag name, for example `_project._csp:aws`. This is the same prefix used to reference tags in queries. In project routing the prefix is optional, so `_csp:aws` and `_project._csp:aws` are equivalent.

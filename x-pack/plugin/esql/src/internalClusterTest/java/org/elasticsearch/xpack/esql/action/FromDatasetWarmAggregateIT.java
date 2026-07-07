@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -55,14 +56,8 @@ public class FromDatasetWarmAggregateIT extends AbstractExternalDataSourceIT {
     public void cleanupMappedDatasets() {
         for (String dataset : mappedDatasets) {
             try {
-                client().execute(
-                    org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction.INSTANCE,
-                    new org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction.Request(
-                        TIMEOUT,
-                        TIMEOUT,
-                        new String[] { dataset }
-                    )
-                ).actionGet();
+                client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { dataset }))
+                    .actionGet();
             } catch (Exception ignored) {
                 // best-effort teardown, mirroring the base cleanupRegistry()
             }

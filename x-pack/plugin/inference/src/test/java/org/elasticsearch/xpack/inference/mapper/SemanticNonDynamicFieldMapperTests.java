@@ -12,11 +12,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.NonDynamicFieldMapperTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
@@ -25,69 +28,43 @@ import java.util.List;
 import java.util.Locale;
 
 public class SemanticNonDynamicFieldMapperTests extends NonDynamicFieldMapperTestCase {
+    private static final Model EMBEDDING_MODEL = new TestDenseInferenceServiceExtension.TestDenseModel(
+        "test-endpoint",
+        TaskType.EMBEDDING,
+        new TestDenseInferenceServiceExtension.TestServiceSettings(
+            "embedding_model",
+            1024,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        )
+    );
 
     private enum FieldType {
-        SEMANTIC {
-            @Override
-            String typeName() {
-                return SemanticFieldMapper.CONTENT_TYPE;
-            }
+        SEMANTIC(SemanticFieldMapper.CONTENT_TYPE),
+        SEMANTIC_TEXT(SemanticTextFieldMapper.CONTENT_TYPE);
 
-            @Override
-            String inferenceId() {
-                return "test-endpoint";
-            }
+        public final String typeName;
 
-            @Override
-            void storeModel(ModelRegistry modelRegistry) throws Exception {
-                Utils.storeEmbeddingModel(
-                    inferenceId(),
-                    modelRegistry,
-                    1024,
-                    SimilarityMeasure.COSINE,
-                    DenseVectorFieldMapper.ElementType.FLOAT
-                );
-            }
-        },
-        SEMANTIC_TEXT {
-            @Override
-            String typeName() {
-                return SemanticTextFieldMapper.CONTENT_TYPE;
-            }
-
-            @Override
-            String inferenceId() {
-                return "sparse-endpoint";
-            }
-
-            @Override
-            void storeModel(ModelRegistry modelRegistry) throws Exception {
-                Utils.storeSparseModel(inferenceId(), modelRegistry);
-            }
-        };
-
-        abstract String typeName();
-
-        abstract String inferenceId();
-
-        abstract void storeModel(ModelRegistry modelRegistry) throws Exception;
+        FieldType(String typeName) {
+            this.typeName = typeName;
+        }
     }
 
     @ParametersFactory(argumentFormatting = "type=%s")
     public static List<Object[]> parameters() {
-        return List.of(new Object[] { FieldType.SEMANTIC }, new Object[] { FieldType.SEMANTIC_TEXT });
+        return List.of(new Object[] { SemanticFieldMapper.CONTENT_TYPE }, new Object[] { SemanticTextFieldMapper.CONTENT_TYPE });
     }
 
-    private final FieldType fieldType;
+    private final String fieldType;
 
-    public SemanticNonDynamicFieldMapperTests(FieldType fieldType) {
+    public SemanticNonDynamicFieldMapperTests(String fieldType) {
         this.fieldType = fieldType;
     }
 
     @Before
     public void setup() throws Exception {
         ModelRegistry modelRegistry = node().injector().getInstance(ModelRegistry.class);
-        fieldType.storeModel(modelRegistry);
+        Utils.storeModel(modelRegistry, EMBEDDING_MODEL);
     }
 
     @Override
@@ -102,7 +79,7 @@ public class SemanticNonDynamicFieldMapperTests extends NonDynamicFieldMapperTes
 
     @Override
     protected String getTypeName() {
-        return fieldType.typeName();
+        return fieldType;
     }
 
     @Override
@@ -110,6 +87,6 @@ public class SemanticNonDynamicFieldMapperTests extends NonDynamicFieldMapperTes
         return String.format(Locale.ROOT, """
             "type": "%s",
             "inference_id": "%s"
-            """, fieldType.typeName(), fieldType.inferenceId());
+            """, fieldType, "test-endpoint");
     }
 }

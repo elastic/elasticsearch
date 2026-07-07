@@ -17,7 +17,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,9 +39,6 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
      * The {@code type} of the field under test; the field is always named {@code field} and is mapped with its columnar-mode defaults.
      */
     protected abstract String fieldTypeName();
-
-    @Before
-    public void assumeColumnarFeatureEnabled() {}
 
     public final void setUp() throws Exception {
         super.setUp();

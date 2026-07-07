@@ -398,7 +398,12 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
 
         // is falling back to coordinator lookup
-        try (var response = runQuery("FROM c*:logs-* | EVAL local_tag = to_string(v) | LOOKUP JOIN values_lookup ON local_tag", randomBoolean())) {
+        try (
+            var response = runQuery(
+                "FROM c*:logs-* | EVAL local_tag = to_string(v) | LOOKUP JOIN values_lookup ON local_tag",
+                randomBoolean()
+            )
+        ) {
             assertThat(response.isPartial(), equalTo(false));
         }
 

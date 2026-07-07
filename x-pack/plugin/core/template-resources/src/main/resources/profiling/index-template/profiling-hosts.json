@@ -3,15 +3,17 @@
     "profiling-hosts*"
   ],
   "data_stream": {},
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    }
+  },
   "composed_of": [
     "profiling-hosts",
-    "profiling-hosts@custom",
-    "profiling-ilm",
-    "profiling-ilm@custom"
+    "profiling-hosts@custom"
   ],
   "ignore_missing_component_templates": [
-    "profiling-hosts@custom",
-    "profiling-ilm@custom"
+    "profiling-hosts@custom"
   ],
   "priority": 100,
   "_meta": {

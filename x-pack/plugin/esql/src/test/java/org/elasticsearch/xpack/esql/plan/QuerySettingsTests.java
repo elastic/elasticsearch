@@ -561,16 +561,12 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("Setting [column_metadata] must be a boolean, got [1]"));
     }
 
-    public void testResolveBodyColumnMetadataFailsOnNonSnapshot() {
-        // Body-supplied snapshot-only settings bypass the parse-time gate in validate() (which only sees SET) and
-        // are instead rejected here, at resolve time.
+    public void testResolveBodyColumnMetadataOnNonSnapshot() {
+        // column_metadata is de-snapshotted (#148508): body-supplied values resolve on release builds too.
         Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
         requestParams.put(QuerySettings.COLUMN_METADATA, Boolean.TRUE);
-        var ex = expectThrows(
-            VerificationException.class,
-            () -> QuerySettings.resolve(requestParams, null, NON_SNAPSHOT_CTX_WITH_CPS_ENABLED)
-        );
-        assertThat(ex.getMessage(), containsString("Setting [column_metadata] is only available in snapshot builds"));
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.TRUE));
     }
 
     public void testResolveBodyExposedSettingsDeclareAliases() {

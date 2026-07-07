@@ -141,8 +141,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     @Override
     public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
         var mapperService = createMapperService(settings, fieldMapping(b -> {
             b.field("type", "dense_vector").field("dims", dims);
@@ -660,6 +658,24 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b -> b.startObject("index_options").field("type", "bbq_disk").field("precondition", true).endObject(),
             b -> b.startObject("index_options").field("type", "bbq_disk").field("precondition", false).endObject()
         );
+        registerIndexOptionsUpdate(
+            checker,
+            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+            b -> b.field("type", "bbq_disk").field("bits", 4),
+            b -> b.field("type", "bbq_disk").field("bits", 2),
+            hasToString(containsString("\"bits\":2"))
+        );
+        registerIndexOptionsUpdate(checker, b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true), b -> {
+            b.field("type", "bbq_disk").field("bits", 4);
+            b.startObject("rescore_vector");
+            b.field("oversample", 3f);
+            b.endObject();
+        }, b -> {
+            b.field("type", "bbq_disk").field("bits", 4);
+            b.startObject("rescore_vector");
+            b.field("oversample", 4f);
+            b.endObject();
+        }, hasToString(containsString("\"oversample\":4.0")));
     }
 
     @Override
@@ -850,6 +866,95 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertFalse(indexOptions.autoCalibrate);
             assertFalse(mapperService.mappingSource().toString().contains("auto_calibrate"));
         }
+    }
+
+    public void testBBQDiskAutoCalibrateIndexOptionMappingInteractions() throws IOException {
+        Settings experimentalEnabled = Settings.builder()
+            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
+            .build();
+
+        MapperService mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 128);
+            b.field("index", true);
+            b.startObject("index_options");
+            b.field("type", "bbq_disk");
+            b.field("bits", 4);
+            b.field("precondition", false);
+            b.field("auto_calibrate", true);
+            b.startObject("rescore_vector");
+            b.field("oversample", 3f);
+            b.endObject();
+            b.endObject();
+        }));
+
+        merge(mapperService, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 128);
+            b.field("index", true);
+            b.startObject("index_options");
+            b.field("type", "bbq_disk");
+            b.field("bits", 2);
+            b.field("precondition", false);
+            b.field("auto_calibrate", true);
+            b.startObject("rescore_vector");
+            b.field("oversample", 3f);
+            b.endObject();
+            b.endObject();
+        }));
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+            .getIndexOptions();
+        assertEquals(2, indexOptions.getBits());
+        assertTrue(indexOptions.autoCalibrate());
+
+        merge(mapperService, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 128);
+            b.field("index", true);
+            b.startObject("index_options");
+            b.field("type", "bbq_disk");
+            b.field("bits", 2);
+            b.field("precondition", false);
+            b.field("auto_calibrate", true);
+            b.startObject("rescore_vector");
+            b.field("oversample", 4f);
+            b.endObject();
+            b.endObject();
+        }));
+        indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) ((DenseVectorFieldMapper) mapperService.mappingLookup()
+            .getMapper("field")).fieldType().getIndexOptions();
+        assertEquals(4f, indexOptions.rescoreVector.oversample(), 0f);
+
+        expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 128);
+            b.field("index", true);
+            b.startObject("index_options");
+            b.field("type", "bbq_disk");
+            b.field("bits", 2);
+            b.field("precondition", false);
+            b.field("auto_calibrate", false);
+            b.startObject("rescore_vector");
+            b.field("oversample", 4f);
+            b.endObject();
+            b.endObject();
+        })));
+
+        expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 128);
+            b.field("index", true);
+            b.startObject("index_options");
+            b.field("type", "bbq_disk");
+            b.field("bits", 2);
+            b.field("precondition", true);
+            b.field("auto_calibrate", true);
+            b.startObject("rescore_vector");
+            b.field("oversample", 4f);
+            b.endObject();
+            b.endObject();
+        })));
     }
 
     public void testRescoreVectorForNonQuantized() {

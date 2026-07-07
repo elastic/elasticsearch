@@ -30,8 +30,8 @@ dependencies {
   // are de-duplicated out of their bundles instead of tripping the plugin jar-hell check at boot.
   // jackson-annotations is released without a matching patch version, so it stays at 2.21.
   api("com.fasterxml.jackson.core:jackson-annotations:2.21")
-  api("com.fasterxml.jackson.core:jackson-core:2.21.2")
-  api("com.fasterxml.jackson.core:jackson-databind:2.21.2")
+  api("com.fasterxml.jackson.core:jackson-core:2.21.4")
+  api("com.fasterxml.jackson.core:jackson-databind:2.21.4")
 
   implementation("org.slf4j:slf4j-api:${versions.slf4j}")
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"

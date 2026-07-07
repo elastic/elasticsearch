@@ -142,7 +142,7 @@ public class MarkJoin extends AbstractSubqueryJoin {
         // already wrapped the left side in an {@code Eval(svKey = MvSingleValueOrNull(leftField))} so multi-valued positions become
         // NULL before the join. {@code leftJoinConfig.leftFields()} therefore refers to the SV-guarded attribute, which we use in the
         // CASE so NULL/MV keys collapse to mark=NULL.
-        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig);
+        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig, false);
         Attribute svKeyAttr = leftJoinConfig.leftFields().get(0);
         Expression caseExpr = buildMarkCase(source, svKeyAttr, sentinelAttr, rightHadNulls);
         Eval eval = new Eval(source, leftJoin, List.of(markAlias(source, caseExpr)));

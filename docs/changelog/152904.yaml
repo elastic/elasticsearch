@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 152904
+pr: 152904
+summary: Fix a race in `ParallelTopNOperator` that could double-release a page's blocks
+type: bug

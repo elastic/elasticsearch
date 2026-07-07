@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -79,6 +80,21 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <p>Input pages have {@link Page#allowPassingToDifferentDriver()} called on the driver
  * thread in {@link #addInput} before being enqueued.
+ *
+ * <h2>Page ownership across concurrent consumers</h2>
+ * A {@link Page}'s {@link Block}s are not thread safe: their reference counts (see
+ * {@link org.elasticsearch.compute.data.AbstractNonThreadSafeRefCounted}) assume a single
+ * accessor at a time. Upstream operators routinely slice or filter a page into several
+ * sibling pages that share the same underlying {@link org.elasticsearch.compute.data.Vector}
+ * (via {@code incRef}), which is safe as long as exactly one thread ever processes/releases
+ * pages at a time - true for a normal, single-threaded {@link TopNOperator}. Once pages are
+ * fanned out to background workers (and possibly also drained by the driver thread
+ * concurrently via {@link #processPagesWithCurrentThread}), two sibling pages could be closed
+ * on different threads at the same time, racing on that shared, non-thread-safe reference
+ * count. To keep every page's blocks exclusively owned by whichever thread ends up
+ * processing it, {@link #addInput} makes a deep copy of the incoming page and releases the
+ * original immediately, severing any aliasing with sibling pages before the copy is ever
+ * exposed to more than one thread.
  */
 public class ParallelTopNOperator implements Operator, Accountable {
 
@@ -226,12 +242,39 @@ public class ParallelTopNOperator implements Operator, Accountable {
 
     @Override
     public void addInput(Page page) {
-        page.allowPassingToDifferentDriver();
-        in.addPage(page);
+        Page exclusive = copyPageForConcurrentOwnership(page);
+        exclusive.allowPassingToDifferentDriver();
+        in.addPage(exclusive);
         // if `in` buffer is full, process on Driver thread
         if (in.waitForWriting().listener().isDone() == false) {
             processPagesWithCurrentThread();
         }
+    }
+
+    /**
+     * Returns a page whose blocks are exclusively owned by the caller, deep-copying {@code page}
+     * and releasing the original. This is required because {@code page}'s blocks may share
+     * ref-counted vectors with sibling pages produced upstream (e.g. via {@link Block#slice} or
+     * {@link Block#filter}); those siblings could otherwise end up released concurrently by
+     * different worker threads (or the driver thread), racing on a reference count that is not
+     * thread safe. See the class Javadoc for details.
+     */
+    private Page copyPageForConcurrentOwnership(Page page) {
+        BlockFactory blockFactory = driverContext.blockFactory();
+        Block[] copies = new Block[page.getBlockCount()];
+        boolean success = false;
+        try {
+            for (int i = 0; i < copies.length; i++) {
+                copies[i] = page.getBlock(i).deepCopy(blockFactory);
+            }
+            success = true;
+        } finally {
+            page.releaseBlocks();
+            if (success == false) {
+                Releasables.closeExpectNoException(copies);
+            }
+        }
+        return new Page(page.getPositionCount(), copies);
     }
 
     @Override

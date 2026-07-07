@@ -123,6 +123,97 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString(String.valueOf(millis * 1_000_000)));
     }
 
+    // --- DATE_NANOS pushdown (production path for timestamp[us]/[ns]) ---
+
+    public void testToFilterPredicateDateNanosOnNanosColumnIsExact() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_789L;
+        Expression expr = eq("ts", DataType.DATE_NANOS, nanos);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanos)));
+    }
+
+    public void testToFilterPredicateDateNanosOnMicrosColumnScalesToMicros() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_000L; // exact multiple of 1_000 ns
+        long expectedMicros = nanos / 1_000;
+        Expression expr = eq("ts", DataType.DATE_NANOS, nanos);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(expectedMicros)));
+    }
+
+    public void testToFilterPredicateDateNanosMicrosGreaterThanRoundsOutward() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_789L; // not a multiple of 1_000 ns
+        // GT widens downward (floorDiv) so no matching micro is excluded (pushdown is RECHECK).
+        long expectedMicros = Math.floorDiv(nanos, 1_000L);
+        Expression expr = new GreaterThan(Source.EMPTY, attr("ts", DataType.DATE_NANOS), lit(nanos, DataType.DATE_NANOS), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(expectedMicros)));
+    }
+
+    public void testToFilterPredicateDateNanosMicrosEqNonDivisibleSkipsPushdown() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_789L; // not a multiple of 1_000 ns: no micro equals it exactly
+        Expression expr = eq("ts", DataType.DATE_NANOS, nanos);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        // No predicate is pushed; the scan + FilterExec recheck still yields the correct (empty) result.
+        assertNull(pushed.toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateInListOnDateNanosMicros() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+
+        long nanos1 = 1_000_000L; // 1_000 micros
+        long nanos2 = 2_000_000L; // 2_000 micros
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("ts", DataType.DATE_NANOS),
+            List.of(lit(nanos1, DataType.DATE_NANOS), lit(nanos2, DataType.DATE_NANOS))
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        String repr = fp.toString();
+        assertThat(repr, containsString(String.valueOf(nanos1 / 1_000)));
+        assertThat(repr, containsString(String.valueOf(nanos2 / 1_000)));
+    }
+
     // --- DATE (INT32) ---
 
     public void testToFilterPredicateDateInt32() {
@@ -160,6 +251,69 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
         FilterPredicate fp = pushed.toFilterPredicate(schema);
         assertNull(fp);
+    }
+
+    // --- Declared-retype physical-type guard (F-PUSH-KW) ---
+
+    /**
+     * A declared retype ({@code keyword}/{@code integer}/{@code boolean} over a physical {@code
+     * INT64}) is a supported coercion, so the predicate reaches the INTEGER/KEYWORD/BOOLEAN arms.
+     * Without the physical-type guard those arms mint a BINARY/INT32/BOOLEAN predicate against an
+     * INT64 column — a declared-type mismatch parquet-mr rejects or mis-prunes. They must decline
+     * (the conjunct stays RECHECK, {@code FilterExec} re-applies the real semantics).
+     */
+    public void testDeclaredRetypeOverInt64DeclinesPushdown() {
+        MessageType schema = Types.buildMessage().required(INT64).named("code").named("test");
+
+        assertNull(
+            "keyword over int64 declines",
+            new ParquetPushedExpressions(List.of(eq("code", DataType.KEYWORD, new BytesRef("42")))).toFilterPredicate(schema)
+        );
+        assertNull(
+            "integer over int64 declines",
+            new ParquetPushedExpressions(List.of(eq("code", DataType.INTEGER, 42))).toFilterPredicate(schema)
+        );
+        assertNull(
+            "boolean over int64 declines",
+            new ParquetPushedExpressions(List.of(eq("code", DataType.BOOLEAN, true))).toFilterPredicate(schema)
+        );
+        assertNull(
+            "keyword IN over int64 declines",
+            new ParquetPushedExpressions(
+                List.of(new In(Source.EMPTY, attr("code", DataType.KEYWORD), List.of(lit(new BytesRef("42"), DataType.KEYWORD))))
+            ).toFilterPredicate(schema)
+        );
+        assertNull(
+            "STARTS_WITH over int64 declines",
+            new ParquetPushedExpressions(
+                List.of(new StartsWith(Source.EMPTY, attr("code", DataType.KEYWORD), lit(new BytesRef("4"), DataType.KEYWORD)))
+            ).toFilterPredicate(schema)
+        );
+    }
+
+    /**
+     * Positive control for the guard: a genuine keyword/boolean column (physical BINARY/BOOLEAN)
+     * still pushes — the guard passes on a matching physical, so no pushdown is lost.
+     */
+    public void testGenuineKeywordAndBooleanStillPush() {
+        MessageType kwSchema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("s")
+            .named("test");
+        assertNotNull(
+            "keyword over BINARY still pushes",
+            new ParquetPushedExpressions(List.of(eq("s", DataType.KEYWORD, new BytesRef("x")))).toFilterPredicate(kwSchema)
+        );
+
+        MessageType boolSchema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BOOLEAN)
+            .named("b")
+            .named("test");
+        assertNotNull(
+            "boolean over BOOLEAN still pushes",
+            new ParquetPushedExpressions(List.of(eq("b", DataType.BOOLEAN, true))).toFilterPredicate(boolSchema)
+        );
     }
 
     // --- Mixed types (DATETIME + INTEGER) ---
@@ -577,6 +731,181 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------------------
+    // esql-planning#1030: a Parquet UINT_32 column (physical INT32) widens to ESQL LONG
+    // because unsigned 32-bit values can exceed signed int range. Pushing a longColumn
+    // predicate against it makes parquet-mr reject the predicate as a declared-type
+    // mismatch against the file's INT32 schema — every comparator on such a column 500s.
+    // The fix dispatches on the physical primitive (buildLongPredicate / translateLongIn),
+    // narrowing the literal to int when it is safely representable and skipping pushdown
+    // (returning null, safe because LONG comparisons are always RECHECK) otherwise.
+    // -----------------------------------------------------------------------------------
+
+    private static MessageType uint32Schema() {
+        return Types.buildMessage().required(INT32).as(LogicalTypeAnnotation.intType(32, false)).named("u32").named("test");
+    }
+
+    public void testUint32GreaterThanPushesAsIntColumn() {
+        // The issue's exact reproducer: FROM <dataset> | WHERE u32 > 100000 | STATS COUNT(*).
+        MessageType schema = uint32Schema();
+        Expression expr = new GreaterThan(Source.EMPTY, attr("u32", DataType.LONG), lit(100_000L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("uint32 > k must still push (as an intColumn, not a longColumn)", fp);
+        assertThat(fp.toString(), containsString("u32"));
+        assertThat(fp.toString(), containsString("100000"));
+    }
+
+    public void testUint32EqualsPushesAsIntColumn() {
+        MessageType schema = uint32Schema();
+        // A value that overflows signed int32 (matches the issue's 3,000,000,000-style example);
+        // (int) 3_000_000_000L == -1_294_967_296, the raw bit pattern the file actually stores.
+        long value = 3_000_000_000L;
+        Expression expr = eq("u32", DataType.LONG, value);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("uint32 == k (k > Integer.MAX_VALUE) must still push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf((int) value)));
+    }
+
+    public void testUint32InPushesAsIntColumn() {
+        MessageType schema = uint32Schema();
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("u32", DataType.LONG),
+            List.of(lit(100_000L, DataType.LONG), lit(3_000_000_000L, DataType.LONG))
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("uint32 IN (...) must still push", fp);
+        String repr = fp.toString();
+        assertThat(repr, containsString("in("));
+        assertThat(repr, containsString("100000"));
+        assertThat(repr, containsString(String.valueOf((int) 3_000_000_000L)));
+    }
+
+    public void testUint32CombinedAndPushesAsIntColumn() {
+        // Matches the issue's "combined (> AND >)" reproduction shape.
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .as(LogicalTypeAnnotation.intType(32, false))
+            .named("u32")
+            .required(INT32)
+            .as(LogicalTypeAnnotation.intType(16, false))
+            .named("u16")
+            .named("test");
+        Expression u32Gt = new GreaterThan(Source.EMPTY, attr("u32", DataType.LONG), lit(100_000L, DataType.LONG), null);
+        Expression u16Gt = new GreaterThan(Source.EMPTY, attr("u16", DataType.INTEGER), lit(100, DataType.INTEGER), null);
+        Expression and = new And(Source.EMPTY, u32Gt, u16Gt);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(and));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("uint32 > k AND uint16 > k must still push", fp);
+        String repr = fp.toString();
+        assertThat(repr, containsString("u32"));
+        assertThat(repr, containsString("u16"));
+        assertThat(repr, containsString("and("));
+    }
+
+    public void testUint32RangePushesAsIntColumn() {
+        MessageType schema = uint32Schema();
+        Expression range = new Range(
+            Source.EMPTY,
+            attr("u32", DataType.LONG),
+            lit(100_000L, DataType.LONG),
+            true,
+            lit(200_000L, DataType.LONG),
+            true,
+            ZoneOffset.UTC
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(range));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("Range over uint32 must still push", fp);
+        String repr = fp.toString();
+        assertThat(repr, containsString("100000"));
+        assertThat(repr, containsString("200000"));
+    }
+
+    public void testUint32LiteralAboveUnsignedRangeIsNotPushed() {
+        // No 32-bit value (signed or unsigned) can ever equal a literal beyond 2^32-1; the
+        // literal cannot be safely narrowed, so pushdown is skipped rather than mistranslated.
+        // Correctness is preserved regardless — LONG comparators are always RECHECK.
+        MessageType schema = uint32Schema();
+        Expression expr = eq("u32", DataType.LONG, 0xFFFFFFFFL + 1);
+        assertNull(
+            "out-of-unsigned-range literal must not be pushed",
+            new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema)
+        );
+    }
+
+    public void testUint32NegativeLiteralIsNotPushed() {
+        MessageType schema = uint32Schema();
+        Expression expr = new GreaterThan(Source.EMPTY, attr("u32", DataType.LONG), lit(-5L, DataType.LONG), null);
+        assertNull(
+            "negative literal against an unsigned column must not be pushed",
+            new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema)
+        );
+    }
+
+    public void testUint32InDropsOutOfRangeLiteralButKeepsInRangeOnes() {
+        // One literal is unrepresentable (dropped) but the other is in range: the narrowed IN
+        // predicate must still push for the representable value rather than aborting entirely.
+        MessageType schema = uint32Schema();
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("u32", DataType.LONG),
+            List.of(lit(100_000L, DataType.LONG), lit(-1L, DataType.LONG))
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("the in-range literal must still push even though -1 is dropped", fp);
+        assertThat(fp.toString(), containsString("100000"));
+    }
+
+    public void testTimeMillisAnalogousInt32WidenToLongIsPushed() {
+        // TIME_MILLIS is the other Parquet shape that is physical INT32 but widens to ESQL
+        // LONG (ESQL has no distinct "time of day" type). Values are always small and signed,
+        // so the plain signed round trip in narrowLongToPhysicalInt32 applies.
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("tod")
+            .named("test");
+        long millisOfDay = 3_600_000L; // 01:00:00.000
+        Expression expr = eq("tod", DataType.LONG, millisOfDay);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("TIME_MILLIS (INT32 physical, LONG ESQL type) must still push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(millisOfDay)));
+    }
+
+    public void testLongEqAgainstNativeInt64ColumnIsPushedUnchanged() {
+        // No-regression control: a real 64-bit LONG column (no widening) must keep pushing
+        // as a longColumn exactly as before.
+        MessageType schema = Types.buildMessage().required(INT64).named("counter").named("test");
+        long value = 9_000_000_000L; // exceeds int32 range entirely — only valid as a real long
+        Expression expr = eq("counter", DataType.LONG, value);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(value)));
+    }
+
+    public void testToFilterPredicateLongMissingPathReturnsNull() {
+        // LONG now also resolves the physical primitive via resolveNestedPrimitive (esql-planning#1030);
+        // a missing/unresolvable path must return null just like the DATETIME case above.
+        MessageType schema = uint32Schema();
+        Expression expr = eq("does_not_exist", DataType.LONG, 100_000L);
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    // -----------------------------------------------------------------------------------
     // Nested STRUCT pushdown — dotted column names (e.g. event.action) flow through the
     // same FilterPredicate translation as top-level names. The resolveNestedPrimitive
     // helper walks the dotted path; FilterApi.binaryColumn / intColumn / longColumn etc.
@@ -816,11 +1145,13 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     public void testToFilterPredicateNestedPathMissingReturnsNull() {
         // Schema has event.ts (DATETIME), but predicate references event.does_not_exist; the
         // DATETIME path resolves the leaf via resolveNestedPrimitive and returns null when
-        // missing. KEYWORD/INT/LONG predicates bypass schema resolution and forward the
-        // dotted name straight to FilterApi.binaryColumn — parquet-mr's RowGroupFilter
-        // tolerates unknown columns at filter time, so they are not the right shape for
-        // testing the resolver. DATETIME exercises the resolver because it has to map epoch
-        // millis to the correct physical encoding.
+        // missing. KEYWORD/INT predicates bypass schema resolution and forward the dotted name
+        // straight to FilterApi.binaryColumn — parquet-mr's RowGroupFilter tolerates unknown
+        // columns at filter time, so they are not the right shape for testing the resolver.
+        // DATETIME exercises the resolver because it has to map epoch millis to the correct
+        // physical encoding. LONG also resolves via resolveNestedPrimitive since
+        // ParquetPushedExpressions.buildLongPredicate (esql-planning#1030) — see
+        // testToFilterPredicateLongMissingPathReturnsNull below for that case.
         MessageType schema = nestedTimestamp(LogicalTypeAnnotation.TimeUnit.MILLIS);
         Expression expr = eq("event.does_not_exist", DataType.DATETIME, 1700000000000L);
         assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
@@ -895,6 +1226,44 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     // --- helpers ---
+
+    // IS NULL / IS NOT NULL over a top-level list must NOT push a predicate (esql-planning#1056): the
+    // attribute name resolves to a LIST group, so notEq(column("tags"), null) names a leaf-absent
+    // column that parquet-mr drops. They decline so the multivalue-safe null-mask evaluator answers.
+    // (Value predicates — comparisons/IN/LIKE — are NOT declined here; their evaluator is not MV-safe.)
+
+    private static MessageType intListSchema() {
+        return new MessageType("test", Types.optionalList().optionalElement(INT32).named("ints"));
+    }
+
+    private static MessageType stringListSchema() {
+        return new MessageType(
+            "test",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("tags")
+        );
+    }
+
+    public void testTopLevelListIsNotNullDeclines() {
+        Expression expr = new IsNotNull(Source.EMPTY, attr("ints", DataType.INTEGER));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(intListSchema()));
+    }
+
+    public void testTopLevelStringListIsNotNullDeclines() {
+        Expression expr = new IsNotNull(Source.EMPTY, attr("tags", DataType.KEYWORD));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(stringListSchema()));
+    }
+
+    public void testFlatColumnStillPushesControl() {
+        // The list guard must not regress flat columns: a plain INT32 still pushes.
+        MessageType schema = new MessageType("test", Types.optional(INT32).named("flat"));
+        Expression expr = new IsNotNull(Source.EMPTY, attr("flat", DataType.INTEGER));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("flat"));
+    }
 
     private static Expression eq(String name, DataType type, Object value) {
         return new Equals(Source.EMPTY, attr(name, type), lit(value, type), null);

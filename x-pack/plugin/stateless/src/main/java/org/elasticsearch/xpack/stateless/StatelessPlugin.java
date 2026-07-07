@@ -1041,6 +1041,7 @@ public class StatelessPlugin extends Plugin
         if (statelessServicesConsumerProviders.get() != null) {
             for (var provider : statelessServicesConsumerProviders.get()) {
                 provider.onServicesCreated(
+                    cacheService,
                     closedShardService,
                     hollowShardsService,
                     searchShardSizeCollector,

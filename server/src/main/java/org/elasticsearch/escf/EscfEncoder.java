@@ -36,8 +36,8 @@ import java.util.List;
  * Encodes JSON documents into {@link EscfBatch}es (Elasticsearch Column Format), accumulating one
  * column per leaf field. Numbers upcast aggressively (JSON int/long → {@code long}, float/double →
  * {@code double}); a type conflict or an explicit null promotes the column to
- * {@link ElasticsearchColumnKind#UNION}. Fixed primitive arrays are stored Arrow-list style; other
- * arrays (heterogeneous, nested, object-bearing) are stored inline on a union column.
+ * {@link ElasticsearchColumnKind#UNION}. Fixed primitive arrays are stored in a columnar list layout;
+ * other arrays (heterogeneous, nested, object-bearing) are stored inline on a union column.
  *
  * <p>Implements {@link SourceBatchEncoder} so it can be swapped for {@link EirfEncoder} at the
  * coordinating layer. Single-partition convenience: {@link #encode(List, XContentType)}.

@@ -15,10 +15,10 @@ import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
- * An ESCF column whose values are all arrays of a single fixed primitive element kind, stored
- * Apache-Arrow {@code List<primitive>} style: a per-row element-range offset vector ({@code offsets})
- * over a single dense primitive {@code child} sub-column. Row {@code d}'s elements are the child
- * elements in {@code [offsets[d], offsets[d + 1])}. There are no inline arrays.
+ * An ESCF column whose values are all arrays of a single fixed primitive element kind, stored in a
+ * columnar list layout: a per-row element-range offset vector ({@code offsets}) over a single dense
+ * primitive {@code child} sub-column. Row {@code d}'s elements are the child elements in
+ * {@code [offsets[d], offsets[d + 1])}. There are no inline arrays.
  *
  * <p>The child is itself an {@link ElasticsearchColumn} (a long/double/string column over the
  * flattened element space, with no validity), so element access reuses the primitive column getters.
@@ -76,6 +76,6 @@ final class ElasticsearchArrayColumn extends ElasticsearchColumn {
 
     @Override
     ArrayReader getArrayValue(int d) {
-        return new ElasticsearchArrayReader(child, rowOffsets[d], rowOffsets[d + 1]);
+        return new ColumnarArrayReader(child, rowOffsets[d], rowOffsets[d + 1]);
     }
 }

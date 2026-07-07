@@ -14,17 +14,17 @@ import org.elasticsearch.sourcebatch.KeyValueReader;
 
 /**
  * An {@link ArrayReader} over an {@link ElasticsearchArrayColumn} row: a forward cursor across the
- * Arrow child sub-column's elements in {@code [start, end)}. Element values are read directly from the
- * primitive child column. Arrow arrays hold only homogeneous primitives, so {@link #nestedArray()} and
- * {@link #nestedKeyValue()} are unreachable and throw.
+ * child sub-column's elements in {@code [start, end)}. Element values are read directly from the
+ * primitive child column. Columnar arrays hold only homogeneous primitives, so {@link #nestedArray()}
+ * and {@link #nestedKeyValue()} are unreachable and throw.
  */
-final class ElasticsearchArrayReader implements ArrayReader {
+final class ColumnarArrayReader implements ArrayReader {
 
     private final ElasticsearchColumn child;
     private final int end;
     private int pos;
 
-    ElasticsearchArrayReader(ElasticsearchColumn child, int start, int end) {
+    ColumnarArrayReader(ElasticsearchColumn child, int start, int end) {
         this.child = child;
         this.end = end;
         this.pos = start - 1;
@@ -77,11 +77,11 @@ final class ElasticsearchArrayReader implements ArrayReader {
 
     @Override
     public ArrayReader nestedArray() {
-        throw new UnsupportedOperationException("ESCF Arrow arrays hold only primitive elements");
+        throw new UnsupportedOperationException("ESCF columnar arrays hold only leaf elements");
     }
 
     @Override
     public KeyValueReader nestedKeyValue() {
-        throw new UnsupportedOperationException("ESCF Arrow arrays hold only primitive elements");
+        throw new UnsupportedOperationException("ESCF columnar arrays hold only leaf elements");
     }
 }

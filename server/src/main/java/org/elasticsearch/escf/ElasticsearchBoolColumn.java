@@ -13,10 +13,10 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
- * An ESCF column whose values are all booleans, held as the value bitset directly (bit set = {@code true}).
+ * An column whose values are all booleans, held as the value bitset directly (bit set = {@code true}).
  * A present document's type byte is {@link SourceValueType#TRUE} or {@link SourceValueType#FALSE} depending
  * on its value bit. This is the only kind with no value {@code byte[]}: it reads the {@link FixedBitSet}
- * in place rather than materialising it into words.
+ * in place rather than materializing it into words.
  */
 final class ElasticsearchBoolColumn extends ElasticsearchColumn {
 

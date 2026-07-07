@@ -14,8 +14,9 @@ package org.elasticsearch.escf;
  *
  * <p>Each leaf column is stored as a typed vector plus an optional validity (absent) bitset. The
  * kind byte determines the physical layout of the column data and is persisted in the column index
- * section of the batch header (see {@link EscfBatch}). Layouts mirror Apache Arrow except
- * {@link #UNION}.
+ * section of the batch header (see {@link EscfBatch}). Every layout is a plain columnar encoding
+ * (a typed value buffer with optional offset/validity vectors); only {@link #UNION} branches on
+ * per-row type.
  *
  * <pre>
  * LONG/DOUBLE:   values[docCount * 8]
@@ -25,7 +26,7 @@ package org.elasticsearch.escf;
  * UNION:         type_vec[docCount] | offsets[(docCount+1) * 4] | dense_values
  * </pre>
  * A validity bitset (LE longs, bit set = absent) is prepended to any kind only when at least one
- * document is absent. ARRAY uses Arrow list structuring: the {@code offsets} delimit each row's
+ * document is absent. ARRAY uses a columnar list layout: the {@code offsets} delimit each row's
  * element range within a single dense primitive {@code child} sub-column (never inline arrays).
  */
 public final class ElasticsearchColumnKind {
@@ -49,8 +50,8 @@ public final class ElasticsearchColumnKind {
     public static final byte BINARY = 0x05;
 
     /**
-     * All values are arrays of a single fixed primitive element kind, stored Arrow-list style: a
-     * per-row element-range offset vector over a dense primitive child sub-column.
+     * All values are arrays of a single fixed primitive element kind, stored in a columnar list layout:
+     * a per-row element-range offset vector over a dense primitive child sub-column.
      */
     public static final byte ARRAY = 0x06;
 

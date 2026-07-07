@@ -32,14 +32,14 @@ import java.util.List;
  * The first non-absent value selects the kind. A conflicting later value, or an explicit {@code null},
  * promotes the column to {@link ElasticsearchColumnKind#UNION}. Scalar promotions adopt the existing
  * buffers with no replay; an array column promotes by replaying its rows as inline EIRF arrays into
- * the union (arrays are otherwise stored Arrow-list style — never inline — for a fixed primitive kind).
+ * the union.
  */
 final class ElasticsearchColumnBuilder {
 
     private final Recycler<BytesRef> recycler;
     private TypedBuilder current;
     private byte currentKind = ElasticsearchColumnKind.NONE;
-    /** The fixed Arrow child kind when {@code currentKind == ARRAY}; otherwise {@code NONE}. */
+    /** The fixed columnar child kind when {@code currentKind == ARRAY}; otherwise {@code NONE}. */
     private byte arrayChildKind = ElasticsearchColumnKind.NONE;
     private int leadingAbsents;
 
@@ -87,14 +87,14 @@ final class ElasticsearchColumnBuilder {
     /**
      * Adds an array value parsed into its inline EIRF form ({@code arrayType} is
      * {@code SourceValueType.FIXED_ARRAY} or {@code SourceValueType.UNION_ARRAY}). A fixed array of one primitive
-     * element kind is accumulated Arrow-list style; anything else (heterogeneous, nested, object
+     * element kind is accumulated in a columnar list layout; anything else (heterogeneous, nested, object
      * elements, empty, or a child-kind change) promotes the column to a union holding inline arrays.
      */
     void addArray(byte arrayType, byte[] packed) {
-        byte childKind = arrowChildKind(arrayType, packed);
+        byte childKind = arrayChildKind(arrayType, packed);
         if (childKind == ElasticsearchColumnKind.NONE) {
             promoteToUnion();
-            current.addArrayInline(arrayType, packed);
+            current.addInlineArray(arrayType, packed);
             return;
         }
         if (current == null) {
@@ -106,12 +106,12 @@ final class ElasticsearchColumnBuilder {
             current = array;
             currentKind = ElasticsearchColumnKind.ARRAY;
             arrayChildKind = childKind;
-            array.addArrowArray(packed);
+            array.addColumnarArray(packed);
         } else if (currentKind == ElasticsearchColumnKind.ARRAY && arrayChildKind == childKind) {
-            current.addArrowArray(packed);
+            current.addColumnarArray(packed);
         } else {
             promoteToUnion();
-            current.addArrayInline(arrayType, packed);
+            current.addInlineArray(arrayType, packed);
         }
     }
 
@@ -182,13 +182,7 @@ final class ElasticsearchColumnBuilder {
         };
     }
 
-    /**
-     * The Arrow child kind for an inline-parsed array, or {@link ElasticsearchColumnKind#NONE} if the
-     * array is not eligible for Arrow-list storage (must be a non-empty {@code FIXED_ARRAY} of a single
-     * numeric or string primitive). Heterogeneous, nested, object-element, empty, or boolean arrays are
-     * not eligible and are stored inline on a union column.
-     */
-    private static byte arrowChildKind(byte arrayType, byte[] packed) {
+    private static byte arrayChildKind(byte arrayType, byte[] packed) {
         if (arrayType != SourceValueType.FIXED_ARRAY || packed.length == 0) {
             return ElasticsearchColumnKind.NONE;
         }
@@ -201,6 +195,7 @@ final class ElasticsearchColumnBuilder {
     }
 
     private interface TypedBuilder {
+
         byte kind();
 
         void addLong(long value);
@@ -213,9 +208,9 @@ final class ElasticsearchColumnBuilder {
 
         void addBinary(XContentString.UTF8Bytes bytes);
 
-        void addArrowArray(byte[] packed);
+        void addColumnarArray(byte[] packed);
 
-        void addArrayInline(byte arrayType, byte[] packed);
+        void addInlineArray(byte arrayType, byte[] packed);
 
         void addNull();
 
@@ -229,6 +224,7 @@ final class ElasticsearchColumnBuilder {
     }
 
     private abstract static class BaseBuilder implements TypedBuilder {
+
         int count;
         FixedBitSet absent;
 
@@ -267,12 +263,12 @@ final class ElasticsearchColumnBuilder {
         }
 
         @Override
-        public void addArrowArray(byte[] packed) {
+        public void addColumnarArray(byte[] packed) {
             throw unsupported("array");
         }
 
         @Override
-        public void addArrayInline(byte arrayType, byte[] packed) {
+        public void addInlineArray(byte arrayType, byte[] packed) {
             throw unsupported("array");
         }
 
@@ -475,7 +471,7 @@ final class ElasticsearchColumnBuilder {
 
     /**
      * ARRAY: arrays of a single fixed primitive child kind, kept as their inline EIRF bytes per row
-     * during building (so promotion to a union is a cheap replay) and materialised into the Arrow
+     * during building (so promotion to a union is a cheap replay) and materialised into the columnar
      * {@code child_kind | child_values} layout at {@link #finish}.
      */
     private static final class ArrayBuilder extends BaseBuilder {
@@ -495,7 +491,7 @@ final class ElasticsearchColumnBuilder {
         }
 
         @Override
-        public void addArrowArray(byte[] packed) {
+        public void addColumnarArray(byte[] packed) {
             rows.add(packed);
             count++;
         }
@@ -514,7 +510,7 @@ final class ElasticsearchColumnBuilder {
                 if (packed == null) {
                     union.addAbsent();
                 } else {
-                    union.addArrayInline(SourceValueType.FIXED_ARRAY, packed);
+                    union.addInlineArray(SourceValueType.FIXED_ARRAY, packed);
                 }
             }
             return union;
@@ -659,7 +655,7 @@ final class ElasticsearchColumnBuilder {
         }
 
         @Override
-        public void addArrayInline(byte arrayType, byte[] packed) {
+        public void addInlineArray(byte arrayType, byte[] packed) {
             prep(arrayType);
             writeBytes(data, packed, 0, packed.length);
             dataLen += packed.length;

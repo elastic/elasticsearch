@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Verifies the ESCF Arrow-list {@link ArrayReader} ({@link ElasticsearchArrayReader}) iterates a row's
+ * Verifies the ESCF columnar-list {@link ArrayReader} ({@link ColumnarArrayReader}) iterates a row's
  * array identically to the EIRF inline reader ({@link org.elasticsearch.sourcebatch.InlineArrayReader}) for the
  * same source document — same element types and values, in order.
  */
@@ -58,7 +58,7 @@ public class ArrayReaderTests extends ESTestCase {
                 }
                 count++;
                 byte type = escfReader.type();
-                // The EIRF reader may report the narrower INT/FLOAT element type; the ESCF Arrow child
+                // The EIRF reader may report the narrower INT/FLOAT element type; the ESCF columnar child
                 // upcasts to LONG/DOUBLE. Compare on the upcast value, which is what reconstruction emits.
                 switch (type) {
                     case SourceValueType.LONG -> assertEquals(escfReader.longValue(), eirfLong(eirfReader));

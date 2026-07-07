@@ -25,7 +25,7 @@ import org.elasticsearch.xcontent.XContentString;
  * Zero-byte types (NULL/TRUE/FALSE/ABSENT) occupy no payload, fixed numerics (LONG/DOUBLE) occupy 8
  * bytes, and variable types occupy their offset-delta bytes. Array and key-value rows are stored as
  * inline EIRF bytes and read with {@link InlineArrayReader} / {@link KeyValueReader}. This is the
- * one ESCF kind that diverges from Arrow and the only one that branches on type at read time.
+ * one ESCF kind that branches on type at read time.
  */
 final class ElasticsearchUnionColumn extends ElasticsearchColumn {
 

@@ -243,7 +243,7 @@ public final class EscfBatch implements SourceBatch {
         return new ElasticsearchColumnData(col.kind(), newCount, absent, null, null, null, data);
     }
 
-    /** Slices an Arrow array column: the offsets are element ranges and the data is {@code child_kind | child_values}. */
+    /** Slices a columnar array column: the offsets are element ranges and the data is {@code child_kind | child_values}. */
     private static ElasticsearchColumnData sliceArrayColumn(ElasticsearchColumnData col, int from, int newCount, FixedBitSet absent) {
         int[] rowOffsets = col.offsets();
         int elemFrom = rowOffsets[from];

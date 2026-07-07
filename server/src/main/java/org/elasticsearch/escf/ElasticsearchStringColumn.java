@@ -16,7 +16,7 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
-/** An ESCF column whose values are all UTF-8 strings (Arrow varbinary layout). */
+/** An ESCF column whose values are all UTF-8 strings (variable-length layout: offset vector + dense byte payload). */
 final class ElasticsearchStringColumn extends AbstractVarColumn {
 
     ElasticsearchStringColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets) {

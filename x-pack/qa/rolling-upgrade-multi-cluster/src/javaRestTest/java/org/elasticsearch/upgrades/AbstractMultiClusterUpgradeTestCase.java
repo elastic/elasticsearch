@@ -33,8 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static org.hamcrest.Matchers.equalTo;
+import java.util.stream.Stream;
 
 public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase {
 
@@ -215,17 +214,10 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
     }
 
     private RestClient buildClusterClient(ElasticsearchCluster cluster) throws IOException {
-        final String[] addresses = cluster.getHttpAddresses().split(",");
-        final HttpHost[] hosts = new HttpHost[addresses.length];
-        for (int i = 0; i < addresses.length; i++) {
-            final String address = addresses[i].trim();
-            final int portSeparator = address.lastIndexOf(':');
-            hosts[i] = new HttpHost(
-                address.substring(0, portSeparator),
-                Integer.parseInt(address.substring(portSeparator + 1)),
-                getProtocol()
-            );
-        }
+        final HttpHost[] hosts = Stream.of(cluster.getHttpAddresses().split(","))
+            .map(String::trim)
+            .map(HttpHost::create)
+            .toArray(HttpHost[]::new);
         return buildClient(restAdminSettings(), hosts);
     }
 
@@ -239,8 +231,8 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
                 "cluster.remote.leader.seeds": "%s"
               }
             }""", leaderSeed));
-        assertThat(leaderClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(followerClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
+        assertOK(leaderClient.performRequest(request));
+        assertOK(followerClient.performRequest(request));
     }
 
     private void configureFollowerRemoteClusters() throws IOException {
@@ -253,8 +245,8 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
                 "cluster.remote.follower.seeds": "%s"
               }
             }""", followerSeed));
-        assertThat(leaderClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(followerClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
+        assertOK(leaderClient.performRequest(request));
+        assertOK(followerClient.performRequest(request));
     }
 
     protected enum UpgradeState {

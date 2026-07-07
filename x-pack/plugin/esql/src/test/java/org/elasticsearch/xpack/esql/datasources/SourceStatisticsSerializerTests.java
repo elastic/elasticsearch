@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class SourceStatisticsSerializerTests extends ESTestCase {
 
@@ -607,5 +608,73 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertFalse("numeric min dropped under KEYWORD reconcile", out.containsKey(SourceStatisticsSerializer.columnMinKey("c")));
         assertEquals("min marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("c")));
         assertEquals("max marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("c")));
+    }
+
+    public void testOverlayRekeyMovesWholeFamilyAndOnlyExactColumn() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        stats.put(SourceStatisticsSerializer.columnMinKey("emp_no"), 1L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("emp_no"), 9L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey("emp_no"), 90L);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey("emp_no"), 10L);
+        stats.put(SourceStatisticsSerializer.columnSizeBytesKey("emp_no"), 800L);
+        // A distinct dotted-sibling column whose name starts with "emp_no." — a prefix rekey would wrongly capture it.
+        stats.put(SourceStatisticsSerializer.columnMinKey("emp_no.x"), 42L);
+
+        Map<String, Object> out = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, Map.of("emp_no", "id"), Set.of());
+
+        assertEquals(1L, out.get(SourceStatisticsSerializer.columnMinKey("id")));
+        assertEquals(9L, out.get(SourceStatisticsSerializer.columnMaxKey("id")));
+        assertEquals(90L, out.get(SourceStatisticsSerializer.columnValueCountKey("id")));
+        assertEquals(10L, out.get(SourceStatisticsSerializer.columnNullCountKey("id")));
+        assertEquals(800L, out.get(SourceStatisticsSerializer.columnSizeBytesKey("id")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("emp_no")));
+        assertEquals(42L, out.get(SourceStatisticsSerializer.columnMinKey("emp_no.x"))); // sibling untouched
+        assertEquals(100L, out.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    public void testOverlayRekeySwapRoundTrips() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("a"), 1L);
+        stats.put(SourceStatisticsSerializer.columnMinKey("b"), 2L);
+        Map<String, Object> out = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, Map.of("a", "b", "b", "a"), Set.of());
+        // Two-phase (stage-then-write): a's stat lands under b and vice-versa, no sequential clobber.
+        assertEquals(1L, out.get(SourceStatisticsSerializer.columnMinKey("b")));
+        assertEquals(2L, out.get(SourceStatisticsSerializer.columnMinKey("a")));
+    }
+
+    public void testOverlayPoisonSafeMissesAndKeepsCountStar() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        stats.put(SourceStatisticsSerializer.columnMinKey("amount"), 5L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("amount"), 50L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey("amount"), 100L);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey("amount"), 0L);
+        stats.put(SourceStatisticsSerializer.columnSizeBytesKey("amount"), 400L);
+
+        Map<String, Object> out = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, Map.of(), Set.of("amount"));
+
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("amount")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxKey("amount")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("amount")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("amount")));
+        assertNull(out.get(SourceStatisticsSerializer.columnValueCountKey("amount")));
+        assertNull(out.get(SourceStatisticsSerializer.columnNullCountKey("amount")));
+        assertEquals(400L, out.get(SourceStatisticsSerializer.columnSizeBytesKey("amount"))); // byte signal survives
+        assertEquals(100L, out.get(SourceStatisticsSerializer.STATS_ROW_COUNT)); // COUNT(*) stays warm
+
+        // Through SplitStats the poisoned column safe-misses: family present (no implicit-nulls COUNT=0), counts -1,
+        // extrema null.
+        SplitStats split = SplitStats.of(out);
+        assertTrue(split.hasColumn("amount"));
+        assertEquals(-1L, split.columnValueCount("amount"));
+        assertEquals(-1L, split.columnNullCount("amount"));
+        assertNull(split.columnMin("amount"));
+        assertNull(split.columnMax("amount"));
+    }
+
+    public void testOverlayIdentityReturnsSameInstance() {
+        Map<String, Object> stats = Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        assertSame(stats, SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, Map.of(), Set.of()));
     }
 }

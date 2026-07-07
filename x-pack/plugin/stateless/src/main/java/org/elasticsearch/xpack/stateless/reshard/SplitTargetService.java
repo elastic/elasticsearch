@@ -41,16 +41,18 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -79,11 +81,20 @@ public class SplitTargetService {
         Setting.Property.NodeScope
     );
 
+    /// Timeout for internal retries when sending start split request to the source shard.
+    /// This setting is only configured in tests and is not registered.
+    public static final Setting<TimeValue> START_SPLIT_RETRY_TIMEOUT = Setting.positiveTimeSetting(
+        "reshard.split.target_shard_start_split_retry_timeout",
+        TimeValue.timeValueSeconds(60),
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(SplitTargetService.class);
 
     private final Client client;
     private final ClusterService clusterService;
     private final ReshardIndexService reshardIndexService;
+    private final TimeValue startSplitRetryTimeout;
     private final TimeValue searchShardsOnlineTimeout;
     private final TimeValue splitStateAppliedTimeout;
 
@@ -93,6 +104,7 @@ public class SplitTargetService {
         this.client = client;
         this.clusterService = clusterService;
         this.reshardIndexService = reshardIndexService;
+        this.startSplitRetryTimeout = START_SPLIT_RETRY_TIMEOUT.get(settings);
         this.searchShardsOnlineTimeout = RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.get(settings);
         this.splitStateAppliedTimeout = RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT.get(settings);
     }
@@ -215,9 +227,8 @@ public class SplitTargetService {
             this.split = split;
             this.shard = shard;
             this.onCompleted = onCompleted;
-            this.metricsRecorder = new MetricsRecorder(reshardMetrics, nowInMillis);
-
             this.cancelled = new AtomicBoolean(false);
+            this.metricsRecorder = new MetricsRecorder(reshardMetrics, nowInMillis, this.cancelled);
 
             this.currentState = initialState;
         }
@@ -481,17 +492,24 @@ public class SplitTargetService {
         }
 
         private void initiateSplitWithSourceShard(State.Clone state) {
-            var action = new InitiateSplitWithSourceShardAction(clusterService, client, split, cancelled, new ActionListener<>() {
-                @Override
-                public void onResponse(Void ignored) {
-                    advance(new State.StartSplitRpcComplete(state.recoveryListener));
-                }
+            var action = new InitiateSplitWithSourceShardAction(
+                clusterService,
+                client,
+                split,
+                cancelled,
+                startSplitRetryTimeout,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void ignored) {
+                        advance(new State.StartSplitRpcComplete(state.recoveryListener));
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    advance(new State.FailedInRecovery(e, state.recoveryListener));
+                    @Override
+                    public void onFailure(Exception e) {
+                        advance(new State.FailedInRecovery(e, state.recoveryListener));
+                    }
                 }
-            });
+            );
             action.run();
         }
 
@@ -720,52 +738,71 @@ public class SplitTargetService {
         }
 
         private static class MetricsRecorder {
-            private record StateEntry(Class<? extends State> previousState, LongConsumer histogram) {}
+            private record TimestampEntry(Class<? extends State> state, long timestampMillis) {}
 
-            // Only actual target shard states are present
-            private final Map<Class<? extends State>, StateEntry> targetStates;
+            private final Map<Class<? extends State>, Runnable> targetStates;
             private final LongSupplier nowInMillis;
-            Map<Class<? extends State>, Long> timestamps;
+            private final List<TimestampEntry> timestamps;
 
-            MetricsRecorder(ReshardMetrics reshardMetrics, LongSupplier nowInMillis) {
+            MetricsRecorder(ReshardMetrics reshardMetrics, LongSupplier nowInMillis, AtomicBoolean cancelled) {
+                this.nowInMillis = nowInMillis;
+                this.timestamps = new ArrayList<>();
                 this.targetStates = new HashMap<>() {
                     {
-                        put(
-                            State.Clone.class,
-                            new StateEntry(
-                                null,
-                                durationMillis -> reshardMetrics.targetCloneDurationHistogram().record(durationMillis / 1000.0)
-                            )
-                        );
-                        put(
-                            State.Handoff.class,
-                            new StateEntry(State.Clone.class, reshardMetrics.targetHandoffDurationHistogram()::record)
-                        );
-                        put(State.Split.class, new StateEntry(State.Handoff.class, reshardMetrics.targetSplitDurationHistogram()::record));
-                        put(State.Done.class, new StateEntry(State.Split.class, ignored -> {}));
+                        put(State.Handoff.class, () -> {
+                            deltaFromState(State.Clone.class).ifPresent(
+                                delta -> reshardMetrics.targetCloneDurationHistogram().record(delta / 1000.0)
+                            );
+                        });
+                        put(State.Split.class, () -> {
+                            deltaFromState(State.Handoff.class).ifPresent(
+                                delta -> reshardMetrics.targetHandoffDurationHistogram().record(delta)
+                            );
+                        });
+                        put(State.Done.class, () -> {
+                            deltaFromState(State.Split.class).ifPresent(
+                                delta -> reshardMetrics.targetSplitDurationHistogram().record(delta)
+                            );
+                        });
+                        put(State.Failed.class, () -> {
+                            if (cancelled.get() == false) {
+                                reshardMetrics.targetShardFailureCounter().increment();
+                            }
+                        });
+                        put(State.FailedInRecovery.class, reshardMetrics.targetShardRecoveryFailureCounter()::increment);
                     }
                 };
-                this.nowInMillis = nowInMillis;
-                this.timestamps = new HashMap<>();
+            }
+
+            private OptionalLong deltaFromState(Class<? extends State> lastState) {
+                long currentTimestamp = timestamps.getLast().timestampMillis();
+                for (int i = timestamps.size() - 2; i >= 0; i--) {
+                    TimestampEntry entry = timestamps.get(i);
+                    if (entry.state().equals(lastState)) {
+                        return OptionalLong.of(currentTimestamp - entry.timestampMillis());
+                    }
+                }
+                return OptionalLong.empty();
             }
 
             void advance(State newState) {
-                StateEntry stateEntry = targetStates.get(newState.getClass());
-                if (stateEntry != null) {
-                    long nowInMillis = this.nowInMillis.getAsLong();
-                    Long previousStateStartMillis = timestamps.get(stateEntry.previousState);
-                    if (previousStateStartMillis != null) {
-                        targetStates.get(stateEntry.previousState).histogram.accept(nowInMillis - previousStateStartMillis);
-                    }
-                    timestamps.put(newState.getClass(), nowInMillis);
+                timestamps.add(new TimestampEntry(newState.getClass(), nowInMillis.getAsLong()));
+                Runnable action = targetStates.get(newState.getClass());
+                if (action != null) {
+                    action.run();
                 }
             }
         }
     }
 
     // visible for tests
-    RetryableAction<Void> createInitiateSplitWithSourceShardAction(Split split, AtomicBoolean cancelled, ActionListener<Void> listener) {
-        return new InitiateSplitWithSourceShardAction(clusterService, client, split, cancelled, listener);
+    RetryableAction<Void> createInitiateSplitWithSourceShardAction(
+        Split split,
+        AtomicBoolean cancelled,
+        TimeValue retryTimeout,
+        ActionListener<Void> listener
+    ) {
+        return new InitiateSplitWithSourceShardAction(clusterService, client, split, cancelled, retryTimeout, listener);
     }
 
     private static class InitiateSplitWithSourceShardAction extends RetryableAction<Void> {
@@ -779,6 +816,7 @@ public class SplitTargetService {
             Client client,
             Split split,
             AtomicBoolean cancelled,
+            TimeValue retryTimeout,
             ActionListener<Void> listener
         ) {
             super(
@@ -788,7 +826,7 @@ public class SplitTargetService {
                 TimeValue.timeValueSeconds(5),
                 // If we haven't made progress in this much time, fail back to allocator.
                 // Maybe the source shard is assigned to a different node now.
-                TimeValue.timeValueSeconds(60),
+                retryTimeout,
                 listener,
                 clusterService.threadPool().generic()
             );

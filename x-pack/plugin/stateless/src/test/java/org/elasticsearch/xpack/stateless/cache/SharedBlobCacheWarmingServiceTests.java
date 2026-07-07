@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
+import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
@@ -38,6 +40,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -48,6 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.IndexingShardCacheBlobReader;
@@ -64,6 +68,7 @@ import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
@@ -84,6 +89,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -96,11 +102,14 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -725,7 +734,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 fakeNode.warmingService.warmBlobOffsets(
                     indexShard,
                     fakeNode.searchDirectory,
-                    Map.of(new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration()), endOffset),
+                    Map.of(
+                        new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration()),
+                        WarmTarget.withUnknownTimestamp(endOffset)
+                    ),
                     warmListener
                 );
                 safeGet(warmListener);
@@ -912,7 +924,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFile, vbcc.getTotalSizeInBytes()),
+                Map.of(blobFile, WarmTarget.withUnknownTimestamp(vbcc.getTotalSizeInBytes())),
                 warmListener
             );
             safeGet(warmListener);
@@ -1044,7 +1056,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFileA, blobSize, blobFileB, blobSize),
+                Map.of(blobFileA, WarmTarget.withUnknownTimestamp(blobSize), blobFileB, WarmTarget.withUnknownTimestamp(blobSize)),
                 warmFuture
             );
             safeGet(warmFuture);
@@ -1455,6 +1467,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     anyLong(),
                     any(),
                     any(),
+                    anyLong(),
                     anyActionListener()
                 );
 
@@ -1517,6 +1530,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 anyLong(),
                 any(),
                 any(),
+                anyLong(),
                 anyActionListener()
             );
 
@@ -1698,29 +1712,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             @Override
             public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
-                return new FilterBlobContainer(innerContainer) {
-                    @Override
-                    protected BlobContainer wrapChild(BlobContainer child) {
-                        return child;
-                    }
-
-                    @Override
-                    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
-                        return new InputStream() {
-                            private long remaining = length;
-
-                            @Override
-                            public int read() throws IOException {
-                                if (remaining == 0) {
-                                    return -1;
-                                } else {
-                                    remaining -= 1;
-                                    return 1;
-                                }
-                            }
-                        };
-                    }
-                };
+                return syntheticBytesContainer(innerContainer);
             }
         };
     }
@@ -1747,6 +1739,214 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "64KB")
                     .put(SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING.getKey(), maxPrewarmSize)
                     .build();
+            }
+        };
+    }
+
+    /**
+     * Check that offline (recovery) warming stamps the live cache region with the per-blob timestamp supplied in the {@link WarmTarget}.
+     */
+    public void testOfflineWarmingStampsRegions() throws Exception {
+        final long primaryTerm = randomLongBetween(1, 42);
+        final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
+        final var capturingPolicy = new TimestampCapturingEvictionPolicy();
+        try (FakeStatelessNode fakeNode = createCacheCapturingFakeNode(primaryTerm, regionSizeInBytes, capturingPolicy)) {
+            // Build a VBCC larger than a single region and upload it to the blob store.
+            var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
+            var vbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "fake-node-id",
+                primaryTerm,
+                indexCommits.get(0).getGeneration(),
+                (v) -> null,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            do {
+                appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+                if (vbcc.getTotalSizeInBytes() > regionSizeInBytes) {
+                    break;
+                }
+                indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
+            } while (true);
+            vbcc.freeze();
+
+            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                fakeNode.getShardContainer()
+                    .writeBlobAtomic(OperationPurpose.INDICES, vbcc.getBlobName(), vbccInputStream, vbcc.getTotalSizeInBytes(), true);
+            }
+            BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
+            BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
+                fakeNode.searchDirectory,
+                vbcc.lastCompoundCommit().primaryTermAndGeneration(),
+                fakeNode.clusterService.localNode().getId()
+            );
+
+            var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(fakeNode.searchStore);
+            when(indexShard.shardId()).thenReturn(fakeNode.shardId);
+
+            final var blobFile = new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration());
+            final long knownTimestamp = randomLongBetween(1, Long.MAX_VALUE);
+            PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
+            fakeNode.warmingService.warmBlobOffsets(
+                indexShard,
+                fakeNode.searchDirectory,
+                Map.of(blobFile, new WarmTarget(vbcc.getTotalSizeInBytes(), knownTimestamp)),
+                warmListener
+            );
+            safeGet(warmListener);
+
+            final var cacheKey = new FileCacheKey(fakeNode.shardId, primaryTerm, vbcc.getBlobName());
+            final var captured = capturingPolicy.capturedTimestamps(cacheKey);
+            assertThat("offline warming should have stamped at least one region", captured, not(empty()));
+            assertThat(
+                "every offline-warmed region should carry the provided per-blob timestamp",
+                captured,
+                everyItem(equalTo(knownTimestamp))
+            );
+        }
+    }
+
+    public void testShardRecoveryWarmingPropagatesTimestamp() throws Exception {
+        final long primaryTerm = randomLongBetween(1, 42);
+        final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
+        final long knownTimestamp = randomLongBetween(1, Long.MAX_VALUE);
+        final Map<CapturedRegion, Long> capturedTimestamps = new ConcurrentHashMap<>();
+        try (FakeStatelessNode fakeNode = createMaybeFetchRangeCapturingFakeNode(primaryTerm, regionSizeInBytes, capturedTimestamps)) {
+            var indexCommits = fakeNode.generateIndexCommitsWithoutCompoundFiles(randomIntBetween(1, 5));
+            var vbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "fake-node-id",
+                primaryTerm,
+                indexCommits.get(0).getGeneration(),
+                (v) -> null,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+            vbcc.freeze();
+
+            // Force a single, known timestamp for every file in the recovered commit so the ShardWarmer's per-file resolution is
+            // deterministic regardless of which segment/region ends up being warmed.
+            final StatelessCompoundCommit lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
+            final var timestampRange = new StatelessCompoundCommit.TimestampFieldValueRange(knownTimestamp, knownTimestamp);
+            final Map<String, BlobFileRanges> timestampOverride = new HashMap<>();
+            for (var entry : lastCommit.commitFiles().entrySet()) {
+                timestampOverride.put(entry.getKey(), new BlobFileRanges(entry.getValue(), timestampRange));
+            }
+            fakeNode.searchDirectory.updateCommit(lastCommit, timestampOverride);
+
+            final IndexShard indexShard = mockIndexShard(fakeNode);
+            final PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
+            // Offline warming is disabled in the node settings, so SEARCH warmCache runs only the ShardWarmer recovery prewarming, which
+            // warms region 0 of every segment via maybeFetchRange (the call we capture).
+            fakeNode.warmingService.warmCache(SEARCH, indexShard, lastCommit, fakeNode.searchDirectory, null, false, warmListener);
+            safeGet(warmListener);
+
+            assertFalse("ShardWarmer recovery prewarming should have warmed at least one region", capturedTimestamps.isEmpty());
+            for (var entry : capturedTimestamps.entrySet()) {
+                assertThat(
+                    "ShardWarmer-warmed blob " + entry.getKey() + " should be fetched with the per-CC timestamp",
+                    entry.getValue(),
+                    equalTo(knownTimestamp)
+                );
+            }
+        }
+    }
+
+    record CapturedRegion(FileCacheKey key, int region) {}
+
+    private FakeStatelessNode createMaybeFetchRangeCapturingFakeNode(
+        long primaryTerm,
+        long regionSizeInBytes,
+        Map<CapturedRegion, Long> capturedTimestamps
+    ) throws IOException {
+        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4))
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                    // Disable the SEARCH offline-warming branch (it does real reads via fetchRange); this keeps warmCache(SEARCH) running
+                    // only the ShardWarmer recovery prewarming, whose maybeFetchRange calls are the ones we capture and short-circuit.
+                    .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false)
+                    .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.getKey(), false)
+                    .build();
+            }
+
+            @Override
+            protected StatelessSharedBlobCacheService createCacheService(
+                NodeEnvironment nodeEnvironment,
+                Settings settings,
+                ThreadPool threadPool,
+                MeterRegistry meterRegistry
+            ) {
+                return new StatelessSharedBlobCacheService(
+                    nodeEnvironment,
+                    settings,
+                    threadPool,
+                    BlobCacheMetrics.NOOP,
+                    new DefaultEvictionPolicy<>(),
+                    System::nanoTime,
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                ) {
+                    @Override
+                    public void maybeFetchRange(
+                        FileCacheKey cacheKey,
+                        int region,
+                        ByteRange range,
+                        long blobLength,
+                        SharedBlobCacheService.RangeMissingHandler writer,
+                        Executor fetchExecutor,
+                        long timestampMillis,
+                        ActionListener<Boolean> listener
+                    ) {
+                        // Capture the timestamp the ShardWarmer passes for this region and short-circuit, so no real region fill happens
+                        capturedTimestamps.put(new CapturedRegion(cacheKey, region), timestampMillis);
+                        listener.onResponse(false);
+                    }
+                };
+            }
+        };
+    }
+
+    private FakeStatelessNode createCacheCapturingFakeNode(
+        long primaryTerm,
+        long regionSizeInBytes,
+        EvictionPolicy<FileCacheKey> capturingPolicy
+    ) throws IOException {
+        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "2MB")
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                    .build();
+            }
+
+            @Override
+            protected StatelessSharedBlobCacheService createCacheService(
+                NodeEnvironment nodeEnvironment,
+                Settings settings,
+                ThreadPool threadPool,
+                MeterRegistry meterRegistry
+            ) {
+                return new StatelessSharedBlobCacheService(
+                    nodeEnvironment,
+                    settings,
+                    threadPool,
+                    BlobCacheMetrics.NOOP,
+                    capturingPolicy,
+                    System::nanoTime,
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                ) {};
             }
         };
     }

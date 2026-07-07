@@ -46,7 +46,6 @@ import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAlloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
-import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.STATE_MACHINE_RETRY_DELAY;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptionBaseIT {
@@ -97,7 +96,8 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             // We should not see requests that were queued for a long time in a local cluster setup anyway.
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(100))
             // Reduce the delay between retries to speed up the test.
-            .put(STATE_MACHINE_RETRY_DELAY.getKey(), TimeValue.timeValueMillis(10));
+            .put(SplitSourceService.STATE_MACHINE_RETRY_DELAY.getKey(), TimeValue.timeValueMillis(10))
+            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5));
     }
 
     @Override
@@ -108,7 +108,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
     public static class AddSettingPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(STATE_MACHINE_RETRY_DELAY);
+            return List.of(SplitSourceService.STATE_MACHINE_RETRY_DELAY, SplitTargetService.START_SPLIT_RETRY_TIMEOUT);
         }
     }
 

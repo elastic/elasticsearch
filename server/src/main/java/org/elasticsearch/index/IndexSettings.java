@@ -724,14 +724,14 @@ public final class IndexSettings {
         public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
             if (enabled) {
                 var indexMode = (IndexMode) settings.get(MODE);
-                if (indexMode == IndexMode.TIME_SERIES) {
+                if (IndexMode.isTsdb(indexMode)) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
                             "The setting [%s] cannot be used with [%s=%s].",
                             SLICE_ENABLED.getKey(),
                             MODE.getKey(),
-                            IndexMode.TIME_SERIES.getName()
+                            indexMode.getName()
                         )
                     );
                 }
@@ -767,7 +767,7 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", settings -> {
         IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
-        boolean isTimeSeries = IndexMode.TIME_SERIES.equals(MODE.get(settings));
+        boolean isTimeSeries = MODE.get(settings).isTsdb();
         boolean isValidCodec = isValidCodecForSyntheticId(INDEX_CODEC_SETTING.get(settings), indexVersion);
         boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
         return isTimeSeries && isValidCodec && onByDefault ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
@@ -780,7 +780,7 @@ public final class IndexSettings {
             if (enabled) {
                 // Verify if index mode is TIME_SERIES
                 var indexMode = (IndexMode) settings.get(MODE);
-                if (indexMode != IndexMode.TIME_SERIES) {
+                if (indexMode.isTsdb() == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
@@ -850,7 +850,7 @@ public final class IndexSettings {
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
         var indexMode = MODE.get(s);
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             return Boolean.toString(iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB));
         }
         if (indexMode == IndexMode.LOGSDB || indexMode.isStrictColumnar()) {
@@ -985,7 +985,7 @@ public final class IndexSettings {
                 return Boolean.FALSE.toString();
             }
             var indexMode = IndexSettings.MODE.get(settings);
-            return Boolean.toString(indexMode == IndexMode.TIME_SERIES);
+            return Boolean.toString(indexMode.isTsdb());
         },
         Property.IndexScope,
         Property.Final
@@ -1039,7 +1039,7 @@ public final class IndexSettings {
                 return Boolean.FALSE.toString();
             }
             IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
-            boolean isTimeSeries = IndexMode.TIME_SERIES.equals(MODE.get(settings));
+            boolean isTimeSeries = MODE.get(settings).isTsdb();
             boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG);
             return Boolean.toString(isTimeSeries && onByDefault);
         },
@@ -1145,7 +1145,7 @@ public final class IndexSettings {
         if (indexMode.isStrictColumnar()) {
             return true;
         }
-        return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
+        return (indexMode == IndexMode.LOGSDB || indexMode.isTsdb())
             && (indexVersionCreated.onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS) || indexVersionCreated.equals(IndexVersions.ZERO));
     }
 
@@ -1245,14 +1245,7 @@ public final class IndexSettings {
             boolean disableAutoTextByDefault = mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR;
             return Boolean.toString(disableAutoTextByDefault == false);
         },
-        value -> {
-            if (value == false && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-                throw new IllegalArgumentException(
-                    "[index.mapping.dynamic_strings.auto_text] can only be disabled when the"
-                        + " columnar_index_mode feature flag is enabled"
-                );
-            }
-        },
+        value -> {},
         Property.Dynamic,
         Property.IndexScope
     );
@@ -1573,8 +1566,8 @@ public final class IndexSettings {
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
-        indexDisabledByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
-        useColumnarIdByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(USE_COLUMNAR_ID_BY_DEFAULT);
+        indexDisabledByDefault = scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
+        useColumnarIdByDefault = scopedSettings.get(USE_COLUMNAR_ID_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);

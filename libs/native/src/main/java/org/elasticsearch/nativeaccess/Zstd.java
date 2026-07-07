@@ -23,6 +23,7 @@ import java.util.Objects;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import static org.elasticsearch.foreign.adapter.MemorySegmentAdapter.varHandleWithoutOffset;
 
 public final class Zstd {
 
@@ -34,9 +35,9 @@ public final class Zstd {
         JAVA_LONG.withName("size"),
         JAVA_LONG.withName("pos")
     );
-    private static final VarHandle PTR_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("ptr"));
-    private static final VarHandle SIZE_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("size"));
-    private static final VarHandle POS_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("pos"));
+    private static final VarHandle PTR_VH = varHandleWithoutOffset(BUFFER_LAYOUT, PathElement.groupElement("ptr"));
+    private static final VarHandle SIZE_VH = varHandleWithoutOffset(BUFFER_LAYOUT, PathElement.groupElement("size"));
+    private static final VarHandle POS_VH = varHandleWithoutOffset(BUFFER_LAYOUT, PathElement.groupElement("pos"));
 
     private final ZstdLibrary zstdLib;
 
@@ -326,8 +327,8 @@ public final class Zstd {
                 // Stamp the pointer fields once — they never change across calls, only size and pos
                 // are mutated per-call (size depends on how many input bytes the caller has staged
                 // and how much output room they want this round).
-                PTR_VH.set(inStruct, 0L, inBuf);
-                PTR_VH.set(outStruct, 0L, outBuf);
+                PTR_VH.set(inStruct, inBuf);
+                PTR_VH.set(outStruct, outBuf);
             } catch (Throwable t) {
                 // If any of the allocations throws (e.g. OOM mid-arena), drop the libzstd handle
                 // we just got back from ZSTD_createDStream so we don't leak the ~256 KB native
@@ -385,18 +386,18 @@ public final class Zstd {
             if (srcAvail > 0) {
                 MemorySegment.copy(src, srcPos, inBuf, JAVA_BYTE, 0L, srcAvail);
             }
-            SIZE_VH.set(inStruct, 0L, (long) srcAvail);
-            POS_VH.set(inStruct, 0L, 0L);
-            SIZE_VH.set(outStruct, 0L, (long) outRoom);
-            POS_VH.set(outStruct, 0L, 0L);
+            SIZE_VH.set(inStruct, (long) srcAvail);
+            POS_VH.set(inStruct, 0L);
+            SIZE_VH.set(outStruct, (long) outRoom);
+            POS_VH.set(outStruct, 0L);
 
             long hint = zstdLib.decompressStream(handle, outStruct, inStruct);
             if (zstdLib.isError(hint)) {
                 throw new IllegalArgumentException(zstdLib.getErrorName(hint));
             }
 
-            int srcConsumed = (int) (long) POS_VH.get(inStruct, 0L);
-            int dstProduced = (int) (long) POS_VH.get(outStruct, 0L);
+            int srcConsumed = (int) (long) POS_VH.get(inStruct);
+            int dstProduced = (int) (long) POS_VH.get(outStruct);
             // libzstd guarantees pos ≤ size on return — the size fields we stamped above are the
             // upper bounds here, both already int-typed and bounded by the staging buffer sizes.
             assert srcConsumed >= 0 && srcConsumed <= srcAvail : "srcConsumed " + srcConsumed + " out of [0, " + srcAvail + "]";

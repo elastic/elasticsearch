@@ -568,7 +568,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * Regression test for the scale mechanism behind the ndjson warm-COUNT loss (esql-planning#1099):
+     * Regression test for the scale mechanism behind the ndjson warm-COUNT loss seen at ClickBench-100M scale:
      * a cold multi-file scan LONGER than the schema TTL (multi-minute external scans vs the 5m default)
      * reconciles into a cache whose entries for the scanned glob have ALL expired. Expired entries are
      * still forEach-visible, but the first commit's {@code put()} prunes every expired entry from the
@@ -1143,7 +1143,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * Regression test for mechanism #2 of the ndjson warm-COUNT loss (esql-planning#1099): a many-stripe file's
+     * Regression test for the second, TTL-independent mechanism of the ndjson warm-COUNT loss: a many-stripe file's
      * entry must NOT keep its per-stripe sub-entries once the whole-file 0..K fold is complete. Retaining them
      * makes the entry weight O(stripe count); a multi-file glob of such entries overflows the schema-cache weight
      * budget, the LRU evicts already-committed sibling entries, and the all-or-nothing multi-file warm serve

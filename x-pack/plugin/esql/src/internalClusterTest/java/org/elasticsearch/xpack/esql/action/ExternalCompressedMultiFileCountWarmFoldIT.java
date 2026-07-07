@@ -32,8 +32,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Isolation test for the SECOND, TTL-independent cause of the ndjson warm-{@code COUNT(*)} loss
- * (esql-planning#1099): a compressed (streaming-coordinator) multi-file source whose per-file schema-cache
+ * Isolation test for the SECOND, TTL-independent cause of the ndjson warm-{@code COUNT(*)} loss observed at
+ * ClickBench-100M scale: a compressed (streaming-coordinator) multi-file source whose per-file schema-cache
  * entries carry MANY per-stripe sub-entries. Each committed file entry retains one nested map per stripe
  * ({@code _stats.stripe.<k>}) FOREVER — even after the whole-file {@code 0..K} fold has materialized the
  * authoritative {@code _stats.row_count} — so a many-stripe file's entry weight is O(stripe count), not O(1).
@@ -44,7 +44,8 @@ import static org.hamcrest.Matchers.equalTo;
  * file; TSV over the same shape stays under budget and short-circuits — the bench discriminator.
  * <p>
  * This test forces the condition at IT scale by pinning a small schema cache and a small stripe grid so a modest
- * file already carries many stripe sub-entries. It runs count-only (MIN/MAX is the separate GA gap #1103). The
+ * file already carries many stripe sub-entries. It runs count-only (MIN/MAX-at-scale is a separate,
+ * pre-existing gap tracked on its own). The
  * gzip-tsv control drives the SAME {@code StreamingParallelParsingCoordinator} through {@code CsvFormatReader}.
  */
 public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternalDataSourceIT {

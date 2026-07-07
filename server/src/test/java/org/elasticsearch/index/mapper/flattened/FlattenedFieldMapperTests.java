@@ -419,8 +419,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     @Override
     public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
         var mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened")));
         var documentMapper = mapperService.documentMapper();
@@ -771,21 +769,18 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             assertThat(mapper.preserveLeafArrays(), equalTo(FlattenedFieldMapper.PreserveLeafArrays.EXACT));
         }
 
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            for (var mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
-                DocumentMapper documentMapper = createMapperService(
-                    Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build(),
-                    fieldMapping(this::minimalMapping)
-                ).documentMapper();
-                var mapper = (FlattenedFieldMapper) documentMapper.mappers().getMapper("field");
-                assertThat(
-                    "preserve_leaf_arrays should default to exact in strict columnar mode [" + mode + "]",
-                    mapper.preserveLeafArrays(),
-                    equalTo(FlattenedFieldMapper.PreserveLeafArrays.EXACT)
-                );
-            }
+        for (var mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper documentMapper = createMapperService(
+                Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build(),
+                fieldMapping(this::minimalMapping)
+            ).documentMapper();
+            var mapper = (FlattenedFieldMapper) documentMapper.mappers().getMapper("field");
+            assertThat(
+                "preserve_leaf_arrays should default to exact in strict columnar mode [" + mode + "]",
+                mapper.preserveLeafArrays(),
+                equalTo(FlattenedFieldMapper.PreserveLeafArrays.EXACT)
+            );
         }
-
     }
 
     public void testIgnoreAbove() throws IOException {

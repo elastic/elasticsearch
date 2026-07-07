@@ -83,8 +83,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Index-level default for the {@code doc_values.multi_value} field mapping parameter. When {@code false}, all fields in the index
      * default to single-valued doc values (rejecting documents that supply more than one value), unless a field explicitly sets its own
-     * {@code doc_values.multi_value}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled and the index is in a
-     * strict-columnar index mode ({@link IndexMode#isStrictColumnar()}).
+     * {@code doc_values.multi_value}.
      */
     public static final Setting<Boolean> DOC_VALUES_MULTI_VALUE_SETTING = Setting.boolSetting(
         "index.mapping.doc_values.multi_value",
@@ -97,8 +96,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Index-level default for the {@code doc_values.nullability} field mapping parameter. When {@code false}, all fields in the index
      * default to requiring a non-null value in every document (rejecting documents that omit the field or supply null), unless a field
-     * explicitly sets its own {@code doc_values.nullability}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled and
-     * the index is in a strict-columnar index mode ({@link IndexMode#isStrictColumnar()}).
+     * explicitly sets its own {@code doc_values.nullability}.
      */
     public static final Setting<Boolean> DOC_VALUES_NULLABILITY_SETTING = Setting.boolSetting(
         "index.mapping.doc_values.nullability",
@@ -1626,7 +1624,7 @@ public abstract class FieldMapper extends Mapper {
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
             if (value instanceof Map<?, ?> valueMap) {
-                if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || supportsExtendedDocValues == false) {
+                if (supportsExtendedDocValues == false) {
                     throw new MapperParsingException(
                         "unsupported doc_values configuration for field ["
                             + field
@@ -1666,7 +1664,7 @@ public abstract class FieldMapper extends Mapper {
             if (includeDefaults || isConfigured()) {
                 if (value.enabled == false) {
                     builder.field(name, false);
-                } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || supportsExtendedDocValues == false) {
+                } else if (supportsExtendedDocValues == false) {
                     // the object form is only available in columnar index modes, so it must never be emitted here
                     builder.field(name, true);
                 } else {

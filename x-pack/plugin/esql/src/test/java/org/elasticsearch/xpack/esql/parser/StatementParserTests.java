@@ -1252,7 +1252,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightOnFields() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1267,7 +1267,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRequiresQueryAndOnClause() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         // Query and ON are currently required by grammar.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
@@ -1275,7 +1275,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightCustomPrefix() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("h_"));
@@ -1284,7 +1284,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightEmptyPrefixParses() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         // Empty prefix overwrites the source column name.
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"\" \"elasticsearch\" ON content");
         Highlight highlight = as(plan, Highlight.class);
@@ -1294,7 +1294,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightFieldNamedPrefix() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         // `prefix` remains a regular identifier and can still be used as a field name.
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
         Highlight highlight = as(plan, Highlight.class);
@@ -1314,7 +1314,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownModifier() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         // Only `prefix = ...` is accepted as a modifier.
         expectThrows(
             ParsingException.class,
@@ -1324,7 +1324,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightWithOptions() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         LogicalPlan plan = query(
             "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
         );
@@ -1334,7 +1334,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightAcceptsAllOptions() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         LogicalPlan plan = query("""
             FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
               "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
@@ -1347,7 +1347,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownOption() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
@@ -1356,17 +1356,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsExpressionQuery() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title"));
     }
 
     public void testHighlightRejectsWildcardFields() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
     }
 
     public void testHighlightNotInReleaseBuild() {
-        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("mismatched input 'HIGHLIGHT'"),

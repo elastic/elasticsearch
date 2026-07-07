@@ -17,7 +17,8 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Locale;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Manifold model for distance/similarity as a function of rank and corpus size.
@@ -76,31 +77,8 @@ public final class ManifoldModel {
      * Query buffers are sized from {@link CalibrationUtils#calibrationQueryDimension(int, boolean)}
      * so cosine normalization and Neyshabur lift are supported.
      */
-    public static double[] estimateManifoldParameters(
-        VectorSimilarityFunction similarityFunction,
-        int dim,
-        FloatVectorValues querySource,
-        int[] queryOrdinals,
-        int baseDim,
-        boolean cosine,
-        boolean neyshabur,
-        FloatVectorValues fvv,
-        int[] corpusOrdinals,
-        int k
-    ) throws IOException {
-        return estimateManifoldParameters(
-            similarityFunction,
-            dim,
-            querySource,
-            queryOrdinals,
-            baseDim,
-            cosine,
-            neyshabur,
-            fvv,
-            corpusOrdinals,
-            k,
-            ranksFromMultipliers(k)
-        );
+    public static double[] estimateManifoldParameters(CalibrationSource source) throws IOException {
+        return estimateManifoldParameters(source, ranksFromMultipliers(source.k()));
     }
 
     static int[] ranksFromMultipliers(int k) {
@@ -113,31 +91,18 @@ public final class ManifoldModel {
 
     /**
      * Estimate manifold parameters (log(alpha), invDim) from query-corpus distances at various
-     * ranks and sample sizes. Corpus vectors are accessed lazily via {@code fvv} and
-     * {@code corpusOrdinals}.
+     * ranks and sample sizes. Corpus vectors are accessed lazily via {@link CalibrationSource#vectors()}
+     * and {@link CalibrationSource#corpusOrdinals()}.
      *
-     * @param fvv            the underlying vector values source
-     * @param corpusOrdinals ordinal indices into {@code fvv} for the corpus subset
-     * @param ranksForK      the rank values to sweep
+     * @param source    calibration context (similarity function, vectors, query set, target k)
+     * @param ranksForK the rank values to sweep
      * @return double[2] containing {log(alpha), invDim}
      */
-    static double[] estimateManifoldParameters(
-        VectorSimilarityFunction similarityFunction,
-        int dim,
-        FloatVectorValues querySource,
-        int[] queryOrdinals,
-        int baseDim,
-        boolean cosine,
-        boolean neyshabur,
-        FloatVectorValues fvv,
-        int[] corpusOrdinals,
-        int k,
-        int[] ranksForK
-    ) throws IOException {
-        int nQueries = queryOrdinals.length;
-        int nDocsTotal = corpusOrdinals.length;
+    static double[] estimateManifoldParameters(CalibrationSource source, int[] ranksForK) throws IOException {
+        int nQueries = source.queryOrdinals().length;
+        int nDocsTotal = source.corpusOrdinals().length;
         int m = Math.min(ranksForK.length, ManifoldModel.SAMPLE_SIZES.length);
-        int dimWork = CalibrationUtils.calibrationQueryDimension(baseDim, neyshabur);
+        int dimWork = CalibrationUtils.calibrationQueryDimension(source.baseDim(), source.neyshabur());
 
         int logCount = 0;
         double[] logRanks = new double[m];
@@ -147,7 +112,7 @@ public final class ManifoldModel {
         float[] queryScratch = new float[dimWork];
         ManifoldTopK[] topKs = new ManifoldTopK[nQueries];
         for (int qi = 0; qi < nQueries; qi++) {
-            topKs[qi] = new ManifoldTopK(similarityFunction, 6 * k);
+            topKs[qi] = new ManifoldTopK(source.similarityFunction(), 6 * source.k());
         }
 
         int sampleStart = 0;
@@ -161,18 +126,18 @@ public final class ManifoldModel {
             double sum = 0;
             for (int qi = 0; qi < nQueries; qi++) {
                 CalibrationUtils.materializeCalibrationQuery(
-                    querySource,
-                    queryOrdinals[qi],
-                    baseDim,
+                    source.vectors(),
+                    source.queryOrdinals()[qi],
+                    source.baseDim(),
                     dimWork,
-                    cosine,
-                    neyshabur,
+                    source.cosine(),
+                    source.neyshabur(),
                     null,
                     false,
                     queryScratch,
                     null
                 );
-                topKs[qi].add(queryScratch, fvv, corpusOrdinals, sampleStart, sampleEnd);
+                topKs[qi].add(queryScratch, source.vectors(), source.corpusOrdinals(), sampleStart, sampleEnd);
                 sum += topKs[qi].ithDistance(rank);
             }
             avgDist = sum / nQueries;
@@ -201,10 +166,12 @@ public final class ManifoldModel {
         Regression.OLSResult res = Regression.fitOls(x, y);
         double r2 = Regression.rSquared(x, y, res); // coefficient of determination for the fitted model
         logger.debug(
-            "Estimated manifold parameters: dist(k) = [{}] * (k/N)^[{}] (R² = [{}])",
-            String.format(Locale.ROOT, "%.4f", Math.exp(res.beta0())),
-            String.format(Locale.ROOT, "%.4f", res.beta1()),
-            String.format(Locale.ROOT, "%.4f", r2)
+            () -> format(
+                "Estimated manifold parameters: dist(k) = [%.4f] * (k/N)^[%.4f] (R² = [%.4f])",
+                Math.exp(res.beta0()),
+                res.beta1(),
+                r2
+            )
         );
         return new double[] { res.beta0(), res.beta1() };
     }
@@ -301,9 +268,15 @@ public final class ManifoldModel {
     /**
      * Expected distance/similarity value at rank k in a corpus of size N from the manifold model.
      */
-    public static double expectedRankDistance(VectorSimilarityFunction similarityFunction, double alpha, double invDim, int N, int k) {
+    public static double expectedRankDistance(
+        VectorSimilarityFunction similarityFunction,
+        double alpha,
+        double invDim,
+        int numDocs,
+        int k
+    ) {
         double logK = Math.log(k);
-        double logN = Math.log(N);
+        double logN = Math.log(numDocs);
         if (isDotLike(similarityFunction)) {
             return -Math.exp(alpha + (logK - logN) * invDim);
         }

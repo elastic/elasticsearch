@@ -193,6 +193,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -647,6 +648,16 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Returns a predicate that is {@code true} for shards open on this node.
+     */
+    public Predicate<ShardId> hasShardPredicate() {
+        return shardId -> {
+            final IndexService indexService = indexService(shardId.getIndex());
+            return indexService != null && indexService.hasShard(shardId.id());
+        };
+    }
+
+    /**
      * Creates a new {@link IndexService} for the given metadata.
      *
      * @param indexMetadata          the index metadata to create the index for
@@ -995,32 +1006,30 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         throttlingRecoveryService.enqueue(
+            projectId,
             recoveryListener,
             recoveryState,
             indexShard.recoveryStats(),
-            listener -> projectResolver.executeOnProject(
-                projectId,
-                () -> indexShard.startRecovery(
-                    recoveryState,
-                    recoveryTargetService,
-                    postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
-                    repositoriesService,
-                    (mapping, l) -> {
-                        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                            : "mapping update consumer only required by local shards recovery";
-                        AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                            // concrete index - no name clash, it uses uuid
-                            .setConcreteIndex(shardRouting.index())
-                            .source(mapping.source().string(), XContentType.JSON);
-                        client.execute(
-                            TransportAutoPutMappingAction.TYPE,
-                            putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                            new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
-                        );
-                    },
-                    this,
-                    clusterStateVersion
-                )
+            listener -> indexShard.startRecovery(
+                recoveryState,
+                recoveryTargetService,
+                postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
+                repositoriesService,
+                (mapping, l) -> {
+                    assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                        : "mapping update consumer only required by local shards recovery";
+                    AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                        // concrete index - no name clash, it uses uuid
+                        .setConcreteIndex(shardRouting.index())
+                        .source(mapping.source().string(), XContentType.JSON);
+                    client.execute(
+                        TransportAutoPutMappingAction.TYPE,
+                        putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                        new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
+                    );
+                },
+                this,
+                clusterStateVersion
             )
         );
     }

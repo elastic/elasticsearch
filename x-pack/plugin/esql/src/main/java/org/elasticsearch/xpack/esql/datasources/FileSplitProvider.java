@@ -12,12 +12,14 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -55,6 +57,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -63,6 +66,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 
 /**
  * Default {@link SplitProvider} for file-based sources.
@@ -135,6 +139,8 @@ public class FileSplitProvider implements SplitProvider {
 
     /** Maximum parallel per-file I/O tasks during split discovery (Parquet footer reads, etc.). */
     static final int MAX_PARALLEL_SPLIT_DISCOVERY = 16;
+
+    private static final String DISCOVERY_CANCELLED_MESSAGE = "ES|QL external split discovery cancelled";
 
     private final long targetSplitSizeBytes;
     private final DecompressionCodecRegistry codecRegistry;
@@ -227,6 +233,9 @@ public class FileSplitProvider implements SplitProvider {
         // still works, the on-wire cost is just slightly higher.
         ExternalSchema unifiedSchema = context.unifiedSchema();
 
+        // Bail before doing any per-file work if the originating query is already cancelled.
+        throwIfCancelled(context);
+
         // Phase 1: sequential filtering — cheap, in-memory predicates applied per file to
         // build the list of FileTask items that need I/O (footer reads, boundary scans).
         List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
@@ -278,9 +287,11 @@ public class FileSplitProvider implements SplitProvider {
 
             ColumnMapping columnMapping = null;
             List<Attribute> readSchema = null;
+            Map<String, DataType> inferredFileTypes = null;
             if (schemaInfo != null) {
                 SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
                 if (info != null) {
+                    inferredFileTypes = info.inferredTypes();
                     ColumnMapping mapping = info.mapping();
                     if (mapping != null && unifiedSchema != null && fileBackedQuerySchema.isEmpty() == false) {
                         // Fused narrowing: output dimension goes from Unified to Query, read
@@ -302,7 +313,23 @@ public class FileSplitProvider implements SplitProvider {
             }
 
             tasks.add(
-                new FileTask(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema, context.maxRecordBytes())
+                new FileTask(
+                    filePath,
+                    fileLength,
+                    format,
+                    config,
+                    partitionValues,
+                    columnMapping,
+                    readSchema,
+                    // Reconciled query types (by unified name). Under UNION_BY_NAME (the only path that can widen
+                    // a mixed-temporal column) file column names equal unified names, so footer split stats key
+                    // by the same names and normalize by-name. Strict reconciliation rejects differing types, so
+                    // there is no mixed-unit column to normalize on that path.
+                    unifiedSchema != null ? attributesToTypeMap(unifiedSchema.attributes()) : null,
+                    context.maxRecordBytes(),
+                    context.declaredReadSpec(),
+                    inferredFileTypes
+                )
             );
         }
 
@@ -312,19 +339,20 @@ public class FileSplitProvider implements SplitProvider {
 
         // Phase 2: I/O-bound split discovery — parallelize when executor is available.
         final StorageProvider hoistedProvider = sharedProvider;
+        final BooleanSupplier isCancelled = context.isCancelled();
         List<List<ExternalSplit>> perFileSplits;
         try {
             if (executor != null && tasks.size() > 1) {
                 perFileSplits = BoundedParallelGather.gather(
                     tasks,
-                    task -> processFileForSplits(task, hoistedProvider),
+                    task -> processFileForSplits(task, hoistedProvider, isCancelled),
                     MAX_PARALLEL_SPLIT_DISCOVERY,
                     executor
                 );
             } else {
                 perFileSplits = new ArrayList<>(tasks.size());
                 for (FileTask task : tasks) {
-                    perFileSplits.add(processFileForSplits(task, hoistedProvider));
+                    perFileSplits.add(processFileForSplits(task, hoistedProvider, isCancelled));
                 }
             }
         } catch (IOException e) {
@@ -346,6 +374,20 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
+     * Throws {@link TaskCancelledException} when the originating query has been cancelled, so that a
+     * long-running split discovery (e.g. thousands of Parquet footer reads) aborts promptly. Mirrors
+     * {@code ExternalSourceResolver.throwIfCancelled}. Thrown from {@code processFileForSplits} it is
+     * the {@code fn} passed to {@link BoundedParallelGather#gather}, whose documented fast-fail
+     * short-circuits not-yet-started files and rethrows the exception, so cancel latency is bounded to
+     * the in-flight slots.
+     */
+    private static void throwIfCancelled(SplitDiscoveryContext context) {
+        if (context.isCancelled().getAsBoolean()) {
+            throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
+        }
+    }
+
+    /**
      * Input tuple for per-file split discovery, holding all data needed to compute splits
      * for a single file without accessing shared mutable state.
      */
@@ -357,14 +399,37 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> partitionValues,
         @Nullable ColumnMapping columnMapping,
         @Nullable List<Attribute> readSchema,
-        int maxRecordBytes
+        @Nullable Map<String, DataType> reconciledTypes,
+        int maxRecordBytes,
+        DeclaredReadSpec declaredReadSpec,
+        // PRE-overlay inferred file types (physical-keyed), or null when no declared overlay ran. The stats-type
+        // authority for normalizing footer range stats — NOT the overlaid readSchema types.
+        @Nullable Map<String, DataType> inferredFileTypes
     ) {}
+
+    private static Map<String, DataType> attributesToTypeMap(List<Attribute> attributes) {
+        Map<String, DataType> types = new HashMap<>(attributes.size());
+        for (Attribute a : attributes) {
+            types.put(a.name(), a.dataType());
+        }
+        return types;
+    }
 
     /**
      * Computes the splits for a single file. Uses the hoisted provider when provided (non-null),
      * otherwise falls back to the registry for per-call provider resolution.
      * This method is safe to call concurrently from multiple threads.
      */
+    private List<ExternalSplit> processFileForSplits(FileTask task, @Nullable StorageProvider hoistedProvider, BooleanSupplier isCancelled)
+        throws IOException {
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
+        }
+        // Carry the cancellation signal as ambient thread-local state so the synchronous retry/throttle
+        // backoff inside the footer reads below can abort a parked sleep on cancel.
+        return StorageRetryCancellation.callWithCancellation(isCancelled, () -> processFileForSplits(task, hoistedProvider));
+    }
+
     private List<ExternalSplit> processFileForSplits(FileTask task, @Nullable StorageProvider hoistedProvider) throws IOException {
         List<ExternalSplit> fileSplits = new ArrayList<>();
 
@@ -393,6 +458,9 @@ public class FileSplitProvider implements SplitProvider {
             task.partitionValues(),
             task.columnMapping(),
             task.readSchema(),
+            task.reconciledTypes(),
+            task.declaredReadSpec(),
+            task.inferredFileTypes(),
             fileSplits,
             hoistedProvider
         )) {
@@ -589,6 +657,9 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> partitionValues,
         @Nullable ColumnMapping columnMapping,
         @Nullable List<Attribute> readSchema,
+        @Nullable Map<String, DataType> reconciledTypes,
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable Map<String, DataType> inferredFileTypes,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider
     ) {
@@ -623,6 +694,50 @@ public class FileSplitProvider implements SplitProvider {
 
             for (SplitRange range : ranges) {
                 Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
+                if (rangeStats != null && readSchema != null && reconciledTypes != null) {
+                    // The type authority for normalizing footer range stats. Without a declaration the footer values ARE
+                    // in the readSchema (inferred) types — today's behavior. With a declaration, readSchema is the OVERLAID
+                    // (declared) schema, so it lies about the raw footer values; use the file's PRE-overlay inferred types.
+                    Map<String, DataType> statsFileTypes;
+                    if (declaredReadSpec.isEmpty()) {
+                        statsFileTypes = attributesToTypeMap(readSchema);
+                    } else {
+                        // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
+                        // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
+                        // coercion makes pre-coercion stats untrustworthy), BEFORE unit-normalizing.
+                        Map<String, String> physicalToLogical = PhysicalNames.inverse(declaredReadSpec.renames());
+                        Set<String> poison = new HashSet<>(declaredReadSpec.dateFormats().keySet());
+                        if (inferredFileTypes != null) {
+                            Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
+                            for (String logical : declaredReadSpec.declaredTypeColumns()) {
+                                String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
+                                DataType inferredType = inferredFileTypes.get(physical);
+                                // Absent from THIS file (lenient union-by-name overlay skipped it): no footer stat exists
+                                // for it here either, so nothing to poison.
+                                if (inferredType != null && inferredType != overlaidTypes.get(logical)) {
+                                    poison.add(logical);
+                                }
+                            }
+                            rangeStats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rangeStats, physicalToLogical, poison);
+                            // Inferred file types, rekeyed to logical so they align with the rekeyed stats + reconciledTypes.
+                            statsFileTypes = new HashMap<>(inferredFileTypes.size());
+                            for (Map.Entry<String, DataType> e : inferredFileTypes.entrySet()) {
+                                statsFileTypes.put(physicalToLogical.getOrDefault(e.getKey(), e.getKey()), e.getValue());
+                            }
+                        } else {
+                            // Declared read but no captured inference (strict paths skip inference): the declared-vs-inferred
+                            // comparison is impossible, so conservatively poison EVERY declared column. row_count survives.
+                            poison.addAll(declaredReadSpec.declaredTypeColumns());
+                            rangeStats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rangeStats, physicalToLogical, poison);
+                            statsFileTypes = attributesToTypeMap(readSchema);
+                        }
+                    }
+                    // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query type so
+                    // the split-filter classifier (which compares a reconciled-unit literal) and the filtered merge
+                    // compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos) files, not unit-blind. A
+                    // non-normalizable representation safe-misses via the marker.
+                    rangeStats = SourceStatisticsSerializer.normalizeStatsToReconciled(rangeStats, statsFileTypes, reconciledTypes);
+                }
                 splits.add(
                     FileSplit.withStatisticsAndReadSchema(
                         "file",

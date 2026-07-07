@@ -94,6 +94,10 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature DOC_VALUES_MULTI_VALUE_RENAME = new NodeFeature("mapper.doc_values.multi_value_rename");
     public static final NodeFeature DOC_VALUES_MULTI_VALUE_INDEX_SETTING = new NodeFeature("mapper.doc_values.multi_value_index_setting");
     public static final NodeFeature DOC_VALUES_MULTI_VALUE_FALSE_ALIAS = new NodeFeature("mapper.doc_values.multi_value_false_alias");
+    public static final NodeFeature DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR = new NodeFeature(
+        "mapper.doc_values.extended_form_only_in_columnar"
+    );
+    public static final NodeFeature DOC_VALUES_NULLABILITY = new NodeFeature("mapper.doc_values.nullability");
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
@@ -124,7 +128,11 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature COLUMNAR_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES = new NodeFeature(
         "mapper.columnar.inline_array_order_binary_doc_values"
     );
+    static final NodeFeature COLUMNAR_IP_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES = new NodeFeature(
+        "mapper.columnar.ip_inline_array_order_binary_doc_values"
+    );
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
+    static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
 
     @Override
@@ -208,9 +216,13 @@ public class MapperFeatures implements FeatureSpecification {
             TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE,
             COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT,
             COLUMNAR_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
+            COLUMNAR_IP_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
             COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
+            COLUMNAR_SUPPORTS_SHAPE_FIELDS,
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
+            DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
+            DOC_VALUES_NULLABILITY,
             TSDB_METRIC_TEMPORALITY_SUPPORT
         );
     }

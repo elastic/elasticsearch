@@ -182,7 +182,8 @@ public class CsvModeTests extends ESTestCase {
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
             mode.usesQuote(),
-            mode.usesEscape()
+            mode.usesEscape(),
+            false // trimSpaces: default no-trim
         );
     }
 

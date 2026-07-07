@@ -707,6 +707,19 @@ c:long
 14
 ;
 
+countMultivaluedUnmappedField
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| STATS c = COUNT(unmapped_mv)
+;
+
+c:long
+13
+;
+
 inlineCountUnmappedFieldExistsOnlyInSource
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_count_on_unmapped
@@ -751,6 +764,21 @@ FROM sample_data, no_mapping_sample_data
 
 c:long
 14
+;
+
+inlineCountMultivaluedUnmappedField
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_count_on_unmapped
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| INLINE STATS c = COUNT(unmapped_mv)
+| KEEP c
+| LIMIT 1
+;
+
+c:long
+13
 ;
 
 inlineStatsByUnmappedFieldExistsInSource

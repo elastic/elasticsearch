@@ -42,7 +42,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
             randomIntBetween(0, 1000),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomIntBetween(0, 100)
         );
     }
 
@@ -62,7 +63,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         int filesScanned = instance.filesScanned();
         int splitsScanned = instance.splitsScanned();
         long bytesScanned = instance.bytesScanned();
-        switch (randomIntBetween(0, 13)) {
+        int externalWarmAggregates = instance.externalWarmAggregates();
+        switch (randomIntBetween(0, 14)) {
             case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
             case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
             case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
@@ -77,6 +79,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             case 11 -> filesScanned = randomValueOtherThan(filesScanned, () -> randomIntBetween(0, 100));
             case 12 -> splitsScanned = randomValueOtherThan(splitsScanned, () -> randomIntBetween(0, 1000));
             case 13 -> bytesScanned = randomValueOtherThan(bytesScanned, () -> randomNonNegativeLong());
+            case 14 -> externalWarmAggregates = randomValueOtherThan(externalWarmAggregates, () -> randomIntBetween(0, 100));
         }
         return new EsqlQueryProfile(
             query,
@@ -92,7 +95,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             fieldCapsCalls,
             filesScanned,
             splitsScanned,
-            bytesScanned
+            bytesScanned,
+            externalWarmAggregates
         );
     }
 
@@ -125,6 +129,22 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         assertThat(json, containsString("\"splits_scanned\":4"));
         assertThat(json, not(containsString("files_scanned")));
         assertThat(json, not(containsString("bytes_scanned")));
+    }
+
+    public void testWarmAggregatesIsAdditive() {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        profile.addExternalWarmAggregates(2);
+        profile.addExternalWarmAggregates(3);
+        assertEquals(5, profile.externalWarmAggregates());
+    }
+
+    public void testWarmAggregatesOnlyEmittedWhenServedWarm() throws IOException {
+        EsqlQueryProfile notWarm = new EsqlQueryProfile();
+        assertThat(toJson(notWarm), not(containsString("external_warm_aggregates")));
+
+        EsqlQueryProfile warm = new EsqlQueryProfile();
+        warm.addExternalWarmAggregates(2);
+        assertThat(toJson(warm), containsString("\"external_warm_aggregates\":2"));
     }
 
     private static String toJson(EsqlQueryProfile profile) throws IOException {

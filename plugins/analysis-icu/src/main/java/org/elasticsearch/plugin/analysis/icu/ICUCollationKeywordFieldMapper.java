@@ -61,10 +61,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "icu_collation_keyword";
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
-        }
-
         if (indexMode.isStrictColumnar()) {
             return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, true, true);
         }
@@ -301,7 +297,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
             this.indexDisabledByDefault = indexDisabledByDefault;
             this.indexMode = indexMode;
-            this.docValuesPameters = DocValuesParameter.of(defaultDocValuesParameters(indexMode), m -> toType(m).docValuesParams());
+            this.docValuesPameters = DocValuesParameter.of(
+                defaultDocValuesParameters(indexMode),
+                m -> toType(m).docValuesParams(),
+                indexMode.isStrictColumnar()
+            );
         }
 
         Builder nullValue(String nullValue) {

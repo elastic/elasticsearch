@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
@@ -30,6 +31,8 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Targeted unit tests for {@link NdJsonPageDecoder}'s keyword-decode path. Sibling
@@ -482,6 +485,33 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             )
         ) {
             return decoder.decodePage();
+        }
+    }
+
+    public void testDeclaredDateFormatZoneAware() throws Exception {
+        // A per-column declared format parses this column with its own ES DateFormatter (zone-aware): the -0700 offset
+        // is honored, landing 10/Oct/2000:13:55:36 -0700 at 2000-10-10T20:55:36Z (971211336000), not 13:55:36Z.
+        String ndjson = "{\"ts\":\"10/Oct/2000:13:55:36 -0700\"}\n";
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // file-level formatter unused; the column carries its own declared format
+                List.of(attribute("ts", DataType.DATETIME)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://declared-date",
+                new NdJsonReaderCounters(),
+                Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"),
+                Set.of()
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+                assertEquals(1, page.getPositionCount());
+                assertEquals(971211336000L, ((LongBlock) page.getBlock(0)).getLong(0));
+            }
         }
     }
 

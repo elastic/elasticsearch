@@ -117,7 +117,20 @@ public final class SchemaReconciliation {
      * @param mapping column mapping from unified schema to file schema, null for identity mapping
      * @param statistics optional statistics from file metadata
      */
-    public record FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {}
+    public record FileSchemaInfo(
+        ExternalSchema fileSchema,
+        @Nullable ColumnMapping mapping,
+        @Nullable SourceStatistics statistics,
+        // PRE-overlay file types, physical-keyed; null means fileSchema IS the inferred schema (no declared overlay ran),
+        // so callers fall back to the fileSchema attributes' types (today's behavior). Populated only where the declared
+        // overlay rebuilds this info (ExternalSourceResolver.applyNonStrictOverlay) so the split-level stats boundary can
+        // normalize footer stats with the file's real inferred types instead of the overlaid declared types.
+        @Nullable Map<String, DataType> inferredTypes
+    ) {
+        public FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {
+            this(fileSchema, mapping, statistics, null);
+        }
+    }
 
     /**
      * Safe type widening for schema reconciliation.

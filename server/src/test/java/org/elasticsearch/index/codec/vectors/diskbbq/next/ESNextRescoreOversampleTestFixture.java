@@ -29,10 +29,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -60,8 +62,7 @@ public final class ESNextRescoreOversampleTestFixture {
     public static final String FIELD_NAME = "f";
 
     /** Encodings swept by {@link IvfAutoCalibration}; derived from the source so the two cannot drift apart. */
-    public static final Set<ESNextDiskBBQVectorsFormat.QuantEncoding> CALIBRATION_CANDIDATE_ENCODINGS = IvfAutoCalibration
-        .candidateEncodings();
+    public static final Set<QuantEncoding> CALIBRATION_CANDIDATE_ENCODINGS = IvfAutoCalibration.candidateEncodings();
 
     /** Rescore oversample values swept by {@link IvfAutoCalibration}; derived from the source so they stay in sync. */
     public static final Set<Float> CALIBRATION_RERANK_OVERSAMPLES = IvfAutoCalibration.rerankOversamples();
@@ -81,7 +82,7 @@ public final class ESNextRescoreOversampleTestFixture {
         int vpc = 128;
         return TestUtil.alwaysKnnVectorsFormat(
             new ESNextDiskBBQVectorsFormat(
-                ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                QuantEncoding.ONE_BIT_4BIT_QUERY,
                 vpc,
                 ESNextDiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER,
                 DenseVectorFieldMapper.ElementType.FLOAT,
@@ -113,18 +114,8 @@ public final class ESNextRescoreOversampleTestFixture {
             dir,
             vectorDimensions,
             vectorsPerSegment,
-            new IvfSegmentConfig(
-                ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                false,
-                oversampleSegmentA
-            ),
-            new IvfSegmentConfig(
-                ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                false,
-                oversampleSegmentB
-            ),
+            new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentA),
+            new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentB),
             mergeConfigResolver
         );
     }
@@ -165,16 +156,8 @@ public final class ESNextRescoreOversampleTestFixture {
             dir,
             vectorDimensions,
             vectorsPerSegment,
-            IvfSegmentConfig.fromCodecDefaults(
-                ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                false
-            ),
-            IvfSegmentConfig.fromCodecDefaults(
-                ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                false
-            ),
+            IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false),
+            IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false),
             IvfMergeConfigResolver.useCodecDefault()
         );
     }
@@ -202,8 +185,8 @@ public final class ESNextRescoreOversampleTestFixture {
             boolean precondition = seq == 0 ? preconditionSegmentA : preconditionSegmentB;
             return Optional.of(
                 new IvfSegmentConfig(
-                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    CentroidIndexFormat.FLAT,
+                    QuantEncoding.ONE_BIT_4BIT_QUERY,
                     precondition,
                     DenseVectorFieldMapper.DEFAULT_OVERSAMPLE
                 )
@@ -237,14 +220,7 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             float ov = seq == 0 ? oversampleSegmentA : oversampleSegmentB;
-            return Optional.of(
-                new IvfSegmentConfig(
-                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                    false,
-                    ov
-                )
-            );
+            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, ov));
         };
         Codec codec = createDiskBbqCodec(flushConfig, mergeConfigResolverForBothPhases);
 
@@ -293,23 +269,9 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(
-                    new IvfSegmentConfig(
-                        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                        false,
-                        2f
-                    )
-                );
+                return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
             }
-            return Optional.of(
-                new IvfSegmentConfig(
-                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
-                    false,
-                    3f
-                )
-            );
+            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
         };
         Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -358,23 +320,9 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(
-                    new IvfSegmentConfig(
-                        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                        false,
-                        2f
-                    )
-                );
+                return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
             }
-            return Optional.of(
-                new IvfSegmentConfig(
-                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
-                    false,
-                    3f
-                )
-            );
+            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
         };
         Codec codec = createDiskBbqCodec(flushConfig, calibration::resolve);
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -398,19 +346,14 @@ public final class ESNextRescoreOversampleTestFixture {
     }
 
     public static IvfSegmentConfig readPersistedSegmentConfig(LeafReader leaf) throws IOException {
-        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = persistedQuantEncodingOnLeaf(leaf);
+        QuantEncoding encoding = persistedQuantEncodingOnLeaf(leaf);
         if (encoding == null) {
             return null;
         }
-        return new IvfSegmentConfig(
-            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-            encoding,
-            persistedPreconditionOnLeaf(leaf),
-            persistedOversampleOnLeaf(leaf)
-        );
+        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, encoding, persistedPreconditionOnLeaf(leaf), persistedOversampleOnLeaf(leaf));
     }
 
-    public static ESNextDiskBBQVectorsFormat.QuantEncoding persistedQuantEncodingOnLeaf(LeafReader leaf) throws IOException {
+    public static QuantEncoding persistedQuantEncodingOnLeaf(LeafReader leaf) throws IOException {
         CalibrationAwareReader reader = calibrationAwareReaderOnLeaf(leaf);
         if (reader == null) {
             return null;

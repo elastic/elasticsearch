@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.inference.action.RegionPolicyResponse;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.junit.After;
@@ -102,7 +101,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
         var client = clientRespondingToAllRequests();
         var clusterService = mockClusterService(ClusterState.EMPTY_STATE);
 
-        var action = createAction(client, clusterService, cache, eisUrlNotConfigured());
+        var action = createAction(client, clusterService, cache);
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
         action.doExecute(mock(Task.class), new PutRegionPolicyAction.Request(new RegionPolicy(List.of("eu"), null)), listener);
@@ -144,7 +143,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
 
         var clusterService = mockClusterService(ClusterState.EMPTY_STATE);
 
-        var action = createAction(client, clusterService, cache, eisUrlNotConfigured());
+        var action = createAction(client, clusterService, cache);
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
         action.doExecute(mock(Task.class), new PutRegionPolicyAction.Request(new RegionPolicy(List.of("eu"), null)), listener);
@@ -184,7 +183,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
 
         var clusterService = mockClusterService(ClusterState.EMPTY_STATE);
 
-        var action = createAction(client, clusterService, cache, eisUrlNotConfigured());
+        var action = createAction(client, clusterService, cache);
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
         action.doExecute(mock(Task.class), new PutRegionPolicyAction.Request(new RegionPolicy(List.of("eu"), null)), listener);
@@ -192,34 +191,6 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
         // The put should still succeed even though the refresh failed
         var response = listener.actionGet(TEST_REQUEST_TIMEOUT);
         assertThat(response.regionPolicy().regionPolicy().allowedGeos(), is(List.of("eu")));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testPut_WhenEisUrlNotConfigured_SkipsCheck() {
-        var cache = noopInvalidatingCache();
-        var client = clientRespondingToAllRequests();
-        var clusterService = mockClusterService(ClusterState.EMPTY_STATE);
-        var authorizationHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
-
-        var action = new TransportPutRegionPolicyAction(
-            Settings.EMPTY,
-            mock(TransportService.class),
-            threadPool,
-            mock(ActionFilters.class),
-            client,
-            clusterService,
-            mock(FeatureService.class),
-            cache,
-            authorizationHandler,
-            mock(Sender.class),
-            eisUrlNotConfigured()
-        );
-
-        var listener = new TestPlainActionFuture<RegionPolicyResponse>();
-        action.doExecute(mock(Task.class), new PutRegionPolicyAction.Request(new RegionPolicy(List.of("eu"), null)), listener);
-
-        listener.actionGet(TEST_REQUEST_TIMEOUT);
-        verify(authorizationHandler, never()).getAuthorizationWithPreferences(any(), any(), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -239,8 +210,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             mock(FeatureService.class),
             cache,
             authorizationHandler,
-            mock(Sender.class),
-            eisUrlConfigured()
+            mock(Sender.class)
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -272,8 +242,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             mock(FeatureService.class),
             cache,
             authorizationHandler,
-            mock(Sender.class),
-            eisUrlConfigured()
+            mock(Sender.class)
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -302,8 +271,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             mock(FeatureService.class),
             cache,
             authorizationHandler,
-            mock(Sender.class),
-            eisUrlConfigured()
+            mock(Sender.class)
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -332,8 +300,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             mock(FeatureService.class),
             cache,
             authorizationHandler,
-            mock(Sender.class),
-            eisUrlConfigured()
+            mock(Sender.class)
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -447,12 +414,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
         };
     }
 
-    private TransportPutRegionPolicyAction createAction(
-        NoOpClient client,
-        ClusterService clusterService,
-        InferencePreferencesCache cache,
-        ElasticInferenceServiceSettings elasticInferenceServiceSettings
-    ) {
+    private TransportPutRegionPolicyAction createAction(NoOpClient client, ClusterService clusterService, InferencePreferencesCache cache) {
         return new TransportPutRegionPolicyAction(
             Settings.EMPTY,
             mock(TransportService.class),
@@ -462,17 +424,8 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             clusterService,
             mock(FeatureService.class),
             cache,
-            mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-            mock(Sender.class),
-            elasticInferenceServiceSettings
+            mockAuthorizationHandlerReturning(ElasticInferenceServiceAuthorizationModel.unauthorized()),
+            mock(Sender.class)
         );
-    }
-
-    private static ElasticInferenceServiceSettings eisUrlNotConfigured() {
-        return new ElasticInferenceServiceSettings(Settings.EMPTY);
-    }
-
-    private static ElasticInferenceServiceSettings eisUrlConfigured() {
-        return new ElasticInferenceServiceSettings(Settings.builder().put("xpack.inference.elastic.url", "http://localhost:8080").build());
     }
 }

@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 
@@ -89,7 +88,6 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
     private final InferencePreferencesCache inferencePreferencesCache;
     private final ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler;
     private final Sender sender;
-    private final ElasticInferenceServiceSettings elasticInferenceServiceSettings;
 
     @Inject
     public TransportPutRegionPolicyAction(
@@ -102,8 +100,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         FeatureService featureService,
         InferencePreferencesCache inferencePreferencesCache,
         ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler,
-        Sender sender,
-        ElasticInferenceServiceSettings elasticInferenceServiceSettings
+        Sender sender
     ) {
         super(
             PutRegionPolicyAction.NAME,
@@ -121,7 +118,6 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         this.inferencePreferencesCache = inferencePreferencesCache;
         this.authorizationHandler = authorizationHandler;
         this.sender = sender;
-        this.elasticInferenceServiceSettings = elasticInferenceServiceSettings;
     }
 
     @Override
@@ -139,11 +135,6 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
 
     private void checkForDeniedInUseEndpoints(PutRegionPolicyAction.Request request, ActionListener<Void> listener) {
         if (request.force()) {
-            listener.onResponse(null);
-            return;
-        }
-
-        if (Strings.isNullOrEmpty(elasticInferenceServiceSettings.getElasticInferenceServiceUrl())) {
             listener.onResponse(null);
             return;
         }

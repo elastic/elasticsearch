@@ -747,7 +747,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             // Clean up any now-obsolete deletion-start batchers
             synchronized (snapshotDeletionStartBatchers) {
-                snapshotDeletionStartBatchers.keySet().removeAll(event.projectDelta().removed());
+                snapshotDeletionStartBatchers.keySet().removeAll(event.projectDelta().deleted());
                 for (var perProjectDeletionStartBatchers : snapshotDeletionStartBatchers.entrySet()) {
                     perProjectDeletionStartBatchers.getValue()
                         .keySet()

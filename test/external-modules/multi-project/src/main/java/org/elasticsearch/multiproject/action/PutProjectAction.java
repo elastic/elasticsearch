@@ -15,14 +15,17 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,7 +61,8 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
     }
 
     public static class TransportPutProjectAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
-        private final MasterServiceTaskQueue<PutProjectTask> putProjectTaskQueue;
+        private final MasterServiceTaskQueue<CreateProjectTask> createProjectQueue;
+        private final MasterServiceTaskQueue<RemoveCreationBlockTask> removeCreationBlockQueue;
 
         @Inject
         public TransportPutProjectAction(
@@ -77,7 +82,12 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
                 AcknowledgedResponse::readFrom,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
-            this.putProjectTaskQueue = clusterService.createTaskQueue("put-project", Priority.NORMAL, new PutProjectExecutor());
+            this.createProjectQueue = clusterService.createTaskQueue("create-project", Priority.NORMAL, new CreateProjectExecutor());
+            this.removeCreationBlockQueue = clusterService.createTaskQueue(
+                "remove-project-creation-block",
+                Priority.NORMAL,
+                new RemoveCreationBlockExecutor()
+            );
         }
 
         @Override
@@ -85,18 +95,35 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         }
 
+        /**
+         * Project creation is two-phase, mirroring the real project lifecycle: the project is created together with
+         * {@link ProjectMetadata#PROJECT_UNDER_CREATION_BLOCK}, then that block is removed once creation is complete.
+         * Each phase is its own cluster state update, so the resulting {@link org.elasticsearch.cluster.ClusterChangedEvent
+         * ClusterChangedEvent}'s project delta correctly reports the project as {@code initializing} and then
+         * {@code initialized}, rather than skipping straight to ready in one update.
+         */
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
             throws Exception {
-            putProjectTaskQueue.submitTask(
-                "put-project " + request.projectId,
-                new PutProjectTask(request, listener),
-                request.masterNodeTimeout()
-            );
+            SubscribableListener.<Void>newForked(
+                l -> createProjectQueue.submitTask(
+                    "create-project " + request.projectId,
+                    new CreateProjectTask(request.projectId, l),
+                    request.masterNodeTimeout()
+                )
+            )
+                .<Void>andThen(
+                    (l, ignored) -> removeCreationBlockQueue.submitTask(
+                        "remove-project-creation-block " + request.projectId,
+                        new RemoveCreationBlockTask(request.projectId, l),
+                        request.masterNodeTimeout()
+                    )
+                )
+                .addListener(listener.map(ignored -> AcknowledgedResponse.TRUE));
         }
     }
 
-    record PutProjectTask(Request request, ActionListener<AcknowledgedResponse> listener) implements ClusterStateTaskListener {
+    record CreateProjectTask(ProjectId projectId, ActionListener<Void> listener) implements ClusterStateTaskListener {
 
         @Override
         public void onFailure(Exception e) {
@@ -104,27 +131,57 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    static class PutProjectExecutor implements ClusterStateTaskExecutor<PutProjectTask> {
+    static class CreateProjectExecutor implements ClusterStateTaskExecutor<CreateProjectTask> {
 
         @Override
-        public ClusterState execute(BatchExecutionContext<PutProjectTask> batchExecutionContext) throws Exception {
+        public ClusterState execute(BatchExecutionContext<CreateProjectTask> batchExecutionContext) throws Exception {
             final ClusterState initialState = batchExecutionContext.initialState();
             final Set<ProjectId> knownProjectIds = new HashSet<>(initialState.metadata().projects().keySet());
             var stateBuilder = ClusterState.builder(initialState);
-            for (TaskContext<PutProjectTask> taskContext : batchExecutionContext.taskContexts()) {
+            var blocksBuilder = ClusterBlocks.builder(initialState.blocks());
+            for (TaskContext<CreateProjectTask> taskContext : batchExecutionContext.taskContexts()) {
                 try {
-                    Request request = taskContext.getTask().request();
-                    if (knownProjectIds.contains(request.projectId)) {
-                        throw new ResourceAlreadyExistsException("project [{}] already exists", request.projectId);
+                    ProjectId projectId = taskContext.getTask().projectId();
+                    if (knownProjectIds.contains(projectId)) {
+                        throw new ResourceAlreadyExistsException("project [{}] already exists", projectId);
                     }
-                    stateBuilder.putProjectMetadata(ProjectMetadata.builder(request.projectId));
-                    knownProjectIds.add(request.projectId);
-                    taskContext.success(() -> taskContext.getTask().listener.onResponse(AcknowledgedResponse.TRUE));
+                    stateBuilder.putProjectMetadata(ProjectMetadata.builder(projectId));
+                    blocksBuilder.addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK);
+                    knownProjectIds.add(projectId);
+                    taskContext.success(() -> taskContext.getTask().listener().onResponse(null));
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
             }
-            return stateBuilder.build();
+            return stateBuilder.blocks(blocksBuilder).build();
+        }
+    }
+
+    record RemoveCreationBlockTask(ProjectId projectId, ActionListener<Void> listener) implements ClusterStateTaskListener {
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    static class RemoveCreationBlockExecutor extends SimpleBatchedExecutor<RemoveCreationBlockTask, Void> {
+
+        @Override
+        public Tuple<ClusterState, Void> executeTask(RemoveCreationBlockTask task, ClusterState clusterState) {
+            final var nextState = ClusterState.builder(clusterState)
+                .blocks(
+                    ClusterBlocks.builder(clusterState.blocks())
+                        .removeProjectGlobalBlock(task.projectId(), ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+                        .build()
+                )
+                .build();
+            return Tuple.tuple(nextState, null);
+        }
+
+        @Override
+        public void taskSucceeded(RemoveCreationBlockTask task, Void unused) {
+            task.listener().onResponse(null);
         }
     }
 

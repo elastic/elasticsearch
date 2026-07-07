@@ -11,7 +11,6 @@ package org.elasticsearch.multiproject.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -20,7 +19,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
-import org.elasticsearch.multiproject.action.DeleteProjectAction.DeleteProjectTask;
+import org.elasticsearch.multiproject.action.DeleteProjectAction.RemoveProjectTask;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -29,11 +28,11 @@ import java.util.stream.Stream;
 
 public class DeleteProjectActionTests extends ESTestCase {
 
-    private DeleteProjectAction.DeleteProjectExecutor executor;
+    private DeleteProjectAction.RemoveProjectExecutor executor;
 
     @Before
     public void init() {
-        executor = new DeleteProjectAction.DeleteProjectExecutor();
+        executor = new DeleteProjectAction.RemoveProjectExecutor();
     }
 
     public void testSimpleDelete() throws Exception {
@@ -59,12 +58,12 @@ public class DeleteProjectActionTests extends ESTestCase {
         var projects = randomList(1, 5, ESTestCase::randomUniqueProjectId);
         var deletedProjects = randomSubsetOf(projects);
         var state = buildState(projects);
-        var listener = ActionListener.assertAtLeastOnce(
-            ActionTestUtils.<AcknowledgedResponse>assertNoSuccessListener(e -> assertTrue(e instanceof IllegalArgumentException))
+        var listener = ActionListener.<Void>assertAtLeastOnce(
+            ActionTestUtils.assertNoSuccessListener(e -> assertTrue(e instanceof IllegalArgumentException))
         );
         var nonExistingTask = createTask(randomUniqueProjectId(), listener);
         var tasks = Stream.concat(Stream.of(nonExistingTask), deletedProjects.stream().map(this::createTask)).toList();
-        var result = ClusterStateTaskExecutorUtils.executeHandlingResults(state, executor, tasks, t -> {}, DeleteProjectTask::onFailure);
+        var result = ClusterStateTaskExecutorUtils.executeHandlingResults(state, executor, tasks, t -> {}, RemoveProjectTask::onFailure);
         for (ProjectId deletedProject : deletedProjects) {
             assertNull(result.metadata().projects().get(deletedProject));
             assertNull(result.globalRoutingTable().routingTables().get(deletedProject));
@@ -78,12 +77,12 @@ public class DeleteProjectActionTests extends ESTestCase {
         }
     }
 
-    private DeleteProjectTask createTask(ProjectId projectId) {
+    private RemoveProjectTask createTask(ProjectId projectId) {
         return createTask(projectId, ActionListener.running(() -> {}));
     }
 
-    private DeleteProjectTask createTask(ProjectId projectId, ActionListener<AcknowledgedResponse> listener) {
-        return new DeleteProjectTask(new DeleteProjectAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, projectId), listener);
+    private RemoveProjectTask createTask(ProjectId projectId, ActionListener<Void> listener) {
+        return new RemoveProjectTask(projectId, listener);
     }
 
     private ClusterState buildState(List<ProjectId> projects) {

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -494,7 +495,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             assertFalse(repositoriesService.hasRepositoryTrackingForProject(ProjectId.DEFAULT));
         }
 
-        // 2. Add a new project
+        // 2. Add a new initializing project
         final var anotherProjectId = randomUniqueProjectId();
         final var anotherRepoName = "another-repo";
         final var state1 = ClusterState.builder(state0)
@@ -509,6 +510,9 @@ public class RepositoriesServiceTests extends ESTestCase {
                             )
                         )
                     )
+            )
+            .blocks(
+                ClusterBlocks.builder(state0.blocks()).addProjectGlobalBlock(anotherProjectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
             )
             .build();
         repositoriesService.applyClusterState(new ClusterChangedEvent("test", state1, state0));
@@ -618,8 +622,12 @@ public class RepositoriesServiceTests extends ESTestCase {
                     new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, repoType, Settings.EMPTY)))
                 )
         );
+        if (projectId.equals(ProjectId.DEFAULT)) {
+            return state.build();
+        }
 
-        return state.build();
+        return state.blocks(ClusterBlocks.builder().addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK).build())
+            .build();
     }
 
     private ClusterState emptyState() {

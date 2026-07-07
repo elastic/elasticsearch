@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,7 +27,6 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -242,13 +240,10 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
                 .append(PAD)
                 .append("\"}\n");
         }
-        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         if (gzip) {
-            try (OutputStream os = new GZIPOutputStream(Files.newOutputStream(file))) {
-                os.write(bytes);
-            }
+            writeGzipped(file, sb.toString());
         } else {
-            Files.write(file, bytes);
+            Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
         }
         return v;
     }

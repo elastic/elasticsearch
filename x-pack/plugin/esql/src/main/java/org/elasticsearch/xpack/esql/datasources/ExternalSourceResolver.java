@@ -886,13 +886,6 @@ public class ExternalSourceResolver {
         return dot >= 0 ? name.substring(dot) : "";
     }
 
-    /** True for the coordinator-cache stripe bookkeeping keys that have no plan-side consumer. */
-    private static boolean isStripeBookkeeping(String key) {
-        return key.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX)
-            || key.equals(ExternalStats.STRIPE_LAST_INDEX_KEY)
-            || key.equals(ExternalStats.STRIPE_GRID_KEY);
-    }
-
     /**
      * Returns {@code safeMetadata} without the coordinator-cache stripe bookkeeping ({@code _stats.stripe.<k>},
      * {@code _stats.stripe_last_index}, {@code _stats.stripe_grid}) — those feed the cache-side 0..K fold and are
@@ -905,7 +898,7 @@ public class ExternalSourceResolver {
         }
         boolean hasStripeKeys = false;
         for (String k : safeMetadata.keySet()) {
-            if (isStripeBookkeeping(k)) {
+            if (ExternalStats.isStripeBookkeeping(k)) {
                 hasStripeKeys = true;
                 break;
             }
@@ -915,7 +908,7 @@ public class ExternalSourceResolver {
         }
         Map<String, Object> filtered = new HashMap<>(safeMetadata.size());
         for (Map.Entry<String, Object> e : safeMetadata.entrySet()) {
-            if (isStripeBookkeeping(e.getKey()) == false) {
+            if (ExternalStats.isStripeBookkeeping(e.getKey()) == false) {
                 filtered.put(e.getKey(), e.getValue());
             }
         }

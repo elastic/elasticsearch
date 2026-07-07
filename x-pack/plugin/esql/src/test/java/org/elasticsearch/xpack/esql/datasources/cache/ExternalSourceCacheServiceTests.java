@@ -35,6 +35,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.lessThan;
+
 public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     private static Settings defaultSettings() {
@@ -697,7 +699,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertEquals(100L, enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
             // Once the 0..K fold is complete the per-stripe bookkeeping is compacted away (it has served its
-            // purpose) so the entry weight stays O(1) — see ExternalSourceCacheService#compactCommittedStripes.
+            // purpose) so the entry weight stays O(1) — see ExternalSourceCacheService#clearStripeState.
             assertNull(
                 "stripe bookkeeping compacted after a complete fold",
                 enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
@@ -1213,11 +1215,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             assertNull("stripe grid stamp compacted", enriched.safeMetadata().get(ExternalStats.STRIPE_GRID_KEY));
             // The entry weight must not scale with stripe count: 500 stripes must weigh no more than a small
             // constant over a fold-only entry (a retained-stripe entry would be tens of KB heavier).
-            assertThat(
-                "compacted entry weight must be O(1), not O(stripe count)",
-                enriched.estimatedBytes(),
-                org.hamcrest.Matchers.lessThan(2_000L)
-            );
+            assertThat("compacted entry weight must be O(1), not O(stripe count)", enriched.estimatedBytes(), lessThan(2_000L));
         }
     }
 

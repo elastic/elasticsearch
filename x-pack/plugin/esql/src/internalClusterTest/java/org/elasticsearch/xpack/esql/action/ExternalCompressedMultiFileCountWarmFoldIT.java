@@ -20,14 +20,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -158,7 +154,7 @@ public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternal
         for (int i = 0; i < ROWS_PER_FILE; i++, v++) {
             sb.append("{\"id\":").append(v).append(",\"value\":").append(v).append(",\"pad\":\"").append(PAD).append("\"}\n");
         }
-        writeGzip(file, sb.toString());
+        writeGzipped(file, sb.toString());
         return v;
     }
 
@@ -168,14 +164,7 @@ public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternal
         for (int i = 0; i < ROWS_PER_FILE; i++, v++) {
             sb.append(v).append('\t').append(v).append('\t').append(PAD).append('\n');
         }
-        writeGzip(file, sb.toString());
+        writeGzipped(file, sb.toString());
         return v;
-    }
-
-    private static void writeGzip(Path file, String content) throws IOException {
-        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-        try (OutputStream os = new GZIPOutputStream(Files.newOutputStream(file))) {
-            os.write(bytes);
-        }
     }
 }

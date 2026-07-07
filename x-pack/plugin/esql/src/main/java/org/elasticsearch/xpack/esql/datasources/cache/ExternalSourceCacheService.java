@@ -151,7 +151,9 @@ public class ExternalSourceCacheService implements Closeable {
         }
         // Snapshot the glob's entries BEFORE any commit writes: the first put() sweeps TTL-expired
         // entries, evicting files #2..N's entries before their deltas apply. See snapshotEntriesByPath.
-        Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preMatched = snapshotEntriesByPath(contributionsPerFile.keySet());
+        Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preCommitSnapshot = snapshotEntriesByPath(
+            contributionsPerFile.keySet()
+        );
         Map<String, Map<String, Object>> merged = new HashMap<>(contributionsPerFile.size());
         for (Map.Entry<String, List<Map<String, Object>>> e : contributionsPerFile.entrySet()) {
             List<Map<String, Object>> contributions = e.getValue();
@@ -199,9 +201,9 @@ public class ExternalSourceCacheService implements Closeable {
                 logger.debug("dropping captured stats for [{}]: no complete stripe among fragments", e.getKey());
                 continue;
             }
-            commitStripeDelta(e.getKey(), delta, preMatched.get(e.getKey()));
+            commitStripeDelta(e.getKey(), delta, preCommitSnapshot.get(e.getKey()));
         }
-        reconcileSourceStats(merged, preMatched);
+        reconcileSourceStats(merged, preCommitSnapshot);
     }
 
     /**
@@ -273,6 +275,9 @@ public class ExternalSourceCacheService implements Closeable {
                 if (matchesContribution(candidate.getKey(), candidate.getValue(), path, mtimeMillis, fingerprint)) {
                     matches.add(candidate);
                 }
+            }
+            if (matches.isEmpty() == false) {
+                logger.debug("recovering [{}] cache entries for [{}] swept by a sibling commit", matches.size(), path);
             }
         }
         return matches;
@@ -532,8 +537,7 @@ public class ExternalSourceCacheService implements Closeable {
             Object entryGrid = enriched.get(ExternalStats.STRIPE_GRID_KEY);
             boolean gridMatches = entryGrid instanceof Number n && n.longValue() == delta.stripeSize();
             if (gridMatches == false) {
-                enriched.keySet().removeIf(k -> k.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX));
-                enriched.remove(ExternalStats.STRIPE_LAST_INDEX_KEY);
+                clearStripeState(enriched);
             }
             enriched.put(ExternalStats.STRIPE_GRID_KEY, delta.stripeSize());
             for (Map.Entry<Long, Map<String, Object>> stripe : delta.stripes().entrySet()) {
@@ -554,23 +558,10 @@ public class ExternalSourceCacheService implements Closeable {
             }
             Map<String, Object> wholeFile = foldCommittedStripes(enriched, delta);
             if (wholeFile != null) {
-                compactCommittedStripes(enriched);
+                clearStripeState(enriched); // compaction: the fold subsumes the stripes; entry weight back to O(1)
                 enriched.putAll(wholeFile);
             }
-            schemaCache.put(
-                key,
-                new SchemaCacheEntry(
-                    existing.columnNames(),
-                    existing.columnTypes(),
-                    existing.columnNullabilities(),
-                    existing.columnSynthetics(),
-                    existing.sourceType(),
-                    existing.location(),
-                    enriched,
-                    existing.connectorConfig(),
-                    existing.cachedAtMillis()
-                )
-            );
+            schemaCache.put(key, existing.withSafeMetadata(enriched));
         }
     }
 
@@ -745,19 +736,23 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * Drops the per-stripe bookkeeping once {@link #foldCommittedStripes} has materialized the
-     * whole-file {@code _stats.*} — the stripes' only purpose was composing partial knowledge until
-     * the file was fully covered. Retaining them makes the entry's cache weight O(stripe count), and
-     * a multi-file glob of many-stripe entries overflows the schema-cache budget; the LRU then evicts
-     * already-committed sibling entries and the all-or-nothing multi-file fold forces a full warm
-     * re-scan. Compacting is safe because the file is fully known: a later scan of the same
-     * (path, mtime, fingerprint) re-emits identical stripes idempotently, and a partial re-scan folds
-     * to null but leaves the committed whole-file stats in place.
+     * Drops the per-stripe accumulation state ({@code _stats.stripe.<k>} sub-entries, EOF marker, grid
+     * stamp) from an entry's metadata, once the stripes can no longer contribute. Two call sites:
+     * <ul>
+     *   <li>After {@link #foldCommittedStripes} materializes the whole-file {@code _stats.*}, as weight
+     *   compaction — the stripes' only purpose was composing partial knowledge until the file was fully
+     *   covered. Retaining them makes the entry's cache weight O(stripe count), and a multi-file glob of
+     *   many-stripe entries overflows the schema-cache budget; the LRU then evicts already-committed
+     *   sibling entries and the all-or-nothing multi-file fold forces a full warm re-scan. Compacting is
+     *   safe because the file is fully known: a later scan of the same (path, mtime, fingerprint)
+     *   re-emits identical stripes idempotently, and a partial re-scan folds to null but leaves the
+     *   committed whole-file stats in place.</li>
+     *   <li>On the grid-mismatch reset in {@link #applyStripeDelta} — stale-grid ordinals are
+     *   incomparable with the delta's, so accumulation restarts on the delta's grid.</li>
+     * </ul>
      */
-    private static void compactCommittedStripes(Map<String, Object> enriched) {
-        enriched.keySet().removeIf(k -> k.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX));
-        enriched.remove(ExternalStats.STRIPE_LAST_INDEX_KEY);
-        enriched.remove(ExternalStats.STRIPE_GRID_KEY);
+    private static void clearStripeState(Map<String, Object> enriched) {
+        enriched.keySet().removeIf(ExternalStats::isStripeBookkeeping);
     }
 
     /**
@@ -838,14 +833,14 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * Snapshot-aware body of {@link #reconcileSourceStats}. {@code preMatched} is the pre-reconcile
+     * Snapshot-aware body of {@link #reconcileSourceStats}. {@code preCommitSnapshot} is the pre-reconcile
      * per-path entry snapshot (see {@link #snapshotEntriesByPath}), consulted only when the live cache
      * has no match — the sibling-commit expiry-sweep case described there. Same discipline as
      * {@link #applyStripeDelta}.
      */
     private void reconcileSourceStats(
         Map<String, Map<String, Object>> mergedStatsPerFile,
-        Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preMatched
+        Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preCommitSnapshot
     ) {
         if (enabled == false || mergedStatsPerFile == null || mergedStatsPerFile.isEmpty()) {
             return;
@@ -880,7 +875,7 @@ public class ExternalSourceCacheService implements Closeable {
                     path,
                     mtimeMillis,
                     contributionFingerprint,
-                    preMatched.get(path)
+                    preCommitSnapshot.get(path)
                 );
                 for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
                     SchemaCacheKey key = match.getKey();
@@ -891,20 +886,7 @@ public class ExternalSourceCacheService implements Closeable {
                     // Long.MAX for a LONG-resolved column) is DROPPED rather than stored — otherwise the
                     // serve would coerce it to the resolved type and produce a wrong value.
                     enriched.putAll(coerceColumnStatsToResolvedTypes(mergedStats, existing.columnNames(), existing.columnTypes(), true));
-                    schemaCache.put(
-                        key,
-                        new SchemaCacheEntry(
-                            existing.columnNames(),
-                            existing.columnTypes(),
-                            existing.columnNullabilities(),
-                            existing.columnSynthetics(),
-                            existing.sourceType(),
-                            existing.location(),
-                            enriched,
-                            existing.connectorConfig(),
-                            existing.cachedAtMillis()
-                        )
-                    );
+                    schemaCache.put(key, existing.withSafeMetadata(enriched));
                 }
             }
         }

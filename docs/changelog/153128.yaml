@@ -1,6 +1,5 @@
 area: ES|QL
-issues:
- - 153073
+issues: []
 pr: 153128
 summary: Fix METRICS_INFO duplicate data streams
 type: bug

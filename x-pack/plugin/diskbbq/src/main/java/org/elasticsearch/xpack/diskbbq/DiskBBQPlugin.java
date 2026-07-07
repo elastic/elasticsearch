@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
-import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
@@ -93,7 +92,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         return new ESNextDiskBBQVectorsFormat(
                             QuantEncoding.fromBits((byte) diskbbq.getBits()),
                             clusterSize,
-                            ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                            ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                             elementType,
                             onDiskRescore,
                             mergingExecutorService,
@@ -112,7 +111,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         return new ES950DiskBBQVectorsFormat(
                             QuantEncoding.fromBits((byte) diskbbq.getBits()),
                             clusterSize,
-                            ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                            ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                             elementType,
                             onDiskRescore,
                             mergingExecutorService,
@@ -127,7 +126,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                     return new ES940DiskBBQVectorsFormat(
                         ES940DiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
                         clusterSize,
-                        ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                        ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
                         onDiskRescore,
                         mergingExecutorService,

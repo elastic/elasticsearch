@@ -23,6 +23,8 @@ if (previousMinorSnapshot != null) {
       systemProperty("tests.old_cluster_version", previousMinorSnapshot)
       systemProperty("tests.new_cluster_version", fwcVersion)
       nonInputProperties.systemProperty 'tests.fwc', 'true'
+      // FWC stages share a live cluster across the whole build; must always run in full on CI retry.
+      ext.neverSkipOnSmartRetry = true
     }
   }
 }

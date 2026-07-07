@@ -16,6 +16,7 @@ import org.elasticsearch.gradle.internal.test.rerun.model.FailedTestsReport;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
@@ -70,8 +71,13 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
             return;
         }
 
-        if (test.getPath().endsWith("remote-cluster") || test.getPath().endsWith("mixed-cluster")) {
-            test.getLogger().lifecycle("Smart retry: running all tests for {} (multi-cluster task, never skipped)", test.getPath());
+        // BWC/FWC suites that chain stages over a shared live cluster (rolling-upgrade, mixed-cluster, multi-cluster,
+        // etc.) set ext.neverSkipOnSmartRetry = true via elasticsearch.bwc-test or elasticsearch.fwc-test. Skipping
+        // an earlier stage on retry leaves later stages operating against a cluster that never had the earlier stage's
+        // side effects applied, so these tasks must always run in full.
+        ExtraPropertiesExtension extra = test.getExtensions().getExtraProperties();
+        if (extra.has("neverSkipOnSmartRetry") && Boolean.TRUE.equals(extra.get("neverSkipOnSmartRetry"))) {
+            test.getLogger().lifecycle("Smart retry: running all tests for {} (neverSkipOnSmartRetry=true)", test.getPath());
             return;
         }
 

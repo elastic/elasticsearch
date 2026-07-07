@@ -41,6 +41,31 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
     }
 
+    def "never skips task with neverSkipOnSmartRetry set"() {
+        given:
+        simpleTestSetup()
+        subProject(":subproject1") {
+            buildFile << '''
+                tasks.register("bwcStageTask", Test) {
+                    testClassesDirs = sourceSets.test.output.classesDirs
+                    classpath = sourceSets.test.runtimeClasspath
+                    ext.neverSkipOnSmartRetry = true
+                }
+            '''
+        }
+        writeHistory([":subproject1:bwcStageTask", ":subproject1:test"], [:])
+        when:
+        def result = gradleRunner("bwcStageTask", "test", "--warning-mode", "all").build()
+        then:
+        // A normal task, correctly reported as successful, is skipped
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+
+        // A task with neverSkipOnSmartRetry=true must always run in full, even when smart retry
+        // recorded it as successful previously
+        result.task(":subproject1:bwcStageTask").outcome == TaskOutcome.SUCCESS
+        result.output.contains("neverSkipOnSmartRetry=true")
+    }
+
     def "skips successful tasks and runs everything else"() {
         given:
         simpleTestSetup()

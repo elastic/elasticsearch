@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -88,11 +87,6 @@ public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternal
     }
 
     @Override
-    protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 4).build());
-    }
-
-    @Override
     public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
         try {
             return client(internalCluster().getMasterName()).execute(EsqlQueryAction.INSTANCE, request).actionGet(timeout);
@@ -126,13 +120,13 @@ public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternal
     }
 
     /**
-     * Runs {@code query} with profiling on and — critically — {@link #getPragmas()} attached. The base
-     * class only attaches pragmas in its {@code run(String)} convenience; a raw
-     * {@code syncEsqlQueryRequest(...)} carries none, silently running at the node-default
-     * {@code parsing_parallelism} instead of the pinned value.
+     * Runs {@code query} with profiling on. This test's weight-driven eviction is independent of
+     * {@code parsing_parallelism} (stripe count comes from the stripe grid, not the parse degree), so nothing
+     * is pinned — and pinning would be illegal anyway: {@code parsing_parallelism} is a snapshot-only pragma
+     * and a request carrying it is rejected in release builds.
      */
     private EsqlQueryResponse runProfiled(String query) {
-        return run(syncEsqlQueryRequest(query).pragmas(getPragmas()).profile(true), TimeValue.timeValueMinutes(5));
+        return run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5));
     }
 
     private static void assertSingleLong(EsqlQueryResponse response, long expected) {

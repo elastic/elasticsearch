@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * so a silent degradation to a whole-file or single-chunk read fails loudly instead of passing vacuously (a
  * whole-file summary is authoritative and would still short-circuit warm).
  * <p>
- * Each file is ~12 MB (well over the default 4 MB segment size, so parallelism 4 yields ~3 chunks per file), the
+ * Each file is ~12 MB (well over the default 4 MB segment size, so the parallel-parse path yields ~3 chunks per file), the
  * stripe grid is pinned to 6 MB (larger than a 4 MB chunk, so every stripe spans a chunk boundary), and the
  * dataset spans multiple files. Columns cover a LONG stats column and a temporal (DATETIME) stats column — the
  * bench {@code EventDate} shape — so both {@code MIN}/{@code MAX} over a plain integer and over a date short-circuit.
@@ -103,13 +103,6 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
             .build();
     }
 
-    @Override
-    protected QueryPragmas getPragmas() {
-        // parsing_parallelism > 1 selects the parallel-parse path so each ~12 MB file is read in several 4 MB
-        // chunks, the production shape at the 1rg-per-file ClickBench layout.
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 4).build());
-    }
-
     /**
      * Pins every query to one coordinator: the reconciled schema cache is per-coordinator, so the cold scan and
      * the warm short-circuit must hit the same node (mirrors {@link ExternalMultiFileWarmAggregateFoldIT}).
@@ -148,6 +141,14 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
      * MIN/MAX, reproducing the production ordering.
      */
     private void assertWarmAggregatesShortCircuit(String dataset) {
+        // The multi-chunk-per-stripe geometry requires the parallel-parse path (parsing_parallelism > 1). That
+        // pragma is snapshot-only (rejected in release builds), so this test relies on its node default —
+        // EsExecutors.allocatedProcessors(EMPTY), i.e. the machine's cores — and skips on a single-processor
+        // runner, where the read would be a whole-file sequential scan and the geometry would not be exercised.
+        assumeTrue(
+            "multi-chunk-per-stripe geometry needs parsing_parallelism > 1 (allocated processors)",
+            EsExecutors.allocatedProcessors(Settings.EMPTY) > 1
+        );
         String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
         Map<String, List<Map<String, Object>>> coldContributions;
         try (var response = runProfiled(countQuery)) {
@@ -190,14 +191,13 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
     }
 
     /**
-     * Runs {@code query} with profiling on and — critically — {@link #getPragmas()} attached. The base
-     * class only attaches pragmas in its {@code run(String)} convenience; a raw
-     * {@code syncEsqlQueryRequest(...)} carries none, silently running at the node-default
-     * {@code parsing_parallelism} (allocated processors) instead of the pinned 4 this test's chunk
-     * geometry is premised on.
+     * Runs {@code query} with profiling on. {@code parsing_parallelism} is NOT pinned here: it is a
+     * snapshot-only pragma (a request carrying it is rejected in release builds), so the parallel-parse path
+     * relies on the node default (allocated processors), which the {@code assumeTrue} in
+     * {@link #assertWarmAggregatesShortCircuit} requires to be &gt; 1.
      */
     private EsqlQueryResponse runProfiled(String query) {
-        return run(syncEsqlQueryRequest(query).pragmas(getPragmas()).profile(true), TimeValue.timeValueMinutes(5));
+        return run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5));
     }
 
     private static void assertSingleLong(EsqlQueryResponse response, long expected) {

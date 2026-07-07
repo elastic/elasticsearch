@@ -109,7 +109,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Index-level default for the {@code doc_values.on_failure} field mapping parameter. Controls what happens when a document violates
      * a strict doc_values constraint (ie. {@code multi_value=false} or {@code nullability=false}), unless a field explicitly sets its own
-     * {@code doc_values.on_failure}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled.
+     * {@code doc_values.on_failure}.
      */
     public static final Setting<DocValuesParameter.Values.OnFailure> DOC_VALUES_ON_FAILURE_SETTING = Setting.enumSetting(
         DocValuesParameter.Values.OnFailure.class,

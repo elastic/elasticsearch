@@ -11,8 +11,11 @@ package org.elasticsearch.eirf;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.sourcebatch.ArrayReader;
+import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.Text;
@@ -267,36 +270,36 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     private Token emitLeafValue(int colIdx) {
         currentType = row.getTypeByte(colIdx);
         switch (currentType) {
-            case EirfType.INT -> {
+            case SourceValueType.INT -> {
                 cachedInt = row.getIntValue(colIdx);
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.LONG -> {
+            case SourceValueType.LONG -> {
                 cachedLong = row.getLongValue(colIdx);
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.FLOAT -> {
+            case SourceValueType.FLOAT -> {
                 cachedFloat = row.getFloatValue(colIdx);
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.DOUBLE -> {
+            case SourceValueType.DOUBLE -> {
                 cachedDouble = row.getDoubleValue(colIdx);
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.STRING -> {
+            case SourceValueType.STRING -> {
                 cachedText = row.getStringValue(colIdx);
                 currentToken = Token.VALUE_STRING;
             }
-            case EirfType.TRUE, EirfType.FALSE -> currentToken = Token.VALUE_BOOLEAN;
-            case EirfType.BINARY -> {
+            case SourceValueType.TRUE, SourceValueType.FALSE -> currentToken = Token.VALUE_BOOLEAN;
+            case SourceValueType.BINARY -> {
                 cachedBinary = row.getBinaryValue(colIdx);
                 currentToken = Token.VALUE_EMBEDDED_OBJECT;
             }
-            case EirfType.UNION_ARRAY, EirfType.FIXED_ARRAY -> {
+            case SourceValueType.UNION_ARRAY, SourceValueType.FIXED_ARRAY -> {
                 pushCompound(row.getArrayValue(colIdx), COMPOUND_ARRAY);
                 currentToken = Token.START_ARRAY;
             }
-            case EirfType.KEY_VALUE -> {
+            case SourceValueType.KEY_VALUE -> {
                 pushCompound(row.getKeyValue(colIdx), COMPOUND_KV);
                 currentToken = Token.START_OBJECT;
             }
@@ -315,7 +318,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     }
 
     private Token nextArrayFrameToken() {
-        EirfArrayReader reader = (EirfArrayReader) compoundReaders[compoundDepth - 1];
+        ArrayReader reader = (ArrayReader) compoundReaders[compoundDepth - 1];
         if (reader.next()) {
             return emitArrayElementValue(reader);
         } else {
@@ -325,47 +328,47 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
         }
     }
 
-    private Token emitArrayElementValue(EirfArrayReader reader) {
+    private Token emitArrayElementValue(ArrayReader reader) {
         byte elemType = reader.type();
         switch (elemType) {
-            case EirfType.INT -> {
-                currentType = EirfType.INT;
+            case SourceValueType.INT -> {
+                currentType = SourceValueType.INT;
                 cachedInt = reader.intValue();
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.LONG -> {
-                currentType = EirfType.LONG;
+            case SourceValueType.LONG -> {
+                currentType = SourceValueType.LONG;
                 cachedLong = reader.longValue();
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.FLOAT -> {
-                currentType = EirfType.FLOAT;
+            case SourceValueType.FLOAT -> {
+                currentType = SourceValueType.FLOAT;
                 cachedFloat = reader.floatValue();
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.DOUBLE -> {
-                currentType = EirfType.DOUBLE;
+            case SourceValueType.DOUBLE -> {
+                currentType = SourceValueType.DOUBLE;
                 cachedDouble = reader.doubleValue();
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.STRING -> {
-                currentType = EirfType.STRING;
+            case SourceValueType.STRING -> {
+                currentType = SourceValueType.STRING;
                 cachedText = new Text(reader.stringValue());
                 currentToken = Token.VALUE_STRING;
             }
-            case EirfType.TRUE, EirfType.FALSE -> {
+            case SourceValueType.TRUE, SourceValueType.FALSE -> {
                 currentType = elemType;
                 currentToken = Token.VALUE_BOOLEAN;
             }
-            case EirfType.NULL -> {
-                currentType = EirfType.NULL;
+            case SourceValueType.NULL -> {
+                currentType = SourceValueType.NULL;
                 currentToken = Token.VALUE_NULL;
             }
-            case EirfType.KEY_VALUE -> {
+            case SourceValueType.KEY_VALUE -> {
                 pushCompound(reader.nestedKeyValue(), COMPOUND_KV);
                 currentToken = Token.START_OBJECT;
             }
-            case EirfType.UNION_ARRAY, EirfType.FIXED_ARRAY -> {
+            case SourceValueType.UNION_ARRAY, SourceValueType.FIXED_ARRAY -> {
                 pushCompound(reader.nestedArray(), COMPOUND_ARRAY);
                 currentToken = Token.START_ARRAY;
             }
@@ -375,7 +378,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     }
 
     private Token nextKvFrameToken() {
-        EirfKeyValueReader kv = (EirfKeyValueReader) compoundReaders[compoundDepth - 1];
+        KeyValueReader kv = (KeyValueReader) compoundReaders[compoundDepth - 1];
         if (compoundNeedValue[compoundDepth - 1]) {
             compoundNeedValue[compoundDepth - 1] = false;
             return emitKvValue(kv);
@@ -391,47 +394,47 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
         return currentToken;
     }
 
-    private Token emitKvValue(EirfKeyValueReader kv) {
+    private Token emitKvValue(KeyValueReader kv) {
         byte kvType = kv.type();
         switch (kvType) {
-            case EirfType.INT -> {
-                currentType = EirfType.INT;
+            case SourceValueType.INT -> {
+                currentType = SourceValueType.INT;
                 cachedInt = kv.intValue();
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.LONG -> {
-                currentType = EirfType.LONG;
+            case SourceValueType.LONG -> {
+                currentType = SourceValueType.LONG;
                 cachedLong = kv.longValue();
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.FLOAT -> {
-                currentType = EirfType.FLOAT;
+            case SourceValueType.FLOAT -> {
+                currentType = SourceValueType.FLOAT;
                 cachedFloat = kv.floatValue();
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.DOUBLE -> {
-                currentType = EirfType.DOUBLE;
+            case SourceValueType.DOUBLE -> {
+                currentType = SourceValueType.DOUBLE;
                 cachedDouble = kv.doubleValue();
                 currentToken = Token.VALUE_NUMBER;
             }
-            case EirfType.STRING -> {
-                currentType = EirfType.STRING;
+            case SourceValueType.STRING -> {
+                currentType = SourceValueType.STRING;
                 cachedText = new Text(kv.stringValue());
                 currentToken = Token.VALUE_STRING;
             }
-            case EirfType.TRUE, EirfType.FALSE -> {
+            case SourceValueType.TRUE, SourceValueType.FALSE -> {
                 currentType = kvType;
                 currentToken = Token.VALUE_BOOLEAN;
             }
-            case EirfType.NULL -> {
-                currentType = EirfType.NULL;
+            case SourceValueType.NULL -> {
+                currentType = SourceValueType.NULL;
                 currentToken = Token.VALUE_NULL;
             }
-            case EirfType.KEY_VALUE -> {
+            case SourceValueType.KEY_VALUE -> {
                 pushCompound(kv.nestedKeyValue(), COMPOUND_KV);
                 currentToken = Token.START_OBJECT;
             }
-            case EirfType.UNION_ARRAY, EirfType.FIXED_ARRAY -> {
+            case SourceValueType.UNION_ARRAY, SourceValueType.FIXED_ARRAY -> {
                 pushCompound(kv.nestedArray(), COMPOUND_ARRAY);
                 currentToken = Token.START_ARRAY;
             }
@@ -502,13 +505,13 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
         return switch (currentToken) {
             case VALUE_STRING -> cachedText.string();
             case VALUE_NUMBER -> switch (currentType) {
-                case EirfType.INT -> Integer.toString(cachedInt);
-                case EirfType.LONG -> Long.toString(cachedLong);
-                case EirfType.FLOAT -> Float.toString(cachedFloat);
-                case EirfType.DOUBLE -> Double.toString(cachedDouble);
+                case SourceValueType.INT -> Integer.toString(cachedInt);
+                case SourceValueType.LONG -> Long.toString(cachedLong);
+                case SourceValueType.FLOAT -> Float.toString(cachedFloat);
+                case SourceValueType.DOUBLE -> Double.toString(cachedDouble);
                 default -> throw new IllegalStateException("Unexpected number type: " + currentType);
             };
-            case VALUE_BOOLEAN -> Boolean.toString(currentType == EirfType.TRUE);
+            case VALUE_BOOLEAN -> Boolean.toString(currentType == SourceValueType.TRUE);
             case VALUE_NULL -> "null";
             case VALUE_EMBEDDED_OBJECT -> "";
             default -> throw new IllegalStateException("Unexpected token: " + currentToken);
@@ -547,7 +550,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
         if (currentToken.isValue() == false) {
             throw new IllegalArgumentException("Expected text at " + getTokenLocation() + " but found " + currentToken);
         }
-        if (currentType == EirfType.STRING) {
+        if (currentType == SourceValueType.STRING) {
             return cachedText;
         }
         return new Text(text());
@@ -576,10 +579,10 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     @Override
     public Number numberValue() {
         return switch (currentType) {
-            case EirfType.INT -> cachedInt;
-            case EirfType.LONG -> cachedLong;
-            case EirfType.FLOAT -> cachedFloat;
-            case EirfType.DOUBLE -> cachedDouble;
+            case SourceValueType.INT -> cachedInt;
+            case SourceValueType.LONG -> cachedLong;
+            case SourceValueType.FLOAT -> cachedFloat;
+            case SourceValueType.DOUBLE -> cachedDouble;
             default -> throw new IllegalStateException("Unexpected type: " + currentType);
         };
     }
@@ -587,17 +590,17 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     @Override
     public NumberType numberType() {
         return switch (currentType) {
-            case EirfType.INT -> NumberType.INT;
-            case EirfType.LONG -> NumberType.LONG;
-            case EirfType.FLOAT -> NumberType.FLOAT;
-            case EirfType.DOUBLE -> NumberType.DOUBLE;
+            case SourceValueType.INT -> NumberType.INT;
+            case SourceValueType.LONG -> NumberType.LONG;
+            case SourceValueType.FLOAT -> NumberType.FLOAT;
+            case SourceValueType.DOUBLE -> NumberType.DOUBLE;
             default -> throw new IllegalStateException("Unexpected type: " + currentType);
         };
     }
 
     @Override
     protected boolean doBooleanValue() {
-        return currentType == EirfType.TRUE;
+        return currentType == SourceValueType.TRUE;
     }
 
     @Override
@@ -608,10 +611,10 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     @Override
     protected int doIntValue() {
         return switch (currentType) {
-            case EirfType.INT -> cachedInt;
-            case EirfType.LONG -> (int) cachedLong;
-            case EirfType.FLOAT -> (int) cachedFloat;
-            case EirfType.DOUBLE -> (int) cachedDouble;
+            case SourceValueType.INT -> cachedInt;
+            case SourceValueType.LONG -> (int) cachedLong;
+            case SourceValueType.FLOAT -> (int) cachedFloat;
+            case SourceValueType.DOUBLE -> (int) cachedDouble;
             default -> throw new IllegalStateException("Unexpected type: " + currentType);
         };
     }
@@ -619,10 +622,10 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     @Override
     protected long doLongValue() {
         return switch (currentType) {
-            case EirfType.LONG -> cachedLong;
-            case EirfType.INT -> cachedInt;
-            case EirfType.FLOAT -> (long) cachedFloat;
-            case EirfType.DOUBLE -> (long) cachedDouble;
+            case SourceValueType.LONG -> cachedLong;
+            case SourceValueType.INT -> cachedInt;
+            case SourceValueType.FLOAT -> (long) cachedFloat;
+            case SourceValueType.DOUBLE -> (long) cachedDouble;
             default -> throw new IllegalStateException("Unexpected type: " + currentType);
         };
     }
@@ -630,10 +633,10 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     @Override
     protected float doFloatValue() {
         return switch (currentType) {
-            case EirfType.FLOAT -> cachedFloat;
-            case EirfType.DOUBLE -> (float) cachedDouble;
-            case EirfType.INT -> (float) cachedInt;
-            case EirfType.LONG -> (float) cachedLong;
+            case SourceValueType.FLOAT -> cachedFloat;
+            case SourceValueType.DOUBLE -> (float) cachedDouble;
+            case SourceValueType.INT -> (float) cachedInt;
+            case SourceValueType.LONG -> (float) cachedLong;
             default -> throw new IllegalStateException("Unexpected type: " + currentType);
         };
     }
@@ -641,10 +644,10 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     @Override
     protected double doDoubleValue() {
         return switch (currentType) {
-            case EirfType.DOUBLE -> cachedDouble;
-            case EirfType.FLOAT -> cachedFloat;
-            case EirfType.INT -> cachedInt;
-            case EirfType.LONG -> (double) cachedLong;
+            case SourceValueType.DOUBLE -> cachedDouble;
+            case SourceValueType.FLOAT -> cachedFloat;
+            case SourceValueType.INT -> cachedInt;
+            case SourceValueType.LONG -> (double) cachedLong;
             default -> throw new IllegalStateException("Unexpected type: " + currentType);
         };
     }

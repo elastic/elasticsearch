@@ -260,6 +260,9 @@ public final class WriterConstants {
     /** {@link AllocSizes#arrayBytes(long, int)} — saturating {@code pad8(ARRAY_HEADER + fieldSize * length)} for an array. */
     public static final Method ALLOC_ARRAY_BYTES = getAsmMethod(long.class, "arrayBytes", long.class, int.class);
 
+    /** {@link AllocSizes#stringConcatOperandBytes(Object)} — runtime byte cost of a reference operand in a string concat. */
+    public static final Method ALLOC_STRING_CONCAT_OPERAND_BYTES = getAsmMethod(long.class, "stringConcatOperandBytes", Object.class);
+
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());
     }

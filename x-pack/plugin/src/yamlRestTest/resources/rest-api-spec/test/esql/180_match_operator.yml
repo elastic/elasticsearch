@@ -128,32 +128,47 @@ setup:
   - match: { error.reason: "/Unknown.column.\\[something\\]/" }
 
 ---
-"match on eval column":
+"match on non-mapped column":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ fn_match_runtime_filter ]
+      reason: "Support for match with non-mapped argument"
   - do:
-      catch: bad_request
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | EVAL upper_content = to_upper(content) | WHERE upper_content:"FOX" | KEEP id'
+          query: 'FROM test | EVAL upper_content = to_text(to_upper(content)) | WHERE upper_content:"FOX" | KEEP id | SORT id'
 
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - match: { error.reason: "/operator.cannot.operate.on.\\[upper_content\\],.which.is.not.a.field.from.an.index.mapping/" }
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 6 }
 
 ---
-"match on overwritten column":
+"match on overwritten column with non-mapped value":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ fn_match_runtime_filter ]
+      reason: "Support for match with non-mapped argument"
   - do:
-      catch: bad_request
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | DROP content | EVAL content = CONCAT("ID: ", to_str(id)) | WHERE content:"fox"'
+          query: 'FROM test | DROP content | EVAL content = TO_TEXT(CONCAT("ID is ", to_str(id))) | WHERE content:"2" | KEEP id'
 
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - match: { error.reason: "/operator.cannot.operate.on.\\[content\\],.which.is.not.a.field.from.an.index.mapping/" }
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 1 }
+  - match: { values.0.0: 2 }
 
 ---
 "match after stats":

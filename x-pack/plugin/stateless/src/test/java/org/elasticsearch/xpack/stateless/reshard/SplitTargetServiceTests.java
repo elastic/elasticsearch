@@ -171,7 +171,7 @@ public class SplitTargetServiceTests extends ESTestCase {
         var threadPool = new ThreadPool() {
             @Override
             public long relativeTimeInMillis() {
-                return time.getAndAdd(10 * 1000);
+                return time.getAndAdd(1000);
             }
 
             @Override
@@ -214,18 +214,23 @@ public class SplitTargetServiceTests extends ESTestCase {
         };
 
         var sts = new SplitTargetService(Settings.EMPTY, failingClient, clusterService, reshardIndexService);
-        var action = sts.createInitiateSplitWithSourceShardAction(dummySplit(), new AtomicBoolean(false), new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                fail("Should never happen");
-            }
+        var action = sts.createInitiateSplitWithSourceShardAction(
+            dummySplit(),
+            new AtomicBoolean(false),
+            TimeValue.timeValueMillis(5000),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    fail("Should never happen");
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                // Should be 6 given the custom time implementation (6 times by 10 seconds exceeds 60 seconds timeout).
-                assertEquals(6, requests.get());
+                @Override
+                public void onFailure(Exception e) {
+                    // Should be 5 given the custom time implementation (5 times by 1000 millis exceeds 5000 millis timeout).
+                    assertEquals(5, requests.get());
+                }
             }
-        });
+        );
 
         action.run();
     }

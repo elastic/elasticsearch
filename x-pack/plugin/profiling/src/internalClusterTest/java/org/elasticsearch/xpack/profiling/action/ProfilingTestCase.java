@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.countedkeyword.CountedKeywordMapperPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.profiling.ProfilingPlugin;
-import org.elasticsearch.xpack.profiling.persistence.ProfilingIndexManager;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 import org.junit.After;
@@ -130,11 +129,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         updateProfilingTemplatesEnabled(true);
         createIndex(apmTestIndex, "indices/apm-test.json");
         createIndex(apmLegacyIndex, "indices/apm-legacy-test.json");
-        List<String> allIndices = new ArrayList<>(
-            ProfilingIndexManager.PROFILING_INDICES.stream().map(ProfilingIndexManager.ProfilingIndex::toString).toList()
-        );
-        allIndices.add(apmTestIndex);
-        allIndices.add(apmLegacyIndex);
+        List<String> allIndices = new ArrayList<>(List.of(apmTestIndex, apmLegacyIndex));
         waitForIndices(allIndices);
         // higher timeout since we have more shards than usual
         ensureGreen(TimeValue.timeValueSeconds(120), allIndices.toArray(new String[0]));

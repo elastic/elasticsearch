@@ -149,16 +149,13 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         private boolean isResourcesCreated(ClusterState state) {
             IndexStateResolver indexStateResolver = indexStateResolver(state);
             boolean templatesCreated = templateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
-            boolean indicesCreated = ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
             boolean dataStreamsCreated = ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
-            return templatesCreated && indicesCreated && dataStreamsCreated;
+            return templatesCreated && dataStreamsCreated;
         }
 
         private boolean isAnyPre891Data(ClusterState state) {
             IndexStateResolver indexStateResolver = indexStateResolver(state);
-            boolean indicesPre891 = ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
-            boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
-            return indicesPre891 || dataStreamsPre891;
+            return ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
         }
 
         private IndexStateResolver indexStateResolver(ClusterState state) {

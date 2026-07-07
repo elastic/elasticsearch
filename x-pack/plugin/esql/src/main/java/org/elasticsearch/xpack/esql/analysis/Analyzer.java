@@ -1562,7 +1562,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
 
-                assert join.isRemote() : "Join is not configured at this point and should be initialized with default isRemote()=false";
+                assert join.isRemote() == false : "Join is not configured yet and should be initialized with default isRemote()=false";
                 boolean isRemote = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
                 return new LookupJoin(join.source(), join.left(), join.right(), config, isRemote);
             } else {

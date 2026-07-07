@@ -1574,6 +1574,8 @@ public abstract class FieldMapper extends Mapper {
             /**
              * Convenience constructor for the common case where {@code on_failure} isn't relevant yet; defaults it to {@link OnFailure#FAIL},
              * which matches current behavior everywhere this is called.
+             *
+             * TODO: remove this in follow up PRs once failure handling logic is added.
              */
             public Values(boolean enabled, Cardinality cardinality, boolean multiValue, boolean nullability) {
                 this(enabled, cardinality, multiValue, nullability, OnFailure.FAIL);

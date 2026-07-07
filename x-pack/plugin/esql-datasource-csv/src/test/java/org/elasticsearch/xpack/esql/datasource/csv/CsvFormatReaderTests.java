@@ -417,12 +417,13 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertFalse(page.getBlock(1).isNull(0));
             assertFalse(page.getBlock(2).isNull(0));
 
-            // Second row: name is null
+            // Second row: name is the empty string (empty text field, not null); score present
             assertFalse(page.getBlock(0).isNull(1));
-            assertTrue(page.getBlock(1).isNull(1));
+            assertFalse(page.getBlock(1).isNull(1));
+            assertEquals(new BytesRef(""), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
             assertFalse(page.getBlock(2).isNull(1));
 
-            // Third row: score is null
+            // Third row: score is null (empty numeric field has no empty-string value)
             assertFalse(page.getBlock(0).isNull(2));
             assertFalse(page.getBlock(1).isNull(2));
             assertTrue(page.getBlock(2).isNull(2));
@@ -1439,7 +1440,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     // --- Empty and null value handling ---
 
-    public void testEmptyFieldsTreatedAsNull() throws IOException {
+    public void testEmptyTextFieldIsEmptyStringEmptyNumericIsNull() throws IOException {
         String csv = "id:long,name:keyword,score:double\n1,,95.5\n2,Bob,\n";
 
         StorageObject object = createStorageObject(csv);
@@ -1449,7 +1450,10 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
-            assertTrue(page.getBlock(1).isNull(0));
+            // Empty text field -> empty string (matches ndjson/parquet), not null.
+            assertFalse(page.getBlock(1).isNull(0));
+            assertEquals(new BytesRef(""), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            // Empty numeric field -> null (no empty-string value for a double).
             assertTrue(page.getBlock(2).isNull(1));
         }
     }

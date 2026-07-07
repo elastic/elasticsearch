@@ -38,6 +38,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -354,20 +355,44 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("line1\nline2"), br("tail"))), rows);
     }
 
-    public void testEmptyQuotedFieldIsNull() throws IOException {
-        // The current parser collapses an empty quoted field "" to null, exactly like an empty
-        // unquoted cell; pin that so the direct-block parser must match.
+    public void testEmptyQuotedTextFieldIsEmptyString() throws IOException {
+        // An empty quoted field "" on a text column is a genuine empty string (matching the ndjson/parquet
+        // readers and ClickHouse's CSV convention), not null; pin that so the direct-block parser must match.
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\n\"\",x\n");
-        assertEquals(List.of(row(null, br("x"))), rows);
+        assertEquals(List.of(row(br(""), br("x"))), rows);
     }
 
     // ---------------------------------------------------------------------------------------------
     // Null handling
     // ---------------------------------------------------------------------------------------------
 
-    public void testEmptyUnquotedCellIsNull() throws IOException {
+    public void testEmptyUnquotedCellIsEmptyStringForTextNullOtherwise() throws IOException {
+        // An empty unquoted text field is the empty string; an empty unquoted numeric field is null (it has
+        // no empty-string value).
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:long\n,5\nx,\n");
-        assertEquals(List.of(row(null, 5L), row(br("x"), null)), rows);
+        assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
+    }
+
+    public void testEmptyTextFieldSurvivesAsDistinctValue() throws IOException {
+        // Reproduces the csv/tsv COUNT(DISTINCT)/VALUES() off-by-one vs the ndjson/parquet readers: an empty
+        // text field must survive as the empty string so it is one of the distinct values, not dropped as null.
+        // Two columns so the empty text field is a real empty cell (`,2`) rather than a blank line (which the
+        // reader filters).
+        String csv = "k:keyword,n:long\nalpha,1\n,2\nbeta,3\n,4\nalpha,5\n";
+        List<List<Object>> rows = read(false, Map.of(), csv);
+        assertEquals(List.of(row(br("alpha"), 1L), row(br(""), 2L), row(br("beta"), 3L), row(br(""), 4L), row(br("alpha"), 5L)), rows);
+        LinkedHashSet<Object> distinct = new LinkedHashSet<>();
+        for (List<Object> r : rows) {
+            distinct.add(r.get(0));
+        }
+        assertEquals(
+            "the empty string is a distinct value alongside the non-empty ones (matches ndjson/parquet)",
+            new LinkedHashSet<>(List.of(br("alpha"), br(""), br("beta"))),
+            distinct
+        );
+        // Same via TSV (shares CsvFormatReader), so the fix covers both text formats.
+        String tsv = "k:keyword\tn:long\nalpha\t1\n\t2\nbeta\t3\n";
+        assertEquals(List.of(row(br("alpha"), 1L), row(br(""), 2L), row(br("beta"), 3L)), read(true, Map.of(), tsv));
     }
 
     public void testCustomNullValue() throws IOException {
@@ -503,9 +528,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("\u00a0x\u00a0"))), rows);
     }
 
-    public void testTsvPlainEmptyCellIsNull() throws IOException {
+    public void testTsvPlainEmptyTextCellIsEmptyStringEmptyNumericIsNull() throws IOException {
         List<List<Object>> rows = read(true, Map.of(), "a:keyword\tb:long\n\t5\nx\t\n");
-        assertEquals(List.of(row(null, 5L), row(br("x"), null)), rows);
+        assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
     }
 
     public void testTsvPlainCustomNullValue() throws IOException {
@@ -649,13 +674,13 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         // the comment prefix follows: Jackson classifies comments on the first parsed cell, so the
         // direct path must keep this as a two-column data row rather than dropping it.
         List<List<Object>> rows = read(true, Map.of("comment", "//"), "a:keyword\tb:keyword\nx\ty\n\t// c\n");
-        assertEquals(List.of(row(br("x"), br("y")), row((Object) null, br("// c"))), rows);
+        assertEquals(List.of(row(br("x"), br("y")), row(br(""), br("// c"))), rows);
     }
 
     public void testCommaLeadingDelimiterBeforeCommentPrefixIsDataRow() throws IOException {
         // Same first-cell rule for CSV: an empty first cell before the comment prefix is a data row.
         List<List<Object>> rows = read(false, Map.of("comment", "//"), "a:keyword,b:keyword\nx,y\n,// c\n");
-        assertEquals(List.of(row(br("x"), br("y")), row((Object) null, br("// c"))), rows);
+        assertEquals(List.of(row(br("x"), br("y")), row(br(""), br("// c"))), rows);
     }
 
     public void testQuotedFirstCellThatDecodesToCommentIsSkipped() throws IOException {

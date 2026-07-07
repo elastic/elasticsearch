@@ -251,6 +251,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private static final String[] EMPTY_ROW = new String[0];
 
     /**
+     * The value produced for an empty ({@code ""}) field on a text-typed column: a real, zero-length string.
+     * Shared and immutable — its byte payload is empty, so the append path copies nothing and no aliasing is
+     * possible across rows or columns. See {@link #isTextType} for why an empty field is a string here rather
+     * than null.
+     */
+    private static final BytesRef EMPTY_BYTES_REF = new BytesRef(BytesRef.EMPTY_BYTES);
+
+    /**
+     * Whether {@code dt} carries string values, i.e. an empty field is a genuine empty string rather than null.
+     * CSV/TSV cannot spell "null" and "empty string" differently at the byte level — an empty field is just two
+     * adjacent delimiters — so the reader picks a convention per type: for {@code KEYWORD}/{@code TEXT} an empty
+     * field is the empty string (matching the ndjson and parquet readers, which preserve an explicit empty
+     * string, and ClickHouse's CSV/TSV convention where only {@code \N} is null); for every other type an empty
+     * field has no valid empty-string value and stays null. Keeping the empty string is what makes
+     * {@code COUNT(DISTINCT)} / {@code VALUES()} over a text column with empty values agree across formats.
+     */
+    private static boolean isTextType(DataType dt) {
+        return dt == DataType.KEYWORD || dt == DataType.TEXT;
+    }
+
+    /**
      * Reused {@link DateFormatter} that delegates to ES's hand-rolled
      * {@code Iso8601DateTimeParser}: covers the {@code YYYY-MM-DDTHH:MM:SS[.fff][Z|+HH:MM]} family
      * (plus date-only inputs like {@code YYYY-MM-DD}) without the {@link DateTimeFormatter}
@@ -1122,7 +1143,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * as data so e.g. a Windows path inside quotes survives intact.
      */
     private CsvSchema newCsvSchema() {
-        CsvSchema schema = CsvSchema.emptySchema().withColumnSeparator(options.delimiter()).withNullValue(options.nullValue());
+        CsvSchema schema = CsvSchema.emptySchema().withColumnSeparator(options.delimiter());
+        // Register a Jackson null token ONLY for a user-configured, non-empty null_value. Passing the default
+        // empty null_value would make Jackson tokenize every empty field as VALUE_NULL, nulling empty strings
+        // before tryConvertValue can preserve them for text columns (matching the ndjson/parquet readers and
+        // ClickHouse's CSV convention where an empty field is the empty string). With no null token registered,
+        // an empty field arrives as "" and tryConvertValue decides empty-string (text) vs null (other types),
+        // exactly as the direct-to-block path does via stageEmptyField.
+        if (options.nullValue().isEmpty() == false) {
+            schema = schema.withNullValue(options.nullValue());
+        }
         if (options.quoting() == false) {
             return schema.withoutQuoteChar();
         }
@@ -4243,6 +4273,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
             stageNull[bufIdx] = true;
         }
 
+        /**
+         * Stages an empty ({@code ""}) field: the empty string for a text column, null otherwise. Mirrors the
+         * empty-value branch of {@link #tryConvertValue} so the direct-block hot path and the Jackson conversion
+         * path stay in agreement (see {@link #isTextType}).
+         */
+        private void stageEmptyField(int bufIdx, DataType dt) {
+            if (isTextType(dt)) {
+                stageRefValue(bufIdx, EMPTY_BYTES_REF);
+            } else {
+                stageNullValue(bufIdx);
+            }
+        }
+
         private void stageLongValue(int bufIdx, long value) {
             stageLong[bufIdx] = value;
             stageNull[bufIdx] = false;
@@ -4447,10 +4490,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             int len = end - start;
-            // Null classification mirrors tryConvertValue: empty, the literal "null" (any case), or the
-            // configured null marker all become null.
+            // Classification mirrors tryConvertValue: an empty field is the empty string for a text column and
+            // null otherwise; the literal "null" (any case) and the configured null marker always become null.
             if (len == 0) {
-                stageNullValue(bufIdx);
+                stageEmptyField(bufIdx, dt);
                 return true;
             }
             if (len == 4 && regionEqualsIgnoreCase(buf, start, "null")) {
@@ -4710,7 +4753,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                     if (projected) {
                         if (value.length() == 0) {
-                            stageNullValue(bufIdx); // empty quoted field is null
+                            stageEmptyField(bufIdx, dt); // empty quoted field: empty string for text, else null
                         } else if (emitConvertedStageField(value.toString(), bufIdx, dt) == false) {
                             return false;
                         }
@@ -4806,7 +4849,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             if (start == end) {
-                stageNullValue(bufIdx);
+                stageEmptyField(bufIdx, dt);
                 return true;
             }
             final char esc = options.escapeChar();
@@ -4831,7 +4874,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             if (trimEnd == 0) {
-                stageNullValue(bufIdx);
+                stageEmptyField(bufIdx, dt);
                 return true;
             }
             // Cap on the tokenized value (full decoded length under no-trim, trimmed under trim_spaces).
@@ -5172,7 +5215,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private Object tryConvertValue(String value, DataType dataType) {
-            if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
+            if (value == null) {
+                return null;
+            }
+            if (value.isEmpty()) {
+                // An empty field is the empty string for a text column, null otherwise (see isTextType).
+                return isTextType(dataType) ? EMPTY_BYTES_REF : null;
+            }
+            if (value.equalsIgnoreCase("null")) {
                 return null;
             }
             if (hasCustomNullValue && value.equals(nullValueStr)) {

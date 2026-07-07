@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -60,6 +62,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * Resolver for external data sources (Iceberg tables, Parquet files, etc.).
@@ -170,6 +173,22 @@ public class ExternalSourceResolver {
     private final BooleanSupplier isCancelled;
 
     /**
+     * A restorable snapshot of the coordinating request's {@link ThreadContext}, captured at construction time
+     * (see {@code ThreadContext#newRestorableContext}) while still on the transport thread that carries the
+     * caller's {@code Authentication} (see {@code PlanExecutor#esql}). Restored around the outward {@link #resolve}
+     * completion listener so that when a factory's async metadata read completes on a non-ES thread (e.g. a Netty
+     * I/O thread owned by a native async storage SDK client, which never had the ES context installed), the rest of
+     * the synchronous continuation — back through {@code EsqlSession} and into the compute transport send — runs
+     * with the original request's security context rather than an empty one. Capturing the snapshot eagerly here,
+     * rather than lazily from {@link #resolve}, means the guarantee holds even if a future refactor moves
+     * {@link #resolve} itself onto a thread that no longer carries the caller's context.
+     * {@code null} means "no context to preserve" (used by tests and call sites that do not run inside a real
+     * request, matching the existing {@code isCancelled == null} convention).
+     */
+    @Nullable
+    private final Supplier<ThreadContext.StoredContext> restorableContext;
+
+    /**
      * The {@link #executor} decorated so that every task it runs has the query cancellation signal installed as the
      * ambient {@link StorageRetryCancellation} scope. This is the executor handed to factories for the async footer
      * reads: for storage backends whose {@code readBytesAsync} is an executor-backed synchronous read (local, GCS,
@@ -250,6 +269,28 @@ public class ExternalSourceResolver {
         @Nullable BooleanSupplier isCancelled,
         int metadataReadConcurrency
     ) {
+        this(executor, dataSourceModule, settings, cacheService, isCancelled, metadataReadConcurrency, null);
+    }
+
+    /**
+     * @param isCancelled consulted before each per-file footer read so a wide-glob discovery aborts promptly on
+     *            cancellation; {@code null} means "never cancelled".
+     * @param metadataReadConcurrency maximum number of in-flight per-file metadata reads during a multi-file
+     *            discovery. Production passes the {@code esql_worker} pool size.
+     * @param threadContext the calling request's transport {@link ThreadContext}, captured while still on the
+     *            authenticated calling thread; restored around the outward {@link #resolve} completion listener so
+     *            that async completions on non-ES threads don't lose the request's security context. {@code null}
+     *            when there is no context to preserve (tests, non-request call sites).
+     */
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        @Nullable BooleanSupplier isCancelled,
+        int metadataReadConcurrency,
+        @Nullable ThreadContext threadContext
+    ) {
         if (metadataReadConcurrency < 1) {
             throw new IllegalArgumentException("metadataReadConcurrency must be >= 1, got: " + metadataReadConcurrency);
         }
@@ -260,6 +301,7 @@ public class ExternalSourceResolver {
         this.isCancelled = isCancelled;
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
         this.metadataReadConcurrency = metadataReadConcurrency;
+        this.restorableContext = threadContext == null ? null : threadContext.newRestorableContext(true);
         // Install the query cancellation signal as the ambient StorageRetryCancellation scope for every footer read
         // dispatched to the executor, so an executor-backed synchronous read's backoff aborts promptly on cancel.
         this.metadataReadExecutor = command -> executor.execute(
@@ -370,9 +412,17 @@ public class ExternalSourceResolver {
         // ambient StorageRetryCancellation scope for the whole sequential prep: a cancelled wide-glob discovery then
         // aborts its glob-expansion and anchor/single-file read backoff promptly, matching the per-read wrapping the
         // async fan-out already gets.
+        //
+        // Wrap the outward listener so that when a factory's async metadata read completes on a non-ES thread (e.g.
+        // a Netty I/O thread owned by a native async storage SDK client), the caller's authenticated ThreadContext is
+        // restored before the listener's continuation runs — covering the rest of the synchronous chain back through
+        // EsqlSession and into the compute transport send. See the field javadoc on restorableContext for details.
+        ActionListener<ExternalSourceResolution> resolveListener = restorableContext == null
+            ? listener
+            : new ContextPreservingActionListener<>(restorableContext, listener);
         Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
         metadataReadExecutor.execute(
-            () -> resolveNextPath(paths, 0, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, resolved, listener)
+            () -> resolveNextPath(paths, 0, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, resolved, resolveListener)
         );
     }
 

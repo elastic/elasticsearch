@@ -420,6 +420,7 @@ public class InferencePlugin extends Plugin
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
 
+        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var ccmRelatedComponents = createCCMDependentComponents(
             services,
             inferenceServiceSettings,
@@ -427,12 +428,13 @@ public class InferencePlugin extends Plugin
             elasticInferenceServiceFactory.get().createSender(),
             modelRegistry.get(),
             ccmFeature.get(),
+            inferenceFeatureService,
             inferencePreferencesCache
         );
         components.addAll(ccmRelatedComponents.components());
 
         inferenceServices.add(() -> List.of(context -> {
-            var eisService = new ElasticInferenceService(
+            var eisService = ElasticInferenceService.create(
                 elasticInferenceServiceFactory.get(),
                 serviceComponents.get(),
                 inferenceServiceSettings,
@@ -466,7 +468,8 @@ public class InferencePlugin extends Plugin
             services.threadPool(),
             services.clusterService(),
             settings,
-            inferenceStats
+            inferenceStats,
+            services.featureService()
         );
 
         // Both oauth2TokenCache and projectResolver must be set before InferenceServiceRegistry is
@@ -537,6 +540,7 @@ public class InferencePlugin extends Plugin
         Sender sender,
         ModelRegistry modelRegistry,
         CCMFeature ccmFeature,
+        InferenceFeatureService inferenceFeatureService,
         InferencePreferencesCache inferencePreferencesCache
     ) {
         var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
@@ -564,10 +568,11 @@ public class InferencePlugin extends Plugin
             ccmAuthApplierFactory,
             ccmFeature,
             ccmService,
+            services.clusterService(),
+            services.featureService(),
             inferencePreferencesCache
         );
 
-        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
             services.featureService(),

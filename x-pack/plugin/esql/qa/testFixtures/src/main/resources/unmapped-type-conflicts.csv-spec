@@ -2946,6 +2946,36 @@ avg_cost:double | max_cost:long | min_cost:long
 6.245           | 13            | 0
 ;
 
+# Reproducer for #152496
+cast_grouped_punk_after_stats
+required_capability: optional_fields_unmapped_eval_after_stats_fix
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s_unmapped, k8s_retyped METADATA _index
+| SORT @timestamp, _index
+| STATS c = COUNT(*) BY network.cost
+| EVAL kw = network.cost::KEYWORD
+| SORT network.cost
+;
+
+c:long | network.cost:long | kw:keyword
+23     | 0                 | 0
+34     | 1                 | 1
+33     | 2                 | 2
+29     | 3                 | 3
+24     | 4                 | 4
+31     | 5                 | 5
+25     | 6                 | 6
+30     | 7                 | 7
+40     | 8                 | 8
+33     | 9                 | 9
+28     | 10                | 10
+38     | 11                | 11
+31     | 12                | 12
+1      | 13                | 13
+;
+
 #####################################
 # reproducers from CI failures      #
 #####################################

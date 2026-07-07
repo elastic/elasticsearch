@@ -102,7 +102,7 @@ public class FiltersCancellationIT extends ESIntegTestCase {
             client().admin().indices().prepareCreate(INDEX).setMapping(mapping).get();
         }
 
-        int DOCS_PER_BULK = 100_000;
+        int DOCS_PER_BULK = 1_000;
         for (int i = 0; i < NUM_DOCS; i += DOCS_PER_BULK) {
             BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < DOCS_PER_BULK; j++) {

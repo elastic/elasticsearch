@@ -67,12 +67,29 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         }
         this.blockMapping = blockMapping;
         this.keys = new ArrayList<>(keys.length);
+        // The received blocks are shared across every Driver spun up from the same operator factory (e.g. one per data
+        // partition of an inline stats / lookup join), so we can't hold live references to them: since we don't have a
+        // thread-safe RefCounted for blocks/vectors, concurrently building a lookup table from the same shared blocks on
+        // different Driver threads would race on their (non-thread-safe) reference counts. Clone them here, the same way
+        // ColumnLoadOperator does for its own copy of the shared values block, and release the clones once the hash table
+        // is built since it doesn't retain a reference to them afterwards.
         Block[] blocks = new Block[keys.length];
         for (int k = 0; k < keys.length; k++) {
             this.keys.add(keys[k].name);
-            blocks[k] = keys[k].block;
+            blocks[k] = clone(keys[k].block);
         }
-        this.lookup = RowInTableLookup.build(blockFactory, blocks);
+        try {
+            this.lookup = RowInTableLookup.build(blockFactory, blocks);
+        } finally {
+            Releasables.closeExpectNoException(blocks);
+        }
+    }
+
+    private static Block clone(Block block) {
+        try (var builder = block.elementType().newBlockBuilder(block.getPositionCount(), block.blockFactory())) {
+            builder.copyFrom(block, 0, block.getPositionCount());
+            return builder.build();
+        }
     }
 
     @Override

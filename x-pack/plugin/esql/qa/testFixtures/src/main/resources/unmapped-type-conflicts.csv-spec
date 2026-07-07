@@ -3295,6 +3295,15 @@ addresses_text           | North America
 # auto-casting of two-legged PUNKS  #
 #####################################
 
+// The tests below use a two-legged PUNK bare (uncast) inside a function, operator, or aggregate
+// (e.g. sqrt(field), field >= 1, field + 1, AVG(field)) rather than a bare projection or an
+// explicit ::cast. Before #148800, this was disallowed outright by the Verifier ("Using partially
+// unmapped non-KEYWORD field [...] is not supported with unmapped_fields=\"load\""), so on a
+// genuinely old coordinator these queries fail verification rather than falling back to null.
+// Confirmed against a real 9.4.4 cluster (v9.4.4#oldToNew). Since the csv-spec test format has no
+// way to assert an expected verification error, these tests only have an "- old data node"
+// sibling, not an "- old coordinator" one.
+
 autocast two-legged long punk
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
@@ -3343,29 +3352,6 @@ network.cost:long | x:double | y:double
 9                 | 9.375    | 3.0
 1                 | 1.0      | 1.0
 1                 | 1.25     | 1.0
-9                 | 9.0      | 3.0
-;
-
-autocast two-legged long punk - old coordinator
-required_capability: metadata_fields_remote_test
-required_capability: optional_fields_v5
-missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
-
-SET unmapped_fields="load"\;
-FROM k8s_unmapped, k8s_retyped METADATA _index
-| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
-# for determinism and keeping output size in check
-| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
-| EVAL
-    x = network.cost::double,
-    y = sqrt(network.cost)
-;
-
-network.cost:long | x:double | y:double
-9                 | 9.0      | 3.0
-null              | 9.375    | null
-1                 | 1.0      | 1.0
-null              | 1.25     | null
 9                 | 9.0      | 3.0
 ;
 
@@ -3419,29 +3405,6 @@ network.cost:double | x:double | y:double
 9.25                | 9.25     | 3.0413812651491097
 ;
 
-autocast two-legged double punk - old coordinator
-required_capability: metadata_fields_remote_test
-required_capability: optional_fields_v5
-missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
-
-SET unmapped_fields="load"\;
-FROM k8s_unmapped, k8s METADATA _index
-| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
-# for determinism and keeping output size in check
-| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
-| EVAL
-    x = network.cost::double,
-    y = sqrt(network.cost)
-;
-
-network.cost:double | x:double | y:double
-9.375               | 9.375    | 3.0618621784789726
-null                | 9.375    | null
-1.25                | 1.25     | 1.118033988749895
-null                | 1.25     | null
-9.25                | 9.25     | 3.0413812651491097
-;
-
 autocast two-legged punk in WHERE
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
@@ -3482,29 +3445,6 @@ network.cost:long
 1
 1
 9
-;
-
-autocast two-legged punk in WHERE - old coordinator
-required_capability: metadata_fields_remote_test
-required_capability: optional_fields_v5
-missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
-
-SET unmapped_fields="load"\;
-FROM k8s_unmapped, k8s_retyped METADATA _index
-| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
-| WHERE network.cost >= 1
-# for determinism and keeping output size in check
-| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
-;
-
-# On an old coordinator, unmapped-leg rows are excluded by the WHERE filter (null >= 1 is false),
-# so the top 5 rows come entirely from the mapped index instead.
-network.cost:long
-9
-1
-9
-12
-5
 ;
 
 autocast two-legged punk in EVAL
@@ -3549,27 +3489,6 @@ network.cost:long | x:long
 9                 | 10
 ;
 
-autocast two-legged punk in EVAL - old coordinator
-required_capability: metadata_fields_remote_test
-required_capability: optional_fields_v5
-missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
-
-SET unmapped_fields="load"\;
-FROM k8s_unmapped, k8s_retyped METADATA _index
-| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
-# for determinism and keeping output size in check
-| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
-| EVAL x = network.cost + 1
-;
-
-network.cost:long | x:long
-9                 | 10
-null              | null
-1                 | 2
-null              | null
-9                 | 10
-;
-
 autocast two-legged punk in STATS
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
@@ -3596,21 +3515,6 @@ FROM k8s_unmapped, k8s_retyped
 
 avg_cost:double | max_cost:long | min_cost:long
 6.245           | 13            | 0
-;
-
-autocast two-legged punk in STATS - old coordinator
-required_capability: optional_fields_v5
-missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
-
-SET unmapped_fields="load"\;
-FROM k8s_unmapped, k8s_retyped
-| STATS avg_cost = AVG(network.cost), max_cost = MAX(network.cost), min_cost = MIN(network.cost)
-;
-
-# On an old coordinator, the unmapped leg's values are treated as unsupported (null) and
-# excluded from the aggregations, changing the average (max/min are unaffected here).
-avg_cost:double | max_cost:long | min_cost:long
-5.985           | 12            | 0
 ;
 
 #####################################

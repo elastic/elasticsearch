@@ -85,10 +85,16 @@ public final class MlIndexAndAlias {
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
     private static final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
     private static final Predicate<String> IS_ANOMALIES_SHARED_INDEX = Pattern.compile(
-        AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "-\\d{6}"
+        Pattern.quote(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX) + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "-\\d{6}"
     ).asMatchPredicate();
     private static final Predicate<String> IS_ANOMALIES_STATE_INDEX = Pattern.compile(
-        AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-\\d{6}"
+        "(?:"
+            + Pattern.quote(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
+            + "|"
+            + Pattern.quote(AnomalyDetectorsIndexFields.REINDEXED_V7_STATE_INDEX_PREFIX)
+            + "|"
+            + Pattern.quote(AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX)
+            + ")-\\d{6}"
     ).asMatchPredicate();
     public static final String ROLLOVER_ALIAS_SUFFIX = ".rollover_alias";
 
@@ -626,7 +632,8 @@ public final class MlIndexAndAlias {
     }
 
     /**
-     * Checks if an index name matches the pattern for the ML anomalies state indices  (e.g., ".ml-state-000001").
+     * Checks if an index name matches the pattern for ML anomalies state indices (for example
+     * {@code .ml-state-000001} or {@code .reindexed-v8-ml-state-000001}).
      *
      * @param indexName The name of the index to check.
      * @return {@code true} if the index is an anomalies state index, {@code false} otherwise.

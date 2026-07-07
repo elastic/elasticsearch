@@ -11,7 +11,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
 
 /**
  * Result of the error-model scaling step: the fitted slope at fixed query-bits/doc-bits encoding,
- * plus clustering warm-start state reused by {@link ErrorModel#estimateMagnitudeModel}.
+ * plus clustering warm-start state reused by {@code ErrorModel#estimateMagnitudeModel}.
  */
 public final class ErrorScalingFit {
 

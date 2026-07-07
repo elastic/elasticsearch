@@ -1,0 +1,6 @@
+area: Security
+issues: []
+pr: 152714
+summary: Add `KibanaCasesImplicitPrivilegesProvider` contributing implicit index privileges for Kibana
+  Cases
+type: feature

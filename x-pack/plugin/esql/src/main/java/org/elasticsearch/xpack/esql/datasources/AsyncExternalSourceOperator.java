@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
@@ -351,6 +352,32 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return capturedSourceMetadata;
         }
 
+        /**
+         * Number of canonical-stripe contributions this scan harvested across all files — the
+         * cold-harvest vs miss signal. A scan that committed stripes ({@code > 0}) has populated the
+         * coordinator's stats so a future identical query can short-circuit warm; a scan that committed
+         * none ({@code == 0}, e.g. a safe-miss / harvest-scope-none re-scan) leaves the next query cold.
+         * <p>
+         * Derived from {@link #capturedSourceMetadata} rather than carried as a separate wire field: a
+         * stripe-addressed contribution is exactly one carrying {@link ExternalStats#STRIPE_ORDINAL_KEY}
+         * (with {@link ExternalStats#STRIPE_SIZE_KEY}, which marks it cacheable). Counts every such
+         * fragment, including sibling fragments of the same stripe, since each is a committed unit of
+         * harvest work; this is a "did harvest happen, and how much" signal, not the deduped final
+         * stripe count.
+         */
+        public long stripesCommitted() {
+            long count = 0;
+            for (List<Map<String, Object>> contributions : capturedSourceMetadata.values()) {
+                for (Map<String, Object> contribution : contributions) {
+                    if (contribution.containsKey(ExternalStats.STRIPE_ORDINAL_KEY)
+                        && contribution.containsKey(ExternalStats.STRIPE_SIZE_KEY)) {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
+
         @Override
         public boolean partial() {
             return partial;
@@ -441,6 +468,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             builder.field("current_split", currentSplit);
             builder.field("bytes_read", bytesRead);
             builder.field("read_nanos", readNanos);
+            builder.field("stripes_committed", stripesCommitted());
             builder.field("partial", partial);
             builder.startObject("format_reader");
             if (formatReader != null) {

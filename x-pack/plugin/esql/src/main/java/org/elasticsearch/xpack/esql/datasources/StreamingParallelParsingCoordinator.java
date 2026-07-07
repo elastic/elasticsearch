@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -114,6 +115,8 @@ public final class StreamingParallelParsingCoordinator {
             0L,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             null,
+            -1L,
+            StripeColumnScope.PROJECTED,
             null
         );
     }
@@ -159,6 +162,8 @@ public final class StreamingParallelParsingCoordinator {
         long baseFileOffset,
         int maxRecordBytes,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
         @Nullable Consumer<String> partialResultsWarningSink
     ) throws IOException {
         if (logger.isDebugEnabled()) {
@@ -172,6 +177,11 @@ public final class StreamingParallelParsingCoordinator {
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
 
         if (parallelism <= 1) {
+            // Single-pass fallback reads the whole decompressed stream in one shot starting at
+            // baseFileOffset, so per-stripe stats attribution applies exactly as in the parallel branch and
+            // its trailing stripe is always file-final. Thread .stats(...) here too — mirrors the sibling
+            // ParallelParsingCoordinator's single-segment fallback — so a streaming read at parallelism 1
+            // still harvests per-stripe stats instead of silently dropping the capture.
             FormatReadContext ctx = FormatReadContext.builder()
                 .projectedColumns(projectedColumns)
                 .batchSize(batchSize)
@@ -179,6 +189,8 @@ public final class StreamingParallelParsingCoordinator {
                 .readSchema(readSchema)
                 .splitStartByte(baseFileOffset)
                 .maxRecordBytes(maxRecordBytes)
+                .stats(baseFileOffset, statsStripeSize, true)
+                .statsColumnScope(statsColumnScope)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -196,6 +208,8 @@ public final class StreamingParallelParsingCoordinator {
             baseFileOffset,
             maxRecordBytes,
             captureSink,
+            statsStripeSize,
+            statsColumnScope,
             partialResultsWarningSink
         );
     }
@@ -249,6 +263,20 @@ public final class StreamingParallelParsingCoordinator {
         /** Length of {@link #pageQueues}; must match {@link #bufferPoolSize} so chunk index modulo never collides. */
         private final int pageQueueRingSize;
         private final int chunkSize;
+        /**
+         * Canonical-stripe grid for per-stripe stats accounting, in decompressed-stream bytes
+         * ({@code <= 0} disables). Stripes are orthogonal to chunking: the segmentator still cuts chunks
+         * purely on buffer fill at a record boundary ({@code chunkSize}), never on a {@code k * statsStripeSize}
+         * line, so a dispatched chunk may span several stripes. Pages are NOT capped at stripe lines: each
+         * reader attributes every record to its stripe by the record's own file offset, and the shared
+         * {@code StripeStatsHarvester} splits each page's rows into same-stripe runs and emits the
+         * byte-range cover per stripe the chunk touched (see {@link ExternalStats#STRIPE_SIZE_KEY}).
+         * Pure stats overlay: dispatch order, chunk boundaries, parallelism, scheduling, and backpressure
+         * are all unchanged by this value.
+         */
+        private final long statsStripeSize;
+        /** How much per-stripe statistics each chunk harvests (row count only / + projected / + all / nothing). */
+        private final StripeColumnScope statsColumnScope;
         /**
          * Grow-loop bound. In production it comes from the {@code max_record_size} pragma (default
          * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}); overridable for tests.
@@ -314,6 +342,8 @@ public final class StreamingParallelParsingCoordinator {
             long baseFileOffset,
             int maxRecordBytes,
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+            long statsStripeSize,
+            StripeColumnScope statsColumnScope,
             @Nullable Consumer<String> partialResultsWarningSink
         ) {
             this.reader = reader;
@@ -325,6 +355,8 @@ public final class StreamingParallelParsingCoordinator {
             this.baseFileOffset = baseFileOffset;
             this.maxRecordBytes = maxRecordBytes;
             this.captureSink = captureSink;
+            this.statsStripeSize = statsStripeSize;
+            this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.partialResultsWarningSink = partialResultsWarningSink;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
@@ -705,6 +737,16 @@ public final class StreamingParallelParsingCoordinator {
                 // line-oriented readers (NDJSON) can skip TrimLastPartialLineInputStream.
                 // - recordAligned: chunks always start on a record boundary, so readers skip the
                 // "drop leading partial line" workaround used for byte-range macro-splits.
+                // statsBaseOffset is this chunk's decompressed-stream offset; the reader attributes each
+                // record to its canonical stripe (floor((base + recordOffsetInChunk) / stripeSize)) and
+                // emits one per-stripe contribution. Stripe addressing is a pure stats overlay here — the
+                // chunk's bytes and boundaries are exactly what the segmentator produced, untouched.
+                // File-global byte offset of this chunk's first byte. Both the reader's record-offset
+                // base (splitStartByte) and the canonical-stripe attribution base (stats) are file-global
+                // and must be the SAME value on a record-aligned chunk — otherwise a parallel macro-split
+                // (baseFileOffset > 0) attributes records to stream-local stripes, misaligning siblings on
+                // the file-global grid. Mirrors the serial branch's .splitStartByte/.stats(baseFileOffset).
+                long chunkFileGlobalStart = baseFileOffset + chunk.coverageStart();
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
                     .batchSize(batchSize)
@@ -713,22 +755,19 @@ public final class StreamingParallelParsingCoordinator {
                     .lastSplit(true)
                     .recordAligned(true)
                     .readSchema(readSchema)
-                    .splitStartByte(baseFileOffset + chunk.coverageStart())
+                    .splitStartByte(chunkFileGlobalStart)
                     .maxRecordBytes(maxRecordBytes)
+                    .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
+                    .statsColumnScope(statsColumnScope)
                     .build();
-                // Bind the consumer-owned sink on this worker so the reader's close hook reaches
-                // the same map the consumer-thread StatsCapturingIterator binds. The pages iterator
-                // is opened inside the bound's try-with-resources so a failing reader.read still
-                // restores the previous ThreadLocal binding — workers in this executor are reused
-                // across queries, a leaked binding would route subsequent tasks' record() calls
-                // into the prior query's sink. Inner closes first, so record() runs with the sink
-                // still bound, then the handle restores the previous binding.
-                ExternalStatsCapture.Handle bound = captureSink != null
-                    ? ExternalStatsCapture.bind(
-                        captureSink,
-                        new ExternalStatsCapture.Coverage(chunk.coverageStart(), chunk.coverageStart() + chunk.length(), chunk.last())
-                    )
-                    : () -> {};
+                // Bind the consumer-owned sink on this worker so the reader's close hook reaches the
+                // same map the consumer-thread StatsCapturingIterator binds. The pages iterator is
+                // opened inside the bound's try-with-resources so a failing reader.read still restores
+                // the previous ThreadLocal binding — workers in this executor are reused across queries,
+                // and a leaked binding would route subsequent tasks' record() calls into the prior
+                // query's sink. The reader now stamps stripe addressing itself, so the sink no longer
+                // carries a coverage.
+                ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
                 try (bound) {
                     try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
                         while (pages.hasNext()) {
@@ -960,19 +999,53 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * Returns {@code true} when {@link #hasNext()} can run without blocking on upstream
-         * production: a page is already buffered, the current slot has a page or POISON, EOF has
-         * been reached, an error has been recorded, or the iterator is closed.
+         * production: a real page is available at the head of the current slot, EOF has been reached,
+         * an error has been recorded, or the iterator is closed.
+         * <p>
+         * A lone {@code POISON} end-of-chunk marker is <em>not</em> readiness. Reporting ready on a
+         * bare POISON was the multi-file text-read deadlock: the async producer-loop drain saw
+         * {@code waitForReady().isDone()}, called {@link #hasNext()}, which advanced past the POISON
+         * into an empty, still-parsing slot and BLOCKED on the parser latch — pinning its executor
+         * thread while the parser it waited for was queued behind it on the same pool. We instead
+         * {@link #skipDrainedPoison() consume the POISON here} (advancing and freeing a dispatch permit
+         * exactly as {@code takeNextPage} would) so readiness reflects a genuine page or terminal EOF;
+         * the drain then parks on {@link #waitForReady()} across the inter-chunk gap rather than
+         * blocking, and resumes via {@link #signalReady()} when the next chunk's first page lands.
          */
         private boolean isReadyNow() {
             if (closed || buffered != null || firstError.get() != null) {
                 return true;
             }
+            skipDrainedPoison();
             int slot = currentChunk % pageQueueRingSize;
             if (pageQueues[slot].peek() != null) {
                 return true;
             }
             // EOF: consumer has drained every dispatched chunk AND every producer has exited.
             return currentChunk >= chunksDispatched.get() && tasksOutstanding.get() == 0;
+        }
+
+        /**
+         * Non-blocking: consumes any {@code POISON} end-of-chunk markers currently at the head of the
+         * consumer's slot, advancing {@link #currentChunk} and releasing one {@link #dispatchPermits}
+         * permit per marker — identical accounting to {@link #takeNextPage()}'s POISON branch. Stops at
+         * the first real page, an empty slot, or once no chunk is dispatched for the slot. Only ever
+         * called on the single consumer thread (via {@link #waitForReady()} / {@link #hasNext()}), so the
+         * unsynchronized peek/poll/advance is safe: producers only append to the tail and never advance
+         * {@code currentChunk}. Releasing the permit here (rather than deferring to {@code takeNextPage})
+         * keeps the segmentator unblocked even when the async drain parks across the inter-chunk gap.
+         */
+        private void skipDrainedPoison() {
+            while (currentChunk < chunksDispatched.get()) {
+                int slot = currentChunk % pageQueueRingSize;
+                Page head = pageQueues[slot].peek();
+                if (head == null || head != POISON) {
+                    return;
+                }
+                pageQueues[slot].poll();
+                currentChunk++;
+                dispatchPermits.release();
+            }
         }
 
         @Override
@@ -1072,6 +1145,24 @@ public final class StreamingParallelParsingCoordinator {
             return dispatchPermits.hasQueuedThreads();
         }
 
+        private ByteArrayStorageObject chunkStorageObject(int chunkIndex, byte[] buffer, int offset, int length) {
+            StoragePath path = storageObject != null ? storageObject.path() : StoragePath.of("mem://chunk-" + chunkIndex);
+            // Leave the chunk mtime NULL (not Instant.EPOCH) when the source has no reliable last-modified: the
+            // readers gate stats caching on pinnedMtimeMillis >= 0, and EPOCH (0) would PASS that gate and cache
+            // the chunk under a fabricated mtime — risking a stale warm hit if the file later changes. A null
+            // mtime leaves pinnedMtimeMillis at -1, so the chunk's stats are uncacheable (safe-miss). A real
+            // last-modified (including a genuine EPOCH) still flows through and stays cacheable.
+            Instant mtime = null;
+            if (storageObject != null) {
+                try {
+                    mtime = storageObject.lastModified();
+                } catch (IOException e) {
+                    // Fall back to null — the chunk cannot be safely cached without a pinned mtime.
+                }
+            }
+            return new ByteArrayStorageObject(path, buffer, offset, length, mtime);
+        }
+
         /**
          * Two-phase shutdown sequenced to drain pages a parser task may publish after the first drain
          * but before all outstanding tasks finish.
@@ -1091,22 +1182,6 @@ public final class StreamingParallelParsingCoordinator {
          * interrupt could disrupt unrelated tasks. The timeout is intentionally generous (60s) to make
          * the leak window an exceptional condition; production workloads should not hit it.
          */
-        private ByteArrayStorageObject chunkStorageObject(int chunkIndex, byte[] buffer, int offset, int length) {
-            StoragePath path = storageObject != null ? storageObject.path() : StoragePath.of("mem://chunk-" + chunkIndex);
-            Instant mtime = Instant.EPOCH;
-            if (storageObject != null) {
-                try {
-                    Instant fileMtime = storageObject.lastModified();
-                    if (fileMtime != null) {
-                        mtime = fileMtime;
-                    }
-                } catch (IOException e) {
-                    // Fall back to EPOCH — chunk stats may be uncacheable without a pinned mtime.
-                }
-            }
-            return new ByteArrayStorageObject(path, buffer, offset, length, mtime);
-        }
-
         @Override
         public void close() throws IOException {
             if (closed) {

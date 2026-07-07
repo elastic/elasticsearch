@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -58,8 +57,7 @@ public class Clusters {
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
             .setting("ingest.geoip.downloader.enabled", "false")
-            .apply(() -> configProvider)
-            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG);
+            .apply(() -> configProvider);
         if (securityEnabled) {
             builder.user(ADMIN_USER, ADMIN_PASSWORD, "superuser", true);
         }

@@ -23,6 +23,9 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY
  */
 public class ExternalDistributedClusters {
 
+    private static final String ENCRYPTION_PASSWORD_ID = "test";
+    private static final String ENCRYPTION_PASSWORD = "esql-test-encryption-password";
+
     static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.testCluster(spec -> {
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES);
@@ -53,6 +56,11 @@ public class ExternalDistributedClusters {
             spec.setting("s3.client.default.protocol", "http");
             spec.environment("AWS_CONFIG_FILE", "/dev/null/aws/config");
             spec.environment("AWS_SHARED_CREDENTIALS_FILE", "/dev/null/aws/credentials");
+            // Project-encryption-key so the s3 data source's secret settings (access_key/secret_key) can be
+            // encrypted at registration time; without it PUT /_query/data_source fails with a 503
+            // encryption_key_not_yet_available_exception. Mirrors the csv qa testClusterWithEncryption config.
+            spec.keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD);
+            spec.keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID);
             spec.jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED");
             spec.jvmArg("-Darrow.allocation.manager.type=Unsafe");
         });

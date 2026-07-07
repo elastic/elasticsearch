@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parameterized integration tests for standalone CSV files.
@@ -47,20 +46,13 @@ public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    // Pilot the FROM <dataset> path on S3 only: the cluster's anonymous-capable S3 fixture (auth=none)
-    // backs a dataset without needing a cluster encryption key. Migrated csv-spec tests therefore run via
-    // FROM on S3 and via the rebuilt EXTERNAL query on HTTP/GCS/AZURE/LOCAL, so none are skipped.
-    @Override
-    protected Set<StorageBackend> datasetModeBackends() {
-        return Set.of(StorageBackend.S3);
-    }
-
-    // CSV reads only the csv-*.csv-spec files. The shared external-*.csv-spec files read the
-    // multi-value employees fixture, which under the default multi_value_syntax: none does not parse
-    // as CSV (the commas inside [a,b] misalign columns); scalar coverage lives in csv-basic.csv-spec
-    // (bracket-free employees twin) and multi-value coverage in csv-multivalue.csv-spec.
+    // CSV reads the csv-*.csv-spec files. Most shared external-*.csv-spec files read the multi-value
+    // employees fixture, which under the default multi_value_syntax: none does not parse as CSV (the
+    // commas inside [a,b] misalign columns); scalar coverage lives in csv-basic.csv-spec (bracket-free
+    // employees twin) and multi-value coverage in csv-multivalue.csv-spec. external-heavy-aggregates is
+    // the exception: it uses only the bracket-free employees_no_mv twin, so it parses under CSV too.
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/csv-*.csv-spec");
+        return readExternalSpecTests("/csv-*.csv-spec", "/external-heavy-aggregates.csv-spec");
     }
 }

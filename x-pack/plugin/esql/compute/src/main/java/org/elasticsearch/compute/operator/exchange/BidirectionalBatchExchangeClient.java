@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Page;
@@ -449,6 +450,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * @param message a parameterized log message template
      * @param params  the parameters for the message template; a trailing {@link Throwable} is logged with its stack trace
      */
+    @SuppressLoggerChecks(reason = "safely delegates to logger with a caller-supplied message and params")
     public static void logExchangeFailure(Logger logger, Exception failure, String message, Object... params) {
         if (isCancellation(failure)) {
             logger.debug(message, params);

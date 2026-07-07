@@ -1561,10 +1561,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
-
-                assert join.isRemote() == false : "Join is not configured yet and should be initialized with default isRemote()=false";
                 boolean isRemote = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
-                return new LookupJoin(join.source(), join.left(), join.right(), config, isRemote);
+                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote() || isRemote);
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");

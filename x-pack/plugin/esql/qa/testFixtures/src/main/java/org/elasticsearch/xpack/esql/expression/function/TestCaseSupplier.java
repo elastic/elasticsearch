@@ -97,9 +97,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Like the canonical constructor, but the supplied data may narrow any declared type to {@code NULL} at runtime,
-     * like a field nullified by {@code unmapped_fields="nullify"}. The narrowed signature cannot be declared up front:
-     * which positions narrow is only known once the data is built, and data is built after signatures are fixed.
+     * Like the canonical constructor, but the supplied multi-row columns may narrow their declared type to {@code NULL}
+     * at runtime, like a field nullified by {@code unmapped_fields="nullify"}. The narrowed signature cannot be declared
+     * up front: which positions narrow is only known once the data is built, and data is built after signatures are fixed.
      */
     public static TestCaseSupplier nullNarrowing(String name, List<DataType> types, Supplier<TestCase> supplier) {
         return new TestCaseSupplier(name, types, supplier, true);
@@ -157,7 +157,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             throw new IllegalStateException(name + ": type/data size mismatch " + types.size() + "/" + supplied.getData().size());
         }
         for (int i = 0; i < types.size(); i++) {
-            if (allowNullNarrowing && supplied.getData().get(i).type() == DataType.NULL) {
+            // only field columns may narrow; constants never do
+            if (allowNullNarrowing && supplied.getData().get(i).type() == DataType.NULL && supplied.getData().get(i).isMultiRow()) {
                 continue;
             }
             if (supplied.getData().get(i).type() != types.get(i)) {

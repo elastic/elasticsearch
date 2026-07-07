@@ -1527,15 +1527,37 @@ public class StatelessPlugin extends Plugin
                 }
 
                 @Override
+                public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
+                    if (reason == IndexRemovalReason.DELETED) {
+                        // Evict cache regions of shards of the deleted index
+                        final var cacheService = sharedBlobCacheService.get();
+                        if (cacheService.isCacheBoostPreferenceEnabled() && commitService.isNodeShuttingDown() == false) {
+                            cacheService.forceEvictAsync(k -> k.shardId().getIndex().equals(indexService.index()));
+                        }
+                    }
+                }
+
+                @Override
                 public void onStoreClosed(ShardId shardId) {
                     getClosedShardService().onStoreClose(shardId);
+
+                    // Demote cache regions of the closed shard, so they can be more easily evicted
                     final var cacheService = sharedBlobCacheService.get();
                     // TODO consider removing the flag guard once performance is verified
                     if (cacheService.isCacheBoostPreferenceEnabled() && commitService.isNodeShuttingDown() == false) {
-                        final var hasShard = indicesService.get().hasShardPredicate();
-                        final Predicate<ShardId> shouldDemote = id -> hasShard.test(id) == false
-                            && commitService.isNodeShuttingDown() == false;
-                        cacheService.demoteAllAsync(shardId, shouldDemote);
+                        // Index deletion also ultimately closes the store, but the cache regions have been evicted
+                        // in beforeIndexRemoved above, so there is no reason to schedule a demotion.
+                        final boolean indexExistsInClusterMetadata = clusterService.get()
+                            .state()
+                            .metadata()
+                            .lookupProject(shardId.getIndex())
+                            .isPresent();
+                        if (indexExistsInClusterMetadata) {
+                            final var hasShard = indicesService.get().hasShardPredicate();
+                            final Predicate<ShardId> shouldDemote = id -> hasShard.test(id) == false
+                                && commitService.isNodeShuttingDown() == false;
+                            cacheService.demoteAllAsync(shardId, shouldDemote);
+                        }
                     }
                 }
             });

@@ -4611,13 +4611,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             int len = end - start;
-            // Null classification mirrors tryConvertValue: empty, the literal "null" (any case), or the
-            // configured null marker all become null.
+            // Null classification mirrors tryConvertValue: empty always becomes null; the literal "null"
+            // (any case) only for non-string columns, since KEYWORD/TEXT must be able to hold the string
+            // "null"; the configured null marker always becomes null.
             if (len == 0) {
                 stageNullValue(bufIdx);
                 return true;
             }
-            if (len == 4 && regionEqualsIgnoreCase(buf, start, "null")) {
+            if (isStringType(dt) == false && len == 4 && regionEqualsIgnoreCase(buf, start, "null")) {
                 stageNullValue(bufIdx);
                 return true;
             }
@@ -5336,7 +5337,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private Object tryConvertValue(String value, DataType dataType, int columnIndex) {
-            if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
+            // The literal "null" token is a null marker only for non-string columns; KEYWORD/TEXT must be
+            // able to hold the string "null". Empty stays a null marker for every type.
+            if (value == null || value.isEmpty() || (isStringType(dataType) == false && value.equalsIgnoreCase("null"))) {
                 return null;
             }
             if (hasCustomNullValue && value.equals(nullValueStr)) {
@@ -5441,7 +5444,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private Object parseElement(String value, DataType dataType, int columnIndex) {
-            if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
+            // Same string-type gate as tryConvertValue: a bracket element that is (or unquotes to) "null"
+            // stays the literal string on KEYWORD/TEXT.
+            if (value == null || value.isEmpty() || (isStringType(dataType) == false && value.equalsIgnoreCase("null"))) {
                 return null;
             }
             if (hasCustomNullValue && value.equals(nullValueStr)) {

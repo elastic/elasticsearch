@@ -24,7 +24,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.ErrorScalingFit;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.ExpectedRecall;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.ManifoldModel;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.QuantizationErrorStdModel;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -90,14 +90,14 @@ public class IvfAutoCalibration {
 
     /**
      * Candidate encodings paired with their (qbits, dbits) for the calibration model. Each entry encodes the ES
-     * {@link ESNextDiskBBQVectorsFormat.QuantEncoding} and the query/doc bit widths used during recall estimation.
+     * {@link QuantEncoding} and the query/doc bit widths used during recall estimation.
      */
     private static final CandidateEncoding[] CANDIDATES = {
-        new CandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_1BIT_QUERY, 1, 1),
-        new CandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, 4, 1),
-        new CandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, 4, 2),
-        new CandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC, 4, 4),
-        new CandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC, 7, 7), };
+        new CandidateEncoding(QuantEncoding.ONE_BIT_1BIT_QUERY, 1, 1),
+        new CandidateEncoding(QuantEncoding.ONE_BIT_4BIT_QUERY, 4, 1),
+        new CandidateEncoding(QuantEncoding.TWO_BIT_4BIT_QUERY, 4, 2),
+        new CandidateEncoding(QuantEncoding.FOUR_BIT_SYMMETRIC, 4, 4),
+        new CandidateEncoding(QuantEncoding.SEVEN_BIT_SYMMETRIC, 7, 7), };
 
     /**
      * Rerank depth multipliers swept in ascending cost order.
@@ -108,7 +108,7 @@ public class IvfAutoCalibration {
      * The distinct candidate quantization encodings evaluated during calibration. Exposed so tests can assert
      * that a calibrated segment picked one of these without duplicating (and drifting from) the list here.
      */
-    public static Set<ESNextDiskBBQVectorsFormat.QuantEncoding> candidateEncodings() {
+    public static Set<QuantEncoding> candidateEncodings() {
         return Arrays.stream(CANDIDATES).map(CandidateEncoding::encoding).collect(Collectors.toUnmodifiableSet());
     }
 
@@ -140,7 +140,7 @@ public class IvfAutoCalibration {
     private final int k;
 
     public IvfAutoCalibration(int vectorsPerCluster) {
-        this(vectorsPerCluster, ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION);
+        this(vectorsPerCluster, ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION);
     }
 
     public IvfAutoCalibration(int vectorsPerCluster, int blockDimension) {
@@ -246,9 +246,7 @@ public class IvfAutoCalibration {
      * or {@code null} if merge-time calibration should be performed.
      */
     IvfSegmentConfig selectFromMergeState(FieldInfo fieldInfo, MergeState mergeState) {
-        Map<ESNextDiskBBQVectorsFormat.QuantEncoding, Long> encodingDocCounts = new EnumMap<>(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.class
-        );
+        Map<QuantEncoding, Long> encodingDocCounts = new EnumMap<>(QuantEncoding.class);
         double oversampleWeightedSum = 0;
         long totalDocs = 0;
         long largestSegmentDocs = 0;
@@ -259,7 +257,7 @@ public class IvfAutoCalibration {
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
             KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
             if (reader instanceof CalibrationAwareReader car) {
-                ESNextDiskBBQVectorsFormat.QuantEncoding enc = car.getQuantEncoding(fieldInfo);
+                QuantEncoding enc = car.getQuantEncoding(fieldInfo);
                 if (enc == null) {
                     continue;
                 }
@@ -302,11 +300,7 @@ public class IvfAutoCalibration {
             }
         }
 
-        ESNextDiskBBQVectorsFormat.QuantEncoding bestEncoding = encodingDocCounts.entrySet()
-            .stream()
-            .max(Map.Entry.comparingByValue())
-            .orElseThrow()
-            .getKey();
+        QuantEncoding bestEncoding = encodingDocCounts.entrySet().stream().max(Map.Entry.comparingByValue()).orElseThrow().getKey();
         float avgOversample = (float) (oversampleWeightedSum / totalDocs);
         boolean doPreconditionResult = preconditionTrueDocs > preconditionFalseDocs;
 
@@ -317,7 +311,7 @@ public class IvfAutoCalibration {
             doPreconditionResult,
             calibratedSegments
         );
-        return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT, bestEncoding, doPreconditionResult, avgOversample);
+        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, doPreconditionResult, avgOversample);
     }
 
     /**
@@ -555,7 +549,7 @@ public class IvfAutoCalibration {
         ErrorStdProvider errorStdProvider
     ) throws IOException {
         double bestRecall = -1;
-        ESNextDiskBBQVectorsFormat.QuantEncoding bestEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
+        QuantEncoding bestEncoding = QuantEncoding.ONE_BIT_4BIT_QUERY;
         float bestOversample = DEFAULT_CALIBRATED_OVERSAMPLE;
         boolean bestPrecondition = false;
 
@@ -582,7 +576,7 @@ public class IvfAutoCalibration {
 
                 if (expected >= targetRecall) {
                     IvfSegmentConfig config = new IvfSegmentConfig(
-                        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                        CentroidIndexFormat.FLAT,
                         candidate.encoding(),
                         precondition,
                         oversample
@@ -599,7 +593,7 @@ public class IvfAutoCalibration {
         }
 
         return new SweepOutcome.BestEffort(
-            new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT, bestEncoding, bestPrecondition, bestOversample),
+            new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, bestPrecondition, bestOversample),
             bestRecall
         );
     }
@@ -626,7 +620,7 @@ public class IvfAutoCalibration {
         record BestEffort(IvfSegmentConfig config, double bestRecall) implements SweepOutcome {}
     }
 
-    private record CandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding encoding, int qbits, int dbits) {}
+    private record CandidateEncoding(QuantEncoding encoding, int qbits, int dbits) {}
 
     /** Selects the calibration strategy used by {@link #calibrate(FloatVectorValues, VectorSimilarityFunction, int, CalibrationMode)}. */
     enum CalibrationMode {

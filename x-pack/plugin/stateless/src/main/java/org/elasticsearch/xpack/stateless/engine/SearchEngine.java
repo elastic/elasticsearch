@@ -183,21 +183,7 @@ public class SearchEngine extends Engine {
         // we limit to one task to force sequential execution of enqueued tasks
         this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
 
-        this.relocatedPITReaderTracker = new RelocatedPITReaderTracker(
-            relocatedPITReader -> acquireSearcherSupplier(
-                relocatedPITReader.wrapper,
-                SearcherScope.EXTERNAL,
-                r -> reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
-                    r,
-                    shardId,
-                    engineConfig.getIndexSettings().getIndexMetadata(),
-                    engineConfig.getMapperService(),
-                    relocatedPITReader.reshardingMetadata,
-                    relocatedPITReader.splitShardCountSummary
-                ),
-                relocatedPITReader.sharedCommitReader().readerManager()
-            )
-        );
+        this.relocatedPITReaderTracker = new RelocatedPITReaderTracker();
 
         ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager readerManager = null;
@@ -1693,20 +1679,12 @@ public class SearchEngine extends Engine {
         }
     }
 
-    private static class RelocatedPITReaderTracker implements Closeable {
+    private class RelocatedPITReaderTracker implements Closeable {
 
-        @FunctionalInterface
-        interface SearcherSupplierFactory {
-            SearcherSupplier create(RelocatedPITReader relocatedPITReader);
-        }
-
-        private final SearcherSupplierFactory searcherSupplierFactory;
         private final Set<RelocatedPITReader> trackedReaders = new HashSet<>();
         private boolean closed = false;
 
-        RelocatedPITReaderTracker(SearcherSupplierFactory searcherSupplierFactory) {
-            this.searcherSupplierFactory = searcherSupplierFactory;
-        }
+        RelocatedPITReaderTracker() {}
 
         synchronized SearcherSupplier addRelocatedPitReader(RelocatedPITReader relocatedPITReader) {
             ensureOpen();
@@ -1748,8 +1726,20 @@ public class SearchEngine extends Engine {
             var storeRef = relocatedPITReader.storeRef();
 
             try (storeRef) {
-                SearcherSupplier delegate = searcherSupplierFactory.create(relocatedPITReader);
-                // searcherSupplierFactory.create() acquires its own store ref for the delegate's
+                SearcherSupplier delegate = acquireSearcherSupplier(
+                    relocatedPITReader.wrapper,
+                    SearcherScope.EXTERNAL,
+                    r -> reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                        r,
+                        shardId,
+                        engineConfig.getIndexSettings().getIndexMetadata(),
+                        engineConfig.getMapperService(),
+                        relocatedPITReader.reshardingMetadata,
+                        relocatedPITReader.splitShardCountSummary
+                    ),
+                    relocatedPITReader.sharedCommitReader().readerManager()
+                );
+                // acquireSearcherSupplier() acquires its own store ref for the delegate's
                 // lifetime, so we can release ours (via the try-with-resources block) here.
                 return new SearcherSupplier(Function.identity()) {
                     @Override

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
+import org.apache.logging.log4j.message.AsynchronouslyFormattable;
 import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.common.util.Maps;
@@ -88,6 +89,7 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.X
  * O(1) and byte-for-byte compatible with the pre-change layout, so upgraded and customized deployments continue to emit populated
  * audit lines.
  */
+@AsynchronouslyFormattable
 final class FastLogEntryAccumulator extends StringMapMessage {
 
     private static final Object[] EMPTY_PARAMS = new Object[0];
@@ -209,6 +211,30 @@ final class FastLogEntryAccumulator extends StringMapMessage {
         }
     }
 
+    FastLogEntryAccumulator(Object[] seedValues) {
+        super(1); // minimally initialized since we aren't using it
+        this.format = AUDIT_FORMAT;
+        this.values = seedValues.clone();
+    }
+
+    /**
+     * Resolves the always-present common fields (node/cluster identity, default origin) into a slot-values template for
+     * {@link #FastLogEntryAccumulator(Object[])}.
+     */
+    static Object[] seedValues(Map<String, String> commonFields) {
+        final Object[] seed = new Object[AUDIT_FORMAT.fields().length];
+        for (Map.Entry<String, String> commonField : commonFields.entrySet()) {
+            final String value = commonField.getValue();
+            if (value != null) {
+                final int index = AUDIT_FORMAT.indexOf(commonField.getKey());
+                if (index >= 0) {
+                    seed[index] = value;
+                }
+            }
+        }
+        return seed;
+    }
+
     /**
      * log4j's {@code StringMapMessage} exposes a {@code with(String, String)} overload in addition to {@code with(String, Object)};
      * it is overridden here as well so that string-valued fields are routed to {@link #values} rather than to the (unused) superclass map.
@@ -306,47 +332,49 @@ final class FastLogEntryAccumulator extends StringMapMessage {
 
     @Override
     public void formatTo(StringBuilder buffer) {
-        String rendered = this.rendered;
-        if (rendered == null) {
-            final StringBuilder sb = new StringBuilder(1024); // derived via profiling to minimize resizing for a typical accessGranted.
-            final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
-            final LogField[] fields = format.fields();
-            for (int i = 0; i < fields.length; i++) {
-                final Object value = values[i];
-                if (value == null) {
-                    continue;
+        final String rendered = this.rendered;
+        if (rendered != null) {
+            buffer.append(rendered);
+        } else {
+            renderTo(buffer);
+        }
+    }
+
+    private void renderTo(StringBuilder sb) {
+        final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
+        final LogField[] fields = format.fields();
+        for (int i = 0; i < fields.length; i++) {
+            final Object value = values[i];
+            if (value == null) {
+                continue;
+            }
+            final LogField field = fields[i];
+            switch (field.type()) {
+                case STRING -> {
+                    final String string = value.toString();
+                    // an empty value was suppressed by %varsNotEmpty in the old layout, so skip it here too
+                    if (string.isEmpty()) {
+                        continue;
+                    }
+                    sb.append(field.prefix());
+                    sb.append('"');
+                    if (isAsciiSafe(string)) {
+                        sb.append(string);
+                    } else {
+                        jsonStringEncoder.quoteAsString(string, sb);
+                    }
+                    sb.append('"');
                 }
-                final LogField field = fields[i];
-                switch (field.type()) {
-                    case STRING -> {
-                        final String string = value.toString();
-                        // an empty value was suppressed by %varsNotEmpty in the old layout, so skip it here too
-                        if (string.isEmpty()) {
-                            continue;
-                        }
-                        sb.append(field.prefix());
-                        sb.append('"');
-                        if (isAsciiSafe(string)) {
-                            sb.append(string);
-                        } else {
-                            jsonStringEncoder.quoteAsString(string, sb);
-                        }
-                        sb.append('"');
-                    }
-                    case STRING_ARRAY -> {
-                        sb.append(field.prefix());
-                        appendQuotedJsonArray(sb, (Object[]) value, jsonStringEncoder);
-                    }
-                    case RAW -> {
-                        sb.append(field.prefix());
-                        sb.append(value);
-                    }
+                case STRING_ARRAY -> {
+                    sb.append(field.prefix());
+                    appendQuotedJsonArray(sb, (Object[]) value, jsonStringEncoder);
+                }
+                case RAW -> {
+                    sb.append(field.prefix());
+                    sb.append(value);
                 }
             }
-            rendered = sb.toString();
-            this.rendered = rendered;
         }
-        buffer.append(rendered);
     }
 
     private static void appendQuotedJsonArray(StringBuilder sb, Object[] values, JsonStringEncoder jsonStringEncoder) {
@@ -386,12 +414,13 @@ final class FastLogEntryAccumulator extends StringMapMessage {
 
     @Override
     public String getFormattedMessage() {
-        if (rendered != null) {
-            return rendered;
+        String rendered = this.rendered;
+        if (rendered == null) {
+            final StringBuilder sb = new StringBuilder(1024); // derived via profiling to minimize resizing for a typical accessGranted.
+            renderTo(sb);
+            this.rendered = rendered = sb.toString();
         }
-        final StringBuilder sb = new StringBuilder(1024);
-        formatTo(sb);
-        return sb.toString();
+        return rendered;
     }
 
     @Override

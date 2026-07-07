@@ -1094,7 +1094,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder(boolean showOrigin) {
-            logEntry = new FastLogEntryAccumulator(LoggingAuditTrail.this.entryCommonFields.commonFields);
+            logEntry = new FastLogEntryAccumulator(LoggingAuditTrail.this.entryCommonFields.seedValues);
             if (false == showOrigin) {
                 logEntry.remove(ORIGIN_ADDRESS_FIELD_NAME);
                 logEntry.remove(ORIGIN_TYPE_FIELD_NAME);
@@ -2010,6 +2010,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private final DiscoveryNode localNode;
         private final ClusterService clusterService;
         final Map<String, String> commonFields;
+        /**
+         * A seed for the Object[] values array populated for the logEntry within {@link FastLogEntryAccumulator}. It is an array initialized to
+         * the total length of the audit format, empty except for the commonFields values stored at appropriate indices. This optimization reduces
+         * a new logEntry construction to an array copy of seedValues, saving the cost of iterating commonFields for each logEntry within its
+         * constructor. Updated whenever commonFields is updated.
+         */
+        final Object[] seedValues;
 
         EntryCommonFields(Settings settings, @Nullable DiscoveryNode newLocalNode, ClusterService clusterService) {
             this.settings = settings;
@@ -2065,6 +2072,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             commonFields.putIfAbsent(CLUSTER_NAME_FIELD_NAME, null);
             commonFields.putIfAbsent(CLUSTER_UUID_FIELD_NAME, null);
             this.commonFields = Collections.unmodifiableMap(commonFields);
+            this.seedValues = FastLogEntryAccumulator.seedValues(this.commonFields);
         }
 
         EntryCommonFields withNewSettings(Settings newSettings) {

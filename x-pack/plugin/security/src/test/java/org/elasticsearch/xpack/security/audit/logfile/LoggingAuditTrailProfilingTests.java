@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -81,13 +80,9 @@ public class LoggingAuditTrailProfilingTests extends ESTestCase {
 
     @BeforeClass
     public static void lookupPatternLayout() throws Exception {
-        // Build the layout from the real audit pattern on the classpath, exactly as LoggingAuditTrailTests does. This is what makes the
-        // before/after comparison meaningful: the OLD checkout renders via %varsNotEmpty{%map{...}}, the NEW one via %m -> formatTo.
-        final Properties properties = new Properties();
-        try (InputStream configStream = LoggingAuditTrail.class.getClassLoader().getResourceAsStream("log4j2.properties")) {
-            properties.load(configStream);
-        }
-        final String patternLayoutFormat = properties.getProperty("appender.audit_rolling.layout.pattern");
+        // Build the layout from the real audit pattern on the classpath, exactly as LoggingAuditTrailTests does.
+        final Properties properties = AuditLayoutPatterns.loadAuditConfig();
+        final String patternLayoutFormat = AuditLayoutPatterns.activePattern(properties);
         patternLayout = PatternLayout.newBuilder().withPattern(patternLayoutFormat).withCharset(StandardCharsets.UTF_8).build();
     }
 
@@ -97,7 +92,10 @@ public class LoggingAuditTrailProfilingTests extends ESTestCase {
     }
 
     public void testProfileAccessGranted() throws Exception {
-        assumeTrue("audit profiling harness; enable with -Dtests.audit.profile=true", Booleans.isTrue("tests.audit.profile"));
+        assumeTrue(
+            "audit profiling harness; enable with -Dtests.audit.profile=true",
+            Booleans.isTrue(System.getProperty("tests.audit.profile"))
+        );
         final int warmupIterations = Integer.getInteger("tests.audit.profile.warmup", 200_000);
         final int measureIterations = Integer.getInteger("tests.audit.profile.iterations", 2_000_000);
 

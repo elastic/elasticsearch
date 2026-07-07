@@ -144,7 +144,6 @@ import org.mockito.stubbing.Answer;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -255,10 +254,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     @BeforeClass
     public static void lookupPatternLayout() throws Exception {
-        final Properties properties = new Properties();
-        try (InputStream configStream = LoggingAuditTrail.class.getClassLoader().getResourceAsStream("log4j2.properties")) {
-            properties.load(configStream);
-        }
+        final Properties properties = AuditLayoutPatterns.loadAuditConfig();
         // This is a minimal and brittle parsing of the security log4j2 config
         // properties. If any of these fails, then surely the config file changed. In
         // this case adjust the assertions! The goal of this assertion chain is to
@@ -268,7 +264,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(properties.getProperty("logger.xpack_security_audit_logfile.appenderRef.audit_rolling.ref"), is("audit_rolling"));
         assertThat(properties.getProperty("appender.audit_rolling.name"), is("audit_rolling"));
         assertThat(properties.getProperty("appender.audit_rolling.layout.type"), is("PatternLayout"));
-        final String patternLayoutFormat = properties.getProperty("appender.audit_rolling.layout.pattern");
+        // the active pattern is a ${...} reference to one of the property.audit_*_format definitions; resolve it
+        final String patternLayoutFormat = AuditLayoutPatterns.activePattern(properties);
         assertThat(patternLayoutFormat, is(notNullValue()));
         patternLayout = PatternLayout.newBuilder().withPattern(patternLayoutFormat).withCharset(StandardCharsets.UTF_8).build();
         customAnonymousUsername = randomAlphaOfLength(8);

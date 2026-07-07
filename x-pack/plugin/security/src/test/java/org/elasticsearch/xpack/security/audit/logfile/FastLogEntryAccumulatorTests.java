@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
+import org.apache.logging.log4j.message.AsynchronouslyFormattable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.audit.logfile.FastLogEntryAccumulator.FieldType;
 import org.elasticsearch.xpack.security.audit.logfile.FastLogEntryAccumulator.LogField;
 import org.elasticsearch.xpack.security.audit.logfile.FastLogEntryAccumulator.LogFormat;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -25,7 +27,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Tests for {@link FastLogEntryAccumulator} as a general-purpose fixed-schema key/value store with deferred JSON rendering.
- * Uses a test-local minimal {@link LogFormat} — does not depend on {@link FastLogEntryAccumulator#AUDIT_FORMAT}.
+ * Uses a test-local minimal {@link LogFormat} — only the seed-template tests go through {@link FastLogEntryAccumulator#AUDIT_FORMAT},
+ * because {@link FastLogEntryAccumulator#seedValues} is by design bound to it.
  */
 public class FastLogEntryAccumulatorTests extends ESTestCase {
 
@@ -254,12 +257,55 @@ public class FastLogEntryAccumulatorTests extends ESTestCase {
         assertThat(sb1.toString(), equalTo(sb2.toString()));
     }
 
-    public void testGetFormattedMessageReturnsCachedInstanceAfterFormatTo() {
+    public void testGetFormattedMessageReturnsCachedInstanceOnRepeatedCalls() {
         final FastLogEntryAccumulator acc = entry().with("alpha", "cached");
-        // prime the memoized rendered field
-        acc.formatTo(new StringBuilder());
-        // both calls hit the fast path and must return the same String instance
+        // the first call renders and memoizes; the second must return the same String instance
         assertThat(acc.getFormattedMessage(), sameInstance(acc.getFormattedMessage()));
+    }
+
+    public void testFormatToAfterGetFormattedMessageAppendsCachedRender() {
+        final FastLogEntryAccumulator acc = entry().with("alpha", "cached");
+        final String rendered = acc.getFormattedMessage();
+        final StringBuilder sb = new StringBuilder();
+        acc.formatTo(sb);
+        assertThat(sb.toString(), equalTo(rendered));
+    }
+
+    /**
+     * Without {@code @AsynchronouslyFormattable}, log4j's {@code InternalAsyncUtil#makeMessageImmutable} eagerly renders — and
+     * discards — the formatted message on every log call, before the appender renders it again. The annotation on {@code MapMessage}
+     * is not {@code @Inherited}, so it must be declared on the class directly; this test guards against it being dropped.
+     */
+    public void testAsynchronouslyFormattableAnnotationIsPresent() {
+        assertTrue(FastLogEntryAccumulator.class.isAnnotationPresent(AsynchronouslyFormattable.class));
+    }
+
+    /**
+     * The hot-path constructor seeds from a precomputed slot-values template; the entry it produces must be indistinguishable from
+     * one seeded via the map-based constructor.
+     */
+    public void testSeedValuesTemplateMatchesMapSeeding() {
+        final Map<String, String> commonFields = new HashMap<>();
+        commonFields.put(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME, "cluster-name");
+        commonFields.put(LoggingAuditTrail.NODE_ID_FIELD_NAME, "node-id");
+        commonFields.put(LoggingAuditTrail.HOST_NAME_FIELD_NAME, null); // deliberately-absent marker must be skipped
+        commonFields.put("nonexistent", "ignored"); // unknown fields must be ignored, as with()
+
+        final FastLogEntryAccumulator fromTemplate = new FastLogEntryAccumulator(FastLogEntryAccumulator.seedValues(commonFields));
+        final FastLogEntryAccumulator fromMap = new FastLogEntryAccumulator(commonFields);
+        assertThat(fromTemplate.getFormattedMessage(), equalTo(fromMap.getFormattedMessage()));
+        assertThat(fromTemplate.getData(), equalTo(fromMap.getData()));
+    }
+
+    public void testSeedValuesTemplateIsNotSharedBetweenEntries() {
+        final Object[] seed = FastLogEntryAccumulator.seedValues(Map.of(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME, "cluster-name"));
+        final FastLogEntryAccumulator first = new FastLogEntryAccumulator(seed);
+        first.with(LoggingAuditTrail.NODE_ID_FIELD_NAME, "only-on-first");
+        first.remove(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME);
+        // a second entry from the same template must see the pristine template values
+        final FastLogEntryAccumulator second = new FastLogEntryAccumulator(seed);
+        assertThat(second.get(LoggingAuditTrail.NODE_ID_FIELD_NAME), nullValue());
+        assertThat(second.get(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME), equalTo("cluster-name"));
     }
 
     public void testGetFormattedMessageConsistentWithFormatTo() {

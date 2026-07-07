@@ -970,10 +970,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
                     continue;
                 }
-                List<DocsV3Support.Param> sig = tc.getData()
-                    .stream()
-                    .map(d -> new DocsV3Support.Param(d.type(), d.appliesTo(), d.preview()))
-                    .toList();
+                List<DocsV3Support.Param> sig = tc.getData().stream().map(AbstractFunctionTestCase::docsParam).toList();
                 signatures.add(new DocsV3Support.TypeSignature(signatureTypes(testClass, sig), tc.expectedType()));
             } catch (AssumptionViolatedException ignored) {
                 // Throwing an AssumptionViolatedException in a test is a valid way of ignoring a test in junit.
@@ -981,6 +978,29 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
         return signatures;
+    }
+
+    /**
+     * Builds the {@link DocsV3Support.Param} used to render a type in the generated "Supported types"
+     * tables, normalizing the {@code {applies_to}} lifecycle annotation for tech-preview types that ship
+     * in 9.5.0 ({@link DataType#FLATTENED} and {@link DataType#DATE_RANGE}).
+     * <p>
+     * Both types ship as a tech preview in 9.5.0, so every signature that accepts them must be labeled
+     * exactly {@code stack: preview 9.5.0}. Test cases for these types are produced in many different
+     * places (per-function suppliers, the multivalue base class, generic representable-type loops, ...),
+     * and some of them additionally set the {@code serverless: preview} flag (e.g. via
+     * {@code previewTransform}). To keep every row for these types identical across functions, the
+     * lifecycle is normalized here: the {@code stack: preview 9.5.0} label is ensured and the redundant
+     * {@code serverless: preview} flag is dropped. Other types are passed through unchanged.
+     */
+    private static DocsV3Support.Param docsParam(TestCaseSupplier.TypedData data) {
+        if (data.type() == DataType.FLATTENED || data.type() == DataType.DATE_RANGE) {
+            List<FunctionAppliesTo> appliesTo = data.appliesTo() == null || data.appliesTo().isEmpty()
+                ? List.of(TestCaseSupplier.appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false))
+                : data.appliesTo();
+            return new DocsV3Support.Param(data.type(), appliesTo, false);
+        }
+        return new DocsV3Support.Param(data.type(), data.appliesTo(), data.preview());
     }
 
     @SuppressWarnings("unchecked")

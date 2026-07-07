@@ -74,6 +74,7 @@ public interface ExponentialHistogramValuesReader {
 
     /**
      * @return a doc id iterator over the doc values when available, otherwise null.
+     *         Moving the returned iterator also moves the position of the {@link ExponentialHistogramValuesReader} instance.
      */
     @Nullable
     default DocIdSetIterator docIdIterator() {

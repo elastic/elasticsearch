@@ -364,6 +364,33 @@ some text | red
 // end::trim-result[]
 ;
 
+ltrimKeywordField
+FROM trim_test | EVAL t = LTRIM(col_leading) | KEEP id, t | SORT id;
+
+id:integer | t:keyword
+1          | foo
+2          | bar
+3          | baz
+;
+
+rtrimKeywordField
+FROM trim_test | EVAL t = RTRIM(col_trailing) | KEEP id, t | SORT id;
+
+id:integer | t:keyword
+1          | foo
+2          | bar
+3          | baz
+;
+
+trimKeywordField
+FROM trim_test | EVAL t = TRIM(col_both) | KEEP id, t | SORT id;
+
+id:integer | t:keyword
+1          | foo
+2          | bar
+3          | baz
+;
+
 concat
 from employees | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | keep emp_no, name;
 
@@ -490,6 +517,16 @@ l1:boolean | l2:boolean
 true          | null
 true          | null
 null       | false
+;
+
+containsKeywordField
+required_capability: fn_contains
+from employees | sort emp_no | limit 3 | eval c = contains(first_name, last_name) | keep emp_no, c;
+
+emp_no:integer | c:boolean
+10001          | false
+10002          | false
+10003          | false
 ;
 
 // Note: no matches in MV returned
@@ -1664,6 +1701,15 @@ is_there:boolean
 true
 ;
 
+endsWithKeywordField
+from employees | sort emp_no | limit 3 | eval e = ends_with(first_name, last_name) | keep emp_no, e;
+
+emp_no:integer | e:boolean
+10001          | false
+10002          | false
+10003          | false
+;
+
 likeOnIndexWithMinusWhere
 required_capability: fix_starts_with_ends_with_pushdown_on_index
 
@@ -2358,6 +2404,15 @@ l1:integer | l2:integer
 2          | null
 2          | null
 null       | 0
+;
+
+locateKeywordField
+from employees | sort emp_no | limit 3 | eval l = locate(first_name, last_name) | keep emp_no, l;
+
+emp_no:integer | l:integer
+10001          | 0
+10002          | 0
+10003          | 0
 ;
 
 mvContains

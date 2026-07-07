@@ -124,6 +124,25 @@ public class CsvModeReadTests extends ESTestCase {
         assertEquals("value", values.get(0).get(2));
     }
 
+    /**
+     * Documents the escaped-mode residual: {@code escaped} (quoting off, escaping on) keeps
+     * {@code jacksonGrammarApplies()} true even under no-trim (the house grammar mirrors only the QUOTED /
+     * PLAIN dialects, not the C-style decode), so escaped reads still tokenize with Jackson and inherit its
+     * {@code SKIP_EMPTY_LINES} first-column leading-whitespace eating. This is a real no-trim gap for escaped
+     * mode — but it is uniform across every escaped arm (per-record + bulk + inference all go through Jackson),
+     * so there is no cross-path misbind. Pinned so a future widening of the house grammar to escaped mode (which
+     * WOULD start preserving col-0 whitespace) is a deliberate, visible change rather than a silent drift.
+     */
+    public void testEscapedModeStillEatsColumnZeroLeadingWhitespaceUnderNoTrim() throws IOException {
+        String tsv = "a:keyword\tb:keyword\n  x\t  y\n";
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped")), tsv);
+        assertEquals(1, values.size());
+        // Column 0's leading whitespace is eaten by Jackson's SKIP_EMPTY_LINES; a non-first column keeps its
+        // padding, so the residual is column-0-specific (not general trimming).
+        assertEquals("x", values.get(0).get(0));
+        assertEquals("  y", values.get(0).get(1));
+    }
+
     /** {@code escaped} is still a no-quote mode: a field-leading {@code "} is data, rows never glue. */
     public void testEscapedFieldLeadingQuoteIsData() throws IOException {
         String tsv = """

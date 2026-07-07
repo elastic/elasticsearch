@@ -16,11 +16,13 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -233,7 +235,12 @@ public final class ParallelParsingCoordinator {
             baseFileOffset,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             null,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot;
+            // conservatively false preserves the prior never-file-final-for-macro-splits behavior.
+            false
         );
     }
 
@@ -316,13 +323,18 @@ public final class ParallelParsingCoordinator {
             0L,
             maxConcurrentOpenSegments,
             captureSink,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot.
+            false
         );
     }
 
     /**
-     * Full-control overload that also takes the {@code max_record_size} cap used by record splitters
-     * and the file-global byte base offset.
+     * Full-control overload that also takes the {@code max_record_size} cap used by record splitters,
+     * the file-global byte base offset, and the canonical-stripe grid for per-stripe stats attribution
+     * ({@code <= 0} disables; pure overlay).
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -338,7 +350,57 @@ public final class ParallelParsingCoordinator {
         long baseFileOffset,
         int maxConcurrentOpenSegments,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-        int maxRecordBytes
+        int maxRecordBytes,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        boolean splitIsFileFinal
+    ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            readSchema,
+            baseFileOffset,
+            maxConcurrentOpenSegments,
+            captureSink,
+            maxRecordBytes,
+            statsStripeSize,
+            statsColumnScope,
+            splitIsFileFinal,
+            ExternalSourceMetrics.NOOP
+        );
+    }
+
+    /**
+     * As the {@code captureSink}+{@code maxRecordBytes} overload, plus a node telemetry sink used to record a
+     * {@code reader.pool.rejected} event when a parser-segment submission is rejected (executor saturated /
+     * shutting down). Pass {@link ExternalSourceMetrics#NOOP} to disable (all narrower overloads do).
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader,
+        List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxConcurrentOpenSegments,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        int maxRecordBytes,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        boolean splitIsFileFinal,
+        ExternalSourceMetrics metrics
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
@@ -366,6 +428,11 @@ public final class ParallelParsingCoordinator {
             .readSchema(readSchema)
             .splitStartByte(baseFileOffset)
             .maxRecordBytes(maxRecordBytes)
+            // Single-segment fallback reads this whole storage object in one shot, so its trailing stripe is
+            // file-final exactly when this macro-split is the file's final split (splitIsFileFinal). A mid-file
+            // macro-split is never file-final — a later split supplies the terminal stripe.
+            .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
+            .statsColumnScope(statsColumnScope)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -391,7 +458,11 @@ public final class ParallelParsingCoordinator {
             readSchema,
             baseFileOffset,
             captureSink,
-            maxRecordBytes
+            maxRecordBytes,
+            statsStripeSize,
+            statsColumnScope,
+            splitIsFileFinal,
+            metrics
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
@@ -520,6 +591,18 @@ public final class ParallelParsingCoordinator {
         @Nullable
         private final ConcurrentMap<String, List<Map<String, Object>>> captureSink;
         private final int maxRecordBytes;
+        /** Canonical-stripe grid for per-stripe stats attribution ({@code <= 0} disables). Pure stats overlay. */
+        private final long statsStripeSize;
+        /** How much per-stripe statistics each segment harvests (row count only / + projected / + all / nothing). */
+        private final StripeColumnScope statsColumnScope;
+        /**
+         * Whether this storage object is the file's final split. Only then may the trailing segment mark its
+         * last stripe file-final ({@code eof}); a mid-file macro-split's trailing segment ends at the range
+         * boundary, and a later split supplies the terminal stripe — so it must never be marked file-final.
+         */
+        private final boolean splitIsFileFinal;
+        /** Node telemetry sink for the {@code reader.pool.rejected} event; {@link ExternalSourceMetrics#NOOP} when unwired. */
+        private final ExternalSourceMetrics metrics;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -556,10 +639,15 @@ public final class ParallelParsingCoordinator {
             List<Attribute> readSchema,
             long baseFileOffset,
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-            int maxRecordBytes
+            int maxRecordBytes,
+            long statsStripeSize,
+            StripeColumnScope statsColumnScope,
+            boolean splitIsFileFinal,
+            ExternalSourceMetrics metrics
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
+            this.splitIsFileFinal = splitIsFileFinal;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
@@ -568,6 +656,9 @@ public final class ParallelParsingCoordinator {
             this.baseFileOffset = baseFileOffset;
             this.captureSink = captureSink;
             this.maxRecordBytes = maxRecordBytes;
+            this.statsStripeSize = statsStripeSize;
+            this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+            this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -611,6 +702,9 @@ public final class ParallelParsingCoordinator {
                     executor.execute(() -> parseSegment(idx, seg[0], seg[1]));
                     return;
                 } catch (RejectedExecutionException e) {
+                    // Best-effort telemetry: the parser pool refused this segment (saturated / shutting down). The
+                    // record method self-guards, so no inner try/catch is needed here.
+                    metrics.recordPoolRejected();
                     firstError.compareAndSet(null, e);
                     finishSegment();
                     segIdx += maxConcurrentSegments;
@@ -646,18 +740,22 @@ public final class ParallelParsingCoordinator {
         private void readSegment(int segmentIndex, long offset, long length) throws Exception {
             boolean lastSplit = segmentIndex == segments.size() - 1;
             StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
-            // Coverage in absolute file coordinates: segment offsets are relative to this (possibly
-            // macro-split) storage object, so add its base file offset. The reconciler unions
-            // contributions by this range across all segments, macro-splits, and nodes — disjoint
-            // ranges sum, a range re-observed by a sibling FORK scan dedups. {@code lastSplit} flags
-            // the segment that reaches this object's tail; the truly final range (highest offset, on
-            // the file's last macro-split) carries it, which is what the completeness check reads.
-            long baseOffset = storageObject instanceof RangeStorageObject r ? r.offset() : 0L;
-            ExternalStatsCapture.Coverage coverage = new ExternalStatsCapture.Coverage(
-                baseOffset + offset,
-                baseOffset + offset + length,
-                lastSplit
-            );
+            // Absolute file offset of this segment's first byte: segment offsets are relative to this
+            // (possibly macro-split) storage object, so add its base file offset. The reader uses it to
+            // attribute each record to its canonical stripe — a pure stats overlay; this seekable path
+            // gets stripe-addressed stats for free, with no change to how segments are computed or read.
+            // This ONE value feeds both splitStartByte and the stats attribution base — they are the same
+            // quantity, so derive it once. (Deriving the stats base separately from RangeStorageObject.offset()
+            // is equal today but would silently make CSV and NDJSON attribute the same records to different
+            // grids if a future caller's baseFileOffset ever diverged from the range offset.)
+            long segmentFileOffset = baseFileOffset + offset;
+            // statsFileFinal: the trailing segment reaches the file's true end only when (a) it is this storage
+            // object's last segment AND (b) this storage object is the file's final split (splitIsFileFinal).
+            // A mid-file macro-split's trailing segment ends at the range boundary, so a later macro-split
+            // supplies the terminal stripe — never mark it file-final (it would mark a mid-file stripe complete
+            // and silently undercount). The file's final macro-split DOES reach EOF, so its trailing segment is
+            // file-final and the byte-range cover can close the last stripe.
+            boolean statsFileFinal = lastSplit && splitIsFileFinal;
 
             // Per-flag semantics:
             // - firstSplit: only segment 0 owns the file's leading bytes (and any header).
@@ -683,19 +781,22 @@ public final class ParallelParsingCoordinator {
                 .lastSplit(lastSplit)
                 .recordAligned(true)
                 .readSchema(readSchema)
-                .splitStartByte(baseFileOffset + offset)
+                .splitStartByte(segmentFileOffset)
                 .maxRecordBytes(maxRecordBytes)
+                .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
+                .statsColumnScope(statsColumnScope)
                 .build();
 
-            // Bind the consumer-owned sink on this worker so the reader's close hook (which publishes the
-            // chunk's _stats.* contribution via ExternalStatsCapture.record) reaches the same map the
+            // Bind the consumer-owned sink on this worker so the reader's close hook (which publishes its
+            // per-stripe _stats.* contributions via ExternalStatsCapture.record) reaches the same map the
             // consumer-thread StatsCapturingIterator binds — ExternalStatsCapture.ACTIVE is a plain
             // ThreadLocal that does not propagate to executor threads. The pages iterator is opened *inside*
             // the bound's try-with-resources so a failing reader.read still restores the previous binding —
             // worker threads are reused across queries by the shared executor, and a leaked binding would
             // poison subsequent tasks. The inner stream closes first, so the close hook's record() call runs
-            // with the sink still bound; then the handle restores the previous binding.
-            ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink, coverage) : () -> {};
+            // with the sink still bound; then the handle restores the previous binding. The reader stamps
+            // stripe addressing itself, so the sink no longer carries a coverage.
+            ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
             try (bound) {
                 try (CloseableIterator<Page> pages = reader.read(segObj, ctx)) {
                     while (pages.hasNext()) {

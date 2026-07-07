@@ -22,9 +22,16 @@ dependencies {
   api("org.checkerframework:checker-qual:3.42.0")
   api("com.google.flatbuffers:flatbuffers-java:23.5.26")
 
-  api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  api("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
-  api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  // Pin Jackson newer than the repo-wide versions.jackson (2.15.0). Arrow 18.3.0 itself targets
+  // Jackson 2.18+, and the esql-datasource-csv direct-to-block reader needs jackson-core 2.18+ for
+  // NumberInput.parseDouble(char[], off, len, fastParser). Because Arrow is the source of the Jackson
+  // bundled into the x-pack-esql plugin (esql:compute -> libs:arrow), aligning it here lets the
+  // esql-datasource-* plugins that extend x-pack-esql resolve to this same Jackson, so their copies
+  // are de-duplicated out of their bundles instead of tripping the plugin jar-hell check at boot.
+  // jackson-annotations is released without a matching patch version, so it stays at 2.21.
+  api("com.fasterxml.jackson.core:jackson-annotations:2.21")
+  api("com.fasterxml.jackson.core:jackson-core:2.21.4")
+  api("com.fasterxml.jackson.core:jackson-databind:2.21.4")
 
   implementation("org.slf4j:slf4j-api:${versions.slf4j}")
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"

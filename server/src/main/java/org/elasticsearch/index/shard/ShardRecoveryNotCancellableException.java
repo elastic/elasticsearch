@@ -9,9 +9,8 @@
 
 package org.elasticsearch.index.shard;
 
-/// Exception indicating that a direct recovery cancellation could not be applied because the shard had already
-/// advanced beyond a cancellable state (primary handover for relocation), or if the shard's recovery type does not
-/// support direct cancellation.
+/// Exception indicating that a direct recovery cancellation could not be applied (usually because the shard's recovery type
+/// does not support direct cancellation of started recoveries).
 public class ShardRecoveryNotCancellableException extends Exception {
 
     public ShardRecoveryNotCancellableException(ShardId shardId, String reason) {

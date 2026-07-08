@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 66555
+pr: 152924
+summary: Parse YAML hexadecimal values as numbers
+type: bug

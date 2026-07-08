@@ -686,6 +686,7 @@ foo;bar;baz | "baz"
 ;
 
 mvLastKeywordField
+request_stored: skip
 FROM employees
 | WHERE emp_no == 10001
 | EVAL last_job = MV_LAST(job_positions)

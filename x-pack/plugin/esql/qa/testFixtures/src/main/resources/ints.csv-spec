@@ -786,6 +786,7 @@ a:integer | a1:integer
 
 mvSliceKeywordField
 required_capability: mv_sort
+request_stored: skip
 
 FROM employees
 | WHERE emp_no == 10001

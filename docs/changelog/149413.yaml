@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 149413
-summary: Add `size_in_bytes` per-shard fetch cap to `_search` and reindex
-type: enhancement

@@ -2539,12 +2539,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             case SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL -> {
                 SegmentableFormatReader seg = resolveSegmentableReader(reader);
                 RecordSplitter splitter = seg.recordSplitter();
-                boolean macroSplit = recordAlignedMacroSplit || baseFileOffset != 0L;
-                // Proven-capable quoted/escaped CSV/TSV macro-split: the proven probe and exact walk guarantee
-                // every split boundary is a true record start, so a non-leader range reads correctly. Route it to
-                // the record-aligned coordinator (leader-aware, baseFileOffset-correct, absolute _stats coverage)
-                // rather than the whole-file streaming path below, which is built for a leader-bearing stream.
-                if (splitter != null && splitter.supportsProvenProbing() && macroSplit) {
+                // Proven-capable quoted/escaped CSV/TSV: the proven probe and exact walk guarantee every split
+                // boundary is a true record start, so the seekable coordinator reads any range correctly - a
+                // non-leader macro-split range or the whole file alike (leader-aware, baseFileOffset-correct,
+                // absolute _stats coverage). It is also size-aware: a file below twice the reader's minimum
+                // segment size reads single-threaded and a larger one range-macro-splits with a bounded
+                // as-ready queue, so the buffer footprint scales with the open-segment window. The streaming
+                // coordinator below eagerly allocates parallelism-many segment-sized (1 MiB) buffers per file
+                // up front; that is necessary for a sequential-only stream but wastes memory on a seekable
+                // file, and at high parallelism and concurrency it exhausts the heap.
+                if (splitter != null && splitter.supportsProvenProbing()) {
                     return ParallelParsingCoordinator.parallelRead(
                         seg,
                         obj,
@@ -2566,22 +2570,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         externalSourceMetrics
                     );
                 }
-                // Otherwise (whole-file quoted split, or bracket MVC which cannot prove a mid-file start): read the
-                // one sequential stream through the streaming coordinator, which finds record boundaries
+                // Bracket multi-value CSV cannot prove a record start at a mid-file offset (bracket depth is
+                // unbounded), so it is never macro-split: discovery gates it to a single whole-file split, read
+                // as one sequential stream through the streaming coordinator, which finds record boundaries
                 // quote-aware in a single pass and parses the resulting chunks in parallel. The stream begins at
-                // the file leader (whole-file split), so chunk 0 carries the header exactly as the streaming path
-                // expects.
+                // the file leader, so chunk 0 carries the header exactly as the streaming path expects.
                 //
-                // Split discovery gates quoted files to a single whole-file split, so this branch should only
-                // ever see the whole file: a leader-bearing split at offset 0 that is not a record-aligned
-                // macro-split (a macro-split covers only part of the file). If that invariant is violated we
-                // fail loud rather than fall back: the split covers only part of the file and cannot be probed
-                // at its arbitrary start (an in-quote newline would be misread as a record terminator), so
-                // neither this streaming path nor the single-threaded fallback can read it correctly. The
-                // reachable cause is a mixed-version cluster where an older coordinator that predates whole-file
-                // gating produced a strided split for a quoted file and shipped it here (FileSplit is a
-                // NamedWriteable). Declining to a single-threaded mid-file read would read mid-file and silently
-                // miscount, so throw instead.
+                // A non-leader or mid-file range here has no correct read: its arbitrary start cannot be probed
+                // (an in-quote newline would be misread as a record terminator), so neither this streaming path
+                // nor a single-threaded fallback can read it. The reachable cause is a mixed-version cluster
+                // where an older coordinator that predates whole-file gating produced such a split (FileSplit is
+                // a NamedWriteable). Declining to a single-threaded mid-file read would read mid-file and
+                // silently miscount, so throw instead.
                 if (splitIncludesFileLeader == false || baseFileOffset != 0L || recordAlignedMacroSplit) {
                     throw new IllegalStateException(
                         "quoted uncompressed reads must be whole-file splits; got leader="

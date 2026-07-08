@@ -80,6 +80,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
     public static final TransportVersion ESQL_TIMESERIES_METADATA_ATTRIBUTE = TransportVersion.fromName(
         "esql_timeseries_metadata_attribute"
     );
+    private static final TransportVersion ESQL_UNMAPPED_KEYWORD_LEAF_NAME = TransportVersion.fromName("esql_unmapped_keyword_leaf_name");
 
     private final String parentName;
     private final EsField field;
@@ -186,7 +187,14 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 dataType().writeTo(out);
             }
-            field.writeTo(out);
+            if (out.getTransportVersion().supports(ESQL_UNMAPPED_KEYWORD_LEAF_NAME) == false
+                && field instanceof PotentiallyUnmappedKeywordEsField punk) {
+                // Older nodes match the unmapped field against its EsField name in DefaultShardContextForUnmappedField, which used to be
+                // the full dotted path. Now that the field holds only the leaf name, send them the full path instead.
+                new PotentiallyUnmappedKeywordEsField(fieldName().string(), punk.getProperties()).writeTo(out);
+            } else {
+                field.writeTo(out);
+            }
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);

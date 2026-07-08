@@ -7,15 +7,21 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
+
+import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FieldAttributeTests extends AbstractNamedExpressionSerializationTests<FieldAttribute> {
     public static FieldAttribute createFieldAttribute(int maxDepth, boolean onlyRepresentable) {
@@ -68,5 +74,27 @@ public class FieldAttributeTests extends AbstractNamedExpressionSerializationTes
     @Override
     protected boolean equalityIgnoresId() {
         return false;
+    }
+
+    /**
+     * A {@link PotentiallyUnmappedKeywordEsField} holds only the leaf name, but older nodes match unmapped fields by the EsField name
+     * (the full dotted path). Verify the leaf name round-trips on current nodes and is expanded to the full path for older ones.
+     */
+    public void testPotentiallyUnmappedKeywordSerializesFullPathToOldNodes() throws IOException {
+        FieldAttribute attribute = new FieldAttribute(
+            Source.EMPTY,
+            "city",
+            null,
+            "city.name",
+            new PotentiallyUnmappedKeywordEsField("name"),
+            Nullability.TRUE,
+            new NameId(),
+            false
+        );
+
+        assertThat(copyInstance(attribute, TransportVersion.current()).field().getName(), equalTo("name"));
+
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_unmapped_keyword_leaf_name"));
+        assertThat(copyInstance(attribute, old).field().getName(), equalTo("city.name"));
     }
 }

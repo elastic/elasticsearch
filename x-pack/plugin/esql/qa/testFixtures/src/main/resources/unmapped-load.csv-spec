@@ -2116,7 +2116,9 @@ fork1         | 42              | null
 fork2         | 42              | 43
 ;
 
-loadUnmappedFieldDropInOneForkBranchWildcardKeepDoesNotLoad
+loadUnmappedFieldDropInOneForkBranchWildcardKeepMatchesMaterializedUnmapped
+// DROP unmapped_message is a mention, so unmapped_message is materialized as a FORK column; the trailing wildcard KEEP *message then
+// matches it just like it matches message. See https://github.com/elastic/elasticsearch/issues/152843
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
 
@@ -2128,13 +2130,14 @@ FROM partial_mapping_sample_data
 | SORT _fork
 ;
 
-_fork:keyword | message:keyword
-fork1         | 42
-fork2         | 42
+_fork:keyword | message:keyword | unmapped_message:keyword
+fork1         | 42              | null
+fork2         | 42              | 43
 ;
 
-loadUnmappedFieldForkDropInOneBranchNoKeepLoadsNoBranch
-// this is a bug, see https://github.com/elastic/elasticsearch/issues/152843
+loadUnmappedFieldForkDropInOneBranchNoKeepLoadsNonDroppedBranch
+// DROP of an unmapped field is a mention (like KEEP/WHERE/EVAL): unmapped_message is loaded in every FORK branch, materialized in the
+// non-dropping branch and null-filled in the dropping one. See https://github.com/elastic/elasticsearch/issues/152843
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
 
@@ -2144,25 +2147,27 @@ FROM partial_mapping_sample_data
 | SORT @timestamp, _fork
 ;
 
-@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _fork:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork1
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork2
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork1
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork1
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork2
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork1
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork2
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork1
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork2
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork1
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork2
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork1
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork2
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | _fork:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | null                       | fork1
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | null                       | fork1
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | fork2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | null                       | fork1
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | fork2
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | null                       | fork1
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork2
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | null                       | fork1
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork2
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | null                       | fork1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork2
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | null                       | fork1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork2
 ;
 
 loadUnmappedFieldForkWhereRefThenDropInOneBranchNoKeep
-// this is a bug - see https://github.com/elastic/elasticsearch/issues/152843
+// unmapped_message is referenced in WHERE and then DROPped in the same branch (and nowhere else); it is still a mention, so the sibling
+// branch materializes it. WHERE unmapped_message == "foo" matches nothing, so only the sibling contributes rows.
+// See https://github.com/elastic/elasticsearch/issues/152843
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
 
@@ -2172,14 +2177,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp, _fork
 ;
 
-@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _fork:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork2
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork2
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork2
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork2
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork2
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork2
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | _fork:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | fork2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | fork2
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork2
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork2
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork2
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork2
 ;
 
 loadUnmappedFieldForkWhereRefInOneBranchNoKeep

@@ -405,6 +405,29 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // DROP of an unmapped field is a mention (like KEEP/WHERE/EVAL), even when the field is not referenced anywhere else in the query:
+    // unmapped_message is loaded from _source in every branch, so the sibling (WHERE true) branch surfaces it while the DROP branch
+    // null-fills it at the Fork output. See #152843.
+    public void testForkDropsUnmappedFieldInOneBranchMaterializesSibling() throws Exception {
+        runTests("""
+            FROM partial_mapping_sample_data
+            | FORK (DROP unmapped_message)
+                   (WHERE true)
+            | SORT @timestamp, _fork
+            """);
+    }
+
+    // unmapped_message is referenced in WHERE and then DROPed in the same branch, and not referenced anywhere else; it is still a
+    // mention, so the sibling branch materializes it. See #152843.
+    public void testForkWhereThenDropsUnmappedFieldInOneBranch() throws Exception {
+        runTests("""
+            FROM partial_mapping_sample_data
+            | FORK (WHERE unmapped_message == "Disconnection error" | DROP unmapped_message)
+                   (WHERE true)
+            | SORT @timestamp, _fork
+            """);
+    }
+
     // MV_EXPAND makes unmapped_message a ReferenceAttribute in branch 1's output; the sibling WHERE branch must still load it
     // (matched by name, not the transformed type) since all FORK branches share one source. #142033
     public void testForkLoadsUnmappedFieldExpandedInOneBranchOnly() throws Exception {

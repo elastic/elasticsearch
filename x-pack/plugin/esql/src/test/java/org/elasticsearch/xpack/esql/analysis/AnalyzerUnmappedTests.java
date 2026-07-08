@@ -424,6 +424,45 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM test | FORK (KEEP emp_no, does_not_exist) (WHERE salary > 50000)"));
     }
 
+    // #152843: DROPping an unmapped field in one FORK branch is a mention (like KEEP/WHERE/EVAL), even when the field is not
+    // referenced anywhere else in the query. Because FORK branches share one source, the field is loaded from _source in every
+    // branch and surfaces in the sibling branch that doesn't DROP it.
+    public void testLoadModeForkDropUnmappedFieldInOneBranchMaterializesSibling() {
+        assertForkMaterializesUnmappedMessageInEveryBranch("""
+            FROM partial_mapping_sample_data
+            | FORK (DROP unmapped_message)
+                   (WHERE true)
+            | SORT @timestamp, _fork
+            """);
+    }
+
+    // #152843: referencing the unmapped field in WHERE and then DROPping it in the same branch is still a mention; the sibling
+    // branch materializes it.
+    public void testLoadModeForkWhereThenDropUnmappedFieldInOneBranchMaterializesSibling() {
+        assertForkMaterializesUnmappedMessageInEveryBranch("""
+            FROM partial_mapping_sample_data
+            | FORK (WHERE unmapped_message == "Disconnection error" | DROP unmapped_message)
+                   (WHERE true)
+            | SORT @timestamp, _fork
+            """);
+    }
+
+    private void assertForkMaterializesUnmappedMessageInEveryBranch(String query) {
+        LogicalPlan plan = partialMappingTest().statement(setUnmappedLoad(query));
+        assertThat("unmapped_message should surface in the FORK output", Expressions.names(plan.output()), hasItem("unmapped_message"));
+        List<EsRelation> relations = new ArrayList<>();
+        plan.forEachDown(EsRelation.class, relations::add);
+        assertThat("query has two FORK branches, each reading the shared source", relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            var loaded = relation.output()
+                .stream()
+                .filter(a -> a instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)
+                .map(Attribute::name)
+                .toList();
+            assertThat("each FORK branch must load unmapped_message from _source", loaded, hasItem("unmapped_message"));
+        }
+    }
+
     public void testNullifyLookupJoinExpressionWithNullifiedFields() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",

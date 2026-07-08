@@ -97,6 +97,9 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
+import org.elasticsearch.xpack.core.security.audit.AuditEntry;
+import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -173,6 +176,7 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -2061,6 +2065,37 @@ public class LoggingAuditTrailTests extends ESTestCase {
         updateLoggerSettings(Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "access_granted").build());
         auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
         assertEmptyLog(logger);
+    }
+
+    public void testCustomizerCanSuppressAuditEntry() throws Exception {
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext, new AuditLogCustomizer() {
+            @Override
+            public boolean suppress(AuditEventContext ctx) {
+                return true;
+            }
+        });
+
+        auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
+
+        assertEmptyLog(logger);
+    }
+
+    public void testCustomizerCanEnrichAuditEntry() throws Exception {
+        final String maskedValue = randomAlphaOfLength(8);
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext, new AuditLogCustomizer() {
+            @Override
+            public void enrich(AuditEventContext ctx, AuditEntry entry) {
+                // enrich runs last in build(), so it can read and override fields already set by the builder
+                assertThat(entry.get(LoggingAuditTrail.ACTION_FIELD_NAME), equalTo("_action"));
+                entry.set(LoggingAuditTrail.ACTION_FIELD_NAME, maskedValue);
+            }
+        });
+
+        auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
+
+        final String logLine = singleLogLine(logger);
+        assertThat(logLine, containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"" + maskedValue + "\""));
+        assertThat(logLine, not(containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"_action\"")));
     }
 
     public void testSecurityConfigChangedEventSelection() {

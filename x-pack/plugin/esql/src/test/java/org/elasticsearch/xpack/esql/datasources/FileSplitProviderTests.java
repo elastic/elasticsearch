@@ -1027,6 +1027,83 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
+    public void testRangeAwareSplitsRekeyRenamesAndPoisonRetypesDeclaredStats() {
+        // Footer range stats are keyed by PHYSICAL names (id, amount) and hold inferred-type values. A declaration
+        // renames id->emp_id (same type: LONG) and re-types amount->price (LONG->KEYWORD). The split boundary must
+        // rekey the rename (values unchanged, so emp_id keeps correct min/max/count) and poison the re-type (price's
+        // extrema dropped + markers written, counts stripped), while row_count survives so COUNT(*) stays warm.
+        Map<String, Object> rawStats = new HashMap<>();
+        rawStats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        rawStats.put(SourceStatisticsSerializer.columnMinKey("id"), 0L);
+        rawStats.put(SourceStatisticsSerializer.columnMaxKey("id"), 99L);
+        rawStats.put(SourceStatisticsSerializer.columnValueCountKey("id"), 100L);
+        rawStats.put(SourceStatisticsSerializer.columnMinKey("amount"), 5L);
+        rawStats.put(SourceStatisticsSerializer.columnValueCountKey("amount"), 100L);
+
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.byName("parquet");
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            new DecompressionCodecRegistry(),
+            createMockStorageRegistry(),
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+
+        // Overlaid (logical) read schema + unified schema: emp_id:long, price:keyword. Pre-overlay inferred file types
+        // (physical): id:long, amount:long.
+        List<Attribute> overlaid = List.of(
+            new ReferenceAttribute(Source.EMPTY, "emp_id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "price", DataType.KEYWORD)
+        );
+        Map<String, DataType> inferredTypes = Map.of("id", DataType.LONG, "amount", DataType.LONG);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(overlaid), null, null, inferredTypes)
+        );
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("emp_id", "id", "price", "amount"), // logical -> physical
+            null,
+            Map.of(),
+            Set.of("emp_id", "price")
+        );
+        ExternalSchema schema = new ExternalSchema(overlaid);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            schema,
+            schema,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+
+        // rename: id's family moved to emp_id, physical key gone
+        assertEquals(0L, stats.get(SourceStatisticsSerializer.columnMinKey("emp_id")));
+        assertEquals(99L, stats.get(SourceStatisticsSerializer.columnMaxKey("emp_id")));
+        assertEquals(100L, stats.get(SourceStatisticsSerializer.columnValueCountKey("emp_id")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("id")));
+        // re-type: price poisoned — extremum dropped + marker written, count stripped
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("price")));
+        assertEquals(Boolean.TRUE, stats.get(SourceStatisticsSerializer.columnMinUnservableKey("price")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnValueCountKey("price")));
+        // COUNT(*) stays warm
+        assertEquals(100L, stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
     public void testRangeAwareFallbackForEmptyRanges() {
         RangeAwareFormatReader mockReader = createMockRangeReader(List.<SplitRange>of());
 
@@ -2002,7 +2079,8 @@ public class FileSplitProviderTests extends ESTestCase {
             ExternalSchema.EMPTY,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            cancel
+            cancel,
+            DeclaredReadSpec.NONE
         );
 
         expectThrows(TaskCancelledException.class, () -> provider.discoverSplits(ctx));
@@ -2027,7 +2105,8 @@ public class FileSplitProviderTests extends ESTestCase {
             ExternalSchema.EMPTY,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false
+            () -> false,
+            DeclaredReadSpec.NONE
         );
 
         assertEquals(3, provider.discoverSplits(ctx).splits().size());

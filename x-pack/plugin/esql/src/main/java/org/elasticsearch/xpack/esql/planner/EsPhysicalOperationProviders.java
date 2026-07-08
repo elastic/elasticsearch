@@ -41,7 +41,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -486,7 +485,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 scoring,
                 directoryBytesRead
             );
-        } else if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
+        } else if (esQueryExec.indexMode().isTsdb()) {
             luceneFactory = new TimeSeriesSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.secret;
@@ -60,6 +61,10 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
         super(raw, FIELDS);
     }
 
+    private AzureConfiguration(Map<String, Object> raw, Set<String> preexistingSecretKeys) {
+        super(raw, FIELDS, preexistingSecretKeys);
+    }
+
     @Override
     protected void validateCredentials(ValidationException errors) {
         if (hasFederatedAuth()) {
@@ -74,6 +79,10 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
 
     public static AzureConfiguration fromMap(Map<String, Object> raw) {
         return raw == null || raw.isEmpty() ? null : new AzureConfiguration(raw);
+    }
+
+    public static AzureConfiguration fromMap(Map<String, Object> raw, Set<String> preexistingSecretKeys) {
+        return raw == null || raw.isEmpty() ? null : new AzureConfiguration(raw, preexistingSecretKeys);
     }
 
     /**
@@ -177,8 +186,10 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
         // Every form the STATIC_CREDENTIALS provider arm can actually build: a full connection_string, account+key,
         // or account+sas_token. sas_token alone (no account) is NOT a complete credential — requiring account here
         // means validate() rejects it up front instead of letting it resolve to static and fail at query time.
-        return Strings.hasText(connectionString())
-            || (Strings.hasText(account()) && Strings.hasText(key()))
-            || (Strings.hasText(account()) && Strings.hasText(sasToken()));
+        // key/sas_token/connection_string are secrets, so hasStoredSecret() also accepts a carried-forward
+        // update; account is plaintext and must be present each time.
+        return hasStoredSecret(CONNECTION_STRING.name())
+            || (Strings.hasText(account()) && hasStoredSecret(KEY.name()))
+            || (Strings.hasText(account()) && hasStoredSecret(SAS_TOKEN.name()));
     }
 }

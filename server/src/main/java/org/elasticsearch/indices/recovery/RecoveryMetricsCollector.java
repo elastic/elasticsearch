@@ -44,9 +44,6 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     public static final String RECOVERY_DIRECT_CANCELLATIONS_METRIC = "es.recovery.shard.directcancellations.total";
 
-    private static final String RECOVERY_SCHEDULING_STATE_QUEUED = "queued";
-    private static final String RECOVERY_SCHEDULING_STATE_STARTED = "started";
-
     public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP);
 
     private final LongCounter shardRecoveryTotalMetric;

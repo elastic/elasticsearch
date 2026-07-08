@@ -423,11 +423,11 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     // CSV/TSV exactly what it means on NDJSON, on a per-column declared `format` and in a date
     // mapping: zone-aware, missing fields defaulted, named formats and `a||b` composites accepted.
     //
-    // For a non-numeric-looking cell the expected instants below are the values NDJSON produces for the
-    // same pattern + bytes (see NdJsonPageIteratorTests) -- the two formats agree exactly. A
-    // numeric-looking cell is the documented exception: it reads as epoch millis whatever the file-level
-    // pattern says (testDatetimeFormatDoesNotShadowNumericEpoch), which is CSV's stand-in for NDJSON's
-    // JSON-number token bypassing that reader's string formatter.
+    // The expected instants below are the values NDJSON produces for the same pattern + bytes (see
+    // NdJsonPageIteratorTests); the two formats agree exactly. The pattern outranks the numeric-epoch
+    // shortcut whenever it matches the cell, so all-digit patterns work; a numeric cell the pattern does
+    // NOT match falls back to epoch millis (testDatetimeFormatNumericFallbackWhenPatternDoesNotMatch),
+    // which is CSV's stand-in for NDJSON's JSON-number token bypassing that reader's string formatter.
     // ---------------------------------------------------------------------------------------------
 
     /** A zone-bearing pattern honors the parsed offset rather than re-anchoring the wall clock to UTC. */
@@ -502,31 +502,50 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * A numeric-looking cell keeps reading as epoch millis in preference to the file-level pattern, exactly as it did
-     * before this change. The consequence, pinned here so it is a decision rather than a latent surprise: an all-digit
-     * pattern can never match, because every value it would match is claimed by the shortcut first. That is true of the
-     * custom pattern {@code yyyyMMdd} on {@code main} today and is now equally true of the ES named formats that
-     * compile to all-digit patterns, which this change newly accepts ({@code basic_date}, {@code year},
-     * {@code epoch_second}). A file whose datetime columns are genuinely in an all-digit dialect declares a per-column
-     * {@code format} instead ({@link #testDeclaredColumnFormatOverridesNumericEpochShortcut}), which is evaluated
-     * before the shortcut.
+     * An all-digit pattern now wins over the numeric-epoch shortcut, because the shortcut only claims a cell the
+     * pattern cannot parse. Before this change every value such a pattern would match was swallowed by the shortcut
+     * and reinterpreted as epoch millis: {@code yyyyMMdd} on {@code 20240101} read as 1970-01-01T05:37:20.101Z, and
+     * the ES named formats that compile to all-digit patterns were rejected outright.
      */
-    public void testDatetimeFormatDoesNotShadowNumericEpoch() throws IOException {
-        long epoch = 1609459200000L; // 2021-01-01T00:00:00Z
-        List<List<Object>> rows = read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n" + epoch + "\n");
-        assertEquals(List.of(row(epoch)), rows);
-
-        // All-digit patterns, custom and named alike, are shadowed identically: the cell is epoch millis, not 2024-01-01.
-        for (String pattern : List.of("yyyyMMdd", "basic_date", "year", "epoch_second")) {
+    public void testDatetimeFormatAllDigitPatternsWin() throws IOException {
+        for (String pattern : List.of("yyyyMMdd", "basic_date")) {
             assertEquals(
                 "pattern " + pattern,
-                List.of(row(20240101L)),
+                List.of(row(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli())),
                 read(false, Map.of("datetime_format", pattern), "ts:datetime\n20240101\n")
             );
         }
+        assertEquals(
+            List.of(row(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli())),
+            read(false, Map.of("datetime_format", "epoch_second"), "ts:datetime\n1609459200\n")
+        );
+        assertEquals(
+            List.of(row(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli())),
+            read(false, Map.of("datetime_format", "year"), "ts:datetime\n2024\n")
+        );
+        // date_nanos rides the same rail.
+        assertEquals(
+            List.of(row(EsqlDataTypeConverter.dateNanosToLong("2021-01-01T00:00:00Z"))),
+            read(false, Map.of("datetime_format", "epoch_second"), "ts:date_nanos\n1609459200\n")
+        );
     }
 
-    /** The per-column declared `format` is evaluated before the numeric shortcut, so it can name an all-digit dialect. */
+    /**
+     * A numeric cell the pattern cannot parse still reads as epoch millis, so a file whose datetime columns use a
+     * string pattern can still carry an epoch column. This is what keeps the precedence change from regressing a
+     * currently-correct read.
+     */
+    public void testDatetimeFormatNumericFallbackWhenPatternDoesNotMatch() throws IOException {
+        long epoch = 1609459200000L; // 2021-01-01T00:00:00Z; 13 digits, no match for yyyy-MM-dd HH:mm:ss
+        assertEquals(List.of(row(epoch)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n" + epoch + "\n"));
+        assertEquals(List.of(row(epoch)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:date_nanos\n" + epoch + "\n"));
+        // Negative epoch is numeric and unmatchable by the pattern; it stays epoch.
+        assertEquals(List.of(row(-1000L)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n-1000\n"));
+        // With no file-level pattern at all, the shortcut is untouched.
+        assertEquals(List.of(row(epoch)), read(false, Map.of(), "ts:datetime\n" + epoch + "\n"));
+    }
+
+    /** The per-column declared `format` still outranks both the file-level pattern and the epoch shortcut. */
     public void testDeclaredColumnFormatOverridesNumericEpochShortcut() throws IOException {
         CsvFormatReader reader = baseReader(false).withDeclaredDateFormats(Map.of("ts", "epoch_second"));
         StorageObject object = new InMemoryStorageObject("ts:datetime\n1609459200\n".getBytes(StandardCharsets.UTF_8));
@@ -534,6 +553,24 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Page page = pages.next();
             try {
                 assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * A per-column declared `format` reaches date_nanos columns, not just datetime. Before this change
+     * tryParseDateNanos never received the column index, so a declared format on a date_nanos column was ignored and
+     * the read failed outright under the default error policy.
+     */
+    public void testDeclaredColumnFormatAppliesToDateNanos() throws IOException {
+        CsvFormatReader reader = baseReader(false).withDeclaredDateFormats(Map.of("ts", "dd/MM/yyyy"));
+        StorageObject object = new InMemoryStorageObject("ts:date_nanos\n02/01/2024\n".getBytes(StandardCharsets.UTF_8));
+        try (CloseableIterator<Page> pages = reader.read(object, null, 10)) {
+            Page page = pages.next();
+            try {
+                assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-02T00:00:00Z"), ((LongBlock) page.getBlock(0)).getLong(0));
             } finally {
                 page.releaseBlocks();
             }

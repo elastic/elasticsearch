@@ -5498,7 +5498,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value, columnIndex);
-                case DATE_NANOS -> tryParseDateNanos(value);
+                case DATE_NANOS -> tryParseDateNanos(value, columnIndex);
                 case IP -> tryParseIp(value);
                 case VERSION -> tryParseVersion(value);
                 case NULL -> null;
@@ -5606,7 +5606,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value, columnIndex);
-                case DATE_NANOS -> tryParseDateNanos(value);
+                case DATE_NANOS -> tryParseDateNanos(value, columnIndex);
                 case IP -> tryParseIp(value);
                 case VERSION -> tryParseVersion(value);
                 case NULL -> null;
@@ -5696,25 +5696,33 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return null;
                 }
             }
+            // The file-level datetime_format runs the same parse as the declared branch above, with the file-wide
+            // formatter. It outranks the numeric-epoch shortcut whenever it actually matches the cell, so an
+            // all-digit pattern (yyyyMMdd, basic_date, epoch_second) can win; tryParse asks that question without
+            // paying an exception on a miss. A numeric cell the pattern does NOT match stays epoch millis, which
+            // keeps an epoch column readable in a file whose other datetime columns use the pattern -- CSV's
+            // stand-in for the JSON number token that bypasses NDJSON's string formatter. Catch Exception like the
+            // declared branch: a single bad cell nulls out under the error policy, it never aborts the batch.
+            if (datetimeFormatter != null) {
+                if (looksNumeric(value) == false || datetimeFormatter.tryParse(value) != null) {
+                    try {
+                        return DeclaredTypeCoercions.parseDatetimeMillis(value, datetimeFormatter);
+                    } catch (Exception e) {
+                        lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
+                        return null;
+                    }
+                }
+                try {
+                    return Long.parseLong(value);
+                } catch (NumberFormatException e) {
+                    lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
+                    return null;
+                }
+            }
             if (looksNumeric(value)) {
                 try {
                     return Long.parseLong(value);
                 } catch (NumberFormatException e) {}
-            }
-            // The file-level datetime_format runs the same parse as the declared branch above, with the file-wide
-            // formatter. It sits BELOW the epoch shortcut, not above it as the declared branch does: the option is
-            // file-wide, so a numeric cell in any datetime column stays epoch millis — CSV's stand-in for the JSON
-            // number token that bypasses NDJSON's string formatter. An all-digit pattern therefore never matches;
-            // a column genuinely in that dialect declares a per-column format, which outranks the shortcut.
-            // Catch Exception like the declared branch: a single bad cell nulls out under the error policy, it
-            // never aborts the batch.
-            if (datetimeFormatter != null) {
-                try {
-                    return DeclaredTypeCoercions.parseDatetimeMillis(value, datetimeFormatter);
-                } catch (Exception e) {
-                    lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
-                    return null;
-                }
             }
             // Stage 1: ES's hand-rolled ISO-8601 parser (T-separator, date-only, zones, fractions)
             // avoids the DateTimeFormatter Parsed-HashMap allocation that dominates DateUtils.asDateTime.
@@ -5760,21 +5768,44 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
-        private Object tryParseDateNanos(String value) {
-            if (looksNumeric(value)) {
+        private Object tryParseDateNanos(String value, int columnIndex) {
+            // Mirrors tryParseDatetime exactly, one rail down: a column with a declared `format` parses strictly with
+            // that ES DateFormatter, overriding the epoch shortcut and the file-level datetime_format, for THIS column
+            // only. Both rails go through EsqlDataTypeConverter.dateNanosToLong, the single string->date_nanos
+            // conversion, so identical bytes + format produce the identical instant whatever the source format.
+            if (columnIndex >= 0
+                && declaredFormatters != null
+                && columnIndex < declaredFormatters.length
+                && declaredFormatters[columnIndex] != null) {
                 try {
-                    return Long.parseLong(value);
-                } catch (NumberFormatException e) {}
-            }
-            // Same formatter, same nanosecond conversion as the no-format branch below — only the parse pattern
-            // differs. See tryParseDatetime for why the catch is Exception.
-            if (datetimeFormatter != null) {
-                try {
-                    return EsqlDataTypeConverter.dateNanosToLong(value, datetimeFormatter);
+                    return EsqlDataTypeConverter.dateNanosToLong(value, declaredFormatters[columnIndex]);
                 } catch (Exception e) {
                     lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
                     return null;
                 }
+            }
+            // See tryParseDatetime: the file-level pattern outranks the epoch shortcut when it matches the cell, and a
+            // numeric cell it does not match stays epoch nanos.
+            if (datetimeFormatter != null) {
+                if (looksNumeric(value) == false || datetimeFormatter.tryParse(value) != null) {
+                    try {
+                        return EsqlDataTypeConverter.dateNanosToLong(value, datetimeFormatter);
+                    } catch (Exception e) {
+                        lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                        return null;
+                    }
+                }
+                try {
+                    return Long.parseLong(value);
+                } catch (NumberFormatException e) {
+                    lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                    return null;
+                }
+            }
+            if (looksNumeric(value)) {
+                try {
+                    return Long.parseLong(value);
+                } catch (NumberFormatException e) {}
             }
             try {
                 return EsqlDataTypeConverter.dateNanosToLong(value);

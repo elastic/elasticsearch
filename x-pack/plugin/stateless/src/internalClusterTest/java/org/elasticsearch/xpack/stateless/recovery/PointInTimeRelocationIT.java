@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -209,14 +210,15 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
         var shardId = new ShardId(resolveIndex(indexName), 0);
 
-        record PitSnapshot(BytesReference pitId, int expectedDocs) {}
+        record PitSnapshot(BytesReference pitId, int expectedDocs, int expectedUpdatedDocs) {}
         List<PitSnapshot> pits = new ArrayList<>();
         List<String> allDocIds = new ArrayList<>();
+        Set<String> updatedDocIds = new HashSet<>();
         AtomicInteger currentDocCount = new AtomicInteger(0);
 
         // Runs an index-only round: indexes new docs, refreshes, opens a PIT
         Runnable indexOnlyRound = () -> {
-            int newDocs = randomIntBetween(1, 50);
+            int newDocs = randomIntBetween(10, 50);
             var bulk = indexDocs(indexName, newDocs);
             allDocIds.addAll(Arrays.stream(bulk.getItems()).map(BulkItemResponse::getId).toList());
             refresh(indexName);
@@ -225,7 +227,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             var vbcc = commitService.getCurrentVirtualBcc(shardId);
             awaitUntilSearchNodeGetsCommit(indexName, vbcc.getMaxGeneration());
             var pitId = openPointInTime(indexName, TimeValue.timeValueMinutes(5)).getPointInTimeId();
-            pits.add(new PitSnapshot(pitId, totalDocs));
+            pits.add(new PitSnapshot(pitId, totalDocs, updatedDocIds.size()));
         };
 
         // Runs a mutating round: updates + deletes + new docs, refreshes, opens a PIT
@@ -237,6 +239,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 updateBulk.add(client().prepareIndex(indexName).setId(id).setSource(Map.of("value", "updated")));
             }
             assertNoFailures(updateBulk.get());
+            updatedDocIds.addAll(idsToUpdate);
 
             List<String> deleteCandidates = new ArrayList<>(allDocIds);
             deleteCandidates.removeAll(idsToUpdate);
@@ -248,6 +251,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             }
             assertNoFailures(deleteBulk.get());
             allDocIds.removeAll(idsToDelete);
+            updatedDocIds.removeAll(idsToDelete);
             currentDocCount.addAndGet(-idsToDelete.size());
 
             int newDocs = randomIntBetween(1, 50);
@@ -259,12 +263,19 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             var vbcc = commitService.getCurrentVirtualBcc(shardId);
             awaitUntilSearchNodeGetsCommit(indexName, vbcc.getMaxGeneration());
             var pitId = openPointInTime(indexName, TimeValue.timeValueMinutes(5)).getPointInTimeId();
-            pits.add(new PitSnapshot(pitId, totalDocs));
+            pits.add(new PitSnapshot(pitId, totalDocs, updatedDocIds.size()));
         };
 
-        for (int i = 0; i < 5; i++) {
-            indexOnlyRound.run();
-            mutatingRound.run();
+        // always run at least one indexing-only and mutation round first
+        indexOnlyRound.run();
+        mutatingRound.run();
+        int numberOfRounds = randomIntBetween(0, 10);
+        for (int i = 0; i < numberOfRounds; i++) {
+            if (randomBoolean()) {
+                indexOnlyRound.run();
+            } else {
+                mutatingRound.run();
+            }
         }
 
         int totalPits = pits.size();
@@ -278,6 +289,12 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 assertThat("pit[" + idx + "] id should not change before relocation", resp.pointInTimeId(), equalTo(pit.pitId));
                 assertHitCount(resp, pit.expectedDocs);
             });
+            if (pit.expectedUpdatedDocs > 0) {
+                assertResponse(
+                    prepareSearch().setPointInTime(new PointInTimeBuilder(pit.pitId)).setQuery(termQuery("value", "updated")),
+                    resp -> assertHitCount(resp, pit.expectedUpdatedDocs)
+                );
+            }
         }
         assertResponse(prepareSearch(), resp -> { assertHitCount(resp, latestDocCount); });
 
@@ -332,6 +349,13 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 assertHitCount(resp, pit.expectedDocs);
                 updatedPitIds.add(resp.pointInTimeId());
             });
+            if (pit.expectedUpdatedDocs > 0) {
+                var relocatedPitId = updatedPitIds.getLast();
+                assertResponse(
+                    prepareSearch().setPointInTime(new PointInTimeBuilder(relocatedPitId)).setQuery(termQuery("value", "updated")),
+                    resp -> assertHitCount(resp, pit.expectedUpdatedDocs)
+                );
+            }
         }
 
         for (BytesReference updatedPitId : updatedPitIds) {

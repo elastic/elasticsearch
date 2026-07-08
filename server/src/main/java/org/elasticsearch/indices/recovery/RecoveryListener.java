@@ -111,6 +111,9 @@ public interface RecoveryListener {
         };
     }
 
+    /// Returns a listener which delegates `onRecoveryDone` and `onRecoveryAborted` unchanged to the given listener, but routes
+    /// `onRecoveryFailure` through `delegate` instead. `delegate` is responsible for eventually calling `onRecoveryFailure` on the
+    /// given listener itself, e.g. after performing some side work based on the failure.
     static RecoveryListener delegateFailure(
         RecoveryListener listener,
         TriConsumer<RecoveryListener, RecoveryFailedException, Boolean> delegate

@@ -1993,6 +1993,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ///
     /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
     /// @throws IllegalStateException if the ongoing recovery is not of a supported type
+    ///
     public void requestRecoveryCancellation() {
         synchronized (mutex) {
             if (state == IndexShardState.CREATED) {

@@ -3666,7 +3666,6 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRequestRecoveryCancellationThrowsWhenShardHasAlreadyStarted() throws IOException {
         final IndexShard shard = newStartedShard();
-        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         expectThrows(IndexShardNotRecoveringException.class, () -> shard.requestRecoveryCancellation());
         shard.ensureRecoveryNotCancelled();
         closeShards(shard);

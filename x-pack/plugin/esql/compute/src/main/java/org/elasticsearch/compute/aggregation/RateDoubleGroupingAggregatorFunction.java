@@ -811,7 +811,9 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         // Points to offsets into IntervalBuffer for the intervals belonging to this group
         // Once sorted (after calling combineIntervals()), the intervals will be stored in reverse chronological order (highest timestamp
         // first)
+        // intervals may be larger than intervalsSize; only the first intervalsSize entries are valid
         int[] intervals = EMPTY_INTERVALS;
+        int intervalsSize;
 
         // Delta tracking fields: in contrast to cumulative intervals, they need to be mutable
         // We use deltaLastTs >= deltaFirstTs as indicator delta data exists.
@@ -825,19 +827,17 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
 
         void appendInterval(long lastTs, double lastValue, long firstTs, double firstValue) {
             assert hasDelta() == false : "cannot append intervals while delta data is pending";
-            int currentSize = intervals.length;
-            this.intervals = ArrayUtil.growExact(intervals, currentSize + 1);
-            this.intervals[currentSize] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
+            intervals = ArrayUtil.grow(intervals, intervalsSize + 1);
+            intervals[intervalsSize++] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
         }
 
         void appendIntervalsFromBlocks(LongBlock ts, DoubleBlock vs, int position) {
             assert hasDelta() == false : "cannot append intervals while delta data is pending";
             int intervalCount = ts.getValueCount(position) / 2;
             int firstIntervalId = intervalBuffer.appendIntervalsFromBlocks(ts, vs, position);
-            int currentSize = intervals.length;
-            intervals = ArrayUtil.growExact(intervals, currentSize + intervalCount);
+            intervals = ArrayUtil.grow(intervals, intervalsSize + intervalCount);
             for (int i = 0; i < intervalCount; i++) {
-                intervals[currentSize++] = firstIntervalId + i;
+                intervals[intervalsSize++] = firstIntervalId + i;
             }
         }
 
@@ -851,7 +851,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                 values.appendDouble(lastValue());
                 values.appendDouble(firstValue());
             } else {
-                for (int intervalId : intervals) {
+                for (int i = 0; i < intervalsSize; i++) {
+                    int intervalId = intervals[i];
                     timestamps.appendLong(intervalBuffer.lastTs(intervalId));
                     timestamps.appendLong(intervalBuffer.firstTs(intervalId));
                     values.appendDouble(intervalBuffer.lastValue(intervalId));
@@ -863,7 +864,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         }
 
         public void appendDeltaValue(long timestamp, double value) {
-            assert intervals.length == 0 : "cannot append delta data when intervals already exist";
+            assert intervalsSize == 0 : "cannot append delta data when intervals already exist";
             samples++;
             resets += value;
             deltaLastTs = Math.max(deltaLastTs, timestamp);
@@ -878,7 +879,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             if (hasDelta() == false) {
                 // Sort the intervals by the lastTs (most recent first) for the final evaluation
                 sortIntervals();
-                for (int i = 1; i < intervals.length; i++) {
+                for (int i = 1; i < intervalsSize; i++) {
                     int next = intervals[i - 1]; // reversed
                     int prev = intervals[i];
                     if (intervalBuffer.lastValue(prev) > intervalBuffer.firstValue(next)) {
@@ -917,7 +918,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                     intervals[j] = tmp;
                 }
 
-            }.sort(0, intervals.length);
+            }.sort(0, intervalsSize);
         }
 
         // The accessor methods first*/last* must only be called after combineIntervals() for non-delta states!
@@ -940,14 +941,14 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             if (hasDelta()) {
                 return deltaFirstTs;
             }
-            return intervalBuffer.firstTs(intervals[intervals.length - 1]);
+            return intervalBuffer.firstTs(intervals[intervalsSize - 1]);
         }
 
         double firstValue() {
             if (hasDelta()) {
                 return deltaFirstValue;
             }
-            return intervalBuffer.firstValue(intervals[intervals.length - 1]);
+            return intervalBuffer.firstValue(intervals[intervalsSize - 1]);
         }
     }
 

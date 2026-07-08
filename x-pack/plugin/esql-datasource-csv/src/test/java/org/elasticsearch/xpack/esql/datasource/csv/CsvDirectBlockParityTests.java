@@ -174,6 +174,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
      * non-ROOT locale the two would differ only in digit script; forcing ROOT pins the contract in the
      * production-relevant ASCII case without asserting that Jackson locale quirk.
      */
+
     private void assertFailFastParity(boolean tsv, Map<String, Object> config, List<String> projection, String content, String expected)
         throws IOException {
         Locale previous = Locale.getDefault();
@@ -424,11 +425,15 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     // CSV/TSV exactly what it means on NDJSON, on a per-column declared `format` and in a date
     // mapping: zone-aware, missing fields defaulted, named formats and `a||b` composites accepted.
     //
-    // The expected instants below are the values NDJSON produces for the same pattern + bytes (see
-    // NdJsonPageIteratorTests); the two formats agree exactly. The pattern outranks the numeric-epoch
-    // shortcut whenever it matches the cell, so all-digit patterns work; a numeric cell the pattern does
-    // NOT match falls back to epoch millis (testDatetimeFormatNumericFallbackWhenPatternDoesNotMatch),
-    // which is CSV's stand-in for NDJSON's JSON-number token bypassing that reader's string formatter.
+    // For DATETIME the zone-offset and date-only cases are twin-pinned against NDJSON over the identical
+    // pattern and bytes (NdJsonPageIteratorTests), so the two formats agree exactly there. DATE_NANOS has
+    // no NDJSON counterpart -- that reader has no date_nanos support -- so its expectations below are
+    // anchored on EsqlDataTypeConverter.dateNanosToLong, the conversion the reader itself calls.
+    //
+    // The pattern outranks the numeric-epoch shortcut whenever it matches the cell, so all-digit patterns
+    // work; a numeric cell the pattern does NOT match falls back to epoch millis
+    // (testDatetimeFormatNumericFallbackWhenPatternDoesNotMatch), which is CSV's stand-in for NDJSON's
+    // JSON-number token bypassing that reader's string formatter.
     // ---------------------------------------------------------------------------------------------
 
     /** A zone-bearing pattern honors the parsed offset rather than re-anchoring the wall clock to UTC. */
@@ -579,6 +584,15 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(DataType.DATETIME, baseReader(false).schema(iso).get(0).dataType());
     }
 
+    /** The headerless (synthesized column names) inference path honors the pattern too, not just the header path. */
+    public void testDatetimeFormatDrivesHeaderlessSchemaInference() throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(
+            Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss", "header_row", false)
+        );
+        StorageObject object = new InMemoryStorageObject("25/12/2023 10:30:00\n01/01/2024 00:00:00\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(DataType.DATETIME, reader.schema(object).get(0).dataType());
+    }
+
     /** Numeric candidates are tried before DATETIME, so an all-digit column stays numeric even under an all-digit pattern. */
     public void testDatetimeFormatDoesNotMakeNumericColumnsDates() throws IOException {
         CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyyMMdd"));
@@ -683,16 +697,34 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(1L, null)), rows);
     }
 
-    /** date_nanos cannot hold pre-epoch instants: the range error nulls the cell rather than escaping the batch. */
-    public void testDateNanosFormatPreEpochNullsCell() throws IOException {
-        List<List<Object>> rows = read(
-            false,
-            Map.of("datetime_format", "yyyy-MM-dd"),
-            nullField(),
-            null,
-            "id:long,ts:date_nanos\n1,1900-01-01\n"
+    /**
+     * date_nanos cannot hold pre-epoch instants. The pattern MUST match the value here: a value the pattern rejects
+     * merely fails to parse, whereas a value it accepts reaches DateUtils.toLong, whose IllegalArgumentException the
+     * old catch did not cover -- it escaped the batch and aborted the read even under null_field. The range error now
+     * nulls the cell. Post-2262 is the same path on the high side.
+     */
+    public void testDateNanosFormatOutOfRangeInstantNullsCell() throws IOException {
+        String pattern = "yyyy-MM-dd HH:mm:ss";
+        assertEquals(
+            List.of(row(1L, null)),
+            read(false, Map.of("datetime_format", pattern), nullField(), null, "id:long,ts:date_nanos\n1,1900-01-01 00:00:00\n")
         );
-        assertEquals(List.of(row(1L, null)), rows);
+        assertEquals(
+            List.of(row(1L, null)),
+            read(false, Map.of("datetime_format", pattern), nullField(), null, "id:long,ts:date_nanos\n1,2300-01-01 00:00:00\n")
+        );
+    }
+
+    /**
+     * A time-only pattern used to null the column (LocalDateTime.parse needs a date); it now parses, with the missing
+     * date defaulted to the epoch day by DateFormatters.from. Previously-null becomes a value -- pinned so the epoch-day
+     * default is a decision, not a surprise.
+     */
+    public void testDatetimeFormatTimeOnlyPatternDefaultsToEpochDay() throws IOException {
+        assertEquals(
+            List.of(row(Instant.parse("1970-01-01T10:30:00Z").toEpochMilli())),
+            read(false, Map.of("datetime_format", "HH:mm:ss"), "ts:datetime\n10:30:00\n")
+        );
     }
 
     /** TSV shares the reader, so it shares the fix. */

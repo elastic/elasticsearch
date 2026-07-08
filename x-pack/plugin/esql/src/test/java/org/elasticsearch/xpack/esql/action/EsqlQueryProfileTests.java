@@ -13,6 +13,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 
 import java.io.IOException;
 
@@ -43,6 +44,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             randomIntBetween(0, 100),
             randomIntBetween(0, 1000),
             randomNonNegativeLong(),
+            randomFrom(UnmappedResolution.values()),
             randomIntBetween(0, 100)
         );
     }
@@ -63,8 +65,9 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         int filesScanned = instance.filesScanned();
         int splitsScanned = instance.splitsScanned();
         long bytesScanned = instance.bytesScanned();
+        UnmappedResolution unmappedResolution = instance.unmappedResolution();
         int externalWarmAggregates = instance.externalWarmAggregates();
-        switch (randomIntBetween(0, 14)) {
+        switch (randomIntBetween(0, 15)) {
             case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
             case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
             case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
@@ -79,7 +82,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             case 11 -> filesScanned = randomValueOtherThan(filesScanned, () -> randomIntBetween(0, 100));
             case 12 -> splitsScanned = randomValueOtherThan(splitsScanned, () -> randomIntBetween(0, 1000));
             case 13 -> bytesScanned = randomValueOtherThan(bytesScanned, () -> randomNonNegativeLong());
-            case 14 -> externalWarmAggregates = randomValueOtherThan(externalWarmAggregates, () -> randomIntBetween(0, 100));
+            case 14 -> unmappedResolution = randomValueOtherThan(unmappedResolution, () -> randomFrom(UnmappedResolution.values()));
+            case 15 -> externalWarmAggregates = randomValueOtherThan(externalWarmAggregates, () -> randomIntBetween(0, 100));
         }
         return new EsqlQueryProfile(
             query,
@@ -96,6 +100,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             filesScanned,
             splitsScanned,
             bytesScanned,
+            unmappedResolution,
             externalWarmAggregates
         );
     }
@@ -129,6 +134,23 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         assertThat(json, containsString("\"splits_scanned\":4"));
         assertThat(json, not(containsString("files_scanned")));
         assertThat(json, not(containsString("bytes_scanned")));
+    }
+
+    public void testUnmappedFieldsLoadEmittedWhenEnabled() throws IOException {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        profile.setUnmappedResolution(UnmappedResolution.LOAD);
+        assertThat(toJson(profile), containsString("\"unmapped_fields\":\"load\""));
+    }
+
+    public void testUnmappedFieldsNullifyEmitted() throws IOException {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        profile.setUnmappedResolution(UnmappedResolution.NULLIFY);
+        assertThat(toJson(profile), containsString("\"unmapped_fields\":\"nullify\""));
+    }
+
+    public void testUnmappedFieldsDefaultEmittedByDefault() throws IOException {
+        EsqlQueryProfile profile = new EsqlQueryProfile();
+        assertThat(toJson(profile), containsString("\"unmapped_fields\":\"default\""));
     }
 
     public void testWarmAggregatesIsAdditive() {

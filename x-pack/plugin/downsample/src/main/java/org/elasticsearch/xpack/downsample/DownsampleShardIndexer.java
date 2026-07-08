@@ -660,7 +660,7 @@ class DownsampleShardIndexer {
                         aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestampBuffer, docIdBuffer, temporality);
                     }
                     for (int i = 0; i < aggregateHistogramDownsamplers.length; i++) {
-                        aggregateHistogramDownsamplers[i].collect(aggregateHistogramValues[i], timestamps, docIdBuffer, temporality);
+                        aggregateHistogramDownsamplers[i].collect(aggregateHistogramValues[i], timestampBuffer, docIdBuffer, temporality);
                     }
                 }
 

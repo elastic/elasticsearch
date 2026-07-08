@@ -431,7 +431,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
      */
     public void testCounterSkipsSparseDocsWithDocIdIterator() throws IOException {
         assumeTrue("relevant only to downsampling with doc id iterator", docValuesType == DocValuesType.WITH_ITERATOR);
-        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(0, 1, 2, 3, 4, 5);
         LongArrayList timeValues = LongArrayList.from(60, 50, 40, 30, 20, 10);

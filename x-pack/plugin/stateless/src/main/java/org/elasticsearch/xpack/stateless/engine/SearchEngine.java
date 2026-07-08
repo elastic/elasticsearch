@@ -140,7 +140,7 @@ public class SearchEngine extends Engine {
 
     // Keyed by segments file name. Insertions happen only on the processCommitTaskRunner thread;
     // removals are driven by SharedPITCommitReader's refcount reaching zero (any thread).
-    private final ConcurrentHashMap<String, SharedPITCommitReader> relocatedPITCommitReaders = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, SharedPITCommitReader> sharedCommitReaders = new ConcurrentHashMap<>();
 
     private final CircuitBreaker readerHeapBreaker;
     private final SegmentReservations reservations = new SegmentReservations();
@@ -403,7 +403,7 @@ public class SearchEngine extends Engine {
      * so this value equals the number of distinct commits referenced by open relocated PITs.
      */
     public int getSharedPITCommitReaderCount() {
-        return relocatedPITCommitReaders.size();
+        return sharedCommitReaders.size();
     }
 
     // Reserve bytes for a non-refresh reader (engine open, PIT relocation) using the no-break path so the caller's
@@ -1531,7 +1531,7 @@ public class SearchEngine extends Engine {
                 // to O(segments) for PITs sharing the same commit.
                 // tryIncRef uses a CAS loop to guard against concurrent eviction: if the entry's refcount
                 // has already reached zero on another thread, we fall through to the cache-miss path.
-                SharedPITCommitReader existing = relocatedPITCommitReaders.get(segmentsFileName);
+                SharedPITCommitReader existing = sharedCommitReaders.get(segmentsFileName);
                 if (existing != null && existing.tryIncRef()) {
                     sharedReaderCleanup = existing;
                     var searcherSupplier = relocatedPITReaderTracker.addRelocatedPitReader(
@@ -1588,7 +1588,7 @@ public class SearchEngine extends Engine {
 
                 ElasticsearchDirectoryReader relocatedPitReader = (ElasticsearchDirectoryReader) pitReader;
                 var pitReaderManager = wrapForAssertions(new ElasticsearchReaderManager(relocatedPitReader), config());
-                var sharedReader = new SharedPITCommitReader(segmentsFileName, pitReaderManager);
+                var sharedReader = new SharedPITCommitReader(pitReaderManager, sharedCommitReaders, segmentsFileName);
                 // sharedReaderCleanup ensures pitReaderManager is closed (via sharedReader.close()) if
                 // anything below throws before the sharedReader is handed off to the tracker.
                 sharedReaderCleanup = sharedReader;
@@ -1612,7 +1612,7 @@ public class SearchEngine extends Engine {
                         releaseReservationAndUncharge(pitReservation);
                     }
                 }
-                relocatedPITCommitReaders.put(segmentsFileName, sharedReader);
+                sharedCommitReaders.put(segmentsFileName, sharedReader);
                 // Register the relocated PIT reader with relocatedPITReaderTracker so it is closed
                 // when the engine closes, even if the returned SearcherSupplier is never used (e.g.
                 // because the shard closes before the PIT context is registered with SearchService).
@@ -1784,20 +1784,24 @@ public class SearchEngine extends Engine {
      * {@link org.apache.lucene.index.SegmentReader} wrapper objects from O(PITs &times; segments)
      * to O(segments per commit).
      * <p>
-     * Insertions into {@link #relocatedPITCommitReaders} occur only on the
+     * Insertions into {@link #sharedCommitReaders} occur only on the
      * {@link #processCommitTaskRunner} thread. Removals are driven by the refcount reaching zero
      * and may happen on any thread, so {@link #close()} uses a CAS-based decrement and the
      * conditional {@link ConcurrentHashMap#remove(Object, Object)} to avoid removing a replacement
      * entry for the same commit that may have been inserted after this instance was evicted.
      */
     private final class SharedPITCommitReader implements Closeable {
-        private final String segmentsFileName;
         private final ElasticsearchReaderManager readerManager;
         private final AtomicInteger refCount = new AtomicInteger(1);
+        private final Releasable sharedCommitReader;
 
-        SharedPITCommitReader(String segmentsFileName, ElasticsearchReaderManager readerManager) {
-            this.segmentsFileName = segmentsFileName;
+        SharedPITCommitReader(
+            ElasticsearchReaderManager readerManager,
+            ConcurrentHashMap<String, SharedPITCommitReader> sharedCommitReaders,
+            String segmentFileName
+        ) {
             this.readerManager = readerManager;
+            this.sharedCommitReader = () -> sharedCommitReaders.remove(segmentFileName, this);
         }
 
         ElasticsearchReaderManager readerManager() {
@@ -1823,7 +1827,7 @@ public class SearchEngine extends Engine {
         @Override
         public void close() {
             if (refCount.decrementAndGet() == 0) {
-                relocatedPITCommitReaders.remove(segmentsFileName, this);
+                sharedCommitReader.close();
                 IOUtils.closeWhileHandlingException(readerManager);
             }
         }

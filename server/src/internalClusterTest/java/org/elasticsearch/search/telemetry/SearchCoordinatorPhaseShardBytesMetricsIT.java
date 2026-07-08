@@ -691,12 +691,12 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             assertThat(queryRequestBytes, hasSize(1));
             assertThat(queryRequestBytes.get(0).getLong(), greaterThan(queryRequestBytesLocalIndex));
 
-            // NodeQueryResponse is always deserialised via handler.read() — per-shard exceptions
-            // are payload, not transport-level errors — so result bytes are non-zero even though
-            // every shard in the batch failed.
+            // Result bytes are still recorded when INDEX_NAME shards fail in the batched path, so we assert > 0.
+            // We can't assert > the localIndex-only baseline: that search returns a full QuerySearchResult while
+            // the combined search returns a server-merged NodeQueryResponse, so the combined count can be smaller.
             queryResultBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
             assertThat(queryResultBytes, hasSize(1));
-            assertThat(queryResultBytes.get(0).getLong(), greaterThan(queryResultBytesLocalIndex));
+            assertThat(queryResultBytes.get(0).getLong(), greaterThan(0L));
         } finally {
             indicesAdmin().prepareDelete(localIndex).get();
         }

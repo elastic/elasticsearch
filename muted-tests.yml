@@ -665,12 +665,9 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testConsecutiveRotations
   issue: https://github.com/elastic/elasticsearch/issues/152472
-- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
-  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double>, <dense_vector>}
-  issue: https://github.com/elastic/elasticsearch/issues/152794
-- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
-  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<long>, <dense_vector>}
-  issue: https://github.com/elastic/elasticsearch/issues/152795
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSourceRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/152800
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndTwoExpressions}
   issue: https://github.com/elastic/elasticsearch/issues/152801
@@ -755,9 +752,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:exponential_histogram.allAggsInlineGrouped}
   issue: https://github.com/elastic/elasticsearch/issues/153123
-- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
-  method: testStoredIgnoredSource
-  issue: https://github.com/elastic/elasticsearch/issues/153124
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationPitPositionsInBcc
   issue: https://github.com/elastic/elasticsearch/issues/153149
@@ -770,3 +764,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testNdjsonBadDateTokenHonorsErrorPolicyMatchingColumnar
   issue: https://github.com/elastic/elasticsearch/issues/153158
+- class: org.elasticsearch.xpack.inference.RegionPolicyAuthorizationRefreshIT
+  method: testPutRegionPolicy_WhenDeniedEndpointReferencedByPipelineOnly_OmitsEmptyIndexesField
+  issue: https://github.com/elastic/elasticsearch/issues/153170
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSourceRelocationAndTargetRestart
+  issue: https://github.com/elastic/elasticsearch/issues/153173
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testMasterFailoverDuringCleanup
+  issue: https://github.com/elastic/elasticsearch/issues/153174
+- class: org.elasticsearch.packaging.test.PackageUpgradeTests
+  method: test12SetupBwcVersion
+  issue: https://github.com/elastic/elasticsearch/issues/152819

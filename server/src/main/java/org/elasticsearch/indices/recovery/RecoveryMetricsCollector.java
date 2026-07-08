@@ -151,6 +151,12 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     }
 
     @Override
+    public void onRecoveryCancelledBeforeQueuing(RecoverySource.Type type, RecoveryRole role) {
+        // Record this as queued in metrics for simplicity, we can refine the distinction later on if needed
+        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED));
+    }
+
+    @Override
     public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
         updateQueuedRecovery(type, role, 1);
     }

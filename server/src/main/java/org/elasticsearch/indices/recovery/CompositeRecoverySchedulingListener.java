@@ -30,6 +30,13 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     }
 
     @Override
+    public void onRecoveryCancelledBeforeQueuing(RecoverySource.Type type, RecoveryRole role) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onRecoveryCancelledBeforeQueuing(type, role);
+        }
+    }
+
+    @Override
     public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
         for (RecoverySchedulingListener listener : listeners) {
             listener.onRecoveryQueued(type, role);

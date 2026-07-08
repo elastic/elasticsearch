@@ -122,12 +122,11 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
                 RecoveryListener.wrapPreservingContext(recoveryListener, context).onRecoveryAborted();
             } else {
                 logger.debug("recovery cancelled at enqueue time: {}", recoveryState);
+                final RecoverySource.Type recoveryType = recoveryState.getRecoverySource().getType();
                 // Get off the cluster applier thread. Generic executor has unbounded queue and thread shutdown happens
                 // after service close so this runnable should never get rejected.
-                // Note that we don't call `schedulingListener#onQueuedRecoveryCancelled` here since the recovery was never
-                // actually queued.
-                executor.execute(
-                    () -> RecoveryListener.wrapPreservingContext(recoveryListener, context)
+                executor.execute(() -> {
+                    RecoveryListener.wrapPreservingContext(recoveryListener, context)
                         .onRecoveryFailure(
                             new RecoveryCancelledException(
                                 recoveryState.getShardId(),
@@ -135,8 +134,9 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
                                 recoveryState.getTargetNode()
                             ),
                             true
-                        )
-                );
+                        );
+                    schedulingListener.onRecoveryCancelledBeforeQueuing(recoveryType, RecoveryRole.TARGET);
+                });
             }
             return;
         }

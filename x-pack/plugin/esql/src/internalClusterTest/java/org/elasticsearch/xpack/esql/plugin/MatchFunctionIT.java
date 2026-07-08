@@ -485,6 +485,23 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMatchAfterInlineStatsWithAggExpressionFilter() {
+        // max_plus = id + 1 per row (grouped BY id); id > 2 lets the second condition pass
+        var query = """
+            FROM test
+            | INLINE STATS max_plus = MAX(id) + 1 BY id
+            | WHERE match(content, "fox") OR max_plus > 3
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(3), List.of(4), List.of(5), List.of(6)));
+        }
+    }
+
     public void testMatchAfterMultipleInlineStats() {
         var query = """
             FROM test

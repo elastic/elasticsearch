@@ -293,10 +293,13 @@ public abstract class FullTextFunction extends Function
             // Collect Aggregate nodes that are internal to InlineStats (at analysis time) or InlineJoin
             // (at post-optimization time, after InlineStats.surrogate() has fired). These aggregates
             // are safe — they are the sub-query side of a left join and do not block full-text pushdown.
+            // Look anywhere in the InlineJoin's right-hand subtree rather than just at its root, since
+            // aggregate expressions (e.g. MAX(id) + 1) leave the Aggregate wrapped in a Project/Eval
+            // after ReplaceAggregateAggExpressionWithEval runs.
             // Use identity-based comparison to avoid false matches with structurally equal but unrelated aggregates.
             Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
             plan.forEachDown(InlineStats.class, is -> inlineStatsAggregates.add(is.aggregate()));
-            plan.forEachDown(InlineJoin.class, ij -> { if (ij.right() instanceof Aggregate agg) inlineStatsAggregates.add(agg); });
+            plan.forEachDown(InlineJoin.class, ij -> ij.right().forEachDown(Aggregate.class, inlineStatsAggregates::add));
 
             checkCommandsBeforeExpression(
                 plan,

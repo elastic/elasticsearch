@@ -576,11 +576,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * restored), so Jackson's tokenization is safe.
      *
      * <p>Escaped mode (quoting off, escaping on) is also kept on Jackson even under no-trim: it is the only
-     * dialect where {@link #decodeFieldValue} is non-identity, and the record-materialized paths apply that
-     * decode in {@code parseRecord} while the bulk consumer applies it again — routing escaped mode through
-     * the house splitter would either double-decode or diverge from inference. The direct walkers exclude
-     * escaped mode for the same reason (no house grammar to mirror), so this keeps the house path confined
-     * to exactly the QUOTED / PLAIN dialects the walkers serve, where {@code decodeFieldValue} is identity.
+     * dialect where {@link #decodeFieldValue} is non-identity, so routing escaped mode through the house
+     * splitter would diverge from inference. The direct walkers exclude escaped mode for the same reason (no
+     * house grammar to mirror), so this keeps the house path confined to exactly the QUOTED / PLAIN dialects
+     * the walkers serve, where {@code decodeFieldValue} is identity.
      *
      * <p>Consequence — the escaped-mode no-trim residual: because escaped mode stays on Jackson even under
      * no-trim, it also KEEPS Jackson's {@code SKIP_EMPTY_LINES} first-column leading-whitespace eating (a
@@ -2790,6 +2789,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private long[] prefetchedRowStartBytes;
         private Iterator<List<?>> csvIterator;
+        /**
+         * Which value contract the live {@link #csvIterator} carries — the two record sources disagree, and the
+         * batch loop must decode exactly once. {@link CsvRecordIterator} (via {@code parseRecord}) already applied
+         * {@link #decodeFieldValue}; the Jackson bulk iterators deliver raw values because {@link #newCsvSchema}
+         * withholds the escape char in the no-quote modes. Set at the routing point in {@link #readNextBatch}.
+         */
+        private boolean csvIteratorDeliversDecoded;
         private List<String[]> prefetchedRows;
         private long prefetchedRowsBytes;
         // Inner close flag: gates hasNext() short-circuit after close and the one-shot teardown below. The base
@@ -3353,11 +3359,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // options.encoding().
                     if (rowPositionSlot >= 0 || jacksonGrammarApplies() == false) {
                         csvIterator = newCsvIterator(recordReader);
+                        // parseRecord already applied decodeFieldValue on both of its branches. That holds for the
+                        // no-trim reroute arm too, where the decode is the identity (QUOTED / PLAIN only), so the
+                        // flag is unconditionally true here even though only escaped mode can observe it.
+                        csvIteratorDeliversDecoded = true;
                     } else if (statsStripeSize > 0 && StandardCharsets.UTF_8.equals(options.encoding())) {
                         // Stripe capture on the bulk path: wrap the reader so each row's char offset maps to a
                         // file-global byte offset (record-canonical stripe attribution) without leaving the fast
                         // Jackson path or re-decoding. Non-UTF-8 falls through and stripe capture safe-misses.
                         csvIterator = newTrackedJacksonBulkIterator();
+                        csvIteratorDeliversDecoded = false;
                     } else {
                         // Plain Jackson bulk path: neither a byte tracker (set only on the UTF-8 stripe path
                         // above) nor the record-reader path (rowPositionSlot >= 0) is active, so recordReader is
@@ -3369,6 +3380,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             stripeCaptureDisabled = true;
                         }
                         csvIterator = newJacksonBulkIterator(reader);
+                        csvIteratorDeliversDecoded = false;
                     }
                 }
             }
@@ -3495,11 +3507,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 String[] row = new String[rowList.size()];
                                 for (int i = 0; i < rowList.size(); i++) {
                                     Object val = rowList.get(i);
-                                    // decodeFieldValue is identity for quoted/plain (returns immediately),
-                                    // and un-escapes \t \n \\ / maps \N to null for the escaped mode — the
-                                    // bulk path's only per-value seam, so escaped decodes here as it does on
-                                    // the per-record path.
-                                    row[i] = val != null ? decodeFieldValue(val.toString()) : null;
+                                    // decodeFieldValue must run exactly once per field, and the two record sources
+                                    // carry opposite contracts: the Jackson bulk iterators deliver RAW values
+                                    // (newCsvSchema withholds the escape char in the no-quote modes, so the
+                                    // backslash reaches us untouched), while CsvRecordIterator.parseRecord already
+                                    // decoded. This seam therefore decodes only the raw arm. Decoding both would
+                                    // silently corrupt escaped mode — the only dialect where decodeFieldValue is
+                                    // non-identity (it un-escapes \t \n \\ and maps a whole-field \N to null).
+                                    String value = val != null ? val.toString() : null;
+                                    row[i] = csvIteratorDeliversDecoded ? value : decodeFieldValue(value);
                                 }
                                 if (hasCommentFilter && row.length > 0 && row[0] != null) {
                                     String trimmedFirstCell = row[0].trim();

@@ -16,20 +16,20 @@ import org.elasticsearch.xcontent.XContentString;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Unit tests for {@link ElasticsearchColumnBuilder}: kind selection, the lazily-allocated validity
+ * Unit tests for {@link EscfColumnBuilder}: kind selection, the lazily-allocated validity
  * (absent) bitset, and fixed→union promotion preserving the accumulated values.
  */
-public class ElasticsearchColumnBuilderTests extends ESTestCase {
+public class EscfColumnBuilderTests extends ESTestCase {
 
     public void testLongKindSelectionAndValues() {
-        ElasticsearchColumnBuilder b = new ElasticsearchColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder();
         b.addLong(1);
         b.addLong(2);
         b.addLong(3);
-        ElasticsearchColumnData data = b.finish(3);
-        assertEquals(ElasticsearchColumnKind.LONG, data.kind());
+        EscfColumnData data = b.finish(3);
+        assertEquals(EscfColumnKind.LONG, data.kind());
         assertNull("dense column has no validity bitset", data.absent());
-        ElasticsearchColumn col = ElasticsearchColumn.from(data);
+        EscfColumn col = EscfColumn.from(data);
         assertEquals(1L, col.getLongValue(0));
         assertEquals(2L, col.getLongValue(1));
         assertEquals(3L, col.getLongValue(2));
@@ -37,14 +37,14 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
     }
 
     public void testValidityBitsetOnlyWhenAbsent() {
-        ElasticsearchColumnBuilder b = new ElasticsearchColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder();
         b.addLong(10);
         b.addAbsent();
         b.addLong(30);
-        ElasticsearchColumnData data = b.finish(3);
-        assertEquals(ElasticsearchColumnKind.LONG, data.kind());
+        EscfColumnData data = b.finish(3);
+        assertEquals(EscfColumnKind.LONG, data.kind());
         assertNotNull("a column with an absent row carries a validity bitset", data.absent());
-        ElasticsearchColumn col = ElasticsearchColumn.from(data);
+        EscfColumn col = EscfColumn.from(data);
         assertFalse(col.isAbsent(0));
         assertTrue(col.isAbsent(1));
         assertFalse(col.isAbsent(2));
@@ -53,24 +53,24 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
     }
 
     public void testStringKind() {
-        ElasticsearchColumnBuilder b = new ElasticsearchColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder();
         b.addString(utf8("alpha"));
         b.addString(utf8("gamma"));
-        ElasticsearchColumnData data = b.finish(2);
-        assertEquals(ElasticsearchColumnKind.STRING, data.kind());
-        ElasticsearchColumn col = ElasticsearchColumn.from(data);
+        EscfColumnData data = b.finish(2);
+        assertEquals(EscfColumnKind.STRING, data.kind());
+        EscfColumn col = EscfColumn.from(data);
         assertEquals("alpha", col.getStringValue(0).string());
         assertEquals("gamma", col.getStringValue(1).string());
     }
 
     public void testBoolKind() {
-        ElasticsearchColumnBuilder b = new ElasticsearchColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder();
         b.addBoolean(true);
         b.addBoolean(false);
         b.addBoolean(true);
-        ElasticsearchColumnData data = b.finish(3);
-        assertEquals(ElasticsearchColumnKind.BOOL, data.kind());
-        ElasticsearchColumn col = ElasticsearchColumn.from(data);
+        EscfColumnData data = b.finish(3);
+        assertEquals(EscfColumnKind.BOOL, data.kind());
+        EscfColumn col = EscfColumn.from(data);
         assertTrue(col.getBooleanValue(0));
         assertFalse(col.getBooleanValue(1));
         assertTrue(col.getBooleanValue(2));
@@ -79,13 +79,13 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
     }
 
     public void testPromoteOnTypeConflictPreservesValues() {
-        ElasticsearchColumnBuilder b = new ElasticsearchColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder();
         b.addLong(7);
         b.addString(utf8("text"));
         b.addDouble(2.5);
-        ElasticsearchColumnData data = b.finish(3);
-        assertEquals(ElasticsearchColumnKind.UNION, data.kind());
-        ElasticsearchColumn col = ElasticsearchColumn.from(data);
+        EscfColumnData data = b.finish(3);
+        assertEquals(EscfColumnKind.UNION, data.kind());
+        EscfColumn col = EscfColumn.from(data);
         assertEquals(SourceValueType.LONG, col.getTypeByte(0));
         assertEquals(7L, col.getLongValue(0));
         assertEquals(SourceValueType.STRING, col.getTypeByte(1));
@@ -95,24 +95,24 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
     }
 
     public void testExplicitNullPromotesToUnion() {
-        ElasticsearchColumnBuilder b = new ElasticsearchColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder();
         b.addLong(1);
         b.addNull();
-        ElasticsearchColumnData data = b.finish(2);
-        assertEquals(ElasticsearchColumnKind.UNION, data.kind());
-        ElasticsearchColumn col = ElasticsearchColumn.from(data);
+        EscfColumnData data = b.finish(2);
+        assertEquals(EscfColumnKind.UNION, data.kind());
+        EscfColumn col = EscfColumn.from(data);
         assertEquals(1L, col.getLongValue(0));
         assertTrue(col.isNull(1));
         assertEquals(SourceValueType.NULL, col.getTypeByte(1));
     }
 
     public void testAllAbsentFinishesAsLong() {
-        ElasticsearchColumnBuilder b = new ElasticsearchColumnBuilder();
+        EscfColumnBuilder b = new EscfColumnBuilder();
         b.addAbsent();
         b.addAbsent();
-        ElasticsearchColumnData data = b.finish(2);
-        assertEquals(ElasticsearchColumnKind.LONG, data.kind());
-        ElasticsearchColumn col = ElasticsearchColumn.from(data);
+        EscfColumnData data = b.finish(2);
+        assertEquals(EscfColumnKind.LONG, data.kind());
+        EscfColumn col = EscfColumn.from(data);
         assertTrue(col.isAbsent(0));
         assertTrue(col.isAbsent(1));
         assertEquals(SourceValueType.ABSENT, col.getTypeByte(0));

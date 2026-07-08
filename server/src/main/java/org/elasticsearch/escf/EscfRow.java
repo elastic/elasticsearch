@@ -48,13 +48,38 @@ final class EscfRow implements SourceRow {
         return true;
     }
 
-    /**
-     * Returns 0: the columnar format does not store per-document source sizes. Callers that need a
-     * size proxy should track original source lengths separately.
-     */
+    // TODO: Remove this and switch the callsites to batch oriented processing. Summing each row size is inexact and expensive.
     @Override
     public int sizeInBytes() {
-        return 0;
+        int size = 0;
+        int columnCount = batch.columnCount();
+        for (int col = 0; col < columnCount; col++) {
+            size += valueSizeInBytes(getTypeByte(col), col);
+        }
+        return size;
+    }
+
+    private int valueSizeInBytes(byte type, int col) {
+        if (type == SourceValueType.STRING
+            || type == SourceValueType.BINARY
+            || type == SourceValueType.UNION_ARRAY
+            || type == SourceValueType.KEY_VALUE) {
+            return getBinaryValue(col).length;
+        }
+        if (type == SourceValueType.FIXED_ARRAY) {
+            return batch.column(col).kind() == EscfColumnKind.ARRAY ? arraySizeInBytes(getArrayValue(col)) : getBinaryValue(col).length;
+        }
+        // ABSENT/NULL are 0 bytes; TRUE/FALSE are 1 bit (rounded to 0); LONG/DOUBLE are the only remaining (8-byte) kinds.
+        return Math.max(SourceValueType.elemDataSize(type), 0);
+    }
+
+    private static int arraySizeInBytes(ArrayReader array) {
+        int size = 0;
+        while (array.next()) {
+            byte type = array.type();
+            size += type == SourceValueType.STRING ? array.textValue().bytes().length() : Math.max(SourceValueType.elemDataSize(type), 0);
+        }
+        return size;
     }
 
     @Override

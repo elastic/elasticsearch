@@ -36,7 +36,7 @@ import java.util.List;
  * Encodes XContentType documents into {@link EscfBatch}es (Elasticsearch Column Format), accumulating one
  * column per leaf field. Numbers upcast aggressively (JSON int/long → {@code long}, float/double →
  * {@code double}); a type conflict or an explicit null promotes the column to
- * {@link ElasticsearchColumnKind#UNION}. Fixed primitive arrays are stored in a columnar list layout;
+ * {@link EscfColumnKind#UNION}. Fixed primitive arrays are stored in a columnar list layout;
  * other arrays (heterogeneous, nested, object-bearing) are stored inline on a union column.
  *
  * <p>Implements {@link SourceBatchEncoder} so it can be swapped for {@link EirfEncoder} at the
@@ -109,10 +109,10 @@ public final class EscfEncoder implements SourceBatchEncoder {
         final Partition partition = getOrCreatePartition(partitionKey);
         final int leafCount = schema.leafCount();
         ensurePartitionBuilders(partition, leafCount);
-        final ElasticsearchColumnData[] columns = new ElasticsearchColumnData[leafCount];
+        final EscfColumnData[] columns = new EscfColumnData[leafCount];
         final List<Releasable> releasables = new ArrayList<>(leafCount);
         for (int c = 0; c < leafCount; c++) {
-            final ElasticsearchColumnData col = partition.builders.get(c).finish(partition.docCount);
+            final EscfColumnData col = partition.builders.get(c).finish(partition.docCount);
             columns[c] = col;
             if (col.data() instanceof Releasable releasable) {
                 releasables.add(releasable);
@@ -149,7 +149,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
     public void close() {
         for (Partition partition : partitions) {
             if (partition != null) {
-                for (ElasticsearchColumnBuilder builder : partition.builders) {
+                for (EscfColumnBuilder builder : partition.builders) {
                     builder.discard();
                 }
             }
@@ -167,7 +167,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
         }
     }
 
-    private void appendScratchValue(ElasticsearchColumnBuilder builder, int columnIndex) {
+    private void appendScratchValue(EscfColumnBuilder builder, int columnIndex) {
         final byte type = scratchType[columnIndex];
         switch (type) {
             case SourceValueType.ABSENT -> builder.addAbsent();
@@ -323,7 +323,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
 
     private void ensurePartitionBuilders(Partition partition, int size) {
         while (partition.builders.size() < size) {
-            ElasticsearchColumnBuilder builder = new ElasticsearchColumnBuilder(recycler);
+            EscfColumnBuilder builder = new EscfColumnBuilder(recycler);
             for (int i = 0; i < partition.docCount; i++) {
                 builder.addAbsent();
             }
@@ -332,7 +332,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
     }
 
     private static final class Partition {
-        final List<ElasticsearchColumnBuilder> builders = new ArrayList<>(INITIAL_CAPACITY);
+        final List<EscfColumnBuilder> builders = new ArrayList<>(INITIAL_CAPACITY);
         int docCount;
     }
 }

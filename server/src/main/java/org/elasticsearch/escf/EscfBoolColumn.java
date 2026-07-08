@@ -15,19 +15,19 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 /**
  * An column whose values are all booleans, held as the value bitset directly (bit set = {@code true}).
  */
-final class ElasticsearchBoolColumn extends ElasticsearchColumn {
+final class EscfBoolColumn extends EscfColumn {
 
     /** Value bitset (bit set = {@code true}), or {@code null} when every value is {@code false}. */
     private final FixedBitSet values;
 
-    ElasticsearchBoolColumn(int docCount, FixedBitSet absent, FixedBitSet values) {
+    EscfBoolColumn(int docCount, FixedBitSet absent, FixedBitSet values) {
         super(docCount, absent);
         this.values = values;
     }
 
     @Override
     byte kind() {
-        return ElasticsearchColumnKind.BOOL;
+        return EscfColumnKind.BOOL;
     }
 
     @Override
@@ -42,7 +42,7 @@ final class ElasticsearchBoolColumn extends ElasticsearchColumn {
 
     private boolean bitSet(int d) {
         // The value bitset is sized only to the last true document (and is null when there are none),
-        // so any doc beyond its length reads false. Mirrors ElasticsearchColumn#isAbsent.
+        // so any doc beyond its length reads false. Mirrors EscfColumn#isAbsent.
         return values != null && d < values.length() && values.get(d);
     }
 }

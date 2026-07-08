@@ -9,33 +9,29 @@
 
 package org.elasticsearch.escf;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
-import org.elasticsearch.xcontent.Text;
-import org.elasticsearch.xcontent.XContentString;
 
-/** An ESCF column whose values are all UTF-8 strings (variable-length layout: offset vector + dense byte payload). */
-final class ElasticsearchStringColumn extends AbstractVarColumn {
+/** An ESCF column whose values are all {@code long}s (JSON ints and longs upcast to 64-bit). */
+final class EscfLongColumn extends AbstractFixed64Column {
 
-    ElasticsearchStringColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets) {
-        super(docCount, absent, data, offsets);
+    EscfLongColumn(int docCount, FixedBitSet absent, BytesReference data) {
+        super(docCount, absent, data);
     }
 
     @Override
     byte kind() {
-        return ElasticsearchColumnKind.STRING;
+        return EscfColumnKind.LONG;
     }
 
     @Override
     byte typeByteForPresent(int d) {
-        return SourceValueType.STRING;
+        return SourceValueType.LONG;
     }
 
     @Override
-    Text getStringValue(int d) {
-        BytesRef ref = getBinaryValue(d);
-        return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
+    long getLongValue(int d) {
+        return rawLong(d);
     }
 }

@@ -18,7 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
  * {@code data} payload delimited by a {@code (docCount + 1)}-entry offset vector
  * ({@code [offsets[d], offsets[d + 1])} within {@code data}).
  */
-abstract class AbstractVarColumn extends ElasticsearchColumn {
+abstract class AbstractVarColumn extends EscfColumn {
 
     final BytesReference data;
     final int[] offsets;

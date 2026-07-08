@@ -19,12 +19,12 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  * primitive {@code child} sub-column. Row {@code d}'s elements are the child elements in
  * {@code [offsets[d], offsets[d + 1])}. There are no inline arrays.
  */
-final class ElasticsearchArrayColumn extends ElasticsearchColumn {
+final class EscfArrayColumn extends EscfColumn {
 
-    private final ElasticsearchColumn child;
+    private final EscfColumn child;
     private final int[] rowOffsets;
 
-    ElasticsearchArrayColumn(int docCount, FixedBitSet absent, ElasticsearchColumn child, int[] rowOffsets) {
+    EscfArrayColumn(int docCount, FixedBitSet absent, EscfColumn child, int[] rowOffsets) {
         super(docCount, absent);
         this.child = child;
         this.rowOffsets = rowOffsets;
@@ -32,7 +32,7 @@ final class ElasticsearchArrayColumn extends ElasticsearchColumn {
 
     @Override
     byte kind() {
-        return ElasticsearchColumnKind.ARRAY;
+        return EscfColumnKind.ARRAY;
     }
 
     @Override

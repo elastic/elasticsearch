@@ -26,40 +26,33 @@ import org.elasticsearch.xcontent.Text;
  * {@link AbstractVarColumn} (string/binary). Typed value getters default to throwing; each subtype
  * overrides only what it supports.
  */
-abstract class ElasticsearchColumn {
+abstract class EscfColumn {
 
     final int docCount;
     /** Absent set (bit set = absent), or {@code null} when every document is present (dense). */
     final FixedBitSet absent;
 
-    ElasticsearchColumn(int docCount, FixedBitSet absent) {
+    EscfColumn(int docCount, FixedBitSet absent) {
         this.docCount = docCount;
         this.absent = absent;
     }
 
-    /** The column kind (see {@link ElasticsearchColumnKind}). */
+    /** The column kind (see {@link EscfColumnKind}). */
     abstract byte kind();
 
     /** Builds the typed column view for {@code col}, dispatching on its kind. The fields are already native. */
-    static ElasticsearchColumn from(ElasticsearchColumnData col) {
+    static EscfColumn from(EscfColumnData col) {
         int docCount = col.docCount();
         FixedBitSet absent = col.absent();
         return switch (col.kind()) {
-            case ElasticsearchColumnKind.LONG -> new ElasticsearchLongColumn(docCount, absent, col.data());
-            case ElasticsearchColumnKind.DOUBLE -> new ElasticsearchDoubleColumn(docCount, absent, col.data());
-            case ElasticsearchColumnKind.BOOL -> new ElasticsearchBoolColumn(docCount, absent, col.values());
-            case ElasticsearchColumnKind.STRING -> new ElasticsearchStringColumn(docCount, absent, col.data(), col.offsets());
-            case ElasticsearchColumnKind.BINARY -> new ElasticsearchBinaryColumn(docCount, absent, col.data(), col.offsets());
-            case ElasticsearchColumnKind.ARRAY -> new ElasticsearchArrayColumn(docCount, absent, from(col.child()), col.offsets());
-            case ElasticsearchColumnKind.UNION -> new ElasticsearchUnionColumn(
-                docCount,
-                absent,
-                col.typeVector(),
-                0,
-                col.offsets(),
-                col.data()
-            );
-            default -> throw new IllegalStateException("Unknown ESCF column kind: " + ElasticsearchColumnKind.name(col.kind()));
+            case EscfColumnKind.LONG -> new EscfLongColumn(docCount, absent, col.data());
+            case EscfColumnKind.DOUBLE -> new EscfDoubleColumn(docCount, absent, col.data());
+            case EscfColumnKind.BOOL -> new EscfBoolColumn(docCount, absent, col.values());
+            case EscfColumnKind.STRING -> new EscfStringColumn(docCount, absent, col.data(), col.offsets());
+            case EscfColumnKind.BINARY -> new EscfBinaryColumn(docCount, absent, col.data(), col.offsets());
+            case EscfColumnKind.ARRAY -> new EscfArrayColumn(docCount, absent, from(col.child()), col.offsets());
+            case EscfColumnKind.UNION -> new EscfUnionColumn(docCount, absent, col.typeVector(), 0, col.offsets(), col.data());
+            default -> throw new IllegalStateException("Unknown ESCF column kind: " + EscfColumnKind.name(col.kind()));
         };
     }
 
@@ -131,6 +124,6 @@ abstract class ElasticsearchColumn {
     }
 
     private IllegalStateException notA(String what) {
-        return new IllegalStateException("Column kind=" + ElasticsearchColumnKind.name(kind()) + " has no " + what + " values");
+        return new IllegalStateException("Column kind=" + EscfColumnKind.name(kind()) + " has no " + what + " values");
     }
 }

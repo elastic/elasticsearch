@@ -26,14 +26,14 @@ import org.elasticsearch.xcontent.XContentString;
  * bytes, and variable types occupy their offset-delta bytes. Array and key-value rows are stored as
  * inline bytes and read with {@link InlineArrayReader} / {@link KeyValueReader}.
  */
-final class ElasticsearchUnionColumn extends ElasticsearchColumn {
+final class EscfUnionColumn extends EscfColumn {
 
     private final byte[] typeVec;
     private final int typeVecBase;
     private final int[] offsets;
     private final BytesReference data;
 
-    ElasticsearchUnionColumn(int docCount, FixedBitSet absent, byte[] typeVec, int typeVecBase, int[] offsets, BytesReference data) {
+    EscfUnionColumn(int docCount, FixedBitSet absent, byte[] typeVec, int typeVecBase, int[] offsets, BytesReference data) {
         super(docCount, absent);
         this.typeVec = typeVec;
         this.typeVecBase = typeVecBase;
@@ -43,7 +43,7 @@ final class ElasticsearchUnionColumn extends ElasticsearchColumn {
 
     @Override
     byte kind() {
-        return ElasticsearchColumnKind.UNION;
+        return EscfColumnKind.UNION;
     }
 
     @Override

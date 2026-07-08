@@ -13,25 +13,23 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
-/** An ESCF column whose values are all {@code long}s (JSON ints and longs upcast to 64-bit). */
-final class ElasticsearchLongColumn extends AbstractFixed64Column {
+/**
+ * An ESCF column whose values are all raw binary bytes (variable-length layout: offset vector + dense byte
+ * payload).
+ */
+final class EscfBinaryColumn extends AbstractVarColumn {
 
-    ElasticsearchLongColumn(int docCount, FixedBitSet absent, BytesReference data) {
-        super(docCount, absent, data);
+    EscfBinaryColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets) {
+        super(docCount, absent, data, offsets);
     }
 
     @Override
     byte kind() {
-        return ElasticsearchColumnKind.LONG;
+        return EscfColumnKind.BINARY;
     }
 
     @Override
     byte typeByteForPresent(int d) {
-        return SourceValueType.LONG;
-    }
-
-    @Override
-    long getLongValue(int d) {
-        return rawLong(d);
+        return SourceValueType.BINARY;
     }
 }

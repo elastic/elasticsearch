@@ -16,7 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
  * Shared base for the fixed-width 64-bit columns (LONG and DOUBLE), whose values are contiguous
  * little-endian 8-byte slots ({@code data.getLongLE(d * 8)}).
  */
-abstract class AbstractFixed64Column extends ElasticsearchColumn {
+abstract class AbstractFixed64Column extends EscfColumn {
 
     private final BytesReference data;
 

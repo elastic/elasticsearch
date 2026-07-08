@@ -14,15 +14,15 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /** An ESCF column whose values are all {@code double}s (JSON floats and doubles upcast to 64-bit raw bits). */
-final class ElasticsearchDoubleColumn extends AbstractFixed64Column {
+final class EscfDoubleColumn extends AbstractFixed64Column {
 
-    ElasticsearchDoubleColumn(int docCount, FixedBitSet absent, BytesReference data) {
+    EscfDoubleColumn(int docCount, FixedBitSet absent, BytesReference data) {
         super(docCount, absent, data);
     }
 
     @Override
     byte kind() {
-        return ElasticsearchColumnKind.DOUBLE;
+        return EscfColumnKind.DOUBLE;
     }
 
     @Override

@@ -25,7 +25,7 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  * document is absent. ARRAY uses a columnar list layout: the {@code offsets} delimit each row's
  * element range within a single dense primitive {@code child} sub-column (never inline arrays).
  */
-public final class ElasticsearchColumnKind {
+public final class EscfColumnKind {
 
     /** All values are {@code long}s (JSON ints and longs upcast to 64-bit). */
     public static final byte LONG = 0x01;
@@ -55,7 +55,7 @@ public final class ElasticsearchColumnKind {
      */
     public static final byte UNION = 0x07;
 
-    private ElasticsearchColumnKind() {}
+    private EscfColumnKind() {}
 
     /** Returns a debug name for the given kind byte. */
     public static String name(byte kind) {

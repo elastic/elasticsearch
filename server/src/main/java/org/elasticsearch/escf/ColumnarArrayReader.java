@@ -11,20 +11,21 @@ package org.elasticsearch.escf;
 
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
+import org.elasticsearch.xcontent.Text;
 
 /**
- * An {@link ArrayReader} over an {@link ElasticsearchArrayColumn} row: a forward cursor across the
+ * An {@link ArrayReader} over an {@link EscfArrayColumn} row: a forward cursor across the
  * child sub-column's elements in {@code [start, end)}. Element values are read directly from the
  * primitive child column. Columnar arrays hold only homogeneous primitives, so {@link #nestedArray()}
  * and {@link #nestedKeyValue()} are unreachable and throw.
  */
 final class ColumnarArrayReader implements ArrayReader {
 
-    private final ElasticsearchColumn child;
+    private final EscfColumn child;
     private final int end;
     private int pos;
 
-    ColumnarArrayReader(ElasticsearchColumn child, int start, int end) {
+    ColumnarArrayReader(EscfColumn child, int start, int end) {
         this.child = child;
         this.end = end;
         this.pos = start - 1;
@@ -73,6 +74,11 @@ final class ColumnarArrayReader implements ArrayReader {
     @Override
     public String stringValue() {
         return child.getStringValue(pos).string();
+    }
+
+    @Override
+    public Text textValue() {
+        return child.getStringValue(pos);
     }
 
     @Override

@@ -27,13 +27,13 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  *   <li>{@code data} — the recycler-backed value payload; {@code null} for BOOL (values live in {@code values})
  *       and for ARRAY (the payload lives in {@code child}).</li>
  *   <li>{@code child} — the dense primitive sub-column for ARRAY (itself a native
- *       {@link ElasticsearchColumnData} of kind LONG, DOUBLE, or STRING); {@code null} for every other kind.
+ *       {@link EscfColumnData} of kind LONG, DOUBLE, or STRING); {@code null} for every other kind.
  *       Kept native rather than pre-serialized so the "native in-memory" invariant above also holds for
  *       ARRAY; it is only flattened to {@code child_kind(1) | child_values} bytes at the wire boundary in
  *       {@link EscfBatch}.</li>
  * </ul>
  */
-record ElasticsearchColumnData(
+record EscfColumnData(
     byte kind,
     int docCount,
     FixedBitSet absent,
@@ -41,31 +41,31 @@ record ElasticsearchColumnData(
     byte[] typeVector,
     int[] offsets,
     BytesReference data,
-    ElasticsearchColumnData child
+    EscfColumnData child
 ) {
 
     /** LONG or DOUBLE: a dense 8-byte-per-document value payload; no offsets or type vector. */
-    static ElasticsearchColumnData ofFixed64(byte kind, int docCount, FixedBitSet absent, BytesReference data) {
-        return new ElasticsearchColumnData(kind, docCount, absent, null, null, null, data, null);
+    static EscfColumnData ofFixed64(byte kind, int docCount, FixedBitSet absent, BytesReference data) {
+        return new EscfColumnData(kind, docCount, absent, null, null, null, data, null);
     }
 
     /** BOOL: the value bitset directly; no byte payload. */
-    static ElasticsearchColumnData ofBool(int docCount, FixedBitSet absent, FixedBitSet values) {
-        return new ElasticsearchColumnData(ElasticsearchColumnKind.BOOL, docCount, absent, values, null, null, null, null);
+    static EscfColumnData ofBool(int docCount, FixedBitSet absent, FixedBitSet values) {
+        return new EscfColumnData(EscfColumnKind.BOOL, docCount, absent, values, null, null, null, null);
     }
 
     /** STRING or BINARY: an offset vector plus a dense byte payload. */
-    static ElasticsearchColumnData ofVarWidth(byte kind, int docCount, FixedBitSet absent, int[] offsets, BytesReference data) {
-        return new ElasticsearchColumnData(kind, docCount, absent, null, null, offsets, data, null);
+    static EscfColumnData ofVarWidth(byte kind, int docCount, FixedBitSet absent, int[] offsets, BytesReference data) {
+        return new EscfColumnData(kind, docCount, absent, null, null, offsets, data, null);
     }
 
     /** ARRAY: per-row element-range offsets over a native primitive {@code child} sub-column. */
-    static ElasticsearchColumnData ofArray(int docCount, FixedBitSet absent, int[] offsets, ElasticsearchColumnData child) {
-        return new ElasticsearchColumnData(ElasticsearchColumnKind.ARRAY, docCount, absent, null, null, offsets, null, child);
+    static EscfColumnData ofArray(int docCount, FixedBitSet absent, int[] offsets, EscfColumnData child) {
+        return new EscfColumnData(EscfColumnKind.ARRAY, docCount, absent, null, null, offsets, null, child);
     }
 
     /** UNION: a per-document type vector, an offset vector, and a dense value payload. */
-    static ElasticsearchColumnData ofUnion(int docCount, FixedBitSet absent, byte[] typeVector, int[] offsets, BytesReference data) {
-        return new ElasticsearchColumnData(ElasticsearchColumnKind.UNION, docCount, absent, null, typeVector, offsets, data, null);
+    static EscfColumnData ofUnion(int docCount, FixedBitSet absent, byte[] typeVector, int[] offsets, BytesReference data) {
+        return new EscfColumnData(EscfColumnKind.UNION, docCount, absent, null, typeVector, offsets, data, null);
     }
 }

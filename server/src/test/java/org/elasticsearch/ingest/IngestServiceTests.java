@@ -639,8 +639,14 @@ public class IngestServiceTests extends ESTestCase {
         // A large existing pipeline that will be replaced by a small one.
         PipelineConfiguration existing = new PipelineConfiguration(
             "_id",
-            new BytesArray("""
-                {"description": "%s", "processors": [{"set" : {"field": "_field", "value": "_value"}}]}""".formatted("x".repeat(2048))),
+            new BytesArray(
+                String.format(
+                    Locale.ROOT,
+                    """
+                        {"description": "%s", "processors": [{"set" : {"field": "_field", "value": "_value"}}]}""",
+                    "x".repeat(2048)
+                )
+            ),
             XContentType.JSON
         );
         var projectId = applyClusterStateWithPipelines(ingestService, Map.of("_id", existing));

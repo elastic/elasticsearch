@@ -77,14 +77,18 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
         // operating against a cluster that never had the earlier stage's side effects applied, so these tasks must
         // always run in full.
         //
-        // The property is read inside the onlyIf predicate below rather than here, at configuration time. Some
-        // conventions (elasticsearch.bwc-test) set it via a configureEach block registered after this plugin's own
-        // configureEach, and Gradle runs configureEach actions in registration order - reading the property here
-        // would silently observe a stale, unset value. onlyIf predicates are evaluated during the execution phase,
-        // after all configuration-phase actions have run, so they always see the property's final value.
+        // We grab the ExtraPropertiesExtension reference here, at configuration time (this method runs from a
+        // configureEach block), rather than calling test.getExtensions() from inside the onlyIf predicate below.
+        // Gradle's configuration cache forbids calling Task accessors like getExtensions() from execution-time
+        // callbacks (onlyIf/doFirst/doLast) - see the config-cache violation this replaced. The extension object
+        // itself is a plain, non-Task object, so it's safe to read from at execution time once obtained; and since
+        // configuration for the whole build (including elasticsearch.bwc-test's own, later-registered configureEach
+        // that sets the property) completes before any task executes, this reference already reflects the final
+        // value of the property by the time onlyIf runs, regardless of configureEach registration order.
+        ExtraPropertiesExtension extraProperties = test.getExtensions().getExtraProperties();
         if (testsBuildServiceProvider.get().wasTaskSuccessful(test.getPath())) {
             test.onlyIf("Skipped by smart retry - succeeded in previous run", element -> {
-                if (neverSkipOnSmartRetry(test)) {
+                if (neverSkipOnSmartRetry(extraProperties)) {
                     test.getLogger().lifecycle("Smart retry: running all tests for {} (neverSkipOnSmartRetry=true)", test.getPath());
                     return true;
                 }
@@ -94,7 +98,7 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
             return;
         }
 
-        if (neverSkipOnSmartRetry(test)) {
+        if (neverSkipOnSmartRetry(extraProperties)) {
             test.getLogger().lifecycle("Smart retry: running all tests for {} (neverSkipOnSmartRetry=true)", test.getPath());
             return;
         }
@@ -129,8 +133,7 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
         }
     }
 
-    private static boolean neverSkipOnSmartRetry(Test test) {
-        ExtraPropertiesExtension extra = test.getExtensions().getExtraProperties();
+    private static boolean neverSkipOnSmartRetry(ExtraPropertiesExtension extra) {
         return extra.has("neverSkipOnSmartRetry") && Boolean.TRUE.equals(extra.get("neverSkipOnSmartRetry"));
     }
 

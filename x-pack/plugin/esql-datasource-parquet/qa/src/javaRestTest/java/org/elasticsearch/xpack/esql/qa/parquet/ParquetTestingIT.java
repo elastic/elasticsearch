@@ -53,7 +53,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -207,7 +206,6 @@ public class ParquetTestingIT extends ESRestTestCase {
         }
     }
 
-    /** Drops every data source/dataset this suite registered and clears the registry caches for the next suite in the fork. */
     @AfterClass
     public static void cleanupDatasets() throws IOException {
         try {
@@ -254,7 +252,7 @@ public class ParquetTestingIT extends ESRestTestCase {
         // Bind a dataset to the file's URL so the query reads it via FROM <dataset> (the http data source is
         // registered once in registerHttpDataSource). Format is inferred from the .parquet extension; datasets
         // do not take a format setting.
-        String dataset = sanitizeDatasetName(parquetFile);
+        String dataset = DatasetRegistry.sanitizeDatasetName("pq_", parquetFile);
         DatasetRegistry.ensureDataset(client(), dataset, HTTP_DATA_SOURCE, url, null);
 
         if (isBadData) {
@@ -685,8 +683,13 @@ public class ParquetTestingIT extends ESRestTestCase {
                 double epsilon = Math.abs(gtd) * 1e-6 + 1e-15;
                 assertEquals("Float mismatch at " + ctx, gtd, esqld, epsilon);
             } else if ("unsigned_long".equals(esqlType)) {
-                long esqlDecoded = esqlNum.longValue() ^ Long.MIN_VALUE;
-                assertEquals("Unsigned long mismatch at " + ctx, gtNum.longValue(), esqlDecoded);
+                // The ESQL response already holds the decoded unsigned value (the JSON output edge decodes
+                // unsigned_long blocks), so compare it directly against the ground truth. Both sides are compared
+                // as unsigned over the full [0, 2^64-1] range: the ground truth is the raw INT64 bits reinterpreted
+                // as unsigned, and the response value may be a Long (<= Long.MAX_VALUE) or a BigInteger (above it).
+                java.math.BigInteger gtUnsigned = new java.math.BigInteger(Long.toUnsignedString(gtNum.longValue()));
+                java.math.BigInteger esqlUnsigned = new java.math.BigInteger(esqlNum.toString());
+                assertEquals("Unsigned long mismatch at " + ctx, gtUnsigned, esqlUnsigned);
             } else {
                 assertEquals("Integer mismatch at " + ctx, gtNum.longValue(), esqlNum.longValue());
             }
@@ -736,15 +739,6 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     private static String buildQuery(String dataset, int limit) {
         return "FROM " + dataset + " | LIMIT " + limit;
-    }
-
-    /**
-     * Derives a valid (lowercase, index-name-safe) dataset name from a parquet test-file path, e.g.
-     * {@code bad_data/ARROW-GH-41317.parquet} -> {@code pq_bad_data_arrow_gh_41317_parquet}. The {@code pq_}
-     * prefix guarantees a leading letter and per-file uniqueness across the parameterized suite.
-     */
-    private static String sanitizeDatasetName(String parquetFilePath) {
-        return "pq_" + parquetFilePath.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_");
     }
 
     private static byte[] downloadFile(String url) throws IOException {

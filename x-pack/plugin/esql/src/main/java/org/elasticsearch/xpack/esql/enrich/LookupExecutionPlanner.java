@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -73,6 +74,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * Plans the execution of a lookup physical plan
@@ -159,11 +161,18 @@ public class LookupExecutionPlanner {
     private final BlockFactory blockFactory;
     private final BigArrays bigArrays;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+    private final LongSupplier directoryBytesRead;
 
-    public LookupExecutionPlanner(BlockFactory blockFactory, BigArrays bigArrays, LocalCircuitBreaker.SizeSettings localBreakerSettings) {
+    public LookupExecutionPlanner(
+        BlockFactory blockFactory,
+        BigArrays bigArrays,
+        LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        LongSupplier directoryBytesRead
+    ) {
         this.blockFactory = blockFactory;
         this.bigArrays = bigArrays;
         this.localBreakerSettings = localBreakerSettings;
+        this.directoryBytesRead = directoryBytesRead;
     }
 
     /**
@@ -318,7 +327,8 @@ public class LookupExecutionPlanner {
             queryListFromPlanFactory,
             parameterizedQueryExec.emptyResult(),
             parameterizedQueryExec.bulkLookupLeft(),
-            parameterizedQueryExec.bulkLookupRight()
+            parameterizedQueryExec.bulkLookupRight(),
+            directoryBytesRead
         );
 
         return PhysicalOperation.fromSource(sourceFactory, layout).with(enrichQueryFactory, layout);
@@ -424,7 +434,7 @@ public class LookupExecutionPlanner {
                     docChannel,
                     PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
                     PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
-                    () -> 0L
+                    directoryBytesRead
                 );
             }
 
@@ -462,10 +472,28 @@ public class LookupExecutionPlanner {
     }
 
     private PhysicalOperation planFilterExec(FilterExec filterExec, PhysicalOperation source, FoldContext foldCtx) {
-        return source.with(
-            new FilterOperator.FilterOperatorFactory(EvalMapper.toEvaluator(foldCtx, filterExec.condition(), source.layout())),
-            source.layout()
-        );
+        Expression condition = filterExec.condition();
+        Layout layout = source.layout();
+        /*
+         * Defer evaluator creation so we have the real lookup shard context because
+         * MATCH needs real shard contexts, but the bulk-lookup optimization runs before
+         */
+        OperatorFactory factory = new OperatorFactory() {
+            @Override
+            public Operator get(DriverContext driverContext) {
+                LookupDriverContext lookupCtx = (LookupDriverContext) driverContext;
+                EsPhysicalOperationProviders.ShardContext esShardCtx = lookupCtx.lookupShardContext().context();
+                IndexedByShardId<EsPhysicalOperationProviders.ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(esShardCtx);
+                ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(foldCtx, condition, layout, shardContexts);
+                return new FilterOperator(evalFactory.get(driverContext));
+            }
+
+            @Override
+            public String describe() {
+                return "FilterOperator[condition=" + condition + "]";
+            }
+        };
+        return source.with(factory, layout);
     }
 
     private PhysicalOperation planProjectExec(ProjectExec projectExec, PhysicalOperation source) {
@@ -497,7 +525,8 @@ public class LookupExecutionPlanner {
         QueryListFromPlanFactory queryListFromPlanFactory,
         boolean emptyResult,
         Attribute bulkLookupLeft,
-        Attribute bulkLookupRight
+        Attribute bulkLookupRight,
+        LongSupplier directoryBytesRead
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
@@ -529,7 +558,8 @@ public class LookupExecutionPlanner {
                 shardId,
                 searchExecutionContext,
                 warnings,
-                emptyResult
+                emptyResult,
+                directoryBytesRead
             );
         }
 

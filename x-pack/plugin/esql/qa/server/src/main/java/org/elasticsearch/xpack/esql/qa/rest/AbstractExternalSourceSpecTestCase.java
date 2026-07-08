@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.elasticsearch.Version;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -37,7 +38,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.ACCOUNT;
@@ -111,7 +111,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
             for (StorageBackend backend : BACKENDS) {
@@ -160,7 +160,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
             for (String extra : extraParams) {
@@ -180,9 +180,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     @ClassRule
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
-    // Anonymous form: migrated specs read every backend via FROM <dataset> with auth=none, so the Azure
-    // fixture must serve unauthenticated reads (the S3/GCS fixtures already do). No shared-key secret is
-    // stored, so these suites need no cluster encryption key.
+    // Anonymous form: migrated specs read every backend via FROM <dataset> with auth=anonymous, so the
+    // Azure fixture must serve unauthenticated reads (the S3/GCS fixtures already do). No shared-key
+    // secret is stored, so these suites need no cluster encryption key.
     @ClassRule
     public static DataSourcesAzureHttpFixture azureFixture = new DataSourcesAzureHttpFixture(true);
 
@@ -361,6 +361,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             return;
         }
 
+        // A multi-source FROM <dataset> has no single-EXTERNAL equivalent, so a suite that rebuilds specs
+        // into an EXTERNAL query cannot express it. Skip such specs here rather than failing in the rebuild.
+        assumeFalse(
+            "multi-source FROM <dataset> has no single-EXTERNAL equivalent; skipped on EXTERNAL-rebuild backends",
+            testCase.datasetSources.size() > 1
+        );
+
         // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
         useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
 
@@ -445,7 +452,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         String dataSourceName = ensureDataSourceForBackend();
         for (DatasetSource source : testCase.datasetSources) {
             String resource = transformTemplates(source.resource());
-            DatasetRegistry.ensureDataset(client(), source.name(), dataSourceName, resource, source.withJson());
+            DatasetRegistry.ensureDataset(client(), source.name(), dataSourceName, resource, withJsonForSource(source));
         }
         String query = testCase.query;
         logger.debug("Dataset-mode query for {} backend: {}", storageBackend, query);
@@ -454,8 +461,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /**
      * Lazily registers (and caches) the {@code data_source} pointing at the in-process fixture for the
-     * active backend. Every backend authenticates anonymously ({@code auth=none}, or no settings for the
-     * unauthenticated HTTP/local sources), so no secret is stored and the suites need no cluster
+     * active backend. Every backend authenticates anonymously ({@code auth=anonymous}, or no settings for
+     * the unauthenticated HTTP/local sources), so no secret is stored and the suites need no cluster
      * encryption key. The blob credentials, where a real backend would need them, are unnecessary because
      * each fixture serves its blobs without verifying authorization.
      */
@@ -465,22 +472,22 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 client(),
                 "esql_spec_s3",
                 "s3",
-                Map.of("endpoint", s3Fixture.getAddress(), "auth", "none")
+                Map.of("endpoint", s3Fixture.getAddress(), "auth", "anonymous")
             );
             case GCS -> DatasetRegistry.ensureDataSource(
                 client(),
                 "esql_spec_gcs",
                 "gcs",
-                Map.of("endpoint", gcsFixture.getAddress(), "auth", "none")
+                Map.of("endpoint", gcsFixture.getAddress(), "auth", "anonymous")
             );
             case AZURE -> DatasetRegistry.ensureDataSource(
                 client(),
                 "esql_spec_azure",
                 "azure",
-                Map.of("endpoint", azureFixture.getAddress(), "auth", "none")
+                Map.of("endpoint", azureFixture.getAddress(), "auth", "anonymous")
             );
-            case HTTP -> DatasetRegistry.ensureDataSource(client(), "esql_spec_http", "http", Map.of("auth", "none"));
-            case LOCAL -> DatasetRegistry.ensureDataSource(client(), "esql_spec_local", "local", Map.of("auth", "none"));
+            case HTTP -> DatasetRegistry.ensureDataSource(client(), "esql_spec_http", "http", Map.of("auth", "anonymous"));
+            case LOCAL -> DatasetRegistry.ensureDataSource(client(), "esql_spec_local", "local", Map.of("auth", "anonymous"));
         };
     }
 
@@ -554,11 +561,52 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // EXTERNAL string literal so a resource containing a backslash or quote round-trips correctly.
         String literal = source.resource().replace("\\", "\\\\").replace("\"", "\\\"");
         StringBuilder external = new StringBuilder("EXTERNAL \"").append(literal).append("\"");
-        if (source.withJson() != null) {
-            external.append(" WITH ").append(source.withJson());
+        // Apply the same WITH JSON the FROM path uses (adds trim_spaces for the column-aligned csv/tsv
+        // fixtures) so the EXTERNAL-holdout path reads them identically.
+        String withJson = withJsonForSource(source);
+        if (withJson != null) {
+            external.append(" WITH ").append(withJson);
         }
         external.append(tail);
         return external.toString();
+    }
+
+    /**
+     * The {@code WITH}-clause JSON applied to a dataset source, both when registering the dataset
+     * ({@link #runDatasetMode()}) and when rebuilding an {@code EXTERNAL} query
+     * ({@link #rebuildExternalFromDatasets}).
+     * <p>
+     * The CSV/TSV test fixtures (employees.csv, books.csv, ...) are column-aligned with padding spaces for
+     * readability, so their expected spec values assume trimming. The reader default is now no-trim (RFC
+     * 4180 — spaces are part of a field), so read these aligned fixtures with {@code trim_spaces: true} to
+     * keep the expected values valid. Real-world no-trim fidelity is covered by CsvFormatReaderTests unit
+     * tests; a directive that sets {@code trim_spaces} explicitly is left untouched (so a spec can still
+     * exercise the no-trim default end to end).
+     */
+    private String withJsonForSource(DatasetSource source) {
+        // format is the base format or a codec-suffixed variant ("csv", "csv.gz", "tsv.zstd", ...). Other
+        // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
+        // column-aligned fixtures with trimming; the shared injector adds the key.
+        boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
+        return csvOrTsv ? injectTrimSpaces(source.withJson()) : source.withJson();
+    }
+
+    /**
+     * Adds {@code "trim_spaces": true} to a dataset directive's {@code WITH} JSON, unless it already sets
+     * {@code trim_spaces} (matched as a key — the quoted name followed by a colon, so a value that merely
+     * equals {@code "trim_spaces"} still gets the injection). {@code withJson} is parser-guaranteed to be a
+     * brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the structural closer.
+     */
+    static String injectTrimSpaces(String withJson) {
+        if (withJson != null && withJson.replaceAll("\\s", "").contains("\"trim_spaces\":")) {
+            return withJson;
+        }
+        if (withJson == null) {
+            return "{\"trim_spaces\": true}";
+        }
+        int close = withJson.lastIndexOf('}');
+        String head = withJson.substring(0, close).trim();
+        return head + (head.endsWith("{") ? "" : ", ") + "\"trim_spaces\": true}";
     }
 
     /**
@@ -658,12 +706,25 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
     private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
     /**
+     * Suffix that triggers a multi-file glob whose files share the same columns in different
+     * physical order (anchor vs reversed non-anchor) with distinct per-column types, used to lock
+     * cross-file column-order reconciliation against silent value swaps.
+     */
+    private static final String MULTIFILE_PERM_SUFFIX = "_multifile_perm";
+    /**
      * Suffix that triggers multi-file UBN glob with cross-file type drift (one file's sampler
      * infers INTEGER, the other infers KEYWORD for the same column). Used by csv-union-by-name
      * to exercise the KEYWORD-fallback path: under UBN the reconciler widens to KEYWORD with a
      * warning; under STRICT it still throws.
      */
     private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = "_multifile_type_drift";
+    /**
+     * Suffix that triggers a multi-file UBN glob with a mixed-temporal column ({@code date} in one file,
+     * {@code date_nanos} in the other) that union_by_name widens LOSSLESSLY to {@code date_nanos} -- no
+     * warning. Used to lock warm MIN/MAX over a cross-file mixed-temporal column without perturbing the
+     * shared multifile_ubn fixture, whose FFW and widened-column tests depend on its exact schema.
+     */
+    private static final String MULTIFILE_TEMPORAL_SUFFIX = "_multifile_temporal";
     /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
     private static final String HIVE_SUFFIX = "_hive";
 
@@ -677,6 +738,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         String relativePath;
         if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
             relativePath = "multifile_type_drift/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_TEMPORAL_SUFFIX)) {
+            relativePath = "multifile_temporal/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_PERM_SUFFIX)) {
+            // Column-permutation multi-file template: x_multifile_perm -> multifile_perm/*.<format>
+            relativePath = "multifile_perm/*." + format;
         } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
             // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
             relativePath = "multifile_ubn/*." + format;

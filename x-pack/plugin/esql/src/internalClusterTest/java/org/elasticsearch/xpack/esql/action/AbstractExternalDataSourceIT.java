@@ -18,12 +18,15 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -43,6 +46,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +56,7 @@ import java.util.function.ObjIntConsumer;
 import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Shared base for {@code FROM <dataset>} external-datasource integration tests.
@@ -79,8 +84,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  * supplied as a node plugin (a single discovery path), so {@code EsqlPlugin}'s duplicate-validator guard
  * never trips.
  *
- * <p>A single {@link #requireFeatureFlag()} {@code @Before} gates every subclass on the external-datasources
- * feature flag (which also gates {@code FROM <dataset>} resolution), so subclasses do not repeat the assume.
+ * <p>A single {@link #requireFeatureFlag()} {@code @Before} gates every subclass on the
+ * {@code dataset-in-from-command} capability (which also gates {@code FROM <dataset>} resolution) and the
+ * local-filesystem feature flag, and {@link #nodeSettings} allowlists the shared temp-dir root for
+ * {@code file://} access, so subclasses do not repeat either the assume or the settings override.
  *
  * <p>Deliberately imposes no {@code @ClusterScope} and does not override {@code getPragmas()} — both
  * vary per concrete test, so subclasses keep their own.
@@ -156,12 +163,28 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * Gates every subclass on the external-datasources feature flag, which also gates {@code FROM <dataset>}
-     * resolution. Mirrors {@code FromDatasetIT.requireFeatureFlag}, so subclasses no longer repeat the assume.
+     * Every subclass fixture lives under a JVM-local temp directory read back via a {@code file://}
+     * dataset, so the local-access allowlist must cover it; {@code createTempDir()}'s parent is the
+     * shared per-JVM temp root, so allowing it covers every subclass-created temp dir.
+     */
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
+            .build();
+    }
+
+    /**
+     * Gates every subclass on the {@code dataset-in-from-command} capability, which also gates
+     * {@code FROM <dataset>} resolution, plus the local-filesystem feature flag every subclass relies on for
+     * its {@code file://} fixtures. Mirrors {@code FromDatasetIT.requireFeatureFlag}, so subclasses no longer
+     * repeat the assume.
      */
     @Before
     public void requireFeatureFlag() {
-        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires dataset-in-from-command capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -190,15 +213,46 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         registeredDatasets.add(name);
     }
 
-    /**
-     * Convenience: lazily ensure a shared {@code test} data source ({@value #SHARED_TEST_DATA_SOURCE})
-     * exists, then register {@code name} against it. Returns the dataset name for chaining.
-     */
+    /** Convenience: registers {@code name} against the shared {@code test} data source, creating it on first use. */
     protected String registerDataset(String name, String resourceUri, Map<String, Object> settings) {
         if (registeredDataSources.contains(SHARED_TEST_DATA_SOURCE) == false) {
             registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());
         }
         registerDataset(name, SHARED_TEST_DATA_SOURCE, resourceUri, settings);
+        return name;
+    }
+
+    /**
+     * Registers a STRICT ({@code dynamic:false}) dataset with a declared mapping against the shared data source,
+     * creating it on first use, and records it for teardown. The declared columns are the entire schema — strict
+     * resolution reads no file to infer it. Used by the strict declared-schema tests.
+     */
+    protected String registerStrictDataset(
+        String name,
+        String resourceUri,
+        LinkedHashMap<String, DatasetFieldMapping> properties,
+        Map<String, Object> settings
+    ) {
+        if (registeredDataSources.contains(SHARED_TEST_DATA_SOURCE) == false) {
+            registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());
+        }
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    SHARED_TEST_DATA_SOURCE,
+                    resourceUri,
+                    null,
+                    new HashMap<>(settings),
+                    mapping
+                )
+            )
+        );
+        registeredDatasets.add(name);
         return name;
     }
 
@@ -336,5 +390,39 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
                 return 0;
             }
         };
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Shared Hive-partition fixture + external-scan profile assertions.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Writes a single-column ({@code id: int32}) Parquet file named {@code data.parquet} under {@code dir}, carrying
+     * {@code rowCount} rows with ids {@code 0..rowCount-1}. The shared fixture for Hive-partition tests: the partition
+     * column is path-derived, so the file payload only needs one trivial data column.
+     */
+    protected static Path writeSingleColumnIdParquet(Path dir, int rowCount) throws IOException {
+        Files.createDirectories(dir);
+        return writeParquet(dir.resolve("data.parquet"), "message test { required int32 id; }", rowCount, 1024, (g, i) -> g.add("id", i));
+    }
+
+    /**
+     * The set of data-node names whose profile contains an external-source scan operator, identified by its
+     * {@link AsyncExternalSourceOperator.Status} (the same type-based idiom the sibling profile ITs use, rather than a
+     * rename-brittle operator-name string). Requires the query to have run with {@code profile(true)}. Callers assert
+     * on the set: a non-empty set proves the read scanned (rather than warm-folding to a constant), and {@code >= 2}
+     * distinct names proves it distributed across data nodes rather than short-circuiting coordinator-local.
+     */
+    protected static Set<String> externalScanNodeNames(EsqlQueryResponse response) {
+        assertThat("query must be run with profile(true) to inspect the external scan", response.profile(), notNullValue());
+        Set<String> nodes = new LinkedHashSet<>();
+        for (var driver : response.profile().drivers()) {
+            for (var op : driver.operators()) {
+                if (op.status() instanceof AsyncExternalSourceOperator.Status) {
+                    nodes.add(driver.nodeName());
+                }
+            }
+        }
+        return nodes;
     }
 }

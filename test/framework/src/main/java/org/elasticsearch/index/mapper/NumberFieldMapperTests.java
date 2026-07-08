@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
@@ -397,15 +398,29 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     protected class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
-        private final boolean docValues = randomBoolean();
-        private final boolean enforceSingleValue = docValues && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        private final boolean docValues;
+        private final boolean isColumnar;
+        private final boolean enforceSingleValue;
 
         private final Function<Number, Number> round;
         private final boolean ignoreMalformed;
 
         protected NumberSyntheticSourceSupport(Function<Number, Number> round, boolean ignoreMalformed) {
+            this(round, ignoreMalformed, false);
+        }
+
+        protected NumberSyntheticSourceSupport(Function<Number, Number> round, boolean ignoreMalformed, boolean isColumnar) {
             this.round = round;
             this.ignoreMalformed = ignoreMalformed;
+            this.isColumnar = isColumnar;
+            // Columnar mode requires doc values on every field; non-columnar may fall back to _ignored_source.
+            this.docValues = isColumnar || randomBoolean();
+            this.enforceSingleValue = docValues && isColumnar && randomBoolean();
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -442,11 +457,8 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             if (preservesExactSource()) {
                 return new SyntheticSourceExample(in, in, this::mapping);
             } else {
-                List<Object> outList = values.stream()
-                    .filter(v -> v.v2() instanceof Number)
-                    .map(t -> round.apply((Number) t.v2()))
-                    .sorted()
-                    .collect(Collectors.toCollection(ArrayList::new));
+                Stream<Object> nonMalformed = values.stream().filter(v -> v.v2() instanceof Number).map(t -> round.apply((Number) t.v2()));
+                List<Object> outList = (isColumnar ? nonMalformed : nonMalformed.sorted()).collect(Collectors.toCollection(ArrayList::new));
                 List<Object> malformed = values.stream()
                     .filter(v -> false == v.v2() instanceof Number)
                     .map(Tuple::v2)
@@ -522,6 +534,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
         return DocValuesType.SORTED_NUMERIC;
     }
@@ -531,8 +548,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
      */
     public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -552,8 +568,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      * second (malformed) value.
      */
     public void testMultiValueFalseRejectsRegularPlusMalformed() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -573,8 +588,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      * second (regular) value.
      */
     public void testMultiValueFalseRejectsMalformedPlusRegular() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -590,7 +604,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnarModeSkippers() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
         {
             // In columnar mode, non-indexed numeric fields use skippers

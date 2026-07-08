@@ -103,8 +103,8 @@ public final class AzureFixtureUtils {
 
         /**
          * @param anonymous when {@code true}, the fixture accepts requests carrying no (or any)
-         *        {@code Authorization} header, so a data source registered with {@code auth=none} can read
-         *        from it — the Azure analog of the anonymous-capable S3 fixture. The spec harness
+         *        {@code Authorization} header, so a data source registered with {@code auth=anonymous} can
+         *        read from it — the Azure analog of the anonymous-capable S3 fixture. The spec harness
          *        ({@code AbstractExternalSourceSpecTestCase}) uses this form to drive the {@code FROM
          *        <dataset>} path without storing a shared-key secret (which would require a cluster
          *        encryption key). When {@code false} the fixture enforces shared-key auth for the account,

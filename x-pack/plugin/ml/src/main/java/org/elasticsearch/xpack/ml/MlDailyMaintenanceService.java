@@ -419,11 +419,14 @@ public class MlDailyMaintenanceService implements Releasable {
         MlIndexAndAlias.createAliasForRollover(originSettingClient, index, rolloverAlias, getIndicesAliasesListener);
     }
 
-    private String[] findIndicesMatchingPattern(ClusterState clusterState, String indexPattern) {
-        // list all indices matching the given index pattern
-        String[] indices = expressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpenHidden(), indexPattern);
+    private String[] findIndicesMatchingPatterns(ClusterState clusterState, String[] indexPatterns) {
+        String[] indices = expressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpenHidden(), indexPatterns);
         if (logger.isTraceEnabled()) {
-            logger.trace("findIndicesMatchingPattern: indices found: {} matching pattern [{}]", Arrays.toString(indices), indexPattern);
+            logger.trace(
+                "findIndicesMatchingPatterns: indices found: {} matching patterns [{}]",
+                Arrays.toString(indices),
+                Arrays.toString(indexPatterns)
+            );
         }
         return indices;
     }
@@ -490,14 +493,14 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private void triggerRollIndicesIfNecessaryTask(
         String taskName,
-        String indexPattern,
+        String[] indexPatterns,
         ActionListener<AcknowledgedResponse> finalListener
     ) {
-        logger.info("[ML] maintenance task: [{}] for index pattern [{}]", taskName, indexPattern);
+        logger.info("[ML] maintenance task: [{}] for index patterns [{}]", taskName, Arrays.toString(indexPatterns));
 
         ClusterState clusterState = clusterService.state();
 
-        String[] indices = findIndicesMatchingPattern(clusterState, indexPattern);
+        String[] indices = findIndicesMatchingPatterns(clusterState, indexPatterns);
         if (rolloverMaxSize == ByteSizeValue.MINUS_ONE || indices.length == 0) {
             // Early bath
             finalListener.onResponse(AcknowledgedResponse.TRUE);
@@ -524,12 +527,16 @@ public class MlDailyMaintenanceService implements Releasable {
 
     // public for testing
     public void triggerRollResultsIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
-        triggerRollIndicesIfNecessaryTask("roll-results-indices", AnomalyDetectorsIndex.jobResultsIndexPattern(), finalListener);
+        triggerRollIndicesIfNecessaryTask(
+            "roll-results-indices",
+            new String[] { AnomalyDetectorsIndex.jobResultsIndexPattern() },
+            finalListener
+        );
     }
 
     // public for testing
     public void triggerRollStateIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
-        triggerRollIndicesIfNecessaryTask("roll-state-indices", AnomalyDetectorsIndex.jobStateIndexPattern(), finalListener);
+        triggerRollIndicesIfNecessaryTask("roll-state-indices", AnomalyDetectorsIndex.jobStateIndexPatterns(), finalListener);
     }
 
     private void triggerDeleteExpiredDataTask(ActionListener<AcknowledgedResponse> finalListener) {

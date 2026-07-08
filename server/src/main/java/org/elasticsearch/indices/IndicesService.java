@@ -146,6 +146,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryListener;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
@@ -297,6 +298,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
     private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     private final ThrottlingRecoveryService throttlingRecoveryService;
+    private final RecoverySchedulingListener recoverySchedulingListener;
 
     @Override
     protected void doStart() {
@@ -423,6 +425,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.storeMetricHolder = builder.storeMetricsHolder;
         this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
         this.throttlingRecoveryService = builder.throttlingRecoveryService;
+        this.recoverySchedulingListener = builder.recoverySchedulingListener;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -1003,35 +1006,39 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            recoverySchedulingListener
+        );
         indexShard.addShardFailureCallback(onShardFailure);
         throttlingRecoveryService.enqueue(
+            projectId,
             recoveryListener,
             recoveryState,
+            shardRouting.allocationId().getId(),
             indexShard.recoveryStats(),
-            listener -> projectResolver.executeOnProject(
-                projectId,
-                () -> indexShard.startRecovery(
-                    recoveryState,
-                    recoveryTargetService,
-                    postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
-                    repositoriesService,
-                    (mapping, l) -> {
-                        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                            : "mapping update consumer only required by local shards recovery";
-                        AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                            // concrete index - no name clash, it uses uuid
-                            .setConcreteIndex(shardRouting.index())
-                            .source(mapping.source().string(), XContentType.JSON);
-                        client.execute(
-                            TransportAutoPutMappingAction.TYPE,
-                            putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                            new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
-                        );
-                    },
-                    this,
-                    clusterStateVersion
-                )
+            listener -> indexShard.startRecovery(
+                recoveryState,
+                recoveryTargetService,
+                postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
+                repositoriesService,
+                (mapping, l) -> {
+                    assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                        : "mapping update consumer only required by local shards recovery";
+                    AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                        // concrete index - no name clash, it uses uuid
+                        .setConcreteIndex(shardRouting.index())
+                        .source(mapping.source().string(), XContentType.JSON);
+                    client.execute(
+                        TransportAutoPutMappingAction.TYPE,
+                        putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                        new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
+                    );
+                },
+                this,
+                clusterStateVersion
             )
         );
     }

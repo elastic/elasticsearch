@@ -24,7 +24,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -92,11 +91,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                return new Parameter<?>[] { mode };
-            } else {
-                return new Parameter<?>[] {};
-            }
+            return new Parameter<?>[] { mode };
         }
 
         @Override
@@ -115,6 +110,10 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         @Override
         public String contentType() {
             return CONTENT_TYPE;
+        }
+
+        Mode getMode() {
+            return mode.getValue();
         }
     }
 

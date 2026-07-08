@@ -10,12 +10,8 @@ package org.elasticsearch.xpack.esql.telemetry;
 import java.util.Map;
 
 /**
- * Called once per completed ES|QL query (sync, async, PromQL) on the coordinating node.
+ * Called once per completed ES|QL query on the coordinating node.
  * Implementations must be cheap and non-blocking — no I/O, no locks, only atomic operations.
- *
- * <p>Loaded via {@link org.elasticsearch.plugins.ExtensiblePlugin} so external modules
- * (e.g. the serverless metering module) can register a collector without coupling to
- * compute data classes. The metrics map keys are the stable string constants defined here.
  */
 public interface EsqlQueryMetricsCollector {
 
@@ -27,8 +23,8 @@ public interface EsqlQueryMetricsCollector {
     String BYTES_READ = "bytes_read";
 
     /**
-     * Called on the SEARCH thread pool once the coordinating node has the final aggregated result.
-     * For async queries this fires on real compute completion, not on the initial response.
+     * Called on the coordinating node once it has the final aggregated result.
+     * For async queries this is called on real compute completion.
      */
     void onQueryCompleted(Map<String, Long> metrics);
 }

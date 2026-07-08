@@ -788,6 +788,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
         dataSourcePlugins.addAll(loader.loadExtensions(DataSourcePlugin.class));
+        loadMetricsCollectors(loader);
+    }
+
+    protected void loadMetricsCollectors(ExtensionLoader loader) {
         metricsCollectors.addAll(loader.loadExtensions(EsqlQueryMetricsCollector.class));
     }
 

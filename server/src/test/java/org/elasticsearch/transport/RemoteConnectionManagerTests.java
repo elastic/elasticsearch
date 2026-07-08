@@ -20,6 +20,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteConnectionManager.ProxyConnection;
+import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -48,9 +49,8 @@ public class RemoteConnectionManagerTests extends ESTestCase {
     private TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 1000);
 
     @SuppressWarnings("unchecked")
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initRemoteConnectionManager() throws Exception {
         transport = mock(Transport.class);
         remoteConnectionManager = new RemoteConnectionManager(
             "remote-cluster",

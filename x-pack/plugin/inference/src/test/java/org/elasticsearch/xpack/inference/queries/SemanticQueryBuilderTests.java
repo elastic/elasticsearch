@@ -103,7 +103,6 @@ import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_FIELD_TYPE;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
@@ -142,7 +141,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @ParametersFactory(argumentFormatting = "fieldType=%s, legacyFormat(for semantic_text)=%s")
     public static Iterable<Object[]> parameters() throws Exception {
-        return List.of(new Object[] { SemanticTextFieldMapper.CONTENT_TYPE, true }, new Object[] { SemanticTextFieldMapper.CONTENT_TYPE, false }, new Object[] { SemanticFieldMapper.CONTENT_TYPE, false });
+        return List.of(
+            new Object[] { SemanticTextFieldMapper.CONTENT_TYPE, true },
+            new Object[] { SemanticTextFieldMapper.CONTENT_TYPE, false },
+            new Object[] { SemanticFieldMapper.CONTENT_TYPE, false }
+        );
     }
 
     @Before
@@ -150,9 +153,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         if (this.inferenceResultType != null) {
             return;
         }
-        inferenceResultType = fieldType.equals(SemanticFieldMapper.CONTENT_TYPE) ?
-            InferenceResultType.EMBEDDING :
-            randomFrom(InferenceResultType.values());
+        inferenceResultType = fieldType.equals(SemanticFieldMapper.CONTENT_TYPE)
+            ? InferenceResultType.EMBEDDING
+            : randomFrom(InferenceResultType.values());
         denseVectorElementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
         useSearchInferenceId = randomBoolean();
     }
@@ -208,7 +211,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         if (inferenceResultType == null) {
             setInferenceResultType();
         }
-        String mappingConfig = "type="+ fieldType + ",inference_id=" + INFERENCE_ID;
+        String mappingConfig = "type=" + fieldType + ",inference_id=" + INFERENCE_ID;
         if (useSearchInferenceId) {
             mappingConfig += ",search_inference_id=" + SEARCH_INFERENCE_ID;
         }

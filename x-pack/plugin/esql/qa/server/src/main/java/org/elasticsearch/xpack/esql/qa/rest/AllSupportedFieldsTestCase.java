@@ -1154,16 +1154,21 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield nullValue();
             }
             case DATE_RANGE -> {
-                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
-                    if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false) == false) {
-                        // Old snapshot nodes (before tech preview) returned inclusive upper bounds
-                        // without the +1 conversion added in DateRangeDocValuesLoader.
-                        yield anyOf(
-                            equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
-                            equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z")
-                        );
-                    }
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false)) {
                     yield equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z");
+                }
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    // On previous versions where DATE_RANGE was still under construction, we don't know
+                    // which exact historical shape an old/mixed-version node will emit: the buggy
+                    // formatted string (inclusive upper bound, no +1 conversion), the correctly
+                    // formatted string, or the raw, unformatted {gte, lte} doc value map (older
+                    // release builds never ran the snapshot-only formatting logic at all). Accept any
+                    // of them rather than guessing which one a given old build should produce.
+                    yield anyOf(
+                        equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
+                        equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z"),
+                        matchesMap().entry("gte", "1989-01-01T00:00:00.000Z").entry("lte", "2024-12-31T23:59:59.999Z")
+                    );
                 }
                 yield nullValue();
             }

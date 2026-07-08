@@ -751,30 +751,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testColumnarBadDateTokenNullsCellEagerAndDeferred
   issue: https://github.com/elastic/elasticsearch/issues/153187
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchAll {pref=null mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153189
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchDenseVector {pref=null mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153190
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchAggregateMetricDouble {pref=null mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153191
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchAllOnlyFromRemotes {pref=null mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153192
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchAllOnlyFromRemotes {pref=NONE mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153193
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchDenseVector {pref=NONE mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153194
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchAll {pref=NONE mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153195
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchAggregateMetricDouble {pref=NONE mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153196
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {delta_byte_array}
   issue: https://github.com/elastic/elasticsearch/issues/153198
@@ -787,18 +763,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {page_v2_empty_compressed}
   issue: https://github.com/elastic/elasticsearch/issues/153201
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchAll {pref=STORED mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153204
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchAggregateMetricDouble {pref=STORED mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153205
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchAllOnlyFromRemotes {pref=STORED mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153206
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchDenseVector {pref=STORED mode=logsdb}
-  issue: https://github.com/elastic/elasticsearch/issues/153207
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   method: testConcurrentProducerLoopsThroughStatsCapturingWrapperDoNotDeadlock
   issue: https://github.com/elastic/elasticsearch/issues/153210

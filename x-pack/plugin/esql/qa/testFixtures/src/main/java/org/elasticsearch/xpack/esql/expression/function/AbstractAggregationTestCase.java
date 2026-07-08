@@ -85,11 +85,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         List<TestCaseSupplier> suppliers,
         PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.COVARIANT_NULL);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.OUTPUT_BECOMES_NULL);
     }
 
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.COVARIANT_NULL);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.OUTPUT_BECOMES_NULL);
     }
 
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
@@ -106,9 +106,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      */
     public enum NullTypeExpectation {
         /** Output type follows the input, so a NULL-typed input yields a NULL-typed output. The common case. */
-        COVARIANT_NULL,
+        OUTPUT_BECOMES_NULL,
         /** Output type is fixed by the function regardless of input type, e.g. PERCENTILE is always DOUBLE. */
-        KEEPS_TYPE
+        OUTPUT_KEEPS_TYPE
     }
 
     /**
@@ -164,40 +164,44 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
         for (TestCaseSupplier original : suppliers) {
             if (uniqueSignatures.add(original.types())) {
-                newSuppliers.add(TestCaseSupplier.nullNarrowing(original.name() + " with NULL-typed input", original.types(), () -> {
-                    var testCase = original.get();
+                newSuppliers.add(
+                    TestCaseSupplier.withNullTypedFieldsAllowed(original.name() + " with NULL-typed input", original.types(), () -> {
+                        var testCase = original.get();
 
-                    if (testCase.getData().stream().noneMatch(TestCaseSupplier.TypedData::isMultiRow)) {
-                        // Fail if no multi-row data, at least until a real case is found
-                        fail("No multi-row data found in test case: " + testCase);
-                    }
+                        if (testCase.getData().stream().noneMatch(TestCaseSupplier.TypedData::isMultiRow)) {
+                            // Fail if no multi-row data, at least until a real case is found
+                            fail("No multi-row data found in test case: " + testCase);
+                        }
 
-                    var newData = testCase.getData()
-                        .stream()
-                        .map(
-                            td -> td.isMultiRow()
-                                ? TestCaseSupplier.TypedData.multiRow(Collections.singletonList(null), DataType.NULL, td.name())
-                                : td
-                        )
-                        .toList();
+                        var newData = testCase.getData()
+                            .stream()
+                            .map(
+                                td -> td.isMultiRow()
+                                    ? TestCaseSupplier.TypedData.multiRow(Collections.singletonList(null), DataType.NULL, td.name())
+                                    : td
+                            )
+                            .toList();
 
-                    var expectedType = nullTypeExpectation == NullTypeExpectation.COVARIANT_NULL ? DataType.NULL : testCase.expectedType();
+                        var expectedType = nullTypeExpectation == NullTypeExpectation.OUTPUT_BECOMES_NULL
+                            ? DataType.NULL
+                            : testCase.expectedType();
 
-                    return new TestCaseSupplier.TestCase(
-                        testCase.getSource(),
-                        testCase.getConfiguration(),
-                        newData,
-                        testCase.evaluatorToString(),
-                        expectedType,
-                        nullValue(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        testCase.canBuildEvaluator()
-                    );
-                }));
+                        return new TestCaseSupplier.TestCase(
+                            testCase.getSource(),
+                            testCase.getConfiguration(),
+                            newData,
+                            testCase.evaluatorToString(),
+                            expectedType,
+                            nullValue(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            testCase.canBuildEvaluator()
+                        );
+                    })
+                );
             }
         }
 

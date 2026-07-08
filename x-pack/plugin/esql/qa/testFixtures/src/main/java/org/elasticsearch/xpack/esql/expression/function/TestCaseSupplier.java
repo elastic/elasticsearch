@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * This class exists to give a human-readable string representation of the test case.
  */
-public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier, boolean allowNullNarrowing)
+public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier, boolean allowNullTypedFields)
     implements
         Supplier<TestCaseSupplier.TestCase> {
 
@@ -97,11 +97,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Like the canonical constructor, but the supplied multi-row columns may narrow their declared type to {@code NULL}
-     * at runtime, like a field nullified by {@code unmapped_fields="nullify"}. The narrowed signature cannot be declared
-     * up front: which positions narrow is only known once the data is built, and data is built after signatures are fixed.
+     * Like the canonical constructor, but field columns may arrive NULL-typed. The NULL-typed signature cannot be
+     * declared up front: which positions are fields is only known once the data is built, after signatures are fixed.
      */
-    public static TestCaseSupplier nullNarrowing(String name, List<DataType> types, Supplier<TestCase> supplier) {
+    public static TestCaseSupplier withNullTypedFieldsAllowed(String name, List<DataType> types, Supplier<TestCase> supplier) {
         return new TestCaseSupplier(name, types, supplier, true);
     }
 
@@ -157,17 +156,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             throw new IllegalStateException(name + ": type/data size mismatch " + types.size() + "/" + supplied.getData().size());
         }
         for (int i = 0; i < types.size(); i++) {
-            // only field columns may narrow; constants never do
-            if (allowNullNarrowing && supplied.getData().get(i).type() == DataType.NULL && supplied.getData().get(i).isMultiRow()) {
+            TypedData data = supplied.getData().get(i);
+            if (allowNullTypedFields && isNullTypedField(data)) {
                 continue;
             }
-            if (supplied.getData().get(i).type() != types.get(i)) {
-                throw new IllegalStateException(
-                    name + ": supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i)
-                );
+            if (data.type() != types.get(i)) {
+                throw new IllegalStateException(name + ": supplier/data type mismatch " + data.type() + "/" + types.get(i));
             }
         }
         return supplied;
+    }
+
+    /**
+     * A field column that arrived NULL-typed, like a field nullified by {@code unmapped_fields="nullify"}.
+     * Constants are never null-typed — they must match their declared type exactly.
+     */
+    private static boolean isNullTypedField(TypedData data) {
+        return data.type() == DataType.NULL && data.isMultiRow();
     }
 
     @Override

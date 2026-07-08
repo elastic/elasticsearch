@@ -540,6 +540,19 @@ public class ExternalSourceCacheService implements Closeable {
                 String key = pair[0];
                 Object value = statsMap.get(key);
                 if (value instanceof Number == false) {
+                    // A non-null, non-Number extremum on a numeric-typed column is cross-declaration garbage — e.g. a
+                    // keyword min reconciled (the reconcile matches on path+mtime+config, never the declared type) onto a
+                    // column another dataset over the same file declares numeric. It can never be served: buildBlock
+                    // casts the extremum to (Number) and would ClassCastException. Drop it and mark the extremum
+                    // unservable so the serve safe-misses (re-scans) rather than crashing. (value == null is a genuinely
+                    // absent stat — nothing to do.)
+                    if (value != null) {
+                        if (out == null) {
+                            out = new HashMap<>(statsMap);
+                        }
+                        out.remove(key);
+                        out.put(pair[1], Boolean.TRUE);
+                    }
                     continue;
                 }
                 Object coerced = coerceNumberToType((Number) value, type); // null => not representable in `type`

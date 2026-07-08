@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 999999
-summary: "Add Markdown (`md`) response format to the ES|QL REST API"
-type: enhancement

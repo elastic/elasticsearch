@@ -26,6 +26,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -52,12 +53,12 @@ import java.util.concurrent.TimeUnit;
 /**
  * Compares two ways of matching an integer {@code terms} query as the size of the value list
  * grows: the current default (BKD points, {@link IntPoint#newSetQuery}) against the
- * {@code format}-mapped path (a zero-padded string in the terms dictionary, matched with
- * {@link TermInSetQuery}) that {@code NumberFieldMapper} uses when a {@code format} is configured
+ * {@code index_terms}-mapped path (a sortable-bytes term in the terms dictionary, matched with
+ * {@link TermInSetQuery}) that {@code NumberFieldMapper} uses when {@code index_terms} is enabled
  * on an {@code integer} field.
  * <p>
- * The field/query construction mirrors {@code NumberFieldMapper}'s private {@code FormattedIntegerField},
- * {@code applyFormat}, and {@code FORMATTED_INT_FIELD_TYPE} (points path) / the {@code format != null}
+ * The field/query construction mirrors {@code NumberFieldMapper}'s private {@code IndexTermsIntegerField},
+ * {@code encodeIndexTerm}, and {@code INDEX_TERMS_FIELD_TYPE} (points path) / the {@code indexTerms}
  * branch of {@code termsQuery} (terms path); those are not reachable from this module, so the
  * equivalent Lucene-level construction is duplicated here and should be kept in sync if the mapper
  * changes.
@@ -88,7 +89,6 @@ public class IntegerTermsQueryBenchmark {
 
     static final String FIELD = "f";
     static final int N_DOCS = 10_000_000;
-    static final String FORMAT = "00000000";
     static final int TOP_N = 10;
 
     static int[] distinctRandomInts(Random random, int count, int bound) {
@@ -106,47 +106,32 @@ public class IntegerTermsQueryBenchmark {
     }
 
     /**
-     * Mirrors {@code NumberFieldMapper#applyFormat}: zero-pads {@code value} to {@link #FORMAT}'s
-     * width, encoding straight to the {@link BytesRef}'s backing bytes. Going through a
-     * {@link String} first (via {@code Integer.toString} + {@code substring} + concatenation)
-     * would need {@code BytesRef}'s {@code String} constructor to re-encode that String to UTF-8
-     * afterwards — pure overhead when the alphabet is only ASCII digits.
+     * Mirrors {@code NumberFieldMapper#encodeIndexTerm}: encodes {@code value} as the same
+     * sortable-bytes term {@link IntPoint} uses for BKD points, so unsigned byte-wise term order
+     * matches numeric order (see {@link NumericUtils#intToSortableBytes}).
      */
-    static BytesRef applyFormat(int value) {
-        int width = FORMAT.length();
-        int digits = 1;
-        for (int t = value; t >= 10; t /= 10) {
-            digits++;
-        }
-        byte[] bytes = new byte[Math.max(digits, width)];
-        int i = bytes.length;
-        int v = value;
-        do {
-            bytes[--i] = (byte) ('0' + (v % 10));
-            v /= 10;
-        } while (v > 0);
-        while (i > 0) {
-            bytes[--i] = '0';
-        }
+    static BytesRef encodeIndexTerm(int value) {
+        byte[] bytes = new byte[Integer.BYTES];
+        NumericUtils.intToSortableBytes(value, bytes, 0);
         return new BytesRef(bytes);
     }
 
-    private static final FieldType FORMATTED_INT_FIELD_TYPE;
+    private static final FieldType INDEX_TERMS_FIELD_TYPE;
     static {
-        FORMATTED_INT_FIELD_TYPE = new FieldType();
-        FORMATTED_INT_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-        FORMATTED_INT_FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
-        FORMATTED_INT_FIELD_TYPE.setOmitNorms(true);
-        FORMATTED_INT_FIELD_TYPE.setTokenized(false);
-        FORMATTED_INT_FIELD_TYPE.freeze();
+        INDEX_TERMS_FIELD_TYPE = new FieldType();
+        INDEX_TERMS_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+        INDEX_TERMS_FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
+        INDEX_TERMS_FIELD_TYPE.setOmitNorms(true);
+        INDEX_TERMS_FIELD_TYPE.setTokenized(false);
+        INDEX_TERMS_FIELD_TYPE.freeze();
     }
 
-    /** Mirrors {@code NumberFieldMapper.FormattedIntegerField}: string term plus numeric doc value. */
-    static final class FormattedIntegerField extends Field {
+    /** Mirrors {@code NumberFieldMapper.IndexTermsIntegerField}: sortable-bytes term plus numeric doc value. */
+    static final class IndexTermsIntegerField extends Field {
         private final int numericVal;
 
-        FormattedIntegerField(String name, int value) {
-            super(name, applyFormat(value), FORMATTED_INT_FIELD_TYPE);
+        IndexTermsIntegerField(String name, int value) {
+            super(name, encodeIndexTerm(value), INDEX_TERMS_FIELD_TYPE);
             this.numericVal = value;
         }
 
@@ -170,18 +155,18 @@ public class IntegerTermsQueryBenchmark {
                 return IntPoint.newSetQuery(FIELD, values);
             }
         },
-        /** The {@code format}-mapped path: zero-padded terms dictionary entries, doc values kept. */
-        FORMAT_TERMS {
+        /** The {@code index_terms}-mapped path: sortable-bytes terms dictionary entries, doc values kept. */
+        INDEX_TERMS {
             @Override
             void addField(Document doc, int value) {
-                doc.add(new FormattedIntegerField(FIELD, value));
+                doc.add(new IndexTermsIntegerField(FIELD, value));
             }
 
             @Override
             Query termsQuery(int[] values) {
                 List<BytesRef> terms = new ArrayList<>(values.length);
                 for (int value : values) {
-                    terms.add(applyFormat(value));
+                    terms.add(encodeIndexTerm(value));
                 }
                 return new TermInSetQuery(FIELD, terms);
             }
@@ -192,7 +177,7 @@ public class IntegerTermsQueryBenchmark {
         abstract Query termsQuery(int[] values);
     }
 
-    @Param({ "POINT", "FORMAT_TERMS" })
+    @Param({ "POINT", "INDEX_TERMS" })
     public Strategy strategy;
 
     @Param({ "1", "10", "100", "1000", "10000", "100000" })
@@ -224,12 +209,9 @@ public class IntegerTermsQueryBenchmark {
         }
         reader = DirectoryReader.open(directory);
         searcher = new IndexSearcher(reader);
-        // IndexSearcher's default LRUQueryCache is static and process-wide; since prebuiltQuery is
-        // reused across every JMH iteration, only the first call would do real work and everything
-        // after would be a cache hit. Disable it so `search` measures actual match execution.
         searcher.setQueryCache(null);
 
-        // Fixed seed: POINT and FORMAT_TERMS search the exact same values at a given nTerms.
+        // Fixed seed: POINT and INDEX_TERMS search the exact same values at a given nTerms.
         queryValues = distinctRandomInts(new Random(42), nTerms, N_DOCS);
 
         prebuiltQuery = strategy.termsQuery(queryValues);

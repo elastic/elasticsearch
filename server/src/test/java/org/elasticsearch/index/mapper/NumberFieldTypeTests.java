@@ -160,7 +160,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
-    private static NumberFieldType formattedIntegerFieldType(String format) {
+    private static NumberFieldType indexTermsIntegerFieldType() {
         return new NumberFieldType(
             "field",
             NumberType.INTEGER,
@@ -175,39 +175,47 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             null,
             false,
             false,
-            format
+            true
         );
     }
 
-    public void testFormattedIntegerTermQuery() {
-        NumberFieldType ft = formattedIntegerFieldType("0000");
-        // The query value is redirected to the zero-padded term in the inverted index.
-        assertEquals(new TermQuery(new Term("field", new BytesRef("0042"))), ft.termQuery(42, MOCK_CONTEXT));
-        assertEquals(new TermQuery(new Term("field", new BytesRef("0042"))), ft.termQuery("42", MOCK_CONTEXT));
+    private static BytesRef sortableBytesTerm(int value) {
+        byte[] bytes = new byte[Integer.BYTES];
+        NumericUtils.intToSortableBytes(value, bytes, 0);
+        return new BytesRef(bytes);
     }
 
-    public void testFormattedIntegerTermQueryNonMatchingValues() {
-        NumberFieldType ft = formattedIntegerFieldType("0000");
-        // Formatted integer fields only index non-negative integers, so decimal, negative and
-        // out-of-range values cannot match any document and are turned into a match-no-docs query.
+    public void testIndexTermsIntegerTermQuery() {
+        NumberFieldType ft = indexTermsIntegerFieldType();
+        // The query value is redirected to the sortable-bytes term in the inverted index.
+        assertEquals(new TermQuery(new Term("field", sortableBytesTerm(42))), ft.termQuery(42, MOCK_CONTEXT));
+        assertEquals(new TermQuery(new Term("field", sortableBytesTerm(42))), ft.termQuery("42", MOCK_CONTEXT));
+        // Negative values are indexed and searchable too.
+        assertEquals(new TermQuery(new Term("field", sortableBytesTerm(-1))), ft.termQuery(-1, MOCK_CONTEXT));
+    }
+
+    public void testIndexTermsIntegerTermQueryNonMatchingValues() {
+        NumberFieldType ft = indexTermsIntegerFieldType();
+        // Decimal and out-of-int-range values cannot match any document and are turned into a
+        // match-no-docs query.
         assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
-        assertTrue(ft.termQuery(-1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
         assertTrue(ft.termQuery(2147483648L, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(-2147483649L, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
-    public void testFormattedIntegerTermsQuery() {
-        NumberFieldType ft = formattedIntegerFieldType("0000");
+    public void testIndexTermsIntegerTermsQuery() {
+        NumberFieldType ft = indexTermsIntegerFieldType();
         assertEquals(
-            new TermInSetQuery("field", Arrays.asList(new BytesRef("0001"), new BytesRef("0002"))),
-            ft.termsQuery(Arrays.asList(1, 2), MOCK_CONTEXT)
+            new TermInSetQuery("field", Arrays.asList(sortableBytesTerm(1), sortableBytesTerm(-2))),
+            ft.termsQuery(Arrays.asList(1, -2), MOCK_CONTEXT)
         );
-        // Non-matching values (decimal, negative, out-of-range) are dropped; matching ones remain.
+        // Non-matching values (decimal, out-of-range) are dropped; matching ones remain.
         assertEquals(
-            new TermInSetQuery("field", Collections.singletonList(new BytesRef("0003"))),
-            ft.termsQuery(Arrays.asList(3, 2.1, -1, 2147483648L), MOCK_CONTEXT)
+            new TermInSetQuery("field", Collections.singletonList(sortableBytesTerm(3))),
+            ft.termsQuery(Arrays.asList(3, 2.1, 2147483648L), MOCK_CONTEXT)
         );
         // If no value can match, a match-no-docs query is returned.
-        assertTrue(ft.termsQuery(Arrays.asList(2.1, -1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termsQuery(Arrays.asList(2.1, 2147483648L), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     private static MappedFieldType unsearchable() {
@@ -225,7 +233,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             null,
             false,
             false,
-            null
+            false
         );
     }
 

@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -42,7 +43,7 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         super.registerParameters(checker);
-        checker.registerConflictCheck("format", b -> b.field("format", "0000"));
+        checker.registerConflictCheck("index_terms", b -> b.field("index_terms", true));
     }
 
     @Override
@@ -75,23 +76,25 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
         return new Object[] { 1, 2, 3 };
     }
 
-    public void testFormatIndexesZeroPaddedTerms() throws IOException {
+    public void testIndexTermsIndexesSortableBytesTerms() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "integer");
-            b.field("format", "00000000");
+            b.field("index_terms", true);
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 42)));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
 
-        // Should have a terms field (inverted index) with the formatted value
+        // Should have a terms field (inverted index) with the sortable-bytes encoded value
         long termsCount = fields.stream().filter(f -> f.fieldType().indexOptions().compareTo(IndexOptions.NONE) > 0).count();
         assertEquals(1, termsCount);
         IndexableField termsField = fields.stream()
             .filter(f -> f.fieldType().indexOptions().compareTo(IndexOptions.NONE) > 0)
             .findFirst()
             .get();
-        assertEquals(new BytesRef("00000042"), termsField.binaryValue());
+        byte[] expected = new byte[Integer.BYTES];
+        NumericUtils.intToSortableBytes(42, expected, 0);
+        assertEquals(new BytesRef(expected), termsField.binaryValue());
 
         // Should have doc values
         long dvCount = fields.stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count();
@@ -100,54 +103,41 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
         assertEquals(42, dvField.numericValue().intValue());
     }
 
-    public void testFormatRejectsNegativeValues() throws IOException {
+    public void testIndexTermsIndexesNegativeValues() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "integer");
-            b.field("format", "0000");
+            b.field("index_terms", true);
         }));
 
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", -1))));
-        assertThat(e.getCause().getMessage(), containsString("does not accept negative values"));
-    }
-
-    public void testFormatOnlyAllowsZeroChars() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-            b.field("type", "integer");
-            b.field("format", "XXXX");
-        })));
-        assertThat(e.getMessage(), containsString("[format] must consist only of '0' characters"));
-    }
-
-    public void testFormatOnlyAllowedOnInteger() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-            b.field("type", "long");
-            b.field("format", "0000");
-        })));
-        assertThat(e.getMessage(), containsString("[format] is only supported on [integer] fields"));
-    }
-
-    public void testFormatRequiresIndex() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-            b.field("type", "integer");
-            b.field("format", "0000");
-            b.field("index", false);
-        })));
-        assertThat(e.getMessage(), containsString("[format] requires that [index] is true"));
-    }
-
-    public void testFormatValueLongerThanFormat() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "integer");
-            b.field("format", "0000");
-        }));
-
-        // A value longer than the format should not be truncated
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", 99999)));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", -1)));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
+
         IndexableField termsField = fields.stream()
             .filter(f -> f.fieldType().indexOptions().compareTo(IndexOptions.NONE) > 0)
             .findFirst()
             .get();
-        assertEquals(new BytesRef("99999"), termsField.binaryValue());
+        byte[] expected = new byte[Integer.BYTES];
+        NumericUtils.intToSortableBytes(-1, expected, 0);
+        assertEquals(new BytesRef(expected), termsField.binaryValue());
+
+        IndexableField dvField = fields.stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).findFirst().get();
+        assertEquals(-1, dvField.numericValue().intValue());
+    }
+
+    public void testIndexTermsOnlyAllowedOnInteger() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "long");
+            b.field("index_terms", true);
+        })));
+        assertThat(e.getMessage(), containsString("[index_terms] is only supported on [integer] fields"));
+    }
+
+    public void testIndexTermsRequiresIndex() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "integer");
+            b.field("index_terms", true);
+            b.field("index", false);
+        })));
+        assertThat(e.getMessage(), containsString("[index_terms] requires that [index] is true"));
     }
 }

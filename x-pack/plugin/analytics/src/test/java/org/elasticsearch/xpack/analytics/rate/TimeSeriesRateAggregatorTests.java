@@ -212,7 +212,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             IndexMode.TIME_SERIES,
             false,
             false,
-            null
+            false
         );
     }
 

@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 153300
+summary: Add shard cache requirements and usage metrics to `ClusterInfo`
+type: feature

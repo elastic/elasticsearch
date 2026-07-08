@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -20,6 +23,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -61,11 +65,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ParallelParsingCoordinatorTests extends ESTestCase {
@@ -1244,6 +1250,381 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             firstLineEmitted,
             Matchers.not(Matchers.equalTo("line-00000"))
         );
+    }
+
+    /**
+     * Readiness contract, "parks while parsing" branch: with every segment worker blocked in {@code read()}
+     * (segments still parsing) and the shared queue empty, {@link CloseableIterator#waitForReady()} must NOT
+     * complete synchronously. Once production is released and the first page is enqueued, the parked listener
+     * must fire via {@code signalReady()}. This is the honest-readiness signal that lets {@code drainHotPath}
+     * yield its scarce consumer-pool thread instead of blocking inside {@link CloseableIterator#hasNext()} for
+     * the whole segment read (the fast-follow to #153074 for the uncompressed seekable path).
+     */
+    public void testWaitForReadyParksWhileParsingThenSignalsOnPage() throws Exception {
+        byte[] content = repeatedLines(400);
+        InMemoryStorageObject obj = new InMemoryStorageObject(content);
+        assertThat(
+            "test needs a genuinely multi-segment file or it hits the single-stream fallback (no AsReadyParallelIterator)",
+            ParallelParsingCoordinator.computeSegments(new LineFormatReader(blockFactory()), obj, content.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+
+        CountDownLatch readEntered = new CountDownLatch(1);
+        CountDownLatch producePermit = new CountDownLatch(1);
+        GatedReadLineReader reader = new GatedReadLineReader(blockFactory(), readEntered, producePermit);
+
+        ExecutorService exec = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
+            // A segment worker has entered read() and is blocked before producing any page: segments are
+            // parsing, remainingSegments is still full, and the shared queue is empty.
+            assertTrue("a segment worker must have entered read()", readEntered.await(10, TimeUnit.SECONDS));
+            SubscribableListener<Void> ready = iter.waitForReady();
+            assertFalse("waitForReady must NOT complete while segments parse with an empty queue", ready.isDone());
+
+            // Release production: the first successful sharedQueue.offer fires signalReady, completing the listener.
+            producePermit.countDown();
+            assertBusy(() -> assertTrue("ready listener must fire once a page is enqueued", ready.isDone()), 10, TimeUnit.SECONDS);
+
+            try (iter) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            producePermit.countDown();
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Readiness contract, "EOF" branch: once every segment has finished and the shared queue is drained,
+     * {@link CloseableIterator#waitForReady()} must be immediately done (terminal EOF) so the drain concludes
+     * without a residual wait rather than parking forever.
+     */
+    public void testWaitForReadyImmediateAtEof() throws Exception {
+        byte[] content = repeatedLines(200);
+        InMemoryStorageObject obj = new InMemoryStorageObject(content);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+        assertThat(
+            "test needs a genuinely multi-segment file or it hits the single-stream fallback",
+            ParallelParsingCoordinator.computeSegments(reader, obj, content.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
+            try (iter) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+                assertTrue(
+                    "waitForReady must be immediately done once every segment finished and the queue drained",
+                    iter.waitForReady().isDone()
+                );
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Readiness contract, "non-terminal segment finish" branch (guards the {@code finishSegment()} signal
+     * gate). A leader segment finishes producing <em>no</em> pages while later segments stay blocked in
+     * {@code read()}: remainingSegments is still non-zero and the queue is empty, so {@code isReadyNow()} is
+     * false and a consumer parked on {@link CloseableIterator#waitForReady()} must stay parked. Signalling on
+     * every segment completion (the pre-review shape) would spuriously complete the listener here and drop
+     * {@code drainHotPath} into a blocking {@code hasNext()}. Once the later segments are released and enqueue
+     * a page, the listener fires.
+     */
+    public void testWaitForReadyStaysParkedWhenNonTerminalSegmentFinishesEmpty() throws Exception {
+        byte[] content = repeatedLines(400);
+        InMemoryStorageObject obj = new InMemoryStorageObject(content);
+        assertThat(
+            "test needs a genuinely multi-segment file",
+            ParallelParsingCoordinator.computeSegments(new LineFormatReader(blockFactory()), obj, content.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+
+        CountDownLatch leaderFinished = new CountDownLatch(1);
+        CountDownLatch releaseRest = new CountDownLatch(1);
+        LeaderEmptyRestGatedReader reader = new LeaderEmptyRestGatedReader(blockFactory(), leaderFinished, releaseRest);
+
+        ExecutorService exec = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
+            SubscribableListener<Void> ready = iter.waitForReady();
+            assertFalse("waitForReady must NOT complete while segments parse with an empty queue", ready.isDone());
+
+            // The leader segment finishes producing zero pages; the later segments are still blocked in read().
+            assertTrue("leader segment must finish", leaderFinished.await(10, TimeUnit.SECONDS));
+            // A non-terminal segment finishing must not wake the parked consumer. Give finishSegment() a beat.
+            Thread.sleep(200);
+            assertFalse("a mid-parse segment finishing with an empty queue must not complete waitForReady", ready.isDone());
+
+            // Release the rest: pages now flow and the listener fires via enqueueOrRelease's signalReady.
+            releaseRest.countDown();
+            assertBusy(() -> assertTrue("ready listener must fire once a page is enqueued", ready.isDone()), 10, TimeUnit.SECONDS);
+
+            try (iter) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            releaseRest.countDown();
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Concurrency parity with the streaming sibling ({@code StreamingParallelParsingCoordinatorTests
+     * #testConcurrentProducerLoopsOnSharedPoolDoNotDeadlock}), for the uncompressed seekable path.
+     * <p>
+     * {@code F} concurrent {@link ParallelParsingCoordinator#parallelRead} iterators are drained by a
+     * {@code drainHotPath}-mirroring producer loop on a <em>consumer pool of size &lt; F</em>; segment parsing
+     * runs on a separate, amply-sized pool. Every segment worker is gated in {@code read()} before producing a
+     * page, so at the point of the assertion the queues are empty and all segments are still parsing.
+     * <ul>
+     *   <li><b>Pre-fix</b> (no {@code waitForReady} override → default immediately-ready): each drain falls
+     *       into a blocking {@link CloseableIterator#hasNext()} and pins its consumer-pool thread for the whole
+     *       read. With the pool smaller than {@code F}, only {@code poolSize} drains ever start; the rest stay
+     *       queued and never begin — so {@code startedLatch} never reaches zero and this times out.</li>
+     *   <li><b>Post-fix</b>: each drain parks on {@link CloseableIterator#waitForReady()} and yields its thread,
+     *       so all {@code F} drains start on the sub-{@code F} pool. After production is released every drain
+     *       resumes and delivers all rows.</li>
+     * </ul>
+     * As-ready emission does not preserve cross-segment order, so per-file completeness is asserted set-wise.
+     */
+    public void testConcurrentDrainsOnUndersizedConsumerPoolPark() throws Exception {
+        int fileCount = 4;
+        int parallelism = 2;
+        int openCap = 2;
+        int consumerPoolSize = 2; // strictly < fileCount
+        int linesPerFile = 400;
+
+        byte[] sample = repeatedLines(linesPerFile);
+        assertThat(
+            "each file must be genuinely multi-segment to exercise AsReadyParallelIterator",
+            ParallelParsingCoordinator.computeSegments(
+                new LineFormatReader(blockFactory()),
+                new InMemoryStorageObject(sample),
+                sample.length,
+                parallelism,
+                1
+            ).size(),
+            Matchers.greaterThan(1)
+        );
+
+        // Segment workers run here; sized to hold every gated (blocked-in-read) segment plus post-release work.
+        ExecutorService parserPool = Executors.newFixedThreadPool(fileCount * parallelism + 4);
+        // Deliberately smaller than fileCount: a blocking drain would starve the not-yet-started files.
+        ExecutorService consumerPool = Executors.newFixedThreadPool(consumerPoolSize);
+
+        CountDownLatch producePermit = new CountDownLatch(1);
+        CountDownLatch startedLatch = new CountDownLatch(fileCount);
+
+        List<CloseableIterator<Page>> iterators = new ArrayList<>();
+        List<PlainActionFuture<List<String>>> dones = new ArrayList<>();
+        try {
+            for (int f = 0; f < fileCount; f++) {
+                InMemoryStorageObject obj = new InMemoryStorageObject(repeatedLines(linesPerFile));
+                GatedReadLineReader reader = new GatedReadLineReader(blockFactory(), new CountDownLatch(1), producePermit);
+                CloseableIterator<Page> it = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    parallelism,
+                    parserPool,
+                    null,
+                    false,
+                    true,
+                    null,
+                    openCap,
+                    null
+                );
+                iterators.add(it);
+                PlainActionFuture<List<String>> done = new PlainActionFuture<>();
+                dones.add(done);
+                AtomicBoolean started = new AtomicBoolean();
+                List<String> collected = new ArrayList<>();
+                consumerPool.execute(() -> drainAsReadyViaProducerLoop(it, consumerPool, started, startedLatch, collected, done));
+            }
+
+            // The load-bearing assertion: on a sub-F consumer pool every drain must have STARTED. Pre-fix, the
+            // first poolSize drains block in hasNext() and the remainder never run — this times out. Post-fix,
+            // they park and free their threads, so all F start even though production is still gated.
+            assertBusy(
+                () -> assertEquals("a sub-F consumer pool must let all F drains start (park, don't block)", 0L, startedLatch.getCount()),
+                15,
+                TimeUnit.SECONDS
+            );
+
+            // Release production; every drain must now resume via signalReady and deliver all of its rows.
+            producePermit.countDown();
+
+            List<String> expected = new ArrayList<>();
+            for (int i = 0; i < linesPerFile; i++) {
+                expected.add(String.format(java.util.Locale.ROOT, "line-%05d", i));
+            }
+            Collections.sort(expected);
+            for (int f = 0; f < fileCount; f++) {
+                List<String> got = dones.get(f).actionGet(TimeValue.timeValueSeconds(30));
+                List<String> sorted = new ArrayList<>(got);
+                Collections.sort(sorted);
+                assertEquals("file " + f + " must deliver every row exactly once (as-ready order)", expected, sorted);
+            }
+        } finally {
+            producePermit.countDown();
+            for (CloseableIterator<Page> it : iterators) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            consumerPool.shutdownNow();
+            parserPool.shutdownNow();
+        }
+    }
+
+    /**
+     * Mirrors {@code AsyncExternalSourceOperatorFactory#drainHotPath}: parks (yields its pool thread by
+     * registering a listener and returning) when the iterator is not ready, resumes on {@code signalReady}.
+     * Counts the file's first entry into {@code startedLatch} so the concurrency test can distinguish "all
+     * drains started" (post-fix, parking) from "only poolSize drains started" (pre-fix, blocking).
+     */
+    private static void drainAsReadyViaProducerLoop(
+        CloseableIterator<Page> it,
+        Executor pool,
+        AtomicBoolean started,
+        CountDownLatch startedLatch,
+        List<String> collected,
+        PlainActionFuture<List<String>> done
+    ) {
+        try {
+            if (started.compareAndSet(false, true)) {
+                startedLatch.countDown();
+            }
+            BytesRef scratch = new BytesRef();
+            while (true) {
+                SubscribableListener<Void> ready = it.waitForReady();
+                if (ready.isDone() == false) {
+                    ready.addListener(
+                        ActionListener.wrap(
+                            v -> pool.execute(() -> drainAsReadyViaProducerLoop(it, pool, started, startedLatch, collected, done)),
+                            done::onFailure
+                        )
+                    );
+                    return;
+                }
+                if (it.hasNext() == false) { // pre-fix: BLOCKS here for the whole read (default waitForReady is immediately done)
+                    SubscribableListener<Void> recheck = it.waitForReady();
+                    if (recheck.isDone()) {
+                        done.onResponse(collected);
+                        return;
+                    }
+                    recheck.addListener(
+                        ActionListener.wrap(
+                            v -> pool.execute(() -> drainAsReadyViaProducerLoop(it, pool, started, startedLatch, collected, done)),
+                            done::onFailure
+                        )
+                    );
+                    return;
+                }
+                Page p = it.next();
+                BytesRefBlock block = (BytesRefBlock) p.getBlock(0);
+                for (int i = 0; i < block.getPositionCount(); i++) {
+                    collected.add(block.getBytesRef(block.getFirstValueIndex(i), scratch).utf8ToString());
+                }
+                p.releaseBlocks();
+            }
+        } catch (Exception e) {
+            done.onFailure(e);
+        }
+    }
+
+    /**
+     * {@link LineFormatReader} variant that blocks every segment's {@code read()} on a shared
+     * {@code producePermit} latch before producing any page (counting {@code readEntered} down on entry so a
+     * test can observe that a worker is parked in-read). Used by the readiness and concurrency tests to hold
+     * the coordinator in the "segments parsing, queue empty" state deterministically.
+     */
+    private static class GatedReadLineReader extends LineFormatReader {
+        private final CountDownLatch readEntered;
+        private final CountDownLatch producePermit;
+
+        GatedReadLineReader(BlockFactory blockFactory, CountDownLatch readEntered, CountDownLatch producePermit) {
+            super(blockFactory);
+            this.readEntered = readEntered;
+            this.producePermit = producePermit;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            readEntered.countDown();
+            try {
+                if (producePermit.await(30, TimeUnit.SECONDS) == false) {
+                    throw new IOException("gated reader was never released");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted while gated in read()", e);
+            }
+            return super.read(object, context);
+        }
+    }
+
+    /**
+     * {@link LineFormatReader} variant used to isolate a non-terminal segment finish: the leader segment
+     * ({@code firstSplit=true}) returns an immediately-exhausted iterator (zero pages) and counts
+     * {@code leaderFinished} down on close, while every other segment blocks in {@code read()} on
+     * {@code releaseRest}. This holds the coordinator with remainingSegments non-zero and the queue empty
+     * right after the leader finishes, so a test can assert {@code waitForReady()} stays parked.
+     */
+    private static class LeaderEmptyRestGatedReader extends LineFormatReader {
+        private final CountDownLatch leaderFinished;
+        private final CountDownLatch releaseRest;
+
+        LeaderEmptyRestGatedReader(BlockFactory blockFactory, CountDownLatch leaderFinished, CountDownLatch releaseRest) {
+            super(blockFactory);
+            this.leaderFinished = leaderFinished;
+            this.releaseRest = releaseRest;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            if (context.firstSplit()) {
+                return new CloseableIterator<>() {
+                    @Override
+                    public boolean hasNext() {
+                        return false;
+                    }
+
+                    @Override
+                    public Page next() {
+                        throw new java.util.NoSuchElementException();
+                    }
+
+                    @Override
+                    public void close() {
+                        leaderFinished.countDown();
+                    }
+                };
+            }
+            try {
+                if (releaseRest.await(30, TimeUnit.SECONDS) == false) {
+                    throw new IOException("gated non-leader segment was never released");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted while gated in read()", e);
+            }
+            return super.read(object, context);
+        }
     }
 
     /**

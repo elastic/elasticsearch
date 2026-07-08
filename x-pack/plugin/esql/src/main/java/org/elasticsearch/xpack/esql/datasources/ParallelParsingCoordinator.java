@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
@@ -625,6 +626,17 @@ public final class ParallelParsingCoordinator {
         private volatile Page buffered = null;
         private volatile boolean closed = false;
 
+        /**
+         * Async-ready signal, mirroring {@code StreamingParallelIterator}. {@code null} when no consumer is
+         * parked. When {@link #waitForReady()} can't satisfy synchronously it installs a fresh listener here;
+         * the parser workers fire it on every event that can transition the iterator to a ready state (a page
+         * enqueued on the shared queue, a segment finishing, an error recorded, or close). Single-shot: after
+         * firing it is cleared and lazily replaced by the next {@code waitForReady}. Without it the default
+         * immediately-ready signal drops {@code drainHotPath} straight into {@link #hasNext()}, whose
+         * {@link #takeNextPage()} then blocks a scarce consumer-pool thread for the whole segment read.
+         */
+        private final AtomicReference<SubscribableListener<Void>> pendingReady = new AtomicReference<>();
+
         AsReadyParallelIterator(
             SegmentableFormatReader reader,
             StorageObject storageObject,
@@ -822,6 +834,8 @@ public final class ParallelParsingCoordinator {
                     return;
                 }
                 if (sharedQueue.offer(page, 500, TimeUnit.MILLISECONDS)) {
+                    // Wake any consumer parked on waitForReady(): a page is now available at the queue head.
+                    signalReady();
                     return;
                 }
             }
@@ -835,6 +849,64 @@ public final class ParallelParsingCoordinator {
         private void finishSegment() {
             allDone.countDown();
             remainingSegments.decrementAndGet();
+            // Only wake a parked consumer when this completion actually flips isReadyNow() to true: an error
+            // was recorded, or this was the last segment and the queue is now drained (terminal EOF). A
+            // mid-parse segment finishing with pages still to come leaves isReadyNow() false, so signalling
+            // here would spuriously complete the listener and drop drainHotPath into a blocking hasNext() —
+            // exactly the starvation this override removes. Enqueued pages are woken by enqueueOrRelease's
+            // own signalReady(), so no wake-up is lost. Mirrors StreamingParallelIterator's task-exit gate.
+            if (firstError.get() != null || (remainingSegments.get() == 0 && sharedQueue.isEmpty())) {
+                signalReady();
+            }
+        }
+
+        /**
+         * Returns {@code true} when {@link #hasNext()} can run without blocking on a segment read: a page is
+         * already buffered or sitting at the head of the shared queue, an error was recorded, the iterator is
+         * closed, or every segment has finished and the queue is drained (terminal EOF). Otherwise segments
+         * are still parsing with nothing yet enqueued, so {@link #hasNext()} would block in
+         * {@link #takeNextPage()} — the consumer should park on {@link #waitForReady()} instead.
+         */
+        private boolean isReadyNow() {
+            return buffered != null
+                || closed
+                || firstError.get() != null
+                || sharedQueue.peek() != null
+                || (remainingSegments.get() == 0 && sharedQueue.isEmpty());
+        }
+
+        @Override
+        public SubscribableListener<Void> waitForReady() {
+            if (isReadyNow()) {
+                return SubscribableListener.newSucceeded(null);
+            }
+            // Install a listener for the next state-change event (page enqueued, segment finished, EOF, error,
+            // close). Re-check after the CAS to close the gap where state flipped to ready between the first
+            // isReadyNow() call and the install — mirrors StreamingParallelIterator.waitForReady().
+            SubscribableListener<Void> existing = pendingReady.get();
+            if (existing != null) {
+                return existing;
+            }
+            SubscribableListener<Void> fresh = new SubscribableListener<>();
+            if (pendingReady.compareAndSet(null, fresh) == false) {
+                return pendingReady.get();
+            }
+            if (isReadyNow()) {
+                signalReady();
+                return SubscribableListener.newSucceeded(null);
+            }
+            return fresh;
+        }
+
+        /**
+         * Fires the pending readiness listener (if any). Parser workers call this from every state-change site
+         * so a consumer parked on {@link #waitForReady()} resumes promptly.
+         */
+        private void signalReady() {
+            SubscribableListener<Void> listener = pendingReady.getAndSet(null);
+            if (listener != null) {
+                listener.onResponse(null);
+            }
         }
 
         @Override
@@ -873,6 +945,15 @@ public final class ParallelParsingCoordinator {
         private Page takeNextPage() throws InterruptedException {
             while (true) {
                 checkError();
+                // EOF-first: once every segment has finished and the queue is drained no page will ever
+                // arrive, so return without burning a residual 200ms poll. This is the same terminal
+                // condition the post-poll branch below checks; hoisting it only removes the final idle wait.
+                // The poll below remains the termination guarantee for the racing case where the last
+                // segment finishes just after this check but before a page we still need to drain. No
+                // checkError() here: the top-of-loop call just ran and nothing yields in between.
+                if (remainingSegments.get() == 0 && sharedQueue.isEmpty()) {
+                    return null;
+                }
                 Page page = sharedQueue.poll(200, TimeUnit.MILLISECONDS);
                 if (page != null) {
                     return page;
@@ -904,6 +985,8 @@ public final class ParallelParsingCoordinator {
             // accept as complete and cache as an under-count. So a non-clean scan poisons the file.
             boolean cleanCompletion = firstError.get() == null && remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null;
             closed = true;
+            // Wake any consumer parked on waitForReady(); isReadyNow() now returns true on closed.
+            signalReady();
             // Release the page parked by a hasNext() with no following next(); drainQueue() only sees the shared
             // queue, so without this its Blocks leak against the breaker on every early close.
             if (buffered != null) {

@@ -773,7 +773,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 applyProjectStateForAddedOrExistingProject(
                     state.version(),
                     state.projectState(projectId),
-                    previousState.projectState(projectId)
+                    // previousState can be missing a project that isn't otherwise "new" (per projectDelta()) if this is
+                    // the first real cluster state applied after node startup/restart. Essentially, every real project
+                    // "reappears" here without having gone through initializing(). Treat it as having no prior state
+                    // rather than assuming it always exists.
+                    previousState.metadata().hasProject(projectId) ? previousState.projectState(projectId) : null
                 );
             }
         } catch (Exception ex) {

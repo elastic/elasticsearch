@@ -661,12 +661,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexCancelRelocationIT
   method: testCancelReindexCancelsRelocatedTaskByOriginalTaskId
   issue: https://github.com/elastic/elasticsearch/issues/152925
-- class: org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperatorTests
-  method: testMultivaluedGroupColumnProducesWarning
-  issue: https://github.com/elastic/elasticsearch/issues/152928
-- class: org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperatorTests
-  method: testMultivaluedGroupColumnProducesWarning
-  issue: https://github.com/elastic/elasticsearch/issues/152929
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testSingleTypeAggregateMetricDoubleUnmappedNoCastLoadOnly
   issue: https://github.com/elastic/elasticsearch/issues/152930
@@ -817,3 +811,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
   method: testSlicesDense
   issue: https://github.com/elastic/elasticsearch/issues/153272
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testTermVectorsApiRealtimeGet
+  issue: https://github.com/elastic/elasticsearch/issues/153282

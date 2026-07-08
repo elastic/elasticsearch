@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.action.filter;
+package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.DataFormat;
@@ -20,10 +20,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-class ReferenceValueInferenceString extends InferenceString {
+public class ReferenceValueInferenceString extends InferenceString {
     public static final String REFERENCE_VALUE_FIELD = "reference_value";
 
-    static final ConstructingObjectParser<ReferenceValueInferenceString, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<ReferenceValueInferenceString, Void> PARSER = new ConstructingObjectParser<>(
         ReferenceValueInferenceString.class.getSimpleName(),
         args -> new ReferenceValueInferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2], (String) args[3])
     );
@@ -34,7 +34,12 @@ class ReferenceValueInferenceString extends InferenceString {
 
     private final String referenceValue;
 
-    ReferenceValueInferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value, @Nullable String referenceValue) {
+    public ReferenceValueInferenceString(
+        DataType dataType,
+        @Nullable DataFormat dataFormat,
+        String value,
+        @Nullable String referenceValue
+    ) {
         super(dataType, dataFormat, value);
         this.referenceValue = referenceValue;
     }

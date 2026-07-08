@@ -1140,7 +1140,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         // With no source on the hits, each hit costs exactly PER_HIT_OVERHEAD_BYTES. Setting the limit to 1
         // guarantees early termination after the very first document is processed.
         QuerySearchResult querySearchResult = new QuerySearchResult();
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -1182,7 +1182,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         }
 
         QuerySearchResult querySearchResult = new QuerySearchResult();
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(null) {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 

@@ -590,4 +590,39 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().onFailure(), equalTo(FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE));
     }
+
+    /**
+     * A field-level {@code doc_values.on_failure: fail} overrides the index setting of {@code ignore}, resolving to {@code fail}.
+     */
+    public void testFieldLevelOnFailureOverridesIndexSettingIgnore() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore")
+            .build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("on_failure", "fail").endObject())
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().onFailure(), equalTo(FieldMapper.DocValuesParameter.Values.OnFailure.FAIL));
+    }
+
+    /**
+     * Setting {@code on_failure} alone (without {@code multi_value} or {@code nullability}) still forces the map form rather than
+     * collapsing to the {@code true} boolean shorthand, and the value survives a serialize/re-parse round trip.
+     */
+    public void testOnFailureRoundTripsThroughToXContent() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("on_failure", "ignore").endObject())
+        );
+        String mapping = mapperService.documentMapper().mappingSource().toString();
+        assertThat(mapping, containsString("\"doc_values\":{"));
+        assertThat(mapping, containsString("\"on_failure\":\"ignore\""));
+
+        MapperService roundTripped = createMapperService(settings, mapping);
+        KeywordFieldMapper mapper = (KeywordFieldMapper) roundTripped.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().onFailure(), equalTo(FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE));
+    }
 }

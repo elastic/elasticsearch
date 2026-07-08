@@ -3227,7 +3227,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         /** Builds an exact (brute-force) kNN query, that requires an index to exist. */
         public Query createIndexedExactKnnQuery(VectorData queryVector, Float vectorSimilarity) {
-            if (indexType() == IndexType.NONE) {
+            if (indexed == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );

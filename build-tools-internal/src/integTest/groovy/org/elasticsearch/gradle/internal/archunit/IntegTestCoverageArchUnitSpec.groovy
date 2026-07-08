@@ -80,7 +80,6 @@ class IntegTestCoverageArchUnitSpec extends Specification {
         "BuildPluginFuncTest",
         "DraResolvePluginFuncTest",
         "ElasticsearchDistributionPluginFuncTest",
-        "GlobalBuildInfoPluginFuncTest",
         "InternalBwcGitPluginFuncTest",
         "InternalDistributionBwcSetupPluginFuncTest",
         "JdkDownloadPluginFuncTest",

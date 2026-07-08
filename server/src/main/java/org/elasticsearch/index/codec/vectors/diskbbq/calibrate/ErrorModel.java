@@ -17,7 +17,6 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.cluster.KMeansWithOverspill;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -89,7 +88,7 @@ public final class ErrorModel {
         } else {
             int targetSize = Math.max(1, nDocClusters / effectiveQueryClusters);
             KMeansFloatVectorValues centroidVectors = KMeansFloatVectorValues.build(Arrays.asList(docCentroids), null, dim);
-            KMeansWithOverspill<float[]> queryClustering = kmeans.cluster(centroidVectors, targetSize, warmStartQueryCentroids);
+            var queryClustering = kmeans.cluster(centroidVectors, targetSize, warmStartQueryCentroids);
             queryCentroids = queryClustering.centroids();
             docCentroidAssignments = queryClustering.assignments();
         }
@@ -284,7 +283,7 @@ public final class ErrorModel {
         QuantizedErrorScratch scratch
     ) throws IOException {
         KMeansFloatVectorValues corpusVectors = KMeansFloatVectorValues.wrap(source.vectors(), source.corpusOrdinals(), nDocs);
-        KMeansWithOverspill<float[]> docClusters = kmeans.cluster(corpusVectors, nDocsPerCluster, warmStartDocCentroids);
+        var docClusters = kmeans.cluster(corpusVectors, nDocsPerCluster, warmStartDocCentroids);
 
         float[][] docCentroids = docClusters.centroids();
         int[] flatAssignments = docClusters.assignments();

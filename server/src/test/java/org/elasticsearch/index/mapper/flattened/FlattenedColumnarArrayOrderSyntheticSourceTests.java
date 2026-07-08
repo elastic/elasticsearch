@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.WildcardFieldMaskingReader;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Set;
@@ -32,11 +31,6 @@ import java.util.Set;
  * multiple keys.
  */
 public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServiceTestCase {
-
-    @Before
-    public void assumeColumnarFeatureEnabled() {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
 
     private DocumentMapper columnarMapper() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();

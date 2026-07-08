@@ -770,3 +770,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationAndTargetRestart
   issue: https://github.com/elastic/elasticsearch/issues/153173
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testMasterFailoverDuringCleanup
+  issue: https://github.com/elastic/elasticsearch/issues/153174

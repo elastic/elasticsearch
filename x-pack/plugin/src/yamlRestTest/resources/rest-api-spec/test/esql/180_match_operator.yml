@@ -217,7 +217,7 @@ setup:
   - match: { error.reason: "/.*operator.is.only.supported.in.WHERE.*/" }
 
 ---
-"match function on left hand side fails without pragma":
+"match function on left hand side fails when runtime lexical search is disabled":
   - requires:
       capabilities:
         - method: POST
@@ -231,6 +231,8 @@ setup:
       esql.query:
         body:
           query: 'FROM test | WHERE concat(content, " foo"):"fox"'
+          pragma:
+            runtime_lexical_search: false
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }

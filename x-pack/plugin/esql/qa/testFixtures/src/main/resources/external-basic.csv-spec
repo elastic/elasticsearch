@@ -1178,3 +1178,21 @@ FROM employees_no_mv
 emp_no:integer | salary:integer
 10001          | 57305
 ;
+
+// A query-level time_zone shifts the date functions applied to a dataset column, exactly as it does over an index.
+// The stored instant is zone-independent; only the extraction is shifted.
+timezoneShiftsDateFunctionsOverExternalDataset
+required_capability: dataset_in_from_command
+required_capability: global_timezone_parameter_with_output
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+set time_zone="+02:00"\;
+FROM employees_no_mv
+| SORT emp_no
+| KEEP emp_no, hire_date
+| EVAL hour = date_extract("hour_of_day", hire_date)
+| LIMIT 1;
+
+emp_no:integer | hire_date:date           | hour:long
+10001          | 1986-06-26T00:00:00.000Z | 2
+;

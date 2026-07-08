@@ -916,10 +916,10 @@ public class TestAnalyzer {
      * Load a mapping file.
      */
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
-        var groupped = Arrays.stream(indexName.split(","))
+        var grouped = Arrays.stream(indexName.split(","))
             .collect(groupingBy(index -> RemoteClusterAware.splitIndexName(index).getClusterGroupingKey()));
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), groupped, groupped)
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), grouped, grouped)
         );
     }
 

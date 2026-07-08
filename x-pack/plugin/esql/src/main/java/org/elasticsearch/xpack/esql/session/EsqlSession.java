@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
@@ -48,7 +49,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
@@ -482,7 +482,13 @@ public class EsqlSession {
                             )
                         )
                         .<Result>andThen((l, p) -> {
-                            columnMetadata.set(createColumnMetadata(p, foldContext));
+                            columnMetadata.set(
+                                createColumnMetadata(
+                                    p,
+                                    foldContext,
+                                    QuerySettings.COLUMN_METADATA.get(finalConfiguration.resolvedSettings())
+                                )
+                            );
                             executeOptimizedPlan(
                                 request,
                                 executionInfo,
@@ -580,11 +586,14 @@ public class EsqlSession {
         });
     }
 
-    private Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan optimizedPlan, FoldContext foldContext) {
+    private Map<NameId, Map<String, Object>> createColumnMetadata(
+        LogicalPlan optimizedPlan,
+        FoldContext foldContext,
+        boolean columnMetadataEnabled
+    ) {
         // TODO we need to enforce NameId do not change during optimization.
         // Otherwise metadata might not be found when redering result.
-        // Bucket metadata is gated on the COLUMN_METADATA_BUCKET capability — snapshot-only until the feature is finalized.
-        Map<NameId, Map<String, Object>> bucketMetadata = EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled()
+        Map<NameId, Map<String, Object>> bucketMetadata = columnMetadataEnabled
             ? BucketColumnMetadata.createColumnMetadata(optimizedPlan, foldContext)
             : Map.of();
         return Maps.merge(
@@ -1229,6 +1238,7 @@ public class EsqlSession {
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        executionInfo.queryProfile().setUnmappedResolution(unmappedResolution);
 
         TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
         datasetResolutionProfile.start();
@@ -1532,6 +1542,7 @@ public class EsqlSession {
         }
 
         Map<String, Map<String, Object>> pathConfigs = extractExternalConfigs(plan);
+        Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         var filterHints = PartitionFilterHintExtractor.extract(plan);
 
@@ -1544,9 +1555,46 @@ public class EsqlSession {
             preAnalysis.icebergPaths(),
             pathConfigs,
             filterHints.isEmpty() ? null : filterHints,
+            declaredMappings.isEmpty() ? null : declaredMappings,
             pathsRequiringStats,
             listener.map(result::withExternalSourceResolution)
         );
+    }
+
+    /**
+     * Map from table path to the dataset's user-declared schema, for the {@code UnresolvedExternalRelation} nodes
+     * that carry one ({@code FROM <dataset>} where the dataset declared a mapping). Paths without a declared
+     * schema are absent — the resolver infers them as before.
+     *
+     * <p>Resolution is per-path, so one path gets exactly one schema. Two datasets over the same resource with
+     * <em>different</em> declared mappings in one query — or one mapped and one unmapped — would silently share
+     * whichever resolution won; that is a wrong-schema answer, so it is rejected loudly here instead.
+     */
+    // package-private for testing
+    static Map<String, DatasetMapping> extractDeclaredMappings(LogicalPlan plan) {
+        Map<String, DatasetMapping> declaredMappings = new HashMap<>();
+        Set<String> unmappedPaths = new HashSet<>();
+        plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
+            if (p.tablePath() instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
+                String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
+                if (p.mapping() != null) {
+                    DatasetMapping previous = declaredMappings.putIfAbsent(path, p.mapping());
+                    if (previous != null && previous.equals(p.mapping()) == false) {
+                        throw new IllegalArgumentException(
+                            "resource [" + path + "] is read through datasets with different declared mappings in one query"
+                        );
+                    }
+                } else {
+                    unmappedPaths.add(path);
+                }
+            }
+        });
+        for (String path : unmappedPaths) {
+            if (declaredMappings.containsKey(path)) {
+                throw new IllegalArgumentException("resource [" + path + "] is read both with and without a declared mapping in one query");
+            }
+        }
+        return declaredMappings;
     }
 
     /**
@@ -1867,7 +1915,7 @@ public class EsqlSession {
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
-                indexMode == IndexMode.TIME_SERIES,
+                indexMode.isTsdb(),
                 // TODO: In case of subqueries, the different main index resolutions don't know about each other's minimum version.
                 // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
                 // while resolving each subquery's main index pattern. We'll determine the correct overall minimum transport version
@@ -1963,7 +2011,7 @@ public class EsqlSession {
             projectRouting,
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),
-            indexMode == IndexMode.TIME_SERIES,
+            indexMode.isTsdb(),
             // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
             result.minimumTransportVersion(),
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
@@ -2009,7 +2057,7 @@ public class EsqlSession {
 
     // visible for testing
     static boolean shouldRetryConcreteTimeSeriesResolution(IndexMode indexMode, IndexResolution resolution, IndexPattern indexPattern) {
-        return indexMode == IndexMode.TIME_SERIES
+        return indexMode.isTsdb()
             && resolution.isValid()
             && resolution.resolvedIndices().isEmpty()
             && EsqlCCSUtils.concreteIndexRequested(indexPattern.indexPattern());

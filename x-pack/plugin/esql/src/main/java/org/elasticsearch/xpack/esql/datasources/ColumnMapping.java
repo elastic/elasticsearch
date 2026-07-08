@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,7 +23,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -274,8 +274,22 @@ public final class ColumnMapping implements Writeable {
      * in the reader's natural (projected) order — used by {@link #castBlock} to disambiguate
      * {@link LongBlock} sources (DATETIME vs DATE_NANOS vs LONG share the same block class). May
      * be {@code null} when this mapping has no casts that require source-type disambiguation.
+     * <p>
+     * {@code outputColumnNames} (per output slot, aligned with this mapping's width) and
+     * {@code warnings} feed the per-value failure handling of the shared coercion engine
+     * ({@code DeclaredTypeCoercions.castBlock}): with a live sink a value the cast cannot
+     * represent (e.g. a pre-epoch or post-2262 instant under DATETIME&rarr;DATE_NANOS) nulls its
+     * cell and emits a response {@code Warning} header naming the column — identical to the
+     * declared-type coercion the readers run; with a {@code null} sink the failure propagates and
+     * fails the page.
      */
-    Page mapPage(Page filePage, BlockFactory blockFactory, @Nullable DataType[] fileColumnTypes) {
+    Page mapPage(
+        Page filePage,
+        BlockFactory blockFactory,
+        @Nullable DataType[] fileColumnTypes,
+        @Nullable String[] outputColumnNames,
+        @Nullable SkipWarnings warnings
+    ) {
         int positions = filePage.getPositionCount();
         Block[] blocks = new Block[index.length];
         try {
@@ -288,7 +302,8 @@ public final class ColumnMapping implements Writeable {
                     DataType castTo = cast != null ? cast[i] : null;
                     if (castTo != null) {
                         DataType sourceType = fileColumnTypes != null ? fileColumnTypes[localIndex] : null;
-                        blocks[i] = castBlock(source, sourceType, castTo, positions, blockFactory);
+                        String columnName = outputColumnNames != null ? outputColumnNames[i] : null;
+                        blocks[i] = castBlock(source, sourceType, castTo, blockFactory, columnName, warnings);
                     } else {
                         source.incRef();
                         blocks[i] = source;
@@ -306,6 +321,16 @@ public final class ColumnMapping implements Writeable {
             Releasables.closeExpectNoException(blocks);
             throw e;
         }
+    }
+
+    /**
+     * Three-arg overload for callers with no column names or warnings sink (strict casts: a
+     * per-value failure propagates). Equivalent to the full
+     * {@link #mapPage(Page, BlockFactory, DataType[], String[], SkipWarnings)} with {@code null}
+     * for both.
+     */
+    Page mapPage(Page filePage, BlockFactory blockFactory, @Nullable DataType[] fileColumnTypes) {
+        return mapPage(filePage, blockFactory, fileColumnTypes, null, null);
     }
 
     /**
@@ -387,222 +412,74 @@ public final class ColumnMapping implements Writeable {
     }
 
     /**
+     * Applies one reconciliation cast through the shared coercion engine
+     * ({@link DeclaredTypeCoercions#castBlock}) — the SAME mechanism, values, and per-value
+     * failure behavior as the readers' declared-type coercion, so a column widened by cross-file
+     * schema unification reads exactly like one the user declared at the widened type. The
+     * stringification (KEYWORD) casts keep their {@code TO_STRING(col)}-identical bytes: the
+     * engine routes temporal sources through {@code dateTimeToString}/{@code nanoTimeToString}
+     * and everything else through {@code String.valueOf}, which is what
+     * {@code EsqlDataTypeConverter.numericBooleanToString} wraps.
+     * <p>
+     * A pair outside {@link DeclaredTypeCoercions#supports} means the mapping was built against
+     * types reconciliation can never produce — fail loud (an ill-formed mapping must not limp
+     * along), matching this method's historical contract.
+     *
      * @param sourceType file-side ES|QL type, or {@code null} when unknown. Required to
      *                   disambiguate {@link LongBlock} sources for KEYWORD casts (DATETIME vs
      *                   DATE_NANOS vs LONG share the same block class but stringify differently).
      */
-    private static Block castBlock(Block source, @Nullable DataType sourceType, DataType targetType, int positions, BlockFactory bf) {
-        if (source instanceof IntBlock intBlock) {
-            if (targetType == DataType.LONG) {
-                return castIntToLong(intBlock, positions, bf);
-            } else if (targetType == DataType.DOUBLE) {
-                return castIntToDouble(intBlock, positions, bf);
-            } else if (targetType == DataType.KEYWORD) {
-                return castIntToKeyword(intBlock, positions, bf);
-            }
-        } else if (source instanceof LongBlock longBlock) {
-            if (targetType == DataType.DATE_NANOS) {
-                return castDatetimeToDateNanos(longBlock, positions, bf);
-            } else if (targetType == DataType.KEYWORD) {
-                return castLongOrDatetimeToKeyword(longBlock, sourceType, positions, bf);
-            }
-        } else if (source instanceof DoubleBlock doubleBlock && targetType == DataType.KEYWORD) {
-            return castDoubleToKeyword(doubleBlock, positions, bf);
-        } else if (source instanceof BooleanBlock booleanBlock && targetType == DataType.KEYWORD) {
-            return castBooleanToKeyword(booleanBlock, positions, bf);
-        } else if (source instanceof BytesRefBlock bytesRefBlock && targetType == DataType.KEYWORD) {
-            // Source is already KEYWORD/TEXT bytes — a ref-bumped pass-through is the cheapest
-            // honest answer. mapPage's outer try/catch closes the block on caller exceptions; the
-            // caller never sees a transferred-but-unowned reference.
-            bytesRefBlock.incRef();
-            return bytesRefBlock;
+    private static Block castBlock(
+        Block source,
+        @Nullable DataType sourceType,
+        DataType targetType,
+        BlockFactory bf,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings
+    ) {
+        DataType from = resolveSourceType(source, sourceType, targetType);
+        if (DeclaredTypeCoercions.supports(from, targetType) == false) {
+            throw new UnsupportedOperationException(
+                "Unsupported block cast: " + source.getClass().getSimpleName() + " → " + targetType.typeName()
+            );
+        }
+        return DeclaredTypeCoercions.castBlock(source, from, targetType, null, bf, columnName, warnings);
+    }
+
+    /**
+     * Resolves the source-side ES|QL type the coercion engine dispatches on. The file's read
+     * schema ({@code fileColumnTypes} via {@link #buildPerFileColumnTypes}) wins when present;
+     * otherwise the block class determines it, with one seam: a {@link LongBlock} backs three
+     * ES|QL types (LONG, DATETIME, DATE_NANOS). Under a DATE_NANOS target the source is DATETIME
+     * (the only pair reconciliation widens into DATE_NANOS); under a KEYWORD target the three
+     * stringify differently, so the type must come from the read schema — the assertion tripwires
+     * any caller that forgets to thread it.
+     */
+    private static DataType resolveSourceType(Block source, @Nullable DataType sourceType, DataType targetType) {
+        if (sourceType != null) {
+            return sourceType;
+        }
+        if (source instanceof IntBlock) {
+            return DataType.INTEGER;
+        }
+        if (source instanceof LongBlock) {
+            assert targetType != DataType.KEYWORD
+                : "LongBlock → KEYWORD cast requires sourceType to disambiguate DATETIME / DATE_NANOS / LONG; "
+                    + "callers must pass perFileColumnTypes from the file's read schema";
+            return targetType == DataType.DATE_NANOS ? DataType.DATETIME : DataType.LONG;
+        }
+        if (source instanceof DoubleBlock) {
+            return DataType.DOUBLE;
+        }
+        if (source instanceof BooleanBlock) {
+            return DataType.BOOLEAN;
+        }
+        if (source instanceof BytesRefBlock) {
+            return DataType.KEYWORD;
         }
         throw new UnsupportedOperationException(
             "Unsupported block cast: " + source.getClass().getSimpleName() + " → " + targetType.typeName()
         );
-    }
-
-    private static Block castIntToLong(IntBlock intBlock, int positions, BlockFactory bf) {
-        try (LongBlock.Builder builder = bf.newLongBlockBuilder(positions)) {
-            for (int pos = 0; pos < positions; pos++) {
-                int count = intBlock.getValueCount(pos);
-                if (intBlock.isNull(pos) || count == 0) {
-                    builder.appendNull();
-                } else if (count == 1) {
-                    builder.appendLong(intBlock.getInt(intBlock.getFirstValueIndex(pos)));
-                } else {
-                    int firstIdx = intBlock.getFirstValueIndex(pos);
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendLong(intBlock.getInt(firstIdx + v));
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    private static Block castIntToDouble(IntBlock intBlock, int positions, BlockFactory bf) {
-        try (DoubleBlock.Builder builder = bf.newDoubleBlockBuilder(positions)) {
-            for (int pos = 0; pos < positions; pos++) {
-                int count = intBlock.getValueCount(pos);
-                if (intBlock.isNull(pos) || count == 0) {
-                    builder.appendNull();
-                } else if (count == 1) {
-                    builder.appendDouble(intBlock.getInt(intBlock.getFirstValueIndex(pos)));
-                } else {
-                    int firstIdx = intBlock.getFirstValueIndex(pos);
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendDouble(intBlock.getInt(firstIdx + v));
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    private static Block castDatetimeToDateNanos(LongBlock longBlock, int positions, BlockFactory bf) {
-        try (LongBlock.Builder builder = bf.newLongBlockBuilder(positions)) {
-            for (int pos = 0; pos < positions; pos++) {
-                int count = longBlock.getValueCount(pos);
-                if (longBlock.isNull(pos) || count == 0) {
-                    builder.appendNull();
-                } else if (count == 1) {
-                    builder.appendLong(longBlock.getLong(longBlock.getFirstValueIndex(pos)) * 1_000_000L);
-                } else {
-                    int firstIdx = longBlock.getFirstValueIndex(pos);
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendLong(longBlock.getLong(firstIdx + v) * 1_000_000L);
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    // ===== UBN KEYWORD fallback casts =====
-    // Stringification must produce bytes identical to TO_STRING(col) so a column we stringified
-    // and a column the user explicitly CAST compare equal under GROUP BY / JOIN / equality.
-    // We achieve that by routing through EsqlDataTypeConverter helpers used by the canonical
-    // TO_STRING path: numericBooleanToString for primitives/booleans, dateTimeToString/
-    // nanoTimeToString (with the default formatters) for date types.
-
-    private static Block castIntToKeyword(IntBlock intBlock, int positions, BlockFactory bf) {
-        try (BytesRefBlock.Builder builder = bf.newBytesRefBlockBuilder(positions)) {
-            for (int pos = 0; pos < positions; pos++) {
-                int count = intBlock.getValueCount(pos);
-                if (intBlock.isNull(pos) || count == 0) {
-                    builder.appendNull();
-                } else if (count == 1) {
-                    builder.appendBytesRef(EsqlDataTypeConverter.numericBooleanToString(intBlock.getInt(intBlock.getFirstValueIndex(pos))));
-                } else {
-                    int firstIdx = intBlock.getFirstValueIndex(pos);
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendBytesRef(EsqlDataTypeConverter.numericBooleanToString(intBlock.getInt(firstIdx + v)));
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    /**
-     * LongBlock → KEYWORD cast for all three ES|QL types backed by LongBlock: plain LONG,
-     * DATETIME (millis), and DATE_NANOS. The {@code sourceType} disambiguator picks the
-     * canonical formatter so the emitted bytes match {@code TO_STRING(col)}. {@code sourceType}
-     * must be non-null; the UBN operator factories thread it through
-     * {@link #buildPerFileColumnTypes} from the file's read schema, and the assertion below
-     * tripwires any future caller that forgets to do so. UNSIGNED_LONG is intentionally out of
-     * scope — no current sampler emits it for external sources covered by this cast.
-     */
-    private static Block castLongOrDatetimeToKeyword(LongBlock longBlock, @Nullable DataType sourceType, int positions, BlockFactory bf) {
-        assert sourceType != null
-            : "LongBlock → KEYWORD cast requires sourceType to disambiguate DATETIME / DATE_NANOS / LONG; "
-                + "callers must pass perFileColumnTypes from the file's read schema";
-        assert sourceType != DataType.UNSIGNED_LONG
-            : "UNSIGNED_LONG → KEYWORD cast is not implemented; values > Long.MAX_VALUE would stringify as negative. "
-                + "If a sampler starts inferring UNSIGNED_LONG, route through Long.toUnsignedString instead";
-        try (BytesRefBlock.Builder builder = bf.newBytesRefBlockBuilder(positions)) {
-            for (int pos = 0; pos < positions; pos++) {
-                int count = longBlock.getValueCount(pos);
-                if (longBlock.isNull(pos) || count == 0) {
-                    builder.appendNull();
-                } else if (count == 1) {
-                    builder.appendBytesRef(longValueToKeyword(longBlock.getLong(longBlock.getFirstValueIndex(pos)), sourceType));
-                } else {
-                    int firstIdx = longBlock.getFirstValueIndex(pos);
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendBytesRef(longValueToKeyword(longBlock.getLong(firstIdx + v), sourceType));
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    private static BytesRef longValueToKeyword(long value, @Nullable DataType sourceType) {
-        if (sourceType == DataType.DATETIME) {
-            return new BytesRef(EsqlDataTypeConverter.dateTimeToString(value));
-        }
-        if (sourceType == DataType.DATE_NANOS) {
-            return new BytesRef(EsqlDataTypeConverter.nanoTimeToString(value));
-        }
-        return EsqlDataTypeConverter.numericBooleanToString(value);
-    }
-
-    private static Block castDoubleToKeyword(DoubleBlock doubleBlock, int positions, BlockFactory bf) {
-        try (BytesRefBlock.Builder builder = bf.newBytesRefBlockBuilder(positions)) {
-            for (int pos = 0; pos < positions; pos++) {
-                int count = doubleBlock.getValueCount(pos);
-                if (doubleBlock.isNull(pos) || count == 0) {
-                    builder.appendNull();
-                } else if (count == 1) {
-                    builder.appendBytesRef(
-                        EsqlDataTypeConverter.numericBooleanToString(doubleBlock.getDouble(doubleBlock.getFirstValueIndex(pos)))
-                    );
-                } else {
-                    int firstIdx = doubleBlock.getFirstValueIndex(pos);
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendBytesRef(EsqlDataTypeConverter.numericBooleanToString(doubleBlock.getDouble(firstIdx + v)));
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    private static Block castBooleanToKeyword(BooleanBlock booleanBlock, int positions, BlockFactory bf) {
-        try (BytesRefBlock.Builder builder = bf.newBytesRefBlockBuilder(positions)) {
-            for (int pos = 0; pos < positions; pos++) {
-                int count = booleanBlock.getValueCount(pos);
-                if (booleanBlock.isNull(pos) || count == 0) {
-                    builder.appendNull();
-                } else if (count == 1) {
-                    builder.appendBytesRef(
-                        EsqlDataTypeConverter.numericBooleanToString(booleanBlock.getBoolean(booleanBlock.getFirstValueIndex(pos)))
-                    );
-                } else {
-                    int firstIdx = booleanBlock.getFirstValueIndex(pos);
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendBytesRef(EsqlDataTypeConverter.numericBooleanToString(booleanBlock.getBoolean(firstIdx + v)));
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.build();
-        }
     }
 
     /**

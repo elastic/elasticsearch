@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -234,7 +236,12 @@ public final class ParallelParsingCoordinator {
             baseFileOffset,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             null,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot;
+            // conservatively false preserves the prior never-file-final-for-macro-splits behavior.
+            false
         );
     }
 
@@ -317,13 +324,18 @@ public final class ParallelParsingCoordinator {
             0L,
             maxConcurrentOpenSegments,
             captureSink,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot.
+            false
         );
     }
 
     /**
-     * Full-control overload that also takes the {@code max_record_size} cap used by record splitters
-     * and the file-global byte base offset.
+     * Full-control overload that also takes the {@code max_record_size} cap used by record splitters,
+     * the file-global byte base offset, and the canonical-stripe grid for per-stripe stats attribution
+     * ({@code <= 0} disables; pure overlay).
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -339,7 +351,10 @@ public final class ParallelParsingCoordinator {
         long baseFileOffset,
         int maxConcurrentOpenSegments,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-        int maxRecordBytes
+        int maxRecordBytes,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        boolean splitIsFileFinal
     ) throws IOException {
         return parallelRead(
             reader,
@@ -356,6 +371,9 @@ public final class ParallelParsingCoordinator {
             maxConcurrentOpenSegments,
             captureSink,
             maxRecordBytes,
+            statsStripeSize,
+            statsColumnScope,
+            splitIsFileFinal,
             ExternalSourceMetrics.NOOP
         );
     }
@@ -380,6 +398,9 @@ public final class ParallelParsingCoordinator {
         int maxConcurrentOpenSegments,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         int maxRecordBytes,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        boolean splitIsFileFinal,
         ExternalSourceMetrics metrics
     ) throws IOException {
         long fileLength = storageObject.length();
@@ -408,6 +429,11 @@ public final class ParallelParsingCoordinator {
             .readSchema(readSchema)
             .splitStartByte(baseFileOffset)
             .maxRecordBytes(maxRecordBytes)
+            // Single-segment fallback reads this whole storage object in one shot, so its trailing stripe is
+            // file-final exactly when this macro-split is the file's final split (splitIsFileFinal). A mid-file
+            // macro-split is never file-final — a later split supplies the terminal stripe.
+            .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
+            .statsColumnScope(statsColumnScope)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -434,6 +460,9 @@ public final class ParallelParsingCoordinator {
             baseFileOffset,
             captureSink,
             maxRecordBytes,
+            statsStripeSize,
+            statsColumnScope,
+            splitIsFileFinal,
             metrics
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
@@ -563,6 +592,16 @@ public final class ParallelParsingCoordinator {
         @Nullable
         private final ConcurrentMap<String, List<Map<String, Object>>> captureSink;
         private final int maxRecordBytes;
+        /** Canonical-stripe grid for per-stripe stats attribution ({@code <= 0} disables). Pure stats overlay. */
+        private final long statsStripeSize;
+        /** How much per-stripe statistics each segment harvests (row count only / + projected / + all / nothing). */
+        private final StripeColumnScope statsColumnScope;
+        /**
+         * Whether this storage object is the file's final split. Only then may the trailing segment mark its
+         * last stripe file-final ({@code eof}); a mid-file macro-split's trailing segment ends at the range
+         * boundary, and a later split supplies the terminal stripe — so it must never be marked file-final.
+         */
+        private final boolean splitIsFileFinal;
         /** Node telemetry sink for the {@code reader.pool.rejected} event; {@link ExternalSourceMetrics#NOOP} when unwired. */
         private final ExternalSourceMetrics metrics;
 
@@ -587,6 +626,17 @@ public final class ParallelParsingCoordinator {
         private volatile Page buffered = null;
         private volatile boolean closed = false;
 
+        /**
+         * Async-ready signal, mirroring {@code StreamingParallelIterator}. {@code null} when no consumer is
+         * parked. When {@link #waitForReady()} can't satisfy synchronously it installs a fresh listener here;
+         * the parser workers fire it on every event that can transition the iterator to a ready state (a page
+         * enqueued on the shared queue, a segment finishing, an error recorded, or close). Single-shot: after
+         * firing it is cleared and lazily replaced by the next {@code waitForReady}. Without it the default
+         * immediately-ready signal drops {@code drainHotPath} straight into {@link #hasNext()}, whose
+         * {@link #takeNextPage()} then blocks a scarce consumer-pool thread for the whole segment read.
+         */
+        private final AtomicReference<SubscribableListener<Void>> pendingReady = new AtomicReference<>();
+
         AsReadyParallelIterator(
             SegmentableFormatReader reader,
             StorageObject storageObject,
@@ -602,10 +652,14 @@ public final class ParallelParsingCoordinator {
             long baseFileOffset,
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             int maxRecordBytes,
+            long statsStripeSize,
+            StripeColumnScope statsColumnScope,
+            boolean splitIsFileFinal,
             ExternalSourceMetrics metrics
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
+            this.splitIsFileFinal = splitIsFileFinal;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
@@ -614,6 +668,8 @@ public final class ParallelParsingCoordinator {
             this.baseFileOffset = baseFileOffset;
             this.captureSink = captureSink;
             this.maxRecordBytes = maxRecordBytes;
+            this.statsStripeSize = statsStripeSize;
+            this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
             this.segments = segments;
             this.executor = executor;
@@ -696,18 +752,22 @@ public final class ParallelParsingCoordinator {
         private void readSegment(int segmentIndex, long offset, long length) throws Exception {
             boolean lastSplit = segmentIndex == segments.size() - 1;
             StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
-            // Coverage in absolute file coordinates: segment offsets are relative to this (possibly
-            // macro-split) storage object, so add its base file offset. The reconciler unions
-            // contributions by this range across all segments, macro-splits, and nodes — disjoint
-            // ranges sum, a range re-observed by a sibling FORK scan dedups. {@code lastSplit} flags
-            // the segment that reaches this object's tail; the truly final range (highest offset, on
-            // the file's last macro-split) carries it, which is what the completeness check reads.
-            long baseOffset = storageObject instanceof RangeStorageObject r ? r.offset() : 0L;
-            ExternalStatsCapture.Coverage coverage = new ExternalStatsCapture.Coverage(
-                baseOffset + offset,
-                baseOffset + offset + length,
-                lastSplit
-            );
+            // Absolute file offset of this segment's first byte: segment offsets are relative to this
+            // (possibly macro-split) storage object, so add its base file offset. The reader uses it to
+            // attribute each record to its canonical stripe — a pure stats overlay; this seekable path
+            // gets stripe-addressed stats for free, with no change to how segments are computed or read.
+            // This ONE value feeds both splitStartByte and the stats attribution base — they are the same
+            // quantity, so derive it once. (Deriving the stats base separately from RangeStorageObject.offset()
+            // is equal today but would silently make CSV and NDJSON attribute the same records to different
+            // grids if a future caller's baseFileOffset ever diverged from the range offset.)
+            long segmentFileOffset = baseFileOffset + offset;
+            // statsFileFinal: the trailing segment reaches the file's true end only when (a) it is this storage
+            // object's last segment AND (b) this storage object is the file's final split (splitIsFileFinal).
+            // A mid-file macro-split's trailing segment ends at the range boundary, so a later macro-split
+            // supplies the terminal stripe — never mark it file-final (it would mark a mid-file stripe complete
+            // and silently undercount). The file's final macro-split DOES reach EOF, so its trailing segment is
+            // file-final and the byte-range cover can close the last stripe.
+            boolean statsFileFinal = lastSplit && splitIsFileFinal;
 
             // Per-flag semantics:
             // - firstSplit: only segment 0 owns the file's leading bytes (and any header).
@@ -733,19 +793,22 @@ public final class ParallelParsingCoordinator {
                 .lastSplit(lastSplit)
                 .recordAligned(true)
                 .readSchema(readSchema)
-                .splitStartByte(baseFileOffset + offset)
+                .splitStartByte(segmentFileOffset)
                 .maxRecordBytes(maxRecordBytes)
+                .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
+                .statsColumnScope(statsColumnScope)
                 .build();
 
-            // Bind the consumer-owned sink on this worker so the reader's close hook (which publishes the
-            // chunk's _stats.* contribution via ExternalStatsCapture.record) reaches the same map the
+            // Bind the consumer-owned sink on this worker so the reader's close hook (which publishes its
+            // per-stripe _stats.* contributions via ExternalStatsCapture.record) reaches the same map the
             // consumer-thread StatsCapturingIterator binds — ExternalStatsCapture.ACTIVE is a plain
             // ThreadLocal that does not propagate to executor threads. The pages iterator is opened *inside*
             // the bound's try-with-resources so a failing reader.read still restores the previous binding —
             // worker threads are reused across queries by the shared executor, and a leaked binding would
             // poison subsequent tasks. The inner stream closes first, so the close hook's record() call runs
-            // with the sink still bound; then the handle restores the previous binding.
-            ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink, coverage) : () -> {};
+            // with the sink still bound; then the handle restores the previous binding. The reader stamps
+            // stripe addressing itself, so the sink no longer carries a coverage.
+            ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
             try (bound) {
                 try (CloseableIterator<Page> pages = reader.read(segObj, ctx)) {
                     while (pages.hasNext()) {
@@ -771,6 +834,8 @@ public final class ParallelParsingCoordinator {
                     return;
                 }
                 if (sharedQueue.offer(page, 500, TimeUnit.MILLISECONDS)) {
+                    // Wake any consumer parked on waitForReady(): a page is now available at the queue head.
+                    signalReady();
                     return;
                 }
             }
@@ -784,6 +849,64 @@ public final class ParallelParsingCoordinator {
         private void finishSegment() {
             allDone.countDown();
             remainingSegments.decrementAndGet();
+            // Only wake a parked consumer when this completion actually flips isReadyNow() to true: an error
+            // was recorded, or this was the last segment and the queue is now drained (terminal EOF). A
+            // mid-parse segment finishing with pages still to come leaves isReadyNow() false, so signalling
+            // here would spuriously complete the listener and drop drainHotPath into a blocking hasNext() —
+            // exactly the starvation this override removes. Enqueued pages are woken by enqueueOrRelease's
+            // own signalReady(), so no wake-up is lost. Mirrors StreamingParallelIterator's task-exit gate.
+            if (firstError.get() != null || (remainingSegments.get() == 0 && sharedQueue.isEmpty())) {
+                signalReady();
+            }
+        }
+
+        /**
+         * Returns {@code true} when {@link #hasNext()} can run without blocking on a segment read: a page is
+         * already buffered or sitting at the head of the shared queue, an error was recorded, the iterator is
+         * closed, or every segment has finished and the queue is drained (terminal EOF). Otherwise segments
+         * are still parsing with nothing yet enqueued, so {@link #hasNext()} would block in
+         * {@link #takeNextPage()} — the consumer should park on {@link #waitForReady()} instead.
+         */
+        private boolean isReadyNow() {
+            return buffered != null
+                || closed
+                || firstError.get() != null
+                || sharedQueue.peek() != null
+                || (remainingSegments.get() == 0 && sharedQueue.isEmpty());
+        }
+
+        @Override
+        public SubscribableListener<Void> waitForReady() {
+            if (isReadyNow()) {
+                return SubscribableListener.newSucceeded(null);
+            }
+            // Install a listener for the next state-change event (page enqueued, segment finished, EOF, error,
+            // close). Re-check after the CAS to close the gap where state flipped to ready between the first
+            // isReadyNow() call and the install — mirrors StreamingParallelIterator.waitForReady().
+            SubscribableListener<Void> existing = pendingReady.get();
+            if (existing != null) {
+                return existing;
+            }
+            SubscribableListener<Void> fresh = new SubscribableListener<>();
+            if (pendingReady.compareAndSet(null, fresh) == false) {
+                return pendingReady.get();
+            }
+            if (isReadyNow()) {
+                signalReady();
+                return SubscribableListener.newSucceeded(null);
+            }
+            return fresh;
+        }
+
+        /**
+         * Fires the pending readiness listener (if any). Parser workers call this from every state-change site
+         * so a consumer parked on {@link #waitForReady()} resumes promptly.
+         */
+        private void signalReady() {
+            SubscribableListener<Void> listener = pendingReady.getAndSet(null);
+            if (listener != null) {
+                listener.onResponse(null);
+            }
         }
 
         @Override
@@ -822,6 +945,15 @@ public final class ParallelParsingCoordinator {
         private Page takeNextPage() throws InterruptedException {
             while (true) {
                 checkError();
+                // EOF-first: once every segment has finished and the queue is drained no page will ever
+                // arrive, so return without burning a residual 200ms poll. This is the same terminal
+                // condition the post-poll branch below checks; hoisting it only removes the final idle wait.
+                // The poll below remains the termination guarantee for the racing case where the last
+                // segment finishes just after this check but before a page we still need to drain. No
+                // checkError() here: the top-of-loop call just ran and nothing yields in between.
+                if (remainingSegments.get() == 0 && sharedQueue.isEmpty()) {
+                    return null;
+                }
                 Page page = sharedQueue.poll(200, TimeUnit.MILLISECONDS);
                 if (page != null) {
                     return page;
@@ -853,6 +985,8 @@ public final class ParallelParsingCoordinator {
             // accept as complete and cache as an under-count. So a non-clean scan poisons the file.
             boolean cleanCompletion = firstError.get() == null && remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null;
             closed = true;
+            // Wake any consumer parked on waitForReady(); isReadyNow() now returns true on closed.
+            signalReady();
             // Release the page parked by a hasNext() with no following next(); drainQueue() only sees the shared
             // queue, so without this its Blocks leak against the breaker on every early close.
             if (buffered != null) {

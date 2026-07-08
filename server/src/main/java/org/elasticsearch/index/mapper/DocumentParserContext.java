@@ -16,7 +16,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
@@ -38,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
 
@@ -135,6 +135,13 @@ public abstract class DocumentParserContext {
         }
 
         @Override
+        public FieldArrayContext getOffSetContext(String key, Supplier<? extends FieldArrayContext> factory) {
+            FieldArrayContext offsetContext = in.getOffSetContext(key, factory);
+            offsetContext.setCurrentDoc(doc());
+            return offsetContext;
+        }
+
+        @Override
         public void setImmediateXContentParent(XContentParser.Token token) {
             in.setImmediateXContentParent(token);
         }
@@ -227,6 +234,7 @@ public abstract class DocumentParserContext {
     private final Set<String> fieldsAppliedFromTemplates;
 
     private FieldArrayContext fieldArrayContext;
+    private Map<String, FieldArrayContext> namedFieldArrayContexts;
 
     private final ObjectArrayElementCounter objectArrayElementCounter;
 
@@ -395,7 +403,7 @@ public abstract class DocumentParserContext {
     }
 
     public final String routing() {
-        return mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? null : sourceToParse.routing();
+        return mappingParserContext.getIndexSettings().getMode().isTsdb() ? null : sourceToParse.routing();
     }
 
     /**
@@ -669,6 +677,11 @@ public abstract class DocumentParserContext {
         if (fieldArrayContext != null) {
             fieldArrayContext.addToLuceneDocument(context);
         }
+        if (namedFieldArrayContexts != null) {
+            for (FieldArrayContext arrayContext : namedFieldArrayContexts.values()) {
+                arrayContext.addToLuceneDocument(context);
+            }
+        }
     }
 
     public FieldArrayContext getOffSetContext() {
@@ -677,6 +690,19 @@ public abstract class DocumentParserContext {
         }
         fieldArrayContext.setCurrentDoc(doc());
         return fieldArrayContext;
+    }
+
+    /**
+     * Like {@link #getOffSetContext()}, but for mappers — such as flattened — that need a dedicated
+     * {@link FieldArrayContext} per mapped field rather than sharing the single document-wide one.
+     */
+    public FieldArrayContext getOffSetContext(String key, Supplier<? extends FieldArrayContext> factory) {
+        if (namedFieldArrayContexts == null) {
+            namedFieldArrayContexts = new HashMap<>();
+        }
+        FieldArrayContext arrayContext = namedFieldArrayContexts.computeIfAbsent(key, ignored -> factory.get());
+        arrayContext.setCurrentDoc(doc());
+        return arrayContext;
     }
 
     private XContentParser.Token lastSetToken;
@@ -1009,7 +1035,7 @@ public abstract class DocumentParserContext {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
             doc.add(standardIdField(idField.binaryValue(), Field.Store.NO));
-        } else if (indexSettings().getMode() == IndexMode.TIME_SERIES) {
+        } else if (indexSettings().getMode().isTsdb()) {
             // For time series indices, the _id is generated from the _tsid, which in turn is generated from the values of the configured
             // routing fields. At this point in document parsing, we can't guarantee that we've parsed all the routing fields yet, so the
             // parent document's _id is not yet available.

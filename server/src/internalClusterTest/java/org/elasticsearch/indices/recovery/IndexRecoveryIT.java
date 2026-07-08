@@ -50,6 +50,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -636,6 +637,9 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC));
+
+        logger.info("--> waiting for recovery to start both on source and target");
+        awaitRecoveryCountStats(Map.of(nodeB, stats -> stats.currentAsSource() == 1, nodeC, stats -> stats.currentAsTarget() == 1));
 
         recoveryStates = getRecoveryStates(INDEX_NAME);
 
@@ -1613,7 +1617,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 throw new NodeClosedException(nodeWithOldPrimary);
             }
             // prevent the primary from marking the replica as stale so the replica can get promoted.
-            if (action.equals("internal:cluster/shard/failure")) {
+            if (action.equals(ShardStateAction.SHARD_FAILED_ACTION_NAME)) {
                 stopped.set(true);
                 readyToRestartNode.countDown();
                 throw new NodeClosedException(nodeWithOldPrimary);

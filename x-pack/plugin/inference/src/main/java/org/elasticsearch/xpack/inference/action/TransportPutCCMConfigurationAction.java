@@ -119,6 +119,8 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
                 new ValidationAuthenticationFactory(request.getApiKey()),
                 ccmFeature,
                 ccmService,
+                clusterService,
+                featureService,
                 inferencePreferencesCache
             );
 

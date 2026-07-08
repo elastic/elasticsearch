@@ -47,6 +47,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -3679,8 +3681,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    // Verifies that withByteBufferSlice returns false before data is populated, and provides
-    // a readable byte buffer with correct content after population. Single region of size(10), file size(8).
+    // Verifies that withMemorySegmentSlice returns false before data is populated, and provides
+    // a readable memory segment with correct content after population. Single region of size(10), file size(8).
     public void testWithByteBufferSlice() throws Exception {
         final int regionSize = (int) size(10);
         final long fileLength = size(8); // fits in a single region
@@ -3710,8 +3712,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 SharedBlobCacheService.CacheMissHandler.NOOP
             );
 
-            // before populating, withByteBufferSlice should return false (data not available)
-            assertFalse(cacheFile.withByteBufferSlice(0, 100, slice -> fail("should not be invoked")));
+            // before populating, withMemorySegmentSlice should return false (data not available)
+            assertFalse(cacheFile.withMemorySegmentSlice(0, 100, slice -> fail("should not be invoked")));
 
             // populate the cache with known data
             byte[] testData = randomByteArrayOfLength((int) fileLength);
@@ -3736,14 +3738,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
             assertThat(bytesRead, equalTo((int) fileLength));
 
-            // now withByteBufferSlice should provide a valid slice
+            // now withMemorySegmentSlice should provide a valid slice
             int sliceOffset = randomIntBetween(0, (int) fileLength / 2);
             int sliceLength = randomIntBetween(1, (int) fileLength - sliceOffset);
-            boolean available = cacheFile.withByteBufferSlice(sliceOffset, sliceLength, slice -> {
+            boolean available = cacheFile.withMemorySegmentSlice(sliceOffset, sliceLength, slice -> {
                 assertTrue(slice.isReadOnly());
-                assertEquals(sliceLength, slice.remaining());
+                assertEquals(sliceLength, (int) slice.byteSize());
                 byte[] sliceData = new byte[sliceLength];
-                slice.get(sliceData);
+                MemorySegment.copy(slice, ValueLayout.JAVA_BYTE, 0, sliceData, 0, sliceLength);
                 for (int i = 0; i < sliceLength; i++) {
                     assertEquals(testData[sliceOffset + i], sliceData[i]);
                 }
@@ -3753,7 +3755,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ioExecutor.shutdown();
     }
 
-    // Verifies that the byte buffer ref held during the callback prevents the region from being
+    // Verifies that the memory segment ref held during the callback prevents the region from being
     // evicted. 2 regions of size(10), file size(8); eviction pressure is applied inside the callback.
     public void testWithByteBufferSlicePreventsEviction() throws Exception {
         final int regionSize = (int) size(10);
@@ -3808,7 +3810,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
 
             // inside the callback, the ref is held — eviction should not reclaim the region
-            boolean available = cacheFile1.withByteBufferSlice(0, (int) fileLength, slice -> {
+            boolean available = cacheFile1.withMemorySegmentSlice(0, (int) fileLength, slice -> {
                 // fill the remaining region with a different key, using up all free regions
                 final var cacheKey2 = generateCacheKey();
                 cacheService.get(cacheKey2, fileLength, 0);
@@ -3818,9 +3820,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 cacheService.get(cacheKey3, fileLength, 0);
                 taskQueue.runAllRunnableTasks();
 
-                // the buffer should still contain the original data (region not evicted while ref held)
+                // the memory segment should still contain the original data (region not evicted while ref held)
                 byte[] readBack = new byte[(int) fileLength];
-                slice.get(readBack);
+                MemorySegment.copy(slice, ValueLayout.JAVA_BYTE, 0, readBack, 0, (int) fileLength);
                 assertArrayEquals(testData, readBack);
             });
             assertTrue(available);
@@ -3829,7 +3831,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ioExecutor.shutdown();
     }
 
-    // Verifies that withByteBufferSlice returns false and the callback is not invoked after a
+    // Verifies that withMemorySegmentSlice returns false and the callback is not invoked after a
     // region has been evicted. 2 regions of size(10), file size(8); eviction forced by cache pressure.
     public void testWithByteBufferSliceReturnsFalseAfterEviction() throws Exception {
         final int regionSize = (int) size(10);
@@ -3884,7 +3886,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
 
             // confirm the slice is accessible before eviction
-            assertTrue(cacheFile1.withByteBufferSlice(0, (int) fileLength, slice -> {}));
+            assertTrue(cacheFile1.withMemorySegmentSlice(0, (int) fileLength, slice -> {}));
 
             // fill the second region, then request a third key to force eviction of cacheKey1's region
             cacheService.get(generateCacheKey(), fileLength, 0);
@@ -3892,7 +3894,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             taskQueue.runAllRunnableTasks();
 
             // after eviction the action must not be invoked and the method must return false
-            boolean available = cacheFile1.withByteBufferSlice(
+            boolean available = cacheFile1.withMemorySegmentSlice(
                 0,
                 (int) fileLength,
                 slice -> { fail("action should not be invoked after eviction"); }
@@ -3901,7 +3903,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    // Verifies that withByteBufferSlice returns false when the requested range spans multiple
+    // Verifies that withMemorySegmentSlice returns false when the requested range spans multiple
     // regions. Regions of size(10), file size(25) spanning 3 regions; slice straddles the boundary.
     public void testWithByteBufferSliceCrossRegionReturnsFalse() throws Exception {
         final int regionSize = (int) size(10);
@@ -3935,14 +3937,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // region 0 covers [0, regionSize), region 1 covers [regionSize, 2*regionSize)
             int crossBoundaryOffset = regionSize - 100;
             int crossBoundaryLength = 200; // crosses into region 1
-            boolean available = cacheFile.withByteBufferSlice(crossBoundaryOffset, crossBoundaryLength, slice -> {
+            boolean available = cacheFile.withMemorySegmentSlice(crossBoundaryOffset, crossBoundaryLength, slice -> {
                 fail("action should not be invoked for cross-region slice");
             });
             assertFalse(available);
         }
     }
 
-    // Verifies that withByteBufferSlice returns false when mmap is disabled, even after the
+    // Verifies that withMemorySegmentSlice returns false when mmap is disabled, even after the
     // region has been fully populated. Single region of size(10), file size(8), mmap=false.
     public void testWithByteBufferSliceNoMmapReturnsFalse() throws Exception {
         final int regionSize = (int) size(10);
@@ -3995,8 +3997,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 "test"
             );
 
-            // without mmap, withByteBufferSlice should return false even with data populated
-            boolean available = cacheFile.withByteBufferSlice(
+            // without mmap, withMemorySegmentSlice should return false even with data populated
+            boolean available = cacheFile.withMemorySegmentSlice(
                 0,
                 100,
                 slice -> { fail("action should not be invoked when mmap is not enabled"); }
@@ -4006,7 +4008,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ioExecutor.shutdown();
     }
 
-    // Verifies that withByteBufferSlices resolves multiple ranges within a single region
+    // Verifies that withMemorySegmentSlices resolves multiple ranges within a single region
     // and across regions, returning the correct data for each slice.
     public void testWithByteBufferSlices() throws Exception {
         final int regionSize = (int) size(10);
@@ -4037,10 +4039,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 SharedBlobCacheService.CacheMissHandler.NOOP
             );
 
-            // before populating, withByteBufferSlices should return false
+            // before populating, withMemorySegmentSlices should return false
             long[] offsets = { 0, (long) regionSize + 10, (long) regionSize * 2 + 5 };
             int sliceLen = 50;
-            assertFalse(cacheFile.withByteBufferSlices(offsets, sliceLen, 3, slices -> fail("should not be invoked")));
+            assertFalse(cacheFile.withMemorySegmentSlices(offsets, sliceLen, 3, slices -> fail("should not be invoked")));
 
             // populate all regions
             byte[] testData = randomByteArrayOfLength((int) fileLength);
@@ -4064,15 +4066,15 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 "test"
             );
 
-            // now withByteBufferSlices should succeed for slices within regions
-            boolean available = cacheFile.withByteBufferSlices(offsets, sliceLen, 3, slices -> {
+            // now withMemorySegmentSlices should succeed for slices within regions
+            boolean available = cacheFile.withMemorySegmentSlices(offsets, sliceLen, 3, slices -> {
                 assertEquals(3, slices.length);
                 for (int i = 0; i < 3; i++) {
                     assertNotNull(slices[i]);
                     assertTrue(slices[i].isReadOnly());
-                    assertEquals(sliceLen, slices[i].remaining());
+                    assertEquals(sliceLen, (int) slices[i].byteSize());
                     byte[] sliceData = new byte[sliceLen];
-                    slices[i].get(sliceData);
+                    MemorySegment.copy(slices[i], ValueLayout.JAVA_BYTE, 0, sliceData, 0, sliceLen);
                     for (int j = 0; j < sliceLen; j++) {
                         assertEquals(testData[(int) offsets[i] + j], sliceData[j]);
                     }
@@ -4082,7 +4084,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    // Verifies that withByteBufferSlices correctly handles multiple slices from the same region,
+    // Verifies that withMemorySegmentSlices correctly handles multiple slices from the same region,
     // only acquiring one ref-count for deduplication.
     public void testWithByteBufferSlicesSameRegion() throws Exception {
         final int regionSize = (int) size(10);
@@ -4138,12 +4140,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             int sliceLen = 20;
             long[] offsets = { 0, 30, 60, 100 };
             int count = offsets.length;
-            boolean available = cacheFile.withByteBufferSlices(offsets, sliceLen, count, slices -> {
+            boolean available = cacheFile.withMemorySegmentSlices(offsets, sliceLen, count, slices -> {
                 assertEquals(count, slices.length);
                 for (int i = 0; i < count; i++) {
-                    assertEquals(sliceLen, slices[i].remaining());
+                    assertEquals(sliceLen, (int) slices[i].byteSize());
                     byte[] sliceData = new byte[sliceLen];
-                    slices[i].get(sliceData);
+                    MemorySegment.copy(slices[i], ValueLayout.JAVA_BYTE, 0, sliceData, 0, sliceLen);
                     for (int j = 0; j < sliceLen; j++) {
                         assertEquals(testData[(int) offsets[i] + j], sliceData[j]);
                     }
@@ -4153,7 +4155,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    // Verifies that withByteBufferSlices returns false when any range crosses a region boundary,
+    // Verifies that withMemorySegmentSlices returns false when any range crosses a region boundary,
     // even when other ranges are valid. Regions of size(10), file size(25) spanning 3 regions.
     public void testWithByteBufferSlicesCrossRegionReturnsFalse() throws Exception {
         final int regionSize = (int) size(10);
@@ -4208,14 +4210,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             int sliceLen = 200;
             int crossBoundaryOffset = regionSize - 100; // straddles region 0 -> region 1
             long[] offsets = { 10, crossBoundaryOffset, (long) regionSize * 2 + 5 };
-            boolean available = cacheFile.withByteBufferSlices(offsets, sliceLen, 3, slices -> {
+            boolean available = cacheFile.withMemorySegmentSlices(offsets, sliceLen, 3, slices -> {
                 fail("action should not be invoked when a range crosses a region boundary");
             });
             assertFalse(available);
         }
     }
 
-    // Verifies that withByteBufferSlices returns false when mmap is disabled.
+    // Verifies that withMemorySegmentSlices returns false when mmap is disabled.
     public void testWithByteBufferSlicesNoMmapReturnsFalse() throws Exception {
         final int regionSize = (int) size(10);
         final long fileLength = size(8);
@@ -4267,7 +4269,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
 
             long[] offsets = { 0, 50 };
-            assertFalse(cacheFile.withByteBufferSlices(offsets, 20, 2, slices -> fail("should not be invoked")));
+            assertFalse(cacheFile.withMemorySegmentSlices(offsets, 20, 2, slices -> fail("should not be invoked")));
         }
     }
 
@@ -4327,7 +4329,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             var region0 = cacheService.get(cacheKey, fileLength, 0);
             long[] offsets = { 50, (long) regionSize + 10 };
             int sliceLen = 50;
-            assertFalse(cacheFile.withByteBufferSlices(offsets, sliceLen, 2, slices -> fail("should not be invoked")));
+            assertFalse(cacheFile.withMemorySegmentSlices(offsets, sliceLen, 2, slices -> fail("should not be invoked")));
 
             // region 0's ref should have been released by the finally block
             synchronized (cacheService) {
@@ -4390,7 +4392,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             int freeBeforeCall = cacheService.freeRegionCount();
 
             long[] offsets = { 0, 50 };
-            IOException thrown = expectThrows(IOException.class, () -> cacheFile.withByteBufferSlices(offsets, 20, 2, slices -> {
+            IOException thrown = expectThrows(IOException.class, () -> cacheFile.withMemorySegmentSlices(offsets, 20, 2, slices -> {
                 throw new IOException("test exception");
             }));
             assertEquals("test exception", thrown.getMessage());
@@ -4433,10 +4435,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertFalse(cacheFile.tryPrefetch(0, fileLength));
             assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
 
-            assertFalse(cacheFile.withByteBufferSlice(0, 100, slice -> fail("should not be invoked")));
+            assertFalse(cacheFile.withMemorySegmentSlice(0, 100, slice -> fail("should not be invoked")));
             assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
 
-            assertFalse(cacheFile.withByteBufferSlices(new long[] { 0L }, 100, 1, slices -> fail("should not be invoked")));
+            assertFalse(cacheFile.withMemorySegmentSlices(new long[] { 0L }, 100, 1, slices -> fail("should not be invoked")));
             assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
         }
     }
@@ -4498,19 +4500,19 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             if (mmapEnabled) {
                 Arrays.fill(actual, (byte) 0);
-                final boolean sliceAvailable = cacheFile.withByteBufferSlice(readOffset, readLength, slice -> {
+                final boolean sliceAvailable = cacheFile.withMemorySegmentSlice(readOffset, readLength, slice -> {
                     assertTrue(slice.isReadOnly());
-                    slice.get(actual);
+                    MemorySegment.copy(slice, ValueLayout.JAVA_BYTE, 0, actual, 0, actual.length);
                 });
                 assertTrue(sliceAvailable);
                 assertArrayEquals(expected, actual);
 
                 Arrays.fill(actual, (byte) 0);
-                final boolean slicesAvailable = cacheFile.withByteBufferSlices(new long[] { readOffset }, readLength, 1, slices -> {
+                final boolean slicesAvailable = cacheFile.withMemorySegmentSlices(new long[] { readOffset }, readLength, 1, slices -> {
                     assertThat(slices.length, equalTo(1));
                     assertThat(slices[0], notNullValue());
                     assertTrue(slices[0].isReadOnly());
-                    slices[0].get(actual);
+                    MemorySegment.copy(slices[0], ValueLayout.JAVA_BYTE, 0, actual, 0, actual.length);
                 });
                 assertTrue(slicesAvailable);
                 assertArrayEquals(expected, actual);

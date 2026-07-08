@@ -85,8 +85,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             null,
             "k:keyword\nhelloworld12\n",
             "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (12) exceeds the maximum allowed "
-                + "(10, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode to skip_row "
-                + "(or null_field) in WITH options to skip and warn instead of failing"
+                + "(10, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
+                + "(or null_field) to skip and warn instead of failing"
         );
     }
 
@@ -98,8 +98,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             null,
             "k:keyword\n\"helloworld\"\n",
             "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
-                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode to skip_row "
-                + "(or null_field) in WITH options to skip and warn instead of failing"
+                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
+                + "(or null_field) to skip and warn instead of failing"
         );
     }
 
@@ -111,8 +111,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             List.of("a"),
             "a:keyword,b:keyword\nshort,helloworld\n",
             "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
-                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode to skip_row "
-                + "(or null_field) in WITH options to skip and warn instead of failing"
+                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
+                + "(or null_field) to skip and warn instead of failing"
         );
     }
 
@@ -133,7 +133,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             null,
             "k:keyword\n\"x\"y\n",
             "line -1:-1: CSV parse error at row [1]: CSV parse error: CSV row has unexpected content after a closing "
-                + "quote; row: <unparsed>; set error_mode to skip_row (or null_field) in WITH options to skip and warn "
+                + "quote; row: <unparsed>; set error_mode=skip_row (or null_field) to skip and warn "
                 + "instead of failing"
         );
     }

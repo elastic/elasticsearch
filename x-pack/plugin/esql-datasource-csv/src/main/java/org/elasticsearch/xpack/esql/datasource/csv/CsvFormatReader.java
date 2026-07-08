@@ -1407,7 +1407,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 + row
                 + "]: "
                 + CsvErrorMessages.summarize(cause != null ? cause.getMessage() : "(no message)")
-                + "; set error_mode to skip_row (or null_field) in WITH options to skip and warn instead of failing"
+                + "; set error_mode=skip_row (or null_field) to skip and warn instead of failing"
         );
     }
 
@@ -5818,8 +5818,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, boolean structural) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 String hint = structural
-                    ? "; set error_mode to skip_row (or null_field) in WITH options to skip and warn instead of failing"
-                    : "; set error_mode to null_field in WITH options to null-fill the bad field instead of failing";
+                    ? "; set error_mode=skip_row (or null_field) to skip and warn instead of failing"
+                    : "; set error_mode=null_field to null-fill the bad field instead of failing";
                 throw new ParsingException(
                     cause,
                     Source.EMPTY,

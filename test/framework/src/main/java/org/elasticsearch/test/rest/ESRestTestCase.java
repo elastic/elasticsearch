@@ -2951,6 +2951,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("inference_resolution", instanceOf(Map.class))
             .entry("analysis", instanceOf(Map.class))
             .entry("field_caps_calls", instanceOf(Integer.class))
+            .entry("unmapped_fields", instanceOf(String.class))
             .entry("drivers", instanceOf(List.class))
             .entry("plans", instanceOf(List.class))
             .entry("minimumTransportVersion", instanceOf(Integer.class));

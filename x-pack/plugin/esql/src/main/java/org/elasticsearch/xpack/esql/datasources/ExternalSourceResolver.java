@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -62,6 +63,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -936,13 +938,6 @@ public class ExternalSourceResolver {
         return dot >= 0 ? name.substring(dot) : "";
     }
 
-    /** True for the coordinator-cache stripe bookkeeping keys that have no plan-side consumer. */
-    private static boolean isStripeBookkeeping(String key) {
-        return key.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX)
-            || key.equals(ExternalStats.STRIPE_LAST_INDEX_KEY)
-            || key.equals(ExternalStats.STRIPE_GRID_KEY);
-    }
-
     /**
      * Returns {@code safeMetadata} without the coordinator-cache stripe bookkeeping ({@code _stats.stripe.<k>},
      * {@code _stats.stripe_last_index}, {@code _stats.stripe_grid}) — those feed the cache-side 0..K fold and are
@@ -950,22 +945,31 @@ public class ExternalSourceResolver {
      * when it carries no stripe keys (no copy on the common already-folded warm-serve path).
      */
     private static Map<String, Object> stripStripeBookkeeping(Map<String, Object> safeMetadata) {
-        if (safeMetadata == null || safeMetadata.isEmpty()) {
-            return safeMetadata;
+        return withoutKeys(safeMetadata, ExternalStats::isStripeBookkeeping);
+    }
+
+    /**
+     * Returns {@code map} without the entries whose key matches {@code drop}, or the input unchanged when nothing
+     * matches (no allocation on the common no-match path). Shared by the source-metadata filters that must not mutate a
+     * possibly-shared cache map ({@link #stripStripeBookkeeping}, {@link #rowCountOnlyStats}).
+     */
+    private static Map<String, Object> withoutKeys(Map<String, Object> map, Predicate<String> drop) {
+        if (map == null || map.isEmpty()) {
+            return map;
         }
-        boolean hasStripeKeys = false;
-        for (String k : safeMetadata.keySet()) {
-            if (isStripeBookkeeping(k)) {
-                hasStripeKeys = true;
+        boolean anyMatch = false;
+        for (String k : map.keySet()) {
+            if (drop.test(k)) {
+                anyMatch = true;
                 break;
             }
         }
-        if (hasStripeKeys == false) {
-            return safeMetadata;
+        if (anyMatch == false) {
+            return map;
         }
-        Map<String, Object> filtered = new HashMap<>(safeMetadata.size());
-        for (Map.Entry<String, Object> e : safeMetadata.entrySet()) {
-            if (isStripeBookkeeping(e.getKey()) == false) {
+        Map<String, Object> filtered = new HashMap<>(map.size());
+        for (Map.Entry<String, Object> e : map.entrySet()) {
+            if (drop.test(e.getKey()) == false) {
                 filtered.put(e.getKey(), e.getValue());
             }
         }
@@ -1933,25 +1937,25 @@ public class ExternalSourceResolver {
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
         // sourceType drives operator-factory dispatch (OperatorFactoryRegistry keys on it), so it must equal the
         // reader's formatName() the inferred path would have produced — derive it without reading the file via
-        // FormatNameResolver, which applies the same reader-then-format-then-extension precedence (and lowercasing)
-        // as the inferred path. A hand-rolled `format` check here would miss both and mis-key the dispatch.
-        String sourceType = FormatNameResolver.resolve(config, path);
+        // FormatNameResolver.resolveFormatName, which routes through the registry (reader-then-format-then-extension
+        // precedence, and compound-extension aware, so hits.csv.gz -> "csv" not the "gz" codec suffix). A hand-rolled
+        // `format` check or the last-dot FormatNameResolver.resolve here would mis-key the dispatch on compressed text.
+        String sourceType = FormatNameResolver.resolveFormatName(config, storagePath.objectName(), dataSourceModule.formatReaderRegistry());
         // Cheap no-I/O guard first (no partitions on a single file), then the columnar coercibility check which reads
         // this file's footer (cached when the provider is).
         rejectDeclaredMappingViolations(null, declaredMapping);
         Instant singleMtime = object.lastModified();
-        rejectStrictColumnarUncoercibleTypes(
-            sourceType,
-            provider,
+        long mtimeMillis = singleMtime != null ? singleMtime.toEpochMilli() : Instant.EPOCH.toEpochMilli();
+        rejectStrictColumnarUncoercibleTypes(sourceType, provider, storagePath, mtimeMillis, config, declaredMapping);
+        ExternalSourceMetadata extMetadata = strictSingleFileMetadata(
+            path,
             storagePath,
-            singleMtime != null ? singleMtime.toEpochMilli() : Instant.EPOCH.toEpochMilli(),
+            provider,
             config,
-            declaredMapping
-        );
-        ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(
-            new SimpleSourceMetadata(logicalSchema, sourceType, path),
-            config,
-            declaredReadSpecOf(declaredMapping)
+            declaredMapping,
+            logicalSchema,
+            sourceType,
+            mtimeMillis
         );
         FileList singletonList = GlobExpander.fileListOf(
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
@@ -1959,6 +1963,140 @@ public class ExternalSourceResolver {
         );
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
+    }
+
+    /**
+     * Marker appended to the strict single-file schema-cache key's format-type component so a strict (declared-schema)
+     * entry never shares a {@code getOrComputeSchema} slot with an inferred (discovered-schema) entry over the same
+     * file+config: the two hold different schemas and neither may be served the other's. This disambiguates ONLY the
+     * schema-cache lookup — the post-query stats reconcile keys on path+mtime+config_fingerprint (NOT the format-type),
+     * so the harvested row-count still lands on this entry. It does NOT isolate the *stats* across declarations; that is
+     * why {@link #strictSingleFileMetadata} serves only the declaration-independent row-count (see there).
+     */
+    private static final String STRICT_DECLARED_SCHEMA_MARKER = "#strict-declared";
+
+    /**
+     * Builds the strict single-file source metadata, warming the ungrouped-{@code COUNT(*)} metadata fast path for
+     * footerless text. Strict resolution reads no file body, so it cannot harvest the row-count itself; instead it seeds
+     * a schema-cache entry (keyed via {@link #STRICT_DECLARED_SCHEMA_MARKER}) that the first query's data-node stats
+     * capture enriches with the row-count, so query 2+ folds {@code COUNT(*)} to a {@code LocalSourceOperator} instead
+     * of re-scanning + type-coercing every declared column.
+     * <p>
+     * The stats cache is keyed by file+config, NOT by the declared schema, so one entry can be shared by datasets that
+     * declare the same file's columns differently (strict-vs-strict under the marker, or strict-vs-inferred via the
+     * schema-agnostic reconcile). Two guards keep the served row-count VALUE correct — a shared entry never serves a
+     * declaration-DEPENDENT statistic to a foreign declaration:
+     * <ul>
+     *   <li>the returned schema is always the declaration ({@code logicalSchema}), never the entry's, and only the
+     *       ROW-COUNT is served back ({@link #rowCountOnlyStats} strips the per-column {@code _stats.columns.*}). A
+     *       column MIN/MAX value depends on the declared column type (numeric vs lexicographic order), so it is never
+     *       folded from a possibly differently-declared harvest — strict MIN/MAX re-scans instead of warming;</li>
+     *   <li>the row-count is served only under a {@link ErrorPolicy.Mode#FAIL_FAST} error policy — the one policy where
+     *       a SUCCESSFUL scan's row-count equals the physical record count for ANY declaration (any structural error,
+     *       e.g. a row wider than the declared column count, aborts the query before publish; width underflow keeps the
+     *       row). Under {@code skip_row} or {@code null_field} a width-overflow row is DROPPED (the drop is declaration-
+     *       independent of value coercion but NOT of the declared column count), so the row-count would become
+     *       declaration-dependent; {@link #warmsRowCountSafely} keeps those off the warm path — they re-scan, still
+     *       returning the correct count.</li>
+     * </ul>
+     * The two guards make the served row-count a correct NUMBER for every declaration, but the file+config key leaves one
+     * residual — disclosed here, closed only by the fingerprint follow-up: a strict dataset that declares FEWER columns
+     * than the file has (a legal narrower binding) would on its own ERROR on {@code COUNT(*)} (its rows overflow its
+     * declared width under {@code FAIL_FAST}); once a wider — or inferred — dataset over the same file+config has warmed
+     * the shared entry, that dataset's {@code COUNT(*)} folds to the physical row-count instead of erroring. That is a
+     * masked abort, not a wrong count (every materializing query on such a mis-bound dataset still fails loudly), and it
+     * flaps with cache state. Weaving the declared schema into the cross-node stats fingerprint (see the follow-up) is the
+     * complete closure; a width-equality serve gate would close only the strict-vs-strict half (the entry does not record
+     * who harvested it, so it cannot gate the inferred-vs-strict half).
+     * <p>
+     * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict
+     * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
+     * HTTP, no stable mtime) keeps the stat-less metadata: there is nothing to warm from. Warming MIN/MAX and the
+     * multi-file glob correctly needs the declared schema woven into the cross-node stats fingerprint (a larger change);
+     * tracked separately.
+     */
+    private ExternalSourceMetadata strictSingleFileMetadata(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        Map<String, Object> config,
+        DatasetMapping declaredMapping,
+        List<Attribute> logicalSchema,
+        String sourceType,
+        long mtimeMillis
+    ) throws Exception {
+        if (isCacheable(provider) && FILE_TYPED_FORMATS.contains(sourceType) == false && warmsRowCountSafely(sourceType, config)) {
+            String formatType = detectFormatType(storagePath) + STRICT_DECLARED_SCHEMA_MARKER;
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtimeMillis, formatType, config);
+            // Seed only mtime + config fingerprint; the row-count is absent until the first query's data node harvests
+            // it (reconcileSourceStats matches on those two + the path, then overlays STATS_ROW_COUNT). Store no
+            // connector config (Map.of()): the inferred text rail stores none either, and the schema cache is shared
+            // across users, so the seed must not retain the dataset's credentials. buildMetadataFromCache re-merges the
+            // live query config on read. Build the seed inside the loader so its buildFormatConfig runs only on a cache
+            // MISS, not on every (mostly warm) resolve.
+            SchemaCacheEntry entry = cacheService.getOrComputeSchema(
+                schemaKey,
+                k -> SchemaCacheEntry.from(
+                    logicalSchema,
+                    sourceType,
+                    path,
+                    Map.of(
+                        ExternalStats.MTIME_MILLIS_KEY,
+                        mtimeMillis,
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        SchemaCacheKey.buildFormatConfig(config)
+                    ),
+                    Map.of()
+                )
+            );
+            // Schema stays the declaration; serve ONLY the (declaration-independent) row-count, never per-column stats.
+            // Mirror the cold branch's wrapAsExternalSourceMetadata schema guard here — buildMetadataFromCache does not
+            // validate — so warm and cold enforce the same invariant.
+            validateSchemaUsesOnlyReferenceAttributes(logicalSchema);
+            ExternalSourceMetadata full = buildMetadataFromCache(entry, logicalSchema, config);
+            return replaceSourceMetadata(full, rowCountOnlyStats(full.sourceMetadata()));
+        }
+        return wrapAsExternalSourceMetadata(
+            new SimpleSourceMetadata(logicalSchema, sourceType, path),
+            config,
+            declaredReadSpecOf(declaredMapping)
+        );
+    }
+
+    /**
+     * Returns {@code sourceMetadata} without any per-column statistic ({@code _stats.columns.*}). A strict dataset
+     * shares its file+config cache entry with other declarations of the same file, so it may fold back only the
+     * declaration-independent row-count; a per-column MIN/MAX — whose value depends on the declared column type — must
+     * be re-scanned rather than served from a foreign declaration's harvest. Returns the input unchanged when it has no
+     * per-column keys (the common cold path).
+     */
+    private static Map<String, Object> rowCountOnlyStats(Map<String, Object> sourceMetadata) {
+        return withoutKeys(sourceMetadata, k -> k.startsWith(SourceStatisticsSerializer.STATS_COL_PREFIX));
+    }
+
+    /**
+     * True when a successful scan's row-count is INDEPENDENT of the declared schema, so it is safe to serve from a
+     * file+config-shared cache entry. This holds only under a {@link ErrorPolicy.Mode#FAIL_FAST} policy: any structural
+     * error (e.g. a row wider than the declared column count) aborts the query before publish, and width underflow keeps
+     * the row, so a committed {@code FAIL_FAST} row-count equals the physical record count for any declaration. Under
+     * {@link ErrorPolicy.Mode#SKIP_ROW} or {@link ErrorPolicy.Mode#NULL_FIELD} a width-overflow row is DROPPED (the CSV
+     * reader drops a structurally-malformed row "even under NULL_FIELD"), and the width depends on the declared column
+     * count, so the row-count becomes declaration-dependent — a shared entry could then serve a wrong {@code COUNT(*)} to
+     * a differently-declared dataset. Resolved through {@link ErrorPolicy#fromConfig} against the reader's own default so
+     * it is format-agnostic (and catches the implicit {@code SKIP_ROW} a bare {@code max_errors} selects).
+     */
+    private boolean warmsRowCountSafely(String sourceType, Map<String, Object> config) {
+        FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
+        ErrorPolicy defaultPolicy = reader != null ? reader.defaultErrorPolicy() : ErrorPolicy.STRICT;
+        try {
+            return ErrorPolicy.fromConfig(config, defaultPolicy).isStrict();
+        } catch (IllegalArgumentException e) {
+            // The warm decision is an optimization and must NOT introduce a plan-time failure. An invalid error policy
+            // (e.g. error_mode=bogus, or fail_fast + a budget) is left for the data node's operator factory to reject at
+            // scan time — exactly as it was before this warm path existed — so a query that prunes the scan away (e.g.
+            // LIMIT 0) still succeeds rather than erroring during resolution. Conservatively do not warm.
+            return false;
+        }
     }
 
     /**
@@ -2002,8 +2140,17 @@ public class ExternalSourceResolver {
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
-        // Same reader-then-format-then-extension dispatch as the single-file strict path above.
-        String sourceType = FormatNameResolver.resolve(config, path);
+        // Same compound-extension-aware dispatch as the single-file strict path above. Derive from a CONCRETE listed
+        // object name (listing.path(0)), not the raw glob string: a pattern like `*.csv.gz` and a comma-separated path
+        // list both make the raw path unreliable for extension parsing, whereas a listed entry is a real file name.
+        // Like the inferred FIRST_FILE_WINS path, the anchor's format governs every file with no cross-listing format
+        // check — so a heterogeneous, extension-less glob (e.g. `logs/*` matching mixed formats) reads through the
+        // first file's reader rather than failing; consistent with the pre-existing multi-file design, not validated here.
+        String sourceType = FormatNameResolver.resolveFormatName(
+            config,
+            listing.path(0).objectName(),
+            dataSourceModule.formatReaderRegistry()
+        );
 
         // Partition columns are path-derived (no file I/O), so strict mode surfaces them exactly like the inferred
         // path does. One divergence: the inferred path SHADOWS a physical column that collides with a partition key
@@ -2128,6 +2275,9 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         DatasetMapping declaredMapping
     ) throws Exception {
+        // The strict callers now derive sourceType via FormatNameResolver.resolveFormatName, which returns non-null or
+        // throws, so the null branch is defensive-only today; it is kept so a future null-returning resolution path
+        // cannot silently NPE on Set.contains(null) and resurrect the earlier NPE-wrapped-500.
         if (sourceType == null || FILE_TYPED_FORMATS.contains(sourceType) == false || declaredMapping.mappings() == null) {
             return;
         }

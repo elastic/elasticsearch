@@ -80,4 +80,31 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         String asm = bytecode("String a = 'ab'; String b = 'cd'; return a + b;", 1024 * 1024L);
         assertThat(asm, containsString("$checkAllocBytes"));
     }
+
+    public void testNoCounterBytecodeForNewObjectWhenDisabled() {
+        // The @allocates_constant visitNewObject path must also be clean when tracking is off.
+        String asm = bytecode("new ArrayList(); return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testPreCheckEmittedForNewObjectWhenEnabled() {
+        String asm = bytecode("new ArrayList(); return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoEstimatorBytecodeWhenDisabled() {
+        // @allocates_dynamic sites must also be clean when tracking is off.
+        String asm = bytecode("String s = 'hello'; s.substring(0, 3); new ArrayList(new ArrayList()); return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationEstimators")));
+        assertThat(asm, not(containsString("sanitizeEstimate")));
+    }
+
+    public void testEstimatorBytecodePresentWhenEnabled() {
+        String asm = bytecode("String s = 'hello'; s.substring(0, 3); return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("AllocationEstimators"));
+        assertThat(asm, containsString("sanitizeEstimate"));
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
 }

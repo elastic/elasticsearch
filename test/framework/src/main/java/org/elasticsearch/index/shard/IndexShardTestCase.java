@@ -77,6 +77,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryResponse;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -691,7 +692,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 MapperMetrics.NOOP,
                 new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
                 new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-                MergeMetrics.NOOP
+                MergeMetrics.NOOP,
+                RecoverySchedulingListener.NOOP
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

@@ -92,11 +92,29 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
-     * The name pattern to capture all .ml-state prefixed indices
-     * @return The .ml-state index pattern
+     * Index patterns for ML state indices, including those created by major-version system-index
+     * reindex migration (for example {@code .reindexed-v8-ml-state-000001}).
+     * <p>
+     * Use this array with {@link IndexNameExpressionResolver#concreteIndexNames}. A single
+     * comma-separated string is not equivalent: the resolver treats it as one expression.
+     */
+    public static String[] jobStateIndexPatterns() {
+        return new String[] {
+            AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "*",
+            AnomalyDetectorsIndexFields.REINDEXED_V7_STATE_INDEX_PREFIX + "*",
+            AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX + "*" };
+    }
+
+    /**
+     * Comma-separated index patterns for ML state indices for REST query strings that split on commas.
+     * <p>
+     * Do not pass this value as a single argument to Java client methods that accept one index expression
+     * (for example {@code prepareSearch(String)}); use {@link #jobStateIndexPatterns()} instead.
+     *
+     * @return index patterns for ML state indices
      */
     public static String jobStateIndexPattern() {
-        return AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "*";
+        return String.join(",", jobStateIndexPatterns());
     }
 
     /**

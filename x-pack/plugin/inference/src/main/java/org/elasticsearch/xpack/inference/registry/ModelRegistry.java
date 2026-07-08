@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
 import org.elasticsearch.xpack.inference.InferenceIndex;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.parser.EndpointMetadataParser;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -354,9 +353,7 @@ public class ModelRegistry implements ClusterStateListener {
             .setQuery(queryBuilder)
             .setSize(2)
             .setAllowPartialSearchResults(false);
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
-        }
+        searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
         SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
@@ -396,9 +393,7 @@ public class ModelRegistry implements ClusterStateListener {
 
         QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
         var searchBuilder = client.prepareSearch(InferenceIndex.INDEX_PATTERN).setQuery(queryBuilder).setSize(1).setTrackTotalHits(false);
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
-        }
+        searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
         SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
@@ -421,23 +416,16 @@ public class ModelRegistry implements ClusterStateListener {
             addAllDefaultConfigsIfMissing(true, modelConfigs, defaultConfigsForTaskType, delegate);
         });
 
-        QueryBuilder queryBuilder;
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            queryBuilder = QueryBuilders.boolQuery()
-                .filter(matchEndpointsQuery())
-                .filter(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
-        } else {
-            queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
-        }
+        QueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .filter(matchEndpointsQuery())
+            .filter(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
 
         var searchBuilder = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)
             .setSize(10_000)
             .setTrackTotalHits(false)
             .addSort(MODEL_ID_FIELD, SortOrder.ASC);
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
-        }
+        searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
         SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
@@ -472,21 +460,14 @@ public class ModelRegistry implements ClusterStateListener {
             addAllDefaultConfigsIfMissing(persistDefaultEndpoints, foundConfigs, defaultConfigIds.values(), delegate);
         });
 
-        QueryBuilder queryBuilder;
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            queryBuilder = matchEndpointsQuery();
-        } else {
-            queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.existsQuery(TASK_TYPE_FIELD));
-        }
+        QueryBuilder queryBuilder = matchEndpointsQuery();
 
         var searchBuilder = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)
             .setSize(10_000)
             .setTrackTotalHits(false)
             .addSort(MODEL_ID_FIELD, SortOrder.ASC);
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
-            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
-        }
+        searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
         SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
@@ -635,7 +616,7 @@ public class ModelRegistry implements ClusterStateListener {
             preventDeletionLock.add(inferenceEntityId);
         }
 
-        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
+        var clusterState = clusterService.state();
         SubscribableListener.<BulkResponse>newForked((subListener) -> {
             // in this block, we try to update the stored model configurations
             var configRequestBuilder = createIndexRequestBuilder(
@@ -643,7 +624,8 @@ public class ModelRegistry implements ClusterStateListener {
                 InferenceIndex.INDEX_NAME,
                 newModel.getConfigurations(),
                 true,
-                includeDocType,
+                clusterState,
+                featureService,
                 client
             );
 
@@ -686,7 +668,8 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceSecretsIndex.INDEX_NAME,
                     newModel.getSecrets(),
                     true,
-                    includeDocType,
+                    clusterState,
+                    featureService,
                     client
                 );
 
@@ -710,7 +693,8 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceIndex.INDEX_NAME,
                     existingModel.getConfigurations(),
                     true,
-                    includeDocType,
+                    clusterState,
+                    featureService,
                     client
                 );
 
@@ -731,7 +715,7 @@ public class ModelRegistry implements ClusterStateListener {
             } else {
                 // since updating the secrets was successful, we can remove the lock and respond to the final listener
                 preventDeletionLock.remove(inferenceEntityId);
-                refreshInferenceEndpointCache();
+                InferenceEndpointRegistry.refreshCacheOnAllNodes(client);
                 finalListener.onResponse(true);
             }
         }).<BulkResponse>andThen((subListener, configResponse) -> {
@@ -826,7 +810,7 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         var bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
+        var clusterState = clusterService.state();
 
         for (var model : models) {
             bulkRequestBuilder.add(
@@ -835,7 +819,8 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceIndex.INDEX_NAME,
                     model.getConfigurations(),
                     allowOverwriting,
-                    includeDocType,
+                    clusterState,
+                    featureService,
                     client
                 )
             );
@@ -846,7 +831,8 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceSecretsIndex.INDEX_NAME,
                     model.getSecrets(),
                     allowOverwriting,
-                    includeDocType,
+                    clusterState,
+                    featureService,
                     client
                 )
             );
@@ -1164,7 +1150,7 @@ public class ModelRegistry implements ClusterStateListener {
             request,
             ActionListener.runAfter(
                 getDeleteModelClusterStateListener(inferenceEntityIds, updateClusterState, listener),
-                this::refreshInferenceEndpointCache
+                () -> InferenceEndpointRegistry.refreshCacheOnAllNodes(client)
             )
         );
     }
@@ -1220,17 +1206,6 @@ public class ModelRegistry implements ClusterStateListener {
         };
     }
 
-    private void refreshInferenceEndpointCache() {
-        client.execute(
-            ClearInferenceEndpointCacheAction.INSTANCE,
-            new ClearInferenceEndpointCacheAction.Request(),
-            ActionListener.wrap(
-                ignored -> logger.debug("Successfully refreshed inference endpoint cache."),
-                e -> logger.atDebug().withThrowable(e).log("Failed to refresh inference endpoint cache.")
-            )
-        );
-    }
-
     private static DeleteByQueryRequest createDeleteRequest(Set<String> inferenceEntityIds) {
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
         request.indices(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
@@ -1245,9 +1220,12 @@ public class ModelRegistry implements ClusterStateListener {
         String indexName,
         ToXContentObject body,
         boolean allowOverwriting,
-        boolean includeDocType,
+        ClusterState clusterState,
+        FeatureService featureService,
         Client client
     ) {
+        boolean includeDocType = indexName.equals(InferenceIndex.INDEX_NAME)
+            && InferenceIndex.inferenceIndexHasV4Mappings(clusterState, featureService);
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             Map<String, String> params = includeDocType
                 ? Map.of(

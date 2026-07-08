@@ -310,8 +310,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             DataStreamsPlugin.class,
             LocalStateCompositeXPackPlugin.class,
             AggregateMetricMapperPlugin.class,
-            EsqlPluginWithEnterpriseOrTrialLicense.class,
-            TestEncryptionServicePlugin.class
+            TestEncryptionServicePlugin.class,
+            EsqlPluginWithEnterpriseOrTrialLicense.class
         );
     }
 
@@ -416,12 +416,17 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
 
         if (startTs == endTs) {
-            if (lastInPrevWindow != null && isRate) {
-                // special case: The only value falls exactly on the start border
-                // our rate implementation in this case returns the rate between the point in this window and the point in the last window
-                List<TimestampedValue> values = List.of(lastInPrevWindow, firstInWindow);
-                double rangeSeconds = (firstInWindow.timestamp().toEpochMilli() - lastInPrevWindow.timestamp().toEpochMilli()) / 1000.0;
-                return computeCounterIncreaseBetween(values, temporality) / rangeSeconds;
+            if (lastInPrevWindow != null) {
+                if (isRate) {
+                    // special case: The only value falls exactly on the start border
+                    // our rate implementation in this case returns the rate between the point in this window and the point in the last
+                    // window
+                    List<TimestampedValue> values = List.of(lastInPrevWindow, firstInWindow);
+                    double rangeSeconds = (firstInWindow.timestamp().toEpochMilli() - lastInPrevWindow.timestamp().toEpochMilli()) / 1000.0;
+                    return computeCounterIncreaseBetween(values, temporality) / rangeSeconds;
+                } else {
+                    return 0.0;
+                }
             }
             return null;
         }

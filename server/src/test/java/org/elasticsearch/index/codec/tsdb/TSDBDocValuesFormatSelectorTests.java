@@ -116,24 +116,15 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         assertFalse(defaultEs95Enabled(IndexMode.TIME_SERIES, version, false));
     }
 
-    public void testStatelessVersionGatesStatelessNotStatefulTimeSeries() {
-        // Before the stateful default: disabled for both stateful and stateless indices.
-        final IndexVersion beforeDefault = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
-        assertFalse(defaultEs95Enabled(IndexMode.TIME_SERIES, beforeDefault, false));
-        assertFalse(defaultEs95Enabled(IndexMode.TIME_SERIES, beforeDefault, true));
-
-        // Between the stateful and stateless defaults: enabled for stateful, held back for stateless.
-        final IndexVersion betweenDefaults = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_STATELESS);
-        assertTrue(defaultEs95Enabled(IndexMode.TIME_SERIES, betweenDefaults, false));
-        assertFalse(defaultEs95Enabled(IndexMode.TIME_SERIES, betweenDefaults, true));
-
-        // On or after the stateless default: enabled for both stateful and stateless indices.
-        final IndexVersion onOrAfterStateless = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_STATELESS,
+    public void testDefaultEnabledForStatelessTimeSeries() {
+        final IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT,
             IndexVersion.current()
         );
-        assertTrue(defaultEs95Enabled(IndexMode.TIME_SERIES, onOrAfterStateless, false));
-        assertTrue(defaultEs95Enabled(IndexMode.TIME_SERIES, onOrAfterStateless, true));
+        assertTrue(defaultEs95Enabled(IndexMode.TIME_SERIES, version, true));
+
+        final IndexVersion before = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
+        assertFalse(defaultEs95Enabled(IndexMode.TIME_SERIES, before, true));
     }
 
     public void testDefaultDisabledForNonTimeSeries() {

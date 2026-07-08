@@ -266,7 +266,6 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_5_0 = def(9_104_0_00, Version.LUCENE_10_5_0);
     public static final IndexVersion DISK_BBQ_AUTO_CALIBRATE = def(9_105_0_00, Version.LUCENE_10_5_0);
     public static final IndexVersion TIME_SERIES_ES95_CODEC_DEFAULT = def(9_106_0_00, Version.LUCENE_10_5_0);
-    public static final IndexVersion TIME_SERIES_ES95_CODEC_DEFAULT_STATELESS = def(9_107_0_00, Version.LUCENE_10_5_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

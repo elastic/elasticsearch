@@ -1,11 +1,4 @@
 area: Search
-breaking:
-  area: Search
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  notable: false
-  title: Fix deserialization issue with `ShardFieldStats` in stateless context
 issues: []
 pr: 153312
 summary: Fix deserialization issue with `ShardFieldStats` in stateless context

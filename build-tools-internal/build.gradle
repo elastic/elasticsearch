@@ -396,9 +396,7 @@ tasks.register("integTest", Test) {
   // ElasticsearchTestBasePlugin cannot apply itself, so java.io.tmpdir must be set manually here.
   // Without it, JUnit/Spock create temp dirs under /tmp (root fs) instead of the build dir (/dev/shm in CI).
   // JvmArgumentProvider keeps the absolute path out of task inputs so it doesn't break cache relocatability.
-  def tempDir = layout.buildDirectory.dir("testrun/integTest/temp")
-  doFirst { tempDir.get().asFile.mkdirs() }
-  jvmArgumentProviders.add { ["-Djava.io.tmpdir=${tempDir.get().asFile}"] as List<String> }
+  jvmArgumentProviders.add { ["-Djava.io.tmpdir=${getTemporaryDir().get().asFile}"] as List<String> }
 }
 
 tasks.named("check").configure { dependsOn("integTest") }

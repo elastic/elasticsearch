@@ -185,6 +185,7 @@ tasks.named('test').configure {
 tasks.register("integTest", Test) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath
+    jvmArgumentProviders.add { ["-Djava.io.tmpdir=${getTemporaryDir().get().asFile}"] as List<String> }
     useJUnitPlatform()
 }
 

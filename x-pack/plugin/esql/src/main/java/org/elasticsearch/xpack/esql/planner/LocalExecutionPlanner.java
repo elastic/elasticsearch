@@ -1318,7 +1318,6 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
         }
         String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
-        // TODO: honour boundary_scanner*, order, max_analyzed_offset, and phrase_limit once HighlightOptions exposes them.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
         HighlightConfig config = new HighlightConfig(
             queryText,
@@ -1327,7 +1326,11 @@ public class LocalExecutionPlanner {
             options.encoder(),
             options.numberOfFragments(),
             options.fragmentSize(),
-            options.noMatchSize()
+            options.noMatchSize(),
+            HighlightOptions.BOUNDARY_SCANNER_WORD.equals(options.boundaryScanner()),
+            options.boundaryScannerLocale(),
+            HighlightOptions.ORDER_SCORE.equals(options.order()),
+            options.maxAnalyzedOffset()
         );
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()

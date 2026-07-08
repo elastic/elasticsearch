@@ -773,3 +773,6 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testMasterFailoverDuringCleanup
   issue: https://github.com/elastic/elasticsearch/issues/153174
+- class: org.elasticsearch.packaging.test.PackageUpgradeTests
+  method: test12SetupBwcVersion
+  issue: https://github.com/elastic/elasticsearch/issues/152819

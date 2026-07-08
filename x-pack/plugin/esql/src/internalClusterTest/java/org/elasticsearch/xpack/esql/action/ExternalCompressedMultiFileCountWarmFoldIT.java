@@ -39,11 +39,14 @@ import static org.hamcrest.Matchers.equalTo;
  * lacks stats), so warm {@code COUNT(*)} re-scans the whole source. NDJSON hits this first because its
  * decompressed footprint (repeated JSON keys) is 2–3× CSV/TSV at equal rows, so it packs 2–3× the stripes per
  * file; TSV over the same shape stays under budget and short-circuits — the bench discriminator.
+ * Post-{@code clearStripeState} (#153085) both formats compact to O(1) and short-circuit identically;
+ * the TSV variant remains as a format-parity gate.
  * <p>
- * This test forces the condition at IT scale by pinning a small schema cache and a small stripe grid so a modest
- * file already carries many stripe sub-entries. It runs count-only (MIN/MAX-at-scale is a separate,
- * pre-existing gap tracked on its own). The
- * gzip-tsv control drives the SAME {@code StreamingParallelParsingCoordinator} through {@code CsvFormatReader}.
+ * This test forces the condition at IT scale by pinning a small schema cache (40 KB, ~8 KB schema budget)
+ * and a 64 KB stripe grid. At ~50 B/row (NDJSON) each 8,000-row file is ~400 KB decompressed, yielding
+ * ~6 stripes per file — enough to overflow the 8 KB schema budget across 4 files before
+ * {@code clearStripeState} compacts them. The gzip-tsv control drives the SAME
+ * {@code StreamingParallelParsingCoordinator} through {@code CsvFormatReader}.
  */
 public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternalDataSourceIT {
 
@@ -78,7 +81,9 @@ public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternal
             // Deliberately tiny schema cache: the whole-file base entries fit, but the retained per-stripe
             // sub-entries push the multi-file working set over the (20%-of-this) schema budget, so committed
             // entries are evicted before the warm serve can fold across all files. clearStripeState is what
-            // brings the folded entries back to O(1) so they survive.
+            // brings the folded entries back to O(1) so they survive. Method execution order
+            // is irrelevant: clearStripeState compacts each file's entry after its fold, so
+            // leftover state from one method cannot exhaust the budget for the next.
             .put("esql.source.cache.size", "40kb")
             // Reap inactive exchange sinks within a few seconds (default is 5 minutes) so a data-node sink whose
             // async cleanup trails the query response is released well inside the exchange/breaker teardown checks.

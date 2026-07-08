@@ -555,6 +555,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     /**
      * Get the current metadata for the specified files.
      * We e.g. use this during PIT context transfer between nodes in stateless.
+     *
+     * @param fileNames The names of the files for which to retrieve the metadata.
      */
     public Map<String, BlobFileRanges> getBlobFileRangesForFiles(final Collection<String> fileNames) {
         final Map<String, BlobFileRanges> metadata = new HashMap<>(fileNames.size());
@@ -595,10 +597,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * Timestamps are not re-attributed here: there is no {@link StatelessCompoundCommit} in scope during PIT relocation,
      * so callers must supply {@link BlobFileRanges} that already carry the correct per-file timestamps from the source node.
      *
-     * @param commitFilesRanges the metadata to merge into the current metadata
+     * @param incomingFileRanges the metadata to merge into the current metadata
      */
-    public void mergePITReaderMetadata(Map<String, BlobFileRanges> commitFilesRanges) {
-        mergeMetadata(commitFilesRanges, true);
+    public void mergePITReaderMetadata(Map<String, BlobFileRanges> incomingFileRanges) {
+        mergeMetadata(incomingFileRanges, true);
     }
 
     private void mergeMetadata(Map<String, BlobFileRanges> incomingFileRanges, boolean pitContextRelocationTransfer) {

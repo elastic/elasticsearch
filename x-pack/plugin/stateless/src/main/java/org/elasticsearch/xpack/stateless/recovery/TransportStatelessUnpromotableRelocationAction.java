@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -443,7 +444,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                                     indexCommit.getSegmentsFileName(),
                                     context.keepAlive(),
                                     new SearchContextIdForNode(null, clusterService.localNode().getId(), context.id()),
-                                    computeCommitFileRanges(searchDirectory, indexCommit, statelessCompoundCommit),
+                                    getCommitFileRanges(searchDirectory, indexCommit.getFileNames(), statelessCompoundCommit),
                                     new OpenPITReshardingState(context.reshardingMetadata(), context.shardCountSummary())
                                 )
                             )
@@ -463,19 +464,27 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         }
     }
 
-    private static Map<String, BlobFileRanges> computeCommitFileRanges(
+    /// Builds the [BlobFileRanges] map for all files in a compound commit, to be handed off to the target node during PIT relocation.
+    ///
+    /// For each file the method prefers the [BlobFileRanges] already held by the local [SearchDirectory] when its recorded
+    /// [BlobLocation] matches the canonical location in the CC. That entry may carry replicated byte ranges that allow the target node
+    /// to warm the header and footer of a segment from the first region of the blob, avoiding an extra seek. When the SearchDirectory entry
+    /// is absent or points to a different location (e.g. a generational file written by an earlier CC in the same BCC), the canonical
+    /// location from the CC is used directly, stamped with the CC's own timestamp so the target node can make informed cache-eviction
+    /// decisions.
+    private static Map<String, BlobFileRanges> getCommitFileRanges(
         final SearchDirectory searchDirectory,
-        final IndexCommit indexCommit,
+        final Collection<String> fileNames,
         final StatelessCompoundCommit statelessCompoundCommit
     ) throws IOException {
-        final Map<String, BlobFileRanges> directoryRanges = searchDirectory.getBlobFileRangesForFiles(indexCommit.getFileNames());
+        final Map<String, BlobFileRanges> metadata = searchDirectory.getBlobFileRangesForFiles(fileNames);
         final var ccTimestamp = statelessCompoundCommit.getTimestampFieldValueRange();
         return statelessCompoundCommit.commitFiles().entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, e -> {
             final String fileName = e.getKey();
             final BlobLocation fileLocation = e.getValue();
-            final BlobFileRanges dirRange = directoryRanges.get(fileName);
-            if (dirRange != null && dirRange.blobLocation().equals(fileLocation)) {
-                return dirRange; // originating CC, preserved in SearchDirectory
+            final BlobFileRanges fileRanges = metadata.get(fileName);
+            if (fileRanges != null && fileRanges.blobLocation().equals(fileLocation)) {
+                return fileRanges; // originating CC, preserved in SearchDirectory
             }
             return new BlobFileRanges(fileLocation, ccTimestamp);
         }));

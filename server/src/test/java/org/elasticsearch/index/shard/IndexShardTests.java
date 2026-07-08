@@ -3667,8 +3667,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRequestRecoveryCancellationThrowsWhenShardHasAlreadyStarted() throws IOException {
         final IndexShard shard = newStartedShard();
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        final RecoveryCancelledException cause = new RecoveryCancelledException(shard.shardId(), null, localNode);
-        expectThrows(IndexShardNotRecoveringException.class, () -> shard.requestRecoveryCancellation(cause));
+        expectThrows(IndexShardNotRecoveringException.class, () -> shard.requestRecoveryCancellation());
         shard.ensureRecoveryNotCancelled();
         closeShards(shard);
     }
@@ -3677,8 +3676,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newShard(true);
         assertThat(shard.state(), equalTo(IndexShardState.CREATED));
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        final RecoveryCancelledException cause = new RecoveryCancelledException(shard.shardId(), null, localNode);
-        shard.requestRecoveryCancellation(cause);
+        shard.requestRecoveryCancellation();
         shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
@@ -3688,9 +3686,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = reinitShard(newStartedShard(true));
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
-
-        final RecoveryCancelledException cause = new RecoveryCancelledException(shard.shardId(), null, localNode);
-        shard.requestRecoveryCancellation(cause);
+        shard.requestRecoveryCancellation();
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
     }
@@ -3700,8 +3696,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(shard.state(), equalTo(IndexShardState.CREATED));
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
 
-        shard.requestRecoveryCancellation(new RecoveryCancelledException(shard.shardId(), null, localNode));
-
+        shard.requestRecoveryCancellation();
         shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
@@ -3715,9 +3710,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final DiscoveryNode node1 = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode node2 = getFakeDiscoNode(replica.routingEntry().currentNodeId());
         replica.markAsRecovering("peer", new RecoveryState(replica.routingEntry(), node1, node2));
-
-        final RecoveryCancelledException cause = new RecoveryCancelledException(replica.shardId(), node1, node2);
-        replica.requestRecoveryCancellation(cause);
+        replica.requestRecoveryCancellation();
         expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
         closeShards(primary, replica);
     }
@@ -3732,7 +3725,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final DiscoveryNode node1 = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode node2 = getFakeDiscoNode(replica.routingEntry().currentNodeId());
 
-        replica.requestRecoveryCancellation(new RecoveryCancelledException(replica.shardId(), node1, node2));
+        replica.requestRecoveryCancellation();
         replica.markAsRecovering("peer", new RecoveryState(replica.routingEntry(), node1, node2));
         expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
 

@@ -276,9 +276,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     @Nullable
     private volatile RecoveryState recoveryState;
-
-    @Nullable
-    private volatile RecoveryCancelledException recoveryCancellationRequest;
+    private volatile boolean recoveryCancellationRequested = false;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
@@ -1999,11 +1997,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ///
     /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
     /// @throws IllegalStateException if the ongoing recovery is not of a supported type
-    public void requestRecoveryCancellation(RecoveryCancelledException cause) {
+    public void requestRecoveryCancellation() {
         synchronized (mutex) {
             if (state == IndexShardState.CREATED) {
                 // Recovery type not yet known. Store the flag.
-                recoveryCancellationRequest = cause;
+                recoveryCancellationRequested = true;
                 return;
             }
             if (state != IndexShardState.RECOVERING) {
@@ -2013,7 +2011,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentRecoveryState != null;
             final RecoverySource.Type recoveryType = currentRecoveryState.getRecoverySource().getType();
             switch (recoveryType) {
-                case LOCAL_SHARDS, SNAPSHOT, EXISTING_STORE, EMPTY_STORE, PEER -> recoveryCancellationRequest = cause;
+                case LOCAL_SHARDS, SNAPSHOT, EXISTING_STORE, EMPTY_STORE, PEER -> recoveryCancellationRequested = true;
                 default -> throw new IllegalStateException(
                     "requestRecoveryCancellation called for an unsupported recovery type " + recoveryType + " on shard " + shardId
                 );
@@ -2031,9 +2029,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RecoveryState currentRecoveryState = recoveryState;
         assert currentRecoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
         assert currentRecoveryState.getRecoverySource() != null : "recovery source should not be null";
-        final RecoveryCancelledException cancellation = recoveryCancellationRequest;
-        if (cancellation != null) {
-            throw cancellation;
+        if (recoveryCancellationRequested) {
+            throw new RecoveryCancelledException(shardId, currentRecoveryState.getSourceNode(), currentRecoveryState.getTargetNode());
         }
     }
 
@@ -2081,7 +2078,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IndexShardStartedException(shardId);
                     }
                     // It's ok if we missed the request, finish shard recovery, and let the master sort it out.
-                    recoveryCancellationRequest = null;
+                    recoveryCancellationRequested = false;
                     changeState(IndexShardState.POST_RECOVERY, reason);
                 }
             }).addListener(finalListener);

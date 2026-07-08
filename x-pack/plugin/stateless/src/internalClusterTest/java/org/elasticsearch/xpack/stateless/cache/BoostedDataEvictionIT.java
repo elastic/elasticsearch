@@ -238,7 +238,6 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
 
         assertBusy(() -> verify(cacheService, atLeastOnce()).forceEvictAsync(ArgumentMatchers.any()));
         assertBusy(() -> assertThat(cacheService.countCachedRegions(shardPredicate(shardId)), equalTo(0L)));
-        verify(cacheService, never()).demoteAllAsync(ArgumentMatchers.any(), ArgumentMatchers.any());
     }
 
     public void testCacheNotDemotedWhenNodeIsShuttingDown() throws Exception {

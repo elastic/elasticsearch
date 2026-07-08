@@ -850,3 +850,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {alltypes_tiny_pages_plain}
   issue: https://github.com/elastic/elasticsearch/issues/153215
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
+  method: testShardRecoveryWarmingPropagatesTimestamp
+  issue: https://github.com/elastic/elasticsearch/issues/153223

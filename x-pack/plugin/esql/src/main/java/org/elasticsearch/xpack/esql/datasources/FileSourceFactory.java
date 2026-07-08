@@ -112,6 +112,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final LocalFileAccess localFileAccess;
     // Node telemetry sink, threaded into the operator factory so opened storage objects publish read metrics.
     private final ExternalSourceMetrics externalSourceMetrics;
+    /**
+     * Per-node gate bounding concurrent stream-only-compressed segmentators on the shared {@code esql_external_io}
+     * pool so their per-chunk parser tasks always have a free thread (elastic/esql-planning #1093, item 4). This
+     * factory is a per-node singleton (built once in {@link DataSourceModule}) and every read resolves to the same
+     * node-level pool, so one controller here is shared across all queries/operators — no external registry needed.
+     */
+    private final StreamingSegmentatorAdmission segmentatorAdmission;
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -190,6 +197,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.blockFactory = blockFactory;
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
+        this.segmentatorAdmission = new StreamingSegmentatorAdmission(ExternalSourceSettings.maxConcurrentSegmentators(this.settings));
     }
 
     @Override
@@ -477,6 +485,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .maxRecordBytes(context.maxRecordBytes())
                 .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
                 .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
+                .streamingSegmentatorAdmission(segmentatorAdmission)
                 .parallelism(context.parallelism())
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)

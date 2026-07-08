@@ -43,7 +43,7 @@ public class ManifoldModelTests extends ESTestCase {
         int[] ordinals = { 0, 1, 2, 3, 4, 5, 6, 7 };
 
         ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.EUCLIDEAN, 6);
-        topK.add(query, fvv, ordinals, 0, corpus.length);
+        addTopKCorpusSlice(topK, query, fvv, ordinals, 0, corpus.length, false);
 
         float d1 = topK.ithDistance(1);
         float d3 = topK.ithDistance(3);
@@ -66,7 +66,7 @@ public class ManifoldModelTests extends ESTestCase {
         Arrays.sort(expected);
 
         ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.EUCLIDEAN, 6);
-        topK.add(query, fvv, ordinals, 0, corpus.length);
+        addTopKCorpusSlice(topK, query, fvv, ordinals, 0, corpus.length, false);
 
         for (int rank = 1; rank <= expected.length; rank++) {
             assertEquals(expected[rank - 1], topK.ithDistance(rank), 1e-5f);
@@ -86,7 +86,7 @@ public class ManifoldModelTests extends ESTestCase {
         Arrays.sort(expected);
 
         ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.DOT_PRODUCT, 6);
-        topK.add(query, fvv, ordinals, 0, corpus.length);
+        addTopKCorpusSlice(topK, query, fvv, ordinals, 0, corpus.length, true);
 
         for (int rank = 1; rank <= expected.length; rank++) {
             assertEquals(expected[expected.length - rank], topK.ithDistance(rank), 1e-5f);
@@ -358,6 +358,28 @@ public class ManifoldModelTests extends ESTestCase {
         return vector;
     }
 
+    /**
+     * Feeds corpus slice {@code [startDoc, endDoc)} to a single query's heap, replicating the per-query scan that
+     * {@link ManifoldModel.ManifoldTopK} used to do internally (now inlined in
+     * {@link ManifoldModel#estimateManifoldParameters}). Uses the same sign convention: negated dot for dot-like
+     * metrics so the heap tracks the largest similarities.
+     */
+    private static void addTopKCorpusSlice(
+        ManifoldModel.ManifoldTopK topK,
+        float[] query,
+        FloatVectorValues fvv,
+        int[] corpusOrdinals,
+        int startDoc,
+        int endDoc,
+        boolean dotLike
+    ) throws IOException {
+        for (int d = startDoc; d < endDoc; d++) {
+            float[] doc = fvv.vectorValue(corpusOrdinals[d]);
+            float dist = dotLike ? -ESVectorUtil.dotProduct(query, doc) : ESVectorUtil.squareDistance(query, doc);
+            topK.considerCandidate(dist);
+        }
+    }
+
     private record SweepDistances(double[] x, double[] logY, int count) {}
 
     private static SweepDistances collectSweepDistances(
@@ -403,7 +425,15 @@ public class ManifoldModelTests extends ESTestCase {
                     queryScratch,
                     null
                 );
-                topKs[qi].add(queryScratch, fvv, corpusOrdinals, sampleStart, sampleEnd);
+                addTopKCorpusSlice(
+                    topKs[qi],
+                    queryScratch,
+                    fvv,
+                    corpusOrdinals,
+                    sampleStart,
+                    sampleEnd,
+                    ManifoldModel.isDotLike(similarityFunction)
+                );
                 sum += topKs[qi].ithDistance(ranksForK[i]);
             }
             x[count] = Math.log(ranksForK[i]) - Math.log(sampleEnd);

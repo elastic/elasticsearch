@@ -624,36 +624,29 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<ActionHandler> getActions() {
-        List<ActionHandler> actions = new ArrayList<>(
-            List.of(
-                new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
-                new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
-                new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
-                new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
-                new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
-                new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
-                new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
-                new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
-                new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
-                new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
-                new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
-                new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
-                new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-                // Unconditional like resolve_views: the FROM <dataset> rewrite is gated on datasets being present
-                // in cluster state, not on the feature flag, so its authorization gate must always be resolvable.
-                new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
-                new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
-            )
+        return List.of(
+            new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+            new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
+            new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
+            new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
+            new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
+            new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+            new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
+            new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
+            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
+            new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+            new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+            new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+            new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
+            new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
+            new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
+            new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
+            new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
+            new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
+            new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
+            new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
         );
-        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
-            actions.add(new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class));
-            actions.add(new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class));
-            actions.add(new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class));
-            actions.add(new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class));
-            actions.add(new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class));
-            actions.add(new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class));
-        }
-        return List.copyOf(actions);
     }
 
     @Override
@@ -663,28 +656,23 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         EsqlCapabilities capabilities = this.capabilities.get();
-        List<RestHandler> handlers = new ArrayList<>(
-            List.of(
-                new RestEsqlQueryAction(capabilities),
-                new RestEsqlAsyncQueryAction(capabilities),
-                new RestEsqlGetAsyncResultAction(),
-                new RestEsqlStopAsyncAction(),
-                new RestEsqlDeleteAsyncResultAction(),
-                new RestEsqlListQueriesAction(),
-                new RestPutViewAction(),
-                new RestDeleteViewAction(),
-                new RestGetViewAction()
-            )
+        return List.of(
+            new RestEsqlQueryAction(capabilities),
+            new RestEsqlAsyncQueryAction(capabilities),
+            new RestEsqlGetAsyncResultAction(),
+            new RestEsqlStopAsyncAction(),
+            new RestEsqlDeleteAsyncResultAction(),
+            new RestEsqlListQueriesAction(),
+            new RestPutViewAction(),
+            new RestDeleteViewAction(),
+            new RestGetViewAction(),
+            new RestPutDataSourceAction(),
+            new RestGetDataSourceAction(),
+            new RestDeleteDataSourceAction(),
+            new RestPutDatasetAction(),
+            new RestGetDatasetAction(),
+            new RestDeleteDatasetAction()
         );
-        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
-            handlers.add(new RestPutDataSourceAction());
-            handlers.add(new RestGetDataSourceAction());
-            handlers.add(new RestDeleteDataSourceAction());
-            handlers.add(new RestPutDatasetAction());
-            handlers.add(new RestGetDatasetAction());
-            handlers.add(new RestDeleteDatasetAction());
-        }
-        return List.copyOf(handlers);
     }
 
     @Override

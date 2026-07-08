@@ -484,8 +484,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
-     * Verifies that, if the unassigned shard is a replica, there is an active (started) primary shard. If the unassigned shard is a
-     * primary, there is no need to check and true is returned.
+     * Verifies that, if the unassigned shard is a promotable replica, there is an active (started) primary shard. If the unassigned shard
+     * is a primary, there is no need to check and true is returned. Unpromotable replicas (e.g. stateless search shards) are also exempt:
+     * they do not peer-recover from the primary and may be initialized without an active primary, recovering independently (e.g. from the
+     * object store).
      */
     private boolean noAssignedReplicaWithoutActivePrimary(ShardRouting unassignedShard) {
         assert unassignedShard.unassigned() : "expected an unassigned shard " + unassignedShard;
@@ -493,8 +495,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             // Assigning a primary, no need to check.
             return true;
         }
+        if (unassignedShard.isPromotableToPrimary() == false) {
+            // Unpromotable replicas recover independently of the primary, so an active primary is not required to initialize them.
+            return true;
+        }
 
-        // unassignedShard is a replica, since it is not a primary. Ensure that there's a started primary.
+        // unassignedShard is a promotable replica, since it is not a primary. Ensure that there's a started primary.
         var shards = assignedShards.get(unassignedShard.shardId());
         if (shards != null) {
             for (var shard : shards) {

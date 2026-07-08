@@ -124,6 +124,8 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
                 logger.debug("recovery cancelled at enqueue time: {}", recoveryState);
                 // Get off the cluster applier thread. Generic executor has unbounded queue and thread shutdown happens
                 // after service close so this runnable should never get rejected.
+                // Note that we don't call `schedulingListener#onQueuedRecoveryCancelled` here since the recovery was never
+                // actually queued.
                 executor.execute(
                     () -> RecoveryListener.wrapPreservingContext(recoveryListener, context)
                         .onRecoveryFailure(

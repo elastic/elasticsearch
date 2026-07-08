@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
-import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.ArrayList;
 import java.util.Collection;

@@ -151,6 +151,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -1452,29 +1453,11 @@ public class EsqlSession {
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should
             // be reflected in result.minimumTransportVersion().
             result.minimumTransportVersion(),
-            listener.delegateFailureAndWrap((l, indexResolution) -> {
-                if (Objects.equals(COORDINATOR_LOOKUP_SCOPE, lookupIndexScope)
-                    || isLookupJoinIndexResolved(indexResolution, lookupIndexScope, executionInfo)) {
-                    l.onResponse(receiveLookupIndexResolution(result, lookupIndexScope, localPattern, executionInfo, indexResolution));
-                } else {
-                    // if remote lookup join index resolution failed, retrying local only resolution for coordinator lookup join
-                    executionInfo.queryProfile().incFieldCapsCalls();
-                    indexResolver.resolveLookupIndices(
-                        localPattern,
-                        fields,
-                        result.minimumTransportVersion(),
-                        l.map(
-                            retriedIndexResolution -> receiveLookupIndexResolution(
-                                result,
-                                COORDINATOR_LOOKUP_SCOPE,
-                                localPattern,
-                                executionInfo,
-                                retriedIndexResolution
-                            )
-                        )
-                    );
-                }
-            })
+            listener.delegateFailureAndWrap(
+                (l, indexResolution) -> l.onResponse(
+                    receiveLookupIndexResolution(result, lookupIndexScope, localPattern, executionInfo, indexResolution)
+                )
+            )
         );
     }
 
@@ -1614,45 +1597,18 @@ public class EsqlSession {
     }
 
     /**
-     * Whether {@code indexResolution} resolved the lookup index well enough that no retry against a
-     * narrower (coordinator-only) scope is needed.
-     * <p>
-     * A resolution can be {@link IndexResolution#isValid()} yet still be missing the index on some cluster
-     * in {@code lookupIndexScope} (partial resolution), e.g. when only some remote clusters have a matching
-     * lookup index. That's only a problem for clusters that can't be skipped on failure - a missing cluster
-     * that {@link EsqlExecutionInfo#shouldSkipOnFailure} allows to be skipped doesn't force a retry, since
-     * {@link #receiveLookupIndexResolution} will simply mark it as skipped.
-     * <p>
-     * The coordinator-only retry re-queries the exact same unqualified pattern that is already included in
-     * every call to {@code resolveLookupIndices} (see {@link EsqlCCSUtils#createQualifiedLookupIndexExpressionFromAvailableClusters}),
-     * so it can only ever succeed if the local cluster already resolved here. If the local cluster didn't
-     * resolve the index either, retrying can't help - it would just discard this resolution's precise
-     * per-cluster failure in favor of a doomed retry, so we report this as resolved and let
-     * {@link #receiveLookupIndexResolution} raise the specific "not available" failure instead.
-     */
-    private static boolean isLookupJoinIndexResolved(
-        IndexResolution indexResolution,
-        Set<String> lookupIndexScope,
-        EsqlExecutionInfo executionInfo
-    ) {
-        if (indexResolution.isValid() == false) {
-            return false;
-        }
-        Set<String> resolvedClusters = new HashSet<>();
-        for (String indexName : indexResolution.resolvedIndices()) {
-            resolvedClusters.add(RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey());
-        }
-        for (var clusterAlias : lookupIndexScope) {
-            if (resolvedClusters.contains(clusterAlias) == false && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
-                return resolvedClusters.contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false;
-            }
-        }
-        return true;
-    }
-
-    /**
      * Receive and process lookup index resolutions from resolveAsMergedMapping.
-     * This processes the lookup index data for a single index, updates and returns the {@link PreAnalysisResult} result
+     * This processes the lookup index data for a single index, updates and returns the {@link PreAnalysisResult} result.
+     * <p>
+     * Before doing so, this may fall back to a coordinator lookup join: if every required (non-skippable) cluster in
+     * {@code lookupIndexScope} has the lookup index, that scope is kept as-is. Otherwise - whether {@code
+     * lookupIndexScope} is fully local, mixed (local + remote), or remote-only - the join instead falls back to a
+     * coordinator lookup join: gathering the left-hand rows on the coordinator and joining there against the local
+     * copy of the lookup index. That fallback is only possible when the local cluster actually has the index; if it
+     * doesn't either, {@code lookupIndexScope} is kept unchanged and the missing required cluster(s) fail/skip
+     * normally below. The field-caps request behind {@code lookupIndexResolution} always includes the local cluster
+     * (see {@link EsqlCCSUtils#createQualifiedLookupIndexExpressionFromAvailableClusters}), so this decision needs no
+     * extra round trip - the coordinator's resolution, if needed, is already part of {@code lookupIndexResolution}.
      */
     private PreAnalysisResult receiveLookupIndexResolution(
         PreAnalysisResult result,
@@ -1665,6 +1621,18 @@ public class EsqlSession {
         if (lookupIndexResolution.isValid() == false) {
             // If the index resolution is invalid, don't bother with the rest of the analysis
             return result.addLookupIndexResolution(index, lookupIndexResolution);
+        }
+        Set<String> resolvedClusters = resolvedClusterAliases(lookupIndexResolution);
+        boolean fallBackToCoordinatorLookup = Objects.equals(COORDINATOR_LOOKUP_SCOPE, lookupIndexScope) == false
+            && resolvedClusters.contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
+            && lookupIndexScope.stream()
+                .anyMatch(
+                    clusterAlias -> resolvedClusters.contains(clusterAlias) == false
+                        && executionInfo.shouldSkipOnFailure(clusterAlias) == false
+                );
+        if (fallBackToCoordinatorLookup) {
+            lookupIndexResolution = restrictToLocalScope(lookupIndexResolution);
+            lookupIndexScope = COORDINATOR_LOOKUP_SCOPE;
         }
         if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
             // Local only case, still do some checks, since we moved analysis checks here
@@ -1751,6 +1719,48 @@ public class EsqlSession {
             index,
             checkSingleIndex(index, executionInfo, lookupIndexResolution, clustersWithResolvedIndices.values())
         );
+    }
+
+    private static Set<String> resolvedClusterAliases(IndexResolution indexResolution) {
+        Set<String> resolvedClusters = new HashSet<>();
+        for (String indexName : indexResolution.resolvedIndices()) {
+            resolvedClusters.add(RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey());
+        }
+        return resolvedClusters;
+    }
+
+    /**
+     * Restricts a lookup-index {@link IndexResolution} to only its local-cluster entries, so that
+     * {@link LookupJoin#lookupResolvedLocallyOnly()} correctly identifies a coordinator-only lookup join. This is
+     * needed when falling back to a coordinator lookup join for a remote-only LOOKUP JOIN scope: the field-caps
+     * call that produced {@code indexResolution} queries local and remote clusters together, so its
+     * {@link EsIndex} would otherwise still carry any remote clusters that did resolve.
+     */
+    private static IndexResolution restrictToLocalScope(IndexResolution indexResolution) {
+        EsIndex index = indexResolution.get();
+        Map<String, IndexMode> indexNameWithModes = index.indexNameWithModes()
+            .entrySet()
+            .stream()
+            .filter(entry -> EsqlSession.isLocalIndexName(entry.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        EsIndex localIndex = new EsIndex(
+            index.name(),
+            index.mapping(),
+            indexNameWithModes,
+            filterToLocalCluster(index.originalIndices()),
+            filterToLocalCluster(index.concreteIndices())
+        );
+        Set<String> resolvedIndices = indexResolution.resolvedIndices().stream().filter(EsqlSession::isLocalIndexName).collect(toSet());
+        return IndexResolution.valid(localIndex, resolvedIndices, indexResolution.failures());
+    }
+
+    private static boolean isLocalIndexName(String indexName) {
+        return RemoteClusterAware.isRemoteIndexName(indexName) == false;
+    }
+
+    private static Map<String, List<String>> filterToLocalCluster(Map<String, List<String>> byClusterAlias) {
+        List<String> local = byClusterAlias.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        return local == null ? Map.of() : Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, local);
     }
 
     private ElasticsearchException findFailure(Map<String, List<FieldCapabilitiesFailure>> failures, String index, String clusterAlias) {

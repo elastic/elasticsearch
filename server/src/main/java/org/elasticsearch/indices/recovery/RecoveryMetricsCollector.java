@@ -42,6 +42,8 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     public static final String CURRENT_STORE_RECOVERIES = "es.recovery.store.active.current";
     public static final String QUEUED_STORE_RECOVERIES = "es.recovery.store.queued.current";
 
+    public static final String RECOVERY_DIRECT_CANCELLATIONS_METRIC = "es.recovery.shard.directcancellations.total";
+
     public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP);
 
     private final LongCounter shardRecoveryTotalMetric;
@@ -55,6 +57,8 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     private final LongUpDownCounter queuedPeerRecoveriesAsTargetMetric;
     private final LongUpDownCounter activeStoreRecoveriesMetric;
     private final LongUpDownCounter queuedStoreRecoveriesMetric;
+
+    private final LongCounter shardRecoveryDirectCancellationsMetric;
 
     public RecoveryMetricsCollector(TelemetryProvider telemetryProvider) {
         final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
@@ -106,6 +110,11 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
         queuedStoreRecoveriesMetric = meterRegistry.registerLongUpDownCounter(
             QUEUED_STORE_RECOVERIES,
             "Number of currently queued non-peer recoveries",
+            "unit"
+        );
+        shardRecoveryDirectCancellationsMetric = meterRegistry.registerLongCounter(
+            RECOVERY_DIRECT_CANCELLATIONS_METRIC,
+            "Number of started shard recoveries that have been directly cancelled by the master",
             "unit"
         );
     }
@@ -165,6 +174,12 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     @Override
     public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
         updateActiveRecovery(type, role, -1);
+    }
+
+    @Override
+    public void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+        // TODO: use type and role in metric attributes (https://github.com/elastic/elasticsearch-team/issues/2860)
+        shardRecoveryDirectCancellationsMetric.increment();
     }
 
     private void updateQueuedRecovery(RecoverySource.Type type, RecoveryRole role, int delta) {

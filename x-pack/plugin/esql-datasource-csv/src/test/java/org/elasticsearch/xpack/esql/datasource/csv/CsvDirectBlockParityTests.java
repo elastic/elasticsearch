@@ -356,25 +356,39 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("line1\nline2"), br("tail"))), rows);
     }
 
-    public void testEmptyQuotedFieldIsNull() throws IOException {
-        // The current parser collapses an empty quoted field "" to null, exactly like an empty
-        // unquoted cell; pin that so the direct-block parser must match.
+    public void testEmptyQuotedFieldIsEmptyString() throws IOException {
+        // A present-but-empty quoted field "" on a string column reads as the empty string, exactly
+        // like an empty unquoted cell; pin that so the direct-block parser must match.
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\n\"\",x\n");
-        assertEquals(List.of(row(null, br("x"))), rows);
+        assertEquals(List.of(row(br(""), br("x"))), rows);
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Null handling
+    // Empty / null handling
     // ---------------------------------------------------------------------------------------------
 
-    public void testEmptyUnquotedCellIsNull() throws IOException {
+    public void testEmptyCellIsEmptyStringOnStringColumnNullOnNumeric() throws IOException {
+        // A present-but-empty cell reads as the empty string on a string (KEYWORD) column and as null
+        // on a numeric column, which has no empty representation.
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:long\n,5\nx,\n");
-        assertEquals(List.of(row(null, 5L), row(br("x"), null)), rows);
+        assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
     }
 
     public void testCustomNullValue() throws IOException {
         List<List<Object>> rows = read(false, Map.of("null_value", "NULL"), "a:keyword,b:long\nNULL,NULL\nx,5\n");
         assertEquals(List.of(row(null, null), row(br("x"), 5L)), rows);
+    }
+
+    /** A declared KEYWORD column must be able to hold the literal string "null" (any case) — see #1098. */
+    public void testLiteralNullTextOnKeywordIsPreserved() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:long\nnull,1\nNULL,2\n");
+        assertEquals(List.of(row(br("null"), 1L), row(br("NULL"), 2L)), rows);
+    }
+
+    /** Non-string columns keep classifying the literal "null" token as a null marker. */
+    public void testLiteralNullTextOnTypedColumnIsNull() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:long,b:keyword\nnull,null\n1,x\n");
+        assertEquals(List.of(row(null, br("null")), row(1L, br("x"))), rows);
     }
 
     /**
@@ -505,9 +519,11 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("\u00a0x\u00a0"))), rows);
     }
 
-    public void testTsvPlainEmptyCellIsNull() throws IOException {
+    public void testTsvPlainEmptyCellIsEmptyStringOnStringColumnNullOnNumeric() throws IOException {
+        // A present-but-empty cell reads as the empty string on a string (KEYWORD) column and as null
+        // on a numeric column, which has no empty representation.
         List<List<Object>> rows = read(true, Map.of(), "a:keyword\tb:long\n\t5\nx\t\n");
-        assertEquals(List.of(row(null, 5L), row(br("x"), null)), rows);
+        assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
     }
 
     public void testTsvPlainCustomNullValue() throws IOException {
@@ -515,9 +531,16 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(null, null), row(br("x"), 5L)), rows);
     }
 
-    public void testTsvPlainLiteralNullTextIsNull() throws IOException {
+    /** A declared KEYWORD column must be able to hold the literal string "null" (any case) — see #1098. */
+    public void testTsvPlainLiteralNullTextOnKeywordIsPreserved() throws IOException {
         List<List<Object>> rows = read(true, Map.of(), "k:keyword\nnull\nNULL\nx\n");
-        assertEquals(List.of(row((Object) null), row((Object) null), row(br("x"))), rows);
+        assertEquals(List.of(row(br("null")), row(br("NULL")), row(br("x"))), rows);
+    }
+
+    /** Non-string columns keep classifying the literal "null" token as a null marker. */
+    public void testTsvPlainLiteralNullTextOnTypedColumnIsNull() throws IOException {
+        List<List<Object>> rows = read(true, Map.of(), "a:long\tb:keyword\nnull\tnull\n1\tx\n");
+        assertEquals(List.of(row(null, br("null")), row(1L, br("x"))), rows);
     }
 
     public void testTsvPlainDatetimeEpochAndIso() throws IOException {
@@ -649,15 +672,17 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testTsvLeadingDelimiterBeforeCommentPrefixIsDataRow() throws IOException {
         // A TSV line whose first cell is empty (a leading TAB delimiter) is NOT a comment, even though
         // the comment prefix follows: Jackson classifies comments on the first parsed cell, so the
-        // direct path must keep this as a two-column data row rather than dropping it.
+        // direct path must keep this as a two-column data row rather than dropping it. The empty first
+        // cell reads as the empty string on its string column.
         List<List<Object>> rows = read(true, Map.of("comment", "//"), "a:keyword\tb:keyword\nx\ty\n\t// c\n");
-        assertEquals(List.of(row(br("x"), br("y")), row((Object) null, br("// c"))), rows);
+        assertEquals(List.of(row(br("x"), br("y")), row(br(""), br("// c"))), rows);
     }
 
     public void testCommaLeadingDelimiterBeforeCommentPrefixIsDataRow() throws IOException {
         // Same first-cell rule for CSV: an empty first cell before the comment prefix is a data row.
+        // The empty first cell reads as the empty string on its string column.
         List<List<Object>> rows = read(false, Map.of("comment", "//"), "a:keyword,b:keyword\nx,y\n,// c\n");
-        assertEquals(List.of(row(br("x"), br("y")), row((Object) null, br("// c"))), rows);
+        assertEquals(List.of(row(br("x"), br("y")), row(br(""), br("// c"))), rows);
     }
 
     public void testQuotedFirstCellThatDecodesToCommentIsSkipped() throws IOException {

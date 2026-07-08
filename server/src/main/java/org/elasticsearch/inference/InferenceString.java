@@ -33,7 +33,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
-public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
+public class InferenceString implements Writeable, ToXContentObject {
     public static final TransportVersion EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_audio_video_pdf_support"
     );
@@ -48,6 +48,10 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     public static final String TYPE_FIELD = "type";
     public static final String FORMAT_FIELD = "format";
     public static final String VALUE_FIELD = "value";
+
+    private final DataType dataType;
+    private final DataFormat dataFormat;
+    private final String value;
 
     public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),
@@ -92,6 +96,22 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         validateDataURIFormat();
     }
 
+    public InferenceString(StreamInput in) throws IOException {
+        this(in.readEnum(DataType.class), in.readEnum(DataFormat.class), in.readString());
+    }
+
+    public DataType dataType() {
+        return dataType;
+    }
+
+    public DataFormat dataFormat() {
+        return dataFormat;
+    }
+
+    public String value() {
+        return value;
+    }
+
     private void validateTypeAndFormat() {
         if (dataType.getSupportedFormats().contains(dataFormat) == false) {
             throw new IllegalArgumentException(
@@ -117,10 +137,6 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
                 );
             }
         }
-    }
-
-    public InferenceString(StreamInput in) throws IOException {
-        this(in.readEnum(DataType.class), in.readEnum(DataFormat.class), in.readString());
     }
 
     public boolean isText() {
@@ -193,7 +209,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public final void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED) == false
             && (dataType.equals(DataType.AUDIO) || dataType.equals(DataType.VIDEO) || dataType.equals(DataType.PDF))) {
             throw new ElasticsearchStatusException(
@@ -215,5 +231,25 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         builder.field(VALUE_FIELD, value);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        var that = (InferenceString) obj;
+        return Objects.equals(this.dataType, that.dataType)
+            && Objects.equals(this.dataFormat, that.dataFormat)
+            && Objects.equals(this.value, that.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(dataType, dataFormat, value);
+    }
+
+    @Override
+    public String toString() {
+        return "InferenceString[dataType=" + dataType + ", dataFormat=" + dataFormat + ", value=" + value + ']';
     }
 }

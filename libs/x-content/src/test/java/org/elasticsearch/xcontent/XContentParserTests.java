@@ -706,6 +706,41 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
+    public void testYamlHexNumbersAreParsedAsNumbers() throws IOException {
+        String yaml = """
+            number_base10: 1
+            number_base16: 0x1
+            number_base16_uppercase: 0xFF
+            quoted_hex: "0x1"
+            """;
+        try (XContentParser parser = decorateParser(XContentType.YAML.xContent().createParser(XContentParserConfiguration.EMPTY, yaml))) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("number_base10", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(1, parser.intValue());
+
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("number_base16", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(1, parser.intValue());
+
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("number_base16_uppercase", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(255, parser.intValue());
+
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("quoted_hex", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+            assertEquals("0x1", parser.text());
+
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+    }
+
     public void testCborHasByteOffsets() throws IOException {
         byte[] json = "{\"k\":1}".getBytes(StandardCharsets.UTF_8);
         byte[] cbor;

@@ -196,10 +196,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
     public void testPointInTimeRelocationPitOnUnflushedIndexState() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
-        var testNodeSettings = Settings.builder()
-            .put(nodeSettings)
-            .put(STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
-            .build();
+        var testNodeSettings = Settings.builder().put(nodeSettings).put(STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1)).build();
 
         var indexNode = startMasterAndIndexNode(testNodeSettings);
         var searchNodeA = startSearchNode(testNodeSettings);

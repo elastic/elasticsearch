@@ -814,3 +814,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/153282
+- class: org.elasticsearch.xpack.esql.qa.mixed.AllSupportedFieldsIT
+  method: "testFetchAll {pref=STORED mode=logsdb_columnar}"
+  issue: https://github.com/elastic/elasticsearch/issues/153285
+- class: org.elasticsearch.xpack.esql.qa.mixed.AllSupportedFieldsIT
+  method: "testFetchAll {pref=null mode=logsdb_columnar}"
+  issue: https://github.com/elastic/elasticsearch/issues/153285
+- class: org.elasticsearch.xpack.esql.qa.mixed.AllSupportedFieldsIT
+  method: "testFetchAll {pref=NONE mode=logsdb_columnar}"
+  issue: https://github.com/elastic/elasticsearch/issues/153285

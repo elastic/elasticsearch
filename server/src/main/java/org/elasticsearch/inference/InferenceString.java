@@ -210,6 +210,7 @@ public class InferenceString implements Writeable, ToXContentObject {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
+        validateWriteTo();
         if (out.getTransportVersion().supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED) == false
             && (dataType.equals(DataType.AUDIO) || dataType.equals(DataType.VIDEO) || dataType.equals(DataType.PDF))) {
             throw new ElasticsearchStatusException(
@@ -229,6 +230,7 @@ public class InferenceString implements Writeable, ToXContentObject {
         builder.field(TYPE_FIELD, dataType);
         builder.field(FORMAT_FIELD, dataFormat);
         builder.field(VALUE_FIELD, value);
+        doToXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -252,4 +254,10 @@ public class InferenceString implements Writeable, ToXContentObject {
     public String toString() {
         return "InferenceString[dataType=" + dataType + ", dataFormat=" + dataFormat + ", value=" + value + ']';
     }
+
+    // TODO: Javadoc
+    protected void validateWriteTo() throws IOException {}
+
+    // TODO: Javadoc
+    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {}
 }

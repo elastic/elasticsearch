@@ -534,15 +534,16 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
     }
 
     /**
-     * Exercises the data race behind https://github.com/elastic/elasticsearch/issues/152904
-     * through the real {@link ParallelTopNOperator}, rather than in isolation.
+     * Regression test for the data race behind https://github.com/elastic/elasticsearch/issues/152904,
+     * through the real {@link ParallelTopNOperator} rather than in isolation.
      * <p>
      * Two sibling pages carry two <em>distinct</em> {@link OrdinalBytesRefBlock} instances that
      * share the same underlying dictionary {@link BytesRefVector} (via {@code incRef}), matching
      * what a degenerate, full-range {@link OrdinalBytesRefBlock#slice}/{@link
      * OrdinalBytesRefBlock#keepMask} does in production -- a new wrapper block, but the same
-     * dictionary instance. Dispatched to two different worker threads, their releases can race on
-     * the shared, non-thread-safe dictionary reference count.
+     * dictionary instance. Dispatched to two different worker threads, their releases raced on the
+     * shared dictionary's reference count before it became thread safe (see
+     * {@link org.elasticsearch.compute.data.AbstractBlockRefCounted}).
      */
     public void testConcurrentReleaseOfSharedDictionaryThroughRealOperator() throws Exception {
         int workerCount = 2;

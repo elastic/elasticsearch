@@ -30,17 +30,17 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.empty;
 
 /**
- * Exercises the data race behind https://github.com/elastic/elasticsearch/issues/152904, in
- * isolation from {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator}.
+ * Regression test for the data race behind https://github.com/elastic/elasticsearch/issues/152904,
+ * in isolation from {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator}.
  * <p>
- * Upstream operators routinely alias a shared, non-thread-safe ref-counted block between sibling
- * pages -- e.g. a degenerate, full-range {@link OrdinalBytesRefBlock#slice}/{@link
- * OrdinalBytesRefBlock#keepMask} just {@code incRef}s the dictionary/block and returns it. That
- * aliasing is safe only when a single thread ever releases the aliasing blocks at a time; {@link
- * AbstractNonThreadSafeRefCounted} is explicitly not thread safe. Once sibling pages carrying the
- * same block are released concurrently -- as happens once {@link
- * org.elasticsearch.compute.operator.topn.ParallelTopNOperator} fans pages out to background
- * worker threads -- two threads can race {@code decRef} on the same shared block and one can
+ * Upstream operators routinely alias a shared ref-counted block between sibling pages -- e.g. a
+ * degenerate, full-range {@link OrdinalBytesRefBlock#slice}/{@link OrdinalBytesRefBlock#keepMask}
+ * just {@code incRef}s the dictionary/block and returns it. Once sibling pages carrying the same
+ * block are released concurrently -- as happens once
+ * {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator} fans pages out to
+ * background worker threads -- two threads can race {@code decRef} on the same shared block.
+ * Before {@link AbstractBlockRefCounted} became thread safe (its reference count was a plain,
+ * non-atomic field), that race could lose a decrement -- leaking the block -- or, more rarely,
  * observe "can't release already released object".
  * <p>
  * This was not reliably reproducible through the full {@code CsvIT} test, which needs a real

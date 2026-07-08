@@ -171,6 +171,10 @@ gradlePlugin {
       id = 'elasticsearch.esql-function'
       implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin'
     }
+    esqlCsvSpecTests {
+      id = 'elasticsearch.esql-csv-spec-tests'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlCsvSpecTestsPlugin'
+    }
     releaseTools {
       id = 'elasticsearch.release-tools'
       implementationClass = 'org.elasticsearch.gradle.internal.release.ReleaseToolsPlugin'

@@ -406,7 +406,7 @@ public final class DatasetRewriter {
         }
         Map<String, Object> merged = mergeSettings(parent, dataset);
         Literal path = Literal.keyword(source, dataset.resource());
-        return new UnresolvedExternalRelation(source, path, merged, metadataFields, name);
+        return new UnresolvedExternalRelation(source, path, merged, metadataFields, name, dataset.mapping());
     }
 
     /**

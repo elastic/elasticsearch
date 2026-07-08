@@ -337,9 +337,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/149663
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=exists/60_realtime_refresh/Realtime Refresh}
-  issue: https://github.com/elastic/elasticsearch/issues/151706
 - class: org.elasticsearch.search.basic.SearchDuringRollingRestartIT
   method: testSearchesSurviveRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/151828

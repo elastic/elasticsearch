@@ -98,8 +98,9 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
     "long"    : Name == "Long" ? "true" : "",
     "double"  : Name == "Double" ? "true" : "",
     "boolean" : Name == "Boolean" ? "true" : "",
-    "BytesRef": Name == "BytesRef" ? "true" : "",
-    "Ip"      : Name == "Ip" ? "true" : "",
+    "BytesRef" : Name == "BytesRef" ? "true" : "",
+    "Ip"       : Name == "Ip" ? "true" : "",
+    "LongRange": Name == "LongRange" ? "true" : "",
   ]
 }
 
@@ -1216,6 +1217,12 @@ tasks.named('stringTemplates').configure {
     it.properties = floatProperties
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForFloat.java"
+  }
+  var longRangeProperties = prop("LongRange", "LongRange", "long", "", "LONG_RANGE", "", "", "")
+  template {
+    it.properties = longRangeProperties
+    it.inputFile = enrichResultBuilderInput
+    it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForLongRange.java"
   }
 
   // TODO: add {value}_over_time for other types: boolean, bytes_refs

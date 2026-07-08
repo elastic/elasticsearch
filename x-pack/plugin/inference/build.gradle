@@ -571,13 +571,9 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("Uses the inference API")
   if (buildParams.snapshotBuild == false) {
-    // The semantic field and columnar index modes are not available in release builds.
+    // The columnar index mode is not available in release builds.
     def snapshotOnlyTests = [
-      'inference/120_semantic_field_mapping/*',
-      'inference/130_semantic_field_query/*',
-      'inference/140_semantic_field_query_vector_builder/*',
-      'inference/150_semantic_field_inference/*',
-      'inference/160_semantic_field_highlighter/*',
+      'inference/173_semantic_field_columnar_source/*',
       'inference/181_semantic_text_columnar_source/*'
     ]
     systemProperty 'tests.rest.blacklist', snapshotOnlyTests.join(',')

@@ -57,6 +57,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.QUERY;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -95,8 +96,10 @@ public class RestSearchAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_search"),
             new Route(POST, "/_search"),
+            new Route(QUERY, "/_search"),
             new Route(GET, "/{index}/_search"),
-            new Route(POST, "/{index}/_search")
+            new Route(POST, "/{index}/_search"),
+            new Route(QUERY, "/{index}/_search")
         );
     }
 

@@ -38,6 +38,8 @@ import java.util.stream.Collectors;
 
 public class Netty4HttpRequest implements HttpRequest {
 
+    private static final HttpMethod QUERY_METHOD = HttpMethod.valueOf("QUERY");
+
     private final int sequence;
     private final io.netty.handler.codec.http.HttpRequest nettyRequest;
     private boolean hasContent;
@@ -204,6 +206,10 @@ public class Netty4HttpRequest implements HttpRequest {
 
         if (httpMethod == HttpMethod.CONNECT) {
             return RestRequest.Method.CONNECT;
+        }
+
+        if (httpMethod == QUERY_METHOD) {
+            return RestRequest.Method.QUERY;
         }
 
         throw new IllegalArgumentException("Unexpected http method: " + httpMethod);

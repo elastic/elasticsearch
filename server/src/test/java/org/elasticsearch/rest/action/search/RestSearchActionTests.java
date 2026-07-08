@@ -8,11 +8,13 @@
  */
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -24,12 +26,15 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public final class RestSearchActionTests extends RestActionTestCase {
@@ -213,5 +218,105 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals("s1", searchRequest.routing());
         assertTrue(searchRequest.isRoutingFromSlice());
         assertEquals("s1", searchRequest.searchSlice());
+    }
+
+    public void testQueryMethodRoutesAreRegistered() {
+        RestSearchAction action = new RestSearchAction(new UsageService().getSearchUsageHolder(), nf -> false, CrossProjectModeDecider.NOOP);
+        boolean hasQuerySearch = false;
+        boolean hasQueryIndexSearch = false;
+        for (Route route : action.routes()) {
+            if (route.getMethod() == RestRequest.Method.QUERY) {
+                if (route.getPath().equals("/_search")) {
+                    hasQuerySearch = true;
+                } else if (route.getPath().equals("/{index}/_search")) {
+                    hasQueryIndexSearch = true;
+                }
+            }
+        }
+        assertTrue("QUERY method not registered for /_search", hasQuerySearch);
+        assertTrue("QUERY method not registered for /{index}/_search", hasQueryIndexSearch);
+    }
+
+    /**
+     * QUERY method accepts requests with Content-Type header (RFC 10008 compliance).
+     * The handler should not reject QUERY requests based on method.
+     */
+    public void testQueryMethodAcceptsContentType() throws Exception {
+        AtomicReference<ActionType<?>> capturedActionType = new AtomicReference<>();
+        verifyingClient.setExecuteVerifier((actionType, request) -> {
+            capturedActionType.set(actionType);
+            return mock(SearchResponse.class);
+        });
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.QUERY)
+            .withPath("/_search")
+            .withContent(new BytesArray("{}"), XContentType.JSON)
+            .build();
+
+        action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), verifyingClient);
+        assertThat(capturedActionType.get(), equalTo(SearchAction.INSTANCE));
+    }
+
+    /**
+     * QUERY method works with index-specific search endpoint
+     */
+    public void testQueryMethodWithIndexSpecificPath() throws Exception {
+        AtomicReference<ActionType<?>> capturedActionType = new AtomicReference<>();
+        verifyingClient.setExecuteVerifier((actionType, request) -> {
+            capturedActionType.set(actionType);
+            return mock(SearchResponse.class);
+        });
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.QUERY)
+            .withPath("/test_index/_search")
+            .build();
+
+        action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), verifyingClient);
+        assertThat(capturedActionType.get(), equalTo(SearchAction.INSTANCE));
+    }
+
+    /**
+     * QUERY method supports standard query parameters (size, from, etc)
+     */
+    public void testQueryMethodWithStandardParams() throws Exception {
+        AtomicReference<ActionType<?>> capturedActionType = new AtomicReference<>();
+        verifyingClient.setExecuteVerifier((actionType, request) -> {
+            capturedActionType.set(actionType);
+            return mock(SearchResponse.class);
+        });
+
+        Map<String, String> params = new HashMap<>();
+        params.put("size", "20");
+        params.put("from", "10");
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.QUERY)
+            .withPath("/_search")
+            .withParams(params)
+            .build();
+
+        action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), verifyingClient);
+        assertThat(capturedActionType.get(), equalTo(SearchAction.INSTANCE));
+    }
+
+    /**
+     * QUERY method without body (empty/minimal request) should be accepted
+     */
+    public void testQueryMethodWithoutBody() throws Exception {
+        AtomicReference<ActionType<?>> capturedActionType = new AtomicReference<>();
+        verifyingClient.setExecuteVerifier((actionType, request) -> {
+            capturedActionType.set(actionType);
+            return mock(SearchResponse.class);
+        });
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.QUERY)
+            .withPath("/_search")
+            .build();
+
+        action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), verifyingClient);
+        assertThat(capturedActionType.get(), equalTo(SearchAction.INSTANCE));
     }
 }

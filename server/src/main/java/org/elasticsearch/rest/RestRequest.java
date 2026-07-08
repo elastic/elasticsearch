@@ -246,7 +246,8 @@ public class RestRequest implements ToXContent.Params, Traceable {
         HEAD,
         PATCH,
         TRACE,
-        CONNECT
+        CONNECT,
+        QUERY
     }
 
     /**

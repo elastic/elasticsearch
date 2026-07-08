@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_NOTIFY;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
 /// released when the recovery's [RecoveryListener] completes.
@@ -446,7 +446,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         @Override
         public void onFailure(Exception e) {
-            listener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_NOTIFY);
+            listener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND);
         }
 
         @Override

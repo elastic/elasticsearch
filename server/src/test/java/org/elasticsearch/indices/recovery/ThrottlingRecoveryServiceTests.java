@@ -61,7 +61,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_NOTIFY;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -652,7 +652,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             // simulates cancellation of started recovery
             taskQueue.scheduleAt(
                 taskQueue.getCurrentTimeMillis() + 100,
-                () -> listener.onRecoveryFailure(new RecoveryCancelledException(shardId1, null, null), FAIL_NOTIFY)
+                () -> listener.onRecoveryFailure(new RecoveryCancelledException(shardId1, null, null), FAIL_SEND)
             );
         });
         taskQueue.runAllRunnableTasks();
@@ -743,7 +743,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             // occupies the sole concurrency slot
             taskQueue.scheduleAt(
                 taskQueue.getCurrentTimeMillis() + 100,
-                () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), FAIL_NOTIFY)
+                () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), FAIL_SEND)
             );
         });
 
@@ -786,7 +786,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             // occupies the sole concurrency slot
             taskQueue.scheduleAt(
                 taskQueue.getCurrentTimeMillis() + 100,
-                () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), FAIL_NOTIFY)
+                () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), FAIL_SEND)
             );
         });
         taskQueue.runAllRunnableTasks();
@@ -1081,7 +1081,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 } else {
                     schedulingListener.onRecoveryFailure(
                         new RecoveryFailedException(recoveryState, null, new RuntimeException("test recovery task injected failure")),
-                        randomBoolean() ? FAIL_NOTIFY : FAIL_SILENT
+                        randomBoolean() ? FAIL_SEND : FAIL_SILENT
                     );
                 }
             }

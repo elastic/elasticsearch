@@ -118,7 +118,9 @@ import java.util.StringJoiner;
  * <ul>
  *   <li>First non-comment line: schema — {@code column:type} pairs separated by the delimiter
  *   <li>Subsequent lines: data rows
- *   <li>Empty/missing values → {@code null}
+ *   <li>A present but empty field ({@code a,,c}) reads as the empty string on {@code keyword}/{@code text}
+ *       columns and as {@code null} on other types; a missing field (row shorter than the schema) is
+ *       always {@code null}
  *   <li>Lines starting with the comment prefix (default {@code //}) are skipped
  * </ul>
  *
@@ -146,7 +148,9 @@ import java.util.StringJoiner;
  *   <tr><td>{@code escape}</td><td>{@code \}</td><td>Escape character; setting it turns escaping on
  *           regardless of {@code mode}, the literal {@code none} turns it off (overrides the preset)</td></tr>
  *   <tr><td>{@code comment}</td><td>{@code //}</td><td>Line comment prefix</td></tr>
- *   <tr><td>{@code null_value}</td><td>(empty)</td><td>String representation of null</td></tr>
+ *   <tr><td>{@code null_value}</td><td>(empty)</td><td>Token whose exact match reads as {@code null}. The
+ *           default (empty) installs no such token: an empty field is then a present empty value (empty
+ *           string on {@code keyword}/{@code text}, {@code null} on other types), not a null token</td></tr>
  *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>Character encoding</td></tr>
  *   <tr><td>{@code datetime_format}</td><td>ISO-8601 / epoch</td><td>Custom datetime pattern</td></tr>
  *   <tr><td>{@code max_field_size}</td><td>10 MB</td><td>OOM protection; max bytes per field</td></tr>
@@ -250,6 +254,41 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /** Sentinel passed to {@link CsvBatchIterator#onRowError} when the offending row could not be tokenised. */
     private static final String[] EMPTY_ROW = new String[0];
+
+    /**
+     * Shared empty {@link BytesRef} stored for a present-but-empty string cell. Safe to share across
+     * rows and blocks because block builders copy the bytes on append; nothing mutates this instance.
+     */
+    private static final BytesRef EMPTY_STRING = new BytesRef(BytesRef.EMPTY_BYTES);
+
+    /**
+     * Value for a field that is present in the row but has empty text: the empty string on
+     * {@code KEYWORD}/{@code TEXT} columns, {@code null} on every other type (which has no empty
+     * representation). A MISSING field (row shorter than the schema) is handled by the callers and is
+     * always {@code null}, independent of this method.
+     */
+    private static Object presentEmptyValue(DataType dataType) {
+        return DataType.isString(dataType) ? EMPTY_STRING : null;
+    }
+
+    /**
+     * Whether a field that closed with no content (an unquoted trailing delimiter, e.g. {@code a,b,})
+     * counts as a present-but-empty field rather than a dropped trailing delimiter beyond the schema.
+     * Shared by the fused bracket walker ({@code splitAndConvertProjected}) and the split-then-convert
+     * bracket route ({@code splitCommaDelimiterBracketAwareFields}) so the two routes agree on where the
+     * schema boundary falls.
+     * <p>
+     * The {@code priorFieldCount > 0} guard requires a preceding field: an unquoted trailing empty is only
+     * meaningful after a delimiter that closed a real field (the {@code b,} in {@code a,b,}). A tokenization
+     * that produced no fields at all is not a row ending in a bare delimiter, so it fabricates no empty
+     * field. This also makes the predicate always {@code false} for a single-column schema
+     * ({@code schemaColumnCount == 1} leaves no integer with {@code 0 < priorFieldCount < 1}): a
+     * single-column present-empty cell arrives instead through the quoted-empty path ({@code ""}), while a
+     * blank line is skipped before tokenization.
+     */
+    private static boolean isPresentTrailingEmpty(int priorFieldCount, int schemaColumnCount) {
+        return priorFieldCount > 0 && priorFieldCount < schemaColumnCount;
+    }
 
     /**
      * Reused {@link DateFormatter} that delegates to ES's hand-rolled
@@ -1168,7 +1207,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * as data so e.g. a Windows path inside quotes survives intact.
      */
     private CsvSchema newCsvSchema() {
-        CsvSchema schema = CsvSchema.emptySchema().withColumnSeparator(options.delimiter()).withNullValue(options.nullValue());
+        CsvSchema schema = CsvSchema.emptySchema().withColumnSeparator(options.delimiter());
+        // Only a non-empty custom null_value installs a Jackson null token. The default empty
+        // null_value must NOT null-fill empty cells: empty string cells survive as "" so the
+        // empty-vs-null decision is made per type in tryConvertValue (empty string on string columns,
+        // null otherwise). Setting withNullValue("") here would collapse empty to null before we ever
+        // see the value, hiding present-empty string cells.
+        if (options.nullValue().isEmpty() == false) {
+            schema = schema.withNullValue(options.nullValue());
+        }
         if (options.quoting() == false) {
             return schema.withoutQuoteChar();
         }
@@ -2121,12 +2168,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Bracket- and quote-aware comma split; must stay aligned with {@link CsvBatchIterator#splitLineBracketAware}.
+     * {@code schemaColumnCount} lets the end-of-line handling reproduce the fused walker's trailing present-empty
+     * rule: a row-ending delimiter inside the schema yields a present empty field, beyond it a lone trailing
+     * delimiter is dropped.
      */
-    private static String[] splitCommaDelimiterBracketAwareFields(String line, char quote, char esc, boolean trimSpaces) {
+    private static String[] splitCommaDelimiterBracketAwareFields(
+        String line,
+        char quote,
+        char esc,
+        int schemaColumnCount,
+        boolean trimSpaces
+    ) {
         final char delim = ',';
         List<String> entries = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean inQuotes = false;
+        // Mirrors splitAndConvertProjected: true once the current (last) field has been started by
+        // content, an opening quote, or an opening bracket. It distinguishes a trailing field that was
+        // opened but yielded no text (a quoted empty `""`, a present empty field) from a genuinely
+        // absent field, so both bracket routes agree at end of line.
+        boolean trailingFieldHasContent = false;
         int bracketDepth = 0;
         // Remember where the parser entered the unclosed state so error messages can anchor on
         // the actual fault site instead of head/tail-truncating a long line and hiding it.
@@ -2169,6 +2230,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // text-accumulation branch on subsequent iterations: real-world rows like `[37] Title text,...`
                 // mean "[37] Title text" is one field. Closing the cell here would split off the trailing text
                 // into a phantom extra column, which is exactly the "row has [N+1] columns" failure.
+                trailingFieldHasContent = true;
                 current.append(c);
                 if (c == '[') {
                     bracketDepth++;
@@ -2177,6 +2239,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 i++;
             } else if (c == quote && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
+                trailingFieldHasContent = true;
                 // Drop any whitespace-only prefix accumulated before the opening quote so ` "y"` yields
                 // `y`, matching the direct quoted walker (splitAndConvertQuoted skips outer whitespace before
                 // quote detection). Behavior-neutral under trim_spaces (emitField would have trimmed it).
@@ -2185,6 +2248,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 quoteOpenAt = i;
                 i++;
             } else if (c == '[' && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
+                trailingFieldHasContent = true;
                 if (hasMvcBracketClose(line, i)) {
                     bracketDepth = 1;
                     bracketOpenAt = i;
@@ -2197,9 +2261,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 } else {
                     entries.add(emitField(current, trimSpaces));
                     current = new StringBuilder();
+                    trailingFieldHasContent = false;
                 }
                 i++;
             } else {
+                trailingFieldHasContent = true;
                 current.append(c);
                 i++;
             }
@@ -2212,6 +2278,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         if (current.length() > 0) {
             entries.add(emitField(current, trimSpaces));
+        } else if (trailingFieldHasContent) {
+            // The trailing field was opened but yielded no text (e.g. a quoted empty `""`): a present
+            // empty field. Not bounded by schemaColumnCount: an over-count is caught by column-count
+            // validation downstream, matching the fused walker.
+            entries.add("");
+        } else if (isPresentTrailingEmpty(entries.size(), schemaColumnCount)) {
+            // The line ended on a field-closing delimiter (e.g. `a,b,`): a present empty trailing field
+            // that falls inside the schema. Beyond the schema a lone trailing delimiter is dropped (lenient).
+            entries.add("");
         }
         return entries.toArray(String[]::new);
     }
@@ -3528,7 +3603,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * Commas inside quotes or brackets are not delimiters. Escaped commas ({@code \,}) are skipped.
          */
         private String[] splitLineBracketAware(String line) {
-            return splitCommaDelimiterBracketAwareFields(line, options.quoteChar(), options.escapeChar(), options.trimSpaces());
+            return splitCommaDelimiterBracketAwareFields(
+                line,
+                options.quoteChar(),
+                options.escapeChar(),
+                schemaColumnCount,
+                options.trimSpaces()
+            );
         }
 
         private List<Attribute> inferSchemaFromBatchReader(String headerLine) throws IOException {
@@ -3668,7 +3749,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             int[] stringSlots = new int[columnCount];
             int stringColumns = 0;
             for (int i = 0; i < columnCount; i++) {
-                if (isStringType(projectedTypes[i])) {
+                if (DataType.isString(projectedTypes[i])) {
                     stringSlots[stringColumns++] = i;
                 }
             }
@@ -4562,6 +4643,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
+         * Stages a present-but-empty field on the direct-to-block path: the empty string on
+         * {@code KEYWORD}/{@code TEXT} columns, {@code null} on every other type (which has no empty
+         * representation). Mirrors {@link CsvFormatReader#presentEmptyValue} and the {@link #tryConvertValue}
+         * empty branch so the direct decoders agree with the Jackson path. A MISSING field (row shorter than
+         * the schema) is always {@code null} and is handled by the trailing null-fill, not this method.
+         */
+        private void stagePresentEmptyValue(int bufIdx, DataType dt) {
+            if (DataType.isString(dt)) {
+                stageRefValue(bufIdx, EMPTY_STRING);
+            } else {
+                stageNullValue(bufIdx);
+            }
+        }
+
+        /**
          * Converts the character range {@code [start, end)} of {@code line} for the given target type
          * and stores the result in the typed staging slot {@code bufIdx} (see {@link #appendStagedRow}).
          * The hot numeric, double, and keyword types are parsed directly from the character range; the
@@ -4594,7 +4690,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (end - start > maxFieldChars) {
                     return rejectFieldTooLarge(end - start);
                 }
-                if (isStringType(dt) == false) {
+                if (DataType.isString(dt) == false) {
                     // Mirror tryConvertValue's raw-first null-marker check: a whitespace-bearing null_value
                     // (e.g. " 0 ") must match the UNTRIMMED value, else a typed column trims it away and misses
                     // it while the house arm (which compares the raw field) nulls it — a silent divergence.
@@ -4610,15 +4706,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                 }
             }
+            // maxFieldChars was already enforced against end-start in both trim branches above; trimming
+            // only shrinks the range, so len here is always within the cap and needs no re-check.
             int len = end - start;
-            // Null classification mirrors tryConvertValue: empty always becomes null; the literal "null"
-            // (any case) only for non-string columns, since KEYWORD/TEXT must be able to hold the string
-            // "null"; the configured null marker always becomes null.
+            // Null classification mirrors tryConvertValue: a present-but-empty field is the empty string
+            // on string columns and null on other types; the literal "null" (any case) is a null marker
+            // only for non-string columns, since KEYWORD/TEXT must be able to hold the string "null"; the
+            // configured null marker always becomes null.
             if (len == 0) {
-                stageNullValue(bufIdx);
+                stagePresentEmptyValue(bufIdx, dt);
                 return true;
             }
-            if (isStringType(dt) == false && len == 4 && regionEqualsIgnoreCase(buf, start, "null")) {
+            if (DataType.isString(dt) == false && len == 4 && regionEqualsIgnoreCase(buf, start, "null")) {
                 stageNullValue(bufIdx);
                 return true;
             }
@@ -4784,7 +4883,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * is decoded with Jackson's quoted-escape rule; quoted content (including inner whitespace and embedded newlines) is preserved
          * verbatim, while unquoted fields are trimmed only for typed columns (a keyword keeps its bytes
          * unless trim_spaces). Non-whitespace after a closing quote is a row error, and an empty quoted field
-         * ({@code ""}) is null. Simple unquoted fields (no escape) take the same char-range fast path as
+         * ({@code ""}) is a present-but-empty field (the empty string on string columns, null otherwise). Simple
+         * unquoted fields (no escape) take the same char-range fast path as
          * {@link #splitAndConvertPlain}; quoted or escaped fields are assembled into a reused buffer.
          *
          * @return {@code true} if the row was accepted, {@code false} if rejected by the error policy
@@ -4875,7 +4975,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                     if (projected) {
                         if (value.length() == 0) {
-                            stageNullValue(bufIdx); // empty quoted field is null
+                            // Empty quoted field ("") is a present-but-empty field: empty string on
+                            // string columns, null otherwise (matches the fused/split bracket routes).
+                            stagePresentEmptyValue(bufIdx, dt);
                         } else if (emitConvertedStageField(value.toString(), bufIdx, dt) == false) {
                             return false;
                         }
@@ -4971,7 +5073,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             if (start == end) {
-                stageNullValue(bufIdx);
+                // Whitespace-only field: present-but-empty (empty string on string columns, null otherwise).
+                stagePresentEmptyValue(bufIdx, dt);
                 return true;
             }
             final char esc = options.escapeChar();
@@ -4996,7 +5099,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             if (trimEnd == 0) {
-                stageNullValue(bufIdx);
+                // Decoded to only whitespace: present-but-empty (empty string on string columns, null otherwise).
+                stagePresentEmptyValue(bufIdx, dt);
                 return true;
             }
             // Cap on the tokenized value (full decoded length under no-trim, trimmed under trim_spaces).
@@ -5188,7 +5292,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                     return false;
                                 }
                             } else {
-                                rowBuffer[bufIdx] = null;
+                                // Present-but-empty field (a delimiter closed it): empty string on
+                                // string columns, null otherwise.
+                                rowBuffer[bufIdx] = presentEmptyValue(dt);
                             }
                             current.setLength(0);
                         }
@@ -5243,7 +5349,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 throw MalformedRowException.unclosedBracketCell(line, bracketOpenAt);
             }
 
-            int totalFields = trailingFieldHasContent ? fieldIndex + 1 : fieldIndex;
+            // An unquoted trailing empty field (a row-ending delimiter, e.g. `a,b,`) leaves
+            // trailingFieldHasContent false. It is still a PRESENT empty field when it falls inside the
+            // schema, so count it and fill it like any other present-empty field. Beyond the schema a
+            // lone trailing delimiter on a full-width row is not an extra column and does not error.
+            boolean presentTrailingEmpty = isPresentTrailingEmpty(fieldIndex, schemaColumnCount);
+            int totalFields = (trailingFieldHasContent || presentTrailingEmpty) ? fieldIndex + 1 : fieldIndex;
             if (totalFields > schemaColumnCount) {
                 onRowError(
                     "CSV row has [" + totalFields + "] columns but schema defines [" + schemaColumnCount + "] columns",
@@ -5254,13 +5365,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return false;
             }
 
-            if (trailingFieldHasContent && isProjected) {
-                if (current.length() > 0) {
-                    if (emitConvertedField(current, bufIdx, dt, numericValid, numAcc, negative, numStarted, line) == false) {
-                        return false;
+            if (isProjected) {
+                if (trailingFieldHasContent) {
+                    if (current.length() > 0) {
+                        if (emitConvertedField(current, bufIdx, dt, numericValid, numAcc, negative, numStarted, line) == false) {
+                            return false;
+                        }
+                    } else {
+                        // Present-but-empty trailing field with the content flag set (e.g. a quoted
+                        // empty `,""`): empty string on string columns, null otherwise.
+                        rowBuffer[bufIdx] = presentEmptyValue(dt);
                     }
-                } else {
-                    rowBuffer[bufIdx] = null;
+                } else if (presentTrailingEmpty) {
+                    rowBuffer[bufIdx] = presentEmptyValue(dt);
                 }
             }
 
@@ -5331,18 +5448,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return true;
         }
 
-        /** The string data types, whose values are stored verbatim; every other type trims before parsing. */
-        private static boolean isStringType(DataType dataType) {
-            return dataType == DataType.KEYWORD || dataType == DataType.TEXT;
-        }
-
         private Object tryConvertValue(String value, DataType dataType, int columnIndex) {
-            // The literal "null" token is a null marker only for non-string columns; KEYWORD/TEXT must be
-            // able to hold the string "null". Empty stays a null marker for every type.
-            if (value == null || value.isEmpty() || (isStringType(dataType) == false && value.equalsIgnoreCase("null"))) {
+            if (value == null) {
+                // A field the parser already resolved to null: a missing field (row shorter than the
+                // schema), or a Jackson-emitted null (custom null_value token / escaped \N). Null on every type.
                 return null;
             }
             if (hasCustomNullValue && value.equals(nullValueStr)) {
+                return null;
+            }
+            if (value.isEmpty()) {
+                // Present-but-empty cell: empty string on string columns, null otherwise.
+                return presentEmptyValue(dataType);
+            }
+            if (DataType.isString(dataType) == false && value.equalsIgnoreCase("null")) {
+                // The literal "null" (any case) is a null marker only for non-string columns; KEYWORD/TEXT
+                // hold the string "null" verbatim.
                 return null;
             }
             if (bracketMultiValues) {
@@ -5353,7 +5474,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return tryConvertMultiValue(probe, dataType, columnIndex);
                 }
             }
-            if (isStringType(dataType) == false) {
+            if (DataType.isString(dataType) == false) {
                 // Typed parses mirror CsvSchemaInferrer, which trims before type detection: a value the
                 // sampler classified as INTEGER (etc.) must convert as that type regardless of surrounding
                 // whitespace or quoting. A now-empty or "null" cell is null (as the sampler treats it —
@@ -5444,19 +5565,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private Object parseElement(String value, DataType dataType, int columnIndex) {
-            // Same string-type gate as tryConvertValue: a bracket element that is (or unquotes to) "null"
-            // stays the literal string on KEYWORD/TEXT.
-            if (value == null || value.isEmpty() || (isStringType(dataType) == false && value.equalsIgnoreCase("null"))) {
+            if (value == null) {
                 return null;
             }
             if (hasCustomNullValue && value.equals(nullValueStr)) {
                 return null;
             }
-            value = unquoteElement(value);
             if (value.isEmpty()) {
+                // Present-but-empty element (e.g. the middle of [a,,c]): same per-type rule as a
+                // scalar present-empty cell — empty string on string columns, null otherwise.
+                return presentEmptyValue(dataType);
+            }
+            if (DataType.isString(dataType) == false && value.equalsIgnoreCase("null")) {
+                // Same string-type gate as tryConvertValue: a bracket element that is "null" stays the
+                // literal string on KEYWORD/TEXT.
                 return null;
             }
-            if (isStringType(dataType) == false) {
+            value = unquoteElement(value);
+            if (value.isEmpty()) {
+                // Present-but-empty quoted element (e.g. [a,"",c]).
+                return presentEmptyValue(dataType);
+            }
+            if (DataType.isString(dataType) == false) {
                 // Same typed-parse leniency as tryConvertValue: a quoted, padded numeric element (e.g.
                 // [" 5 ", 6]) converts by its inferred/declared type; padded null-sentinels become null.
                 value = value.trim();

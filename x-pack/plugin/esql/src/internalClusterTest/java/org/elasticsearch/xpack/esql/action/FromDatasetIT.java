@@ -183,6 +183,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "logs_ndjson",
         "logs_csv_rename",
         "logs_csv_gz",
+        "logs_csv_gz_strict",
+        "logs_tsv_gz_strict",
+        "logs_ndjson_gz_strict",
+        "logs_csv_gz_strict_multi",
         "logs_parquet_strict_format",
         "logs_noext_strict",
         "employees_extensionless",
@@ -798,9 +802,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(gz))) {
             out.write(csv);
         }
-        // Non-strict so the format/sourceType is inferred through the extension-based reader (the strict path derives the
-        // sourceType from the file extension and doesn't yet see through a compound `.csv.gz` — a separate, pre-existing
-        // gap unrelated to declared date formats). The overlay retypes the inferred `ts` to a date with the format.
+        // Non-strict here so this test stays focused on the declared date format; the strict path over a compound
+        // `.csv.gz` is covered separately by testStrictOverGzipCsvReads (and its tsv/ndjson twins). The overlay retypes
+        // the inferred `ts` to a date with the format.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", new DatasetFieldMapping("date", null, List.of(), ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
@@ -824,6 +828,104 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM logs_csv_gz | EVAL ms = ts::long | KEEP ms | LIMIT 1"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.get(0).get(0), equalTo(ACCESS_LOG_EPOCH_MILLIS));
+        }
+    }
+
+    public void testStrictOverGzipCsvReads() throws Exception {
+        // A strict (dynamic:false) mapping over compound-compressed .csv.gz. The strict path derives the reader
+        // sourceType from the file name; before the compound-extension fix it last-dotted to "gz" and the query failed
+        // with "No operator factory for sourceType: gz". It must now resolve to "csv" (through the compression-unwrapping
+        // registry) and read the row. Regression guard for the strict compound-extension read fix.
+        assertStrictGzippedTextReads("logs_csv_gz_strict", ".csv.gz", "some_ts,alpha\n", Map.of("header_row", false));
+    }
+
+    public void testStrictOverGzipTsvReads() throws Exception {
+        assertStrictGzippedTextReads("logs_tsv_gz_strict", ".tsv.gz", "some_ts\talpha\n", Map.of("header_row", false));
+    }
+
+    public void testStrictOverGzipNdjsonReads() throws Exception {
+        // NDJSON is read by JSON key, so no header_row setting applies; the compound `.ndjson.gz` must still resolve
+        // through the compression-unwrapping registry to the "ndjson" reader rather than last-dotting to "gz".
+        assertStrictGzippedTextReads("logs_ndjson_gz_strict", ".ndjson.gz", "{\"ts\":\"some_ts\",\"note\":\"alpha\"}\n", Map.of());
+    }
+
+    public void testStrictOverGzipCsvGlobReads() throws Exception {
+        // The multi-file half of the fix: resolveStrictMultiFile must derive the reader from a CONCRETE listed file name
+        // (listing.path(0)) through the compression-unwrapping registry — not last-dot the raw `*.csv.gz` glob string to
+        // "gz" (which would fail with "No operator factory for sourceType: gz"). Regression guard for the multi-file
+        // portion of the strict compound-extension read fix.
+        Path root = createTempDir();
+        writeGzip(root.resolve("part1.csv.gz"), "ts_a,alpha\nts_b,beta\n");
+        writeGzip(root.resolve("part2.csv.gz"), "ts_c,gamma\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", new DatasetFieldMapping("keyword", null));
+        properties.put("note", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_csv_gz_strict_multi",
+                    "local_ds",
+                    root.toUri() + "*.csv.gz",
+                    null,
+                    new HashMap<>(Map.of("header_row", false)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_csv_gz_strict_multi | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L)); // 2 rows from part1 + 1 from part2
+        }
+    }
+
+    private static void writeGzip(Path target, String content) throws Exception {
+        try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Registers a strict (dynamic:false) two-column {@code ts,note} dataset over a gzipped text file of the given
+     * compound extension and asserts {@code note} reads back as {@code alpha} — i.e. the strict path resolved the
+     * reader through the compound extension (not the "gz" codec suffix).
+     */
+    private void assertStrictGzippedTextReads(String datasetName, String ext, String content, Map<String, Object> settings)
+        throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path gz = createTempFile("dataset-strict-", ext);
+        writeGzip(gz, content);
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", new DatasetFieldMapping("keyword", null));
+        properties.put("note", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    datasetName,
+                    "local_ds",
+                    gz.toUri().toString(),
+                    null,
+                    new HashMap<>(settings),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + datasetName + " | KEEP note | LIMIT 1"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0).toString(), equalTo("alpha"));
         }
     }
 
@@ -864,9 +966,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testStrictDatasetWithUnknowableFormatFailsCleanlyNotNpe() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // A strict dataset over an extensionless path with no `format` setting has an unknowable sourceType (null). The
-        // columnar-format reject must guard that null (an immutable Set throws on contains(null)) so the query keeps its
-        // prior clean failure instead of an NPE-wrapped 500 — even though no date format is declared here.
+        // A strict dataset over an extensionless path with no `format` setting cannot resolve a reader. Strict now
+        // derives the sourceType through the registry (FormatNameResolver.resolveFormatName -> byExtension), which fails
+        // loud at resolution with a clean IllegalArgumentException ("Cannot infer format from object name without
+        // extension") — propagated unwrapped as a 4xx, never an NPE-wrapped 500.
         Path noExt = createTempFile("dataset-noext-", "");
         Files.writeString(noExt, "id\n1\n");
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -891,6 +994,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_noext_strict | LIMIT 1"), TIMEOUT).close());
         assertThat(e.getMessage(), not(containsString("NullPointerException")));
+        assertThat(e.getMessage(), containsString("without extension"));
     }
 
     public void testNdJsonRenameStrictReadsByPhysicalJsonKey() throws Exception {

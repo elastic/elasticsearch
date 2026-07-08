@@ -3148,6 +3148,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_WITH_FORK_SUBQUERIES_AND_VIEWS,
 
         /**
+         * Under {@code unmapped_fields="load"}, {@code DROP}ping an unmapped field in one {@code FORK} branch counts as a mention, so the
+         * field is materialized in the sibling branches and null-filled in the dropping one. See #152843.
+         */
+        OPTIONAL_FIELDS_LOAD_FORK_DROP_MATERIALIZES_SIBLING,
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,

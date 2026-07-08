@@ -2119,6 +2119,7 @@ fork2         | 42              | 43
 loadUnmappedFieldDropInOneForkBranchWildcardKeepMatchesMaterializedUnmapped
 // #152843: DROP-mention materializes unmapped_message, so the wildcard KEEP *message matches it.
 required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: optional_fields_load_fork_drop_materializes_sibling
 required_capability: fork_v9
 
 SET unmapped_fields="load"\;
@@ -2137,6 +2138,7 @@ fork2         | 42              | 43
 loadUnmappedFieldForkDropInOneBranchNoKeepLoadsNonDroppedBranch
 // #152843: DROP of an unmapped field is a mention, so the non-dropping branch materializes it and the dropping one null-fills it.
 required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: optional_fields_load_fork_drop_materializes_sibling
 required_capability: fork_v9
 
 SET unmapped_fields="load"\;
@@ -2165,6 +2167,7 @@ FROM partial_mapping_sample_data
 loadUnmappedFieldForkWhereRefThenDropInOneBranchNoKeep
 // #152843: WHERE then DROP of an unmapped field is still a mention, so the sibling branch materializes it (WHERE matches nothing here).
 required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: optional_fields_load_fork_drop_materializes_sibling
 required_capability: fork_v9
 
 SET unmapped_fields="load"\;

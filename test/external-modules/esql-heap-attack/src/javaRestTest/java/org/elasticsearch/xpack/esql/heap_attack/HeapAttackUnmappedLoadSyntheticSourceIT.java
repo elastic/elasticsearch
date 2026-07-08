@@ -38,7 +38,13 @@ public class HeapAttackUnmappedLoadSyntheticSourceIT extends HeapAttackTestCase 
     public void testFetchTooManySyntheticSourceOnlyUnmappedFields() throws IOException {
         int fields = 1000;
         initManySyntheticSourceOnlyFieldsIndex(500, fields);
-        assertCircuitBreaks(attempt -> fetchManySyntheticSourceOnlyFields(fields, attempt * 100));
+
+        try {
+            setRequestBreakerLimit("40%");
+            assertCircuitBreaks(attempt -> fetchManySyntheticSourceOnlyFields(fields, attempt * 100));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
     }
 
     /**

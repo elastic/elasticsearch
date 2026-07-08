@@ -78,7 +78,13 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
     public void testFetchTooManySourceOnlyUnmappedFields() throws IOException {
         int fields = 1000;
         initManySourceOnlyFieldsIndex(500, fields);
-        assertCircuitBreaks(attempt -> fetchManySourceOnlyFields(fields, attempt * 100));
+
+        try {
+            setRequestBreakerLimit("40%");
+            assertCircuitBreaks(attempt -> fetchManySourceOnlyFields(fields, attempt * 100));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
     }
 
     /**
@@ -97,7 +103,7 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
         initMultiSegmentLargeSourceOnlyFieldIndex(100, 2);
 
         try {
-            setRequestBreakerLimit("25%");
+            setRequestBreakerLimit("40%");
             assertCircuitBreaks(attempt -> fetchMultiSegmentLargeSourceOnlyField(attempt * 25));
         } finally {
             setRequestBreakerLimit(null);
@@ -120,7 +126,7 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
         initHugeSourceTinyUnmappedIndex(METADATA_SOURCE_INDEX, HUGE_SOURCE_DOCS, HUGE_SOURCE_SIZE_MB);
 
         try {
-            setRequestBreakerLimit("10%");
+            setRequestBreakerLimit("40%");
             assertCircuitBreaks(attempt -> fetchMetadataSourceWithUnmappedField(attempt * 2));
         } finally {
             setRequestBreakerLimit(null);

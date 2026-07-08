@@ -38,7 +38,7 @@ public class HeapAttackUnmappedLoadPunkIT extends HeapAttackTestCase {
         initPunkIndices(100, 2);
 
         try {
-            setRequestBreakerLimit("25%");
+            setRequestBreakerLimit("40%");
             assertCircuitBreaks(attempt -> fetchPunkKeywordConversion(attempt * 25));
         } finally {
             setRequestBreakerLimit(null);

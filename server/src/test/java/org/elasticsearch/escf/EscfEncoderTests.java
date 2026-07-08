@@ -9,11 +9,16 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -179,13 +184,29 @@ public class EscfEncoderTests extends ESTestCase {
         for (String doc : jsonDocs) {
             sources.add(new BytesArray(doc));
         }
-        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+        try (EscfBatch batch = encode(sources)) {
             assertEquals(jsonDocs.length, batch.docCount());
             for (int i = 0; i < jsonDocs.length; i++) {
                 Map<String, Object> expected = asMap(jsonDocs[i]);
                 Map<String, Object> actual = reconstruct(batch, i);
                 assertEquals("row " + i, expected, actual);
             }
+        }
+    }
+
+    /**
+     * Encodes {@code sources} into a single-partition batch via a {@link MockPageCacheRecycler}-backed
+     * encoder so the batch's column buffers are leak-tracked. Mirrors {@link EscfEncoder#encode} but with
+     * a recycling encoder; the encoder is closed here (its builders were already consumed by
+     * {@link EscfEncoder#buildPartition}), and the returned batch owns and releases the pages when closed.
+     */
+    private static EscfBatch encode(List<BytesReference> sources) throws IOException {
+        Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfEncoder encoder = new EscfEncoder(recycler)) {
+            for (BytesReference source : sources) {
+                encoder.addDocument(source, XContentType.JSON, 0);
+            }
+            return encoder.buildPartition(0);
         }
     }
 

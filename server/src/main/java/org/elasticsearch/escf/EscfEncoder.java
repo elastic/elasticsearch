@@ -14,7 +14,6 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.sourcebatch.LeafSink;
@@ -110,15 +109,11 @@ public final class EscfEncoder implements SourceBatchEncoder {
         final int leafCount = schema.leafCount();
         ensurePartitionBuilders(partition, leafCount);
         final EscfColumnData[] columns = new EscfColumnData[leafCount];
-        final List<Releasable> releasables = new ArrayList<>(leafCount);
         for (int c = 0; c < leafCount; c++) {
-            final EscfColumnData col = partition.builders.get(c).finish(partition.docCount);
-            columns[c] = col;
-            if (col.data() instanceof Releasable releasable) {
-                releasables.add(releasable);
-            }
+            columns[c] = partition.builders.get(c).finish(partition.docCount);
         }
-        return new EscfBatch(schema, partition.docCount, columns, Releasables.wrap(releasables));
+        // Each column owns its recycler-backed buffers (and, for ARRAY, its child's); close them all with the batch.
+        return new EscfBatch(schema, partition.docCount, columns, Releasables.wrap(columns));
     }
 
     @Override

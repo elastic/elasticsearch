@@ -11,6 +11,8 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
@@ -42,7 +44,18 @@ record EscfColumnData(
     int[] offsets,
     BytesReference data,
     EscfColumnData child
-) {
+) implements Releasable {
+
+    /**
+     * Releases the recycler-backed buffers this column owns: its own {@code data} payload (when it is
+     * {@link Releasable}) and, for ARRAY, its nested {@code child} column's buffers. Only columns built
+     * natively by {@link EscfColumnBuilder} own releasable buffers; columns reconstructed from a
+     * serialized batch hold non-releasable slices, for which this is a no-op.
+     */
+    @Override
+    public void close() {
+        Releasables.close(data instanceof Releasable releasable ? releasable : null, child);
+    }
 
     /** LONG or DOUBLE: a dense 8-byte-per-document value payload; no offsets or type vector. */
     static EscfColumnData ofFixed64(byte kind, int docCount, FixedBitSet absent, BytesReference data) {

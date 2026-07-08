@@ -1893,8 +1893,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     BlobCacheMetrics.NOOP,
                     new DefaultEvictionPolicy<>(),
                     System::nanoTime,
-                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {
                     @Override
                     public void maybeFetchRange(
@@ -1946,8 +1945,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     BlobCacheMetrics.NOOP,
                     capturingPolicy,
                     System::nanoTime,
-                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {};
             }
         };

@@ -115,10 +115,23 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             threadPool,
             blobCacheMetrics,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
-            System::nanoTime,
-            metricsHolder,
-            threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL)
+            metricsHolder
         );
+    }
+
+    protected StatelessSharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        BlobCacheMetrics blobCacheMetrics,
+        EvictionPolicy<FileCacheKey> evictionPolicy,
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
+    ) {
+        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, evictionPolicy);
+        this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
+        this.metricsHolder = metricsHolder;
+        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+        this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
 
     // for tests
@@ -139,24 +152,22 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             blobCacheMetrics,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
             relativeTimeInNanosSupplier,
-            metricsHolder,
-            IO_EXECUTOR
+            metricsHolder
         );
     }
 
     // for tests
-    protected StatelessSharedBlobCacheService(
+    public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
         EvictionPolicy<FileCacheKey> evictionPolicy,
         LongSupplier relativeTimeInNanosSupplier,
-        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder,
-        Executor shardReadThreadPoolExecutor
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
-        this.shardReadThreadPoolExecutor = shardReadThreadPoolExecutor;
+        this.shardReadThreadPoolExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);

@@ -172,15 +172,15 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             BlobCacheMetrics blobCacheMetrics,
             TimestampCapturingEvictionPolicy capturingPolicy
         ) {
+            // Use the production wiring (clock + shard-read executor) and only override the eviction policy so this live-node
+            // cache service cannot silently drift from production.
             super(
                 environment,
                 settings,
                 threadPool,
                 blobCacheMetrics,
                 capturingPolicy,
-                threadPool::relativeTimeInNanos,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
-                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL)
+                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
             this.capturingPolicy = capturingPolicy;
         }

@@ -280,8 +280,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 BlobCacheMetrics.NOOP,
                 new DefaultEvictionPolicy<FileCacheKey>(),
                 System::nanoTime,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             ) {
                 @Override
                 public void fetchRange(

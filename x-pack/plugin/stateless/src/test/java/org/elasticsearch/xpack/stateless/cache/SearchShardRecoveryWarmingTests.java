@@ -609,16 +609,16 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     }
 
     /**
-     * Asserts that exactly one measurement was recorded for {@code metricName} and that its value is at least
+     * Asserts that exactly one measurement was recorded for {@code metricName} and that its value (in seconds) is at least
      * {@code minMillis} (the artificial delay every caller injects via {@link #newWarmingServiceWithWarmCache}) and, generously,
      * under a minute (catches gross unit/overflow errors without being sensitive to CI slowness).
      */
     private static void assertSingleDurationMeasurementAtLeast(RecordingMeterRegistry meterRegistry, String metricName, long minMillis) {
-        List<Measurement> measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, metricName);
+        List<Measurement> measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, metricName);
         assertThat(measurements, hasSize(1));
-        long value = measurements.get(0).getLong();
-        assertThat(value, greaterThanOrEqualTo(minMillis));
-        assertThat(value, lessThan(TimeValue.timeValueMinutes(1).millis()));
+        double value = measurements.get(0).getDouble();
+        assertThat(value, greaterThanOrEqualTo(minMillis / 1000.0));
+        assertThat(value, lessThan(TimeValue.timeValueMinutes(1).millis() / 1000.0));
     }
 
     /**

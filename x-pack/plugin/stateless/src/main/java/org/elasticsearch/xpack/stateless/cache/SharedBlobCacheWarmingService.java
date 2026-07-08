@@ -49,8 +49,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -358,8 +358,8 @@ public class SharedBlobCacheWarmingService {
     private final ThrottledTaskRunner warmByteRangeThrottledTaskRunner;
     private final LongCounter cacheWarmingPageAlignedBytesTotalMetric;
     private final LongCounter idLookupPrewarmReqsTotalMetric;
-    private final LongHistogram searchRecoveryWarmDurationMetric;
-    private final LongHistogram searchRecoveryWaitDurationMetric;
+    private final DoubleHistogram searchRecoveryWarmDurationMetric;
+    private final DoubleHistogram searchRecoveryWaitDurationMetric;
     private final long prewarmingRangeMinimizationStep;
     private volatile boolean prefetchCommitsForSearchShardRecovery;
     // just to make sure that the initial settings update to the default value is logged
@@ -415,17 +415,19 @@ public class SharedBlobCacheWarmingService {
             .registerLongCounter(BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC, "Total bytes warmed in cache", "bytes");
         this.idLookupPrewarmReqsTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(BLOB_CACHE_WARMING_ID_LOOKUP_PREWARM_REQS_TOTAL_METRIC, "Total id lookup prewarm requests", "unit");
+        // this uses a "double" histogram with the "second" time unit (rather than a "long" histogram with a "millisecond" time unit),
+        // because the default bucket limits set by the APM agent for histograms are very low (max is 131072)
         this.searchRecoveryWarmDurationMetric = telemetryProvider.getMeterRegistry()
-            .registerLongHistogram(
+            .registerDoubleHistogram(
                 SEARCH_RECOVERY_WARM_DURATION_METRIC,
                 "Time taken for blob cache warming to complete during search shard recovery",
-                "ms"
+                "s"
             );
         this.searchRecoveryWaitDurationMetric = telemetryProvider.getMeterRegistry()
-            .registerLongHistogram(
+            .registerDoubleHistogram(
                 SEARCH_RECOVERY_WAIT_DURATION_METRIC,
                 "Time search shard recovery waited for blob cache warming before resuming",
-                "ms"
+                "s"
             );
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
         clusterSettings.initializeAndWatch(
@@ -680,7 +682,7 @@ public class SharedBlobCacheWarmingService {
         final long startedMillis = threadPool.rawRelativeTimeInMillis();
         final ActionListener<Void> timedResumeRecoveryListener = ActionListener.runBefore(
             resumeRecoveryListener,
-            () -> searchRecoveryWaitDurationMetric.record(threadPool.rawRelativeTimeInMillis() - startedMillis)
+            () -> searchRecoveryWaitDurationMetric.record((threadPool.rawRelativeTimeInMillis() - startedMillis) / 1000.0)
         );
         SearchRecoveryTimeout plan = endTargetsToWarm != null
             ? searchRecoveryTimeout(clusterState, indexShard)
@@ -719,7 +721,7 @@ public class SharedBlobCacheWarmingService {
     private ActionListener<Void> timeSearchRecoveryWarming(long startedMillis, ActionListener<Void> listener) {
         return ActionListener.runBefore(
             listener,
-            () -> searchRecoveryWarmDurationMetric.record(threadPool.rawRelativeTimeInMillis() - startedMillis)
+            () -> searchRecoveryWarmDurationMetric.record((threadPool.rawRelativeTimeInMillis() - startedMillis) / 1000.0)
         );
     }
 

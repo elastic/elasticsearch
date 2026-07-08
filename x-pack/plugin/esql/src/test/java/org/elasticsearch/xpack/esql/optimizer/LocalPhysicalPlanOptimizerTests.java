@@ -111,6 +111,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
@@ -2792,17 +2793,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         final int k;
 
         KnnFunctionTestCase() {
-            super(Knn.class, "dense_vector", randomVector());
+            super(Knn.class, "dense_vector", randomVector(randomIntBetween(10, 20)));
             k = randomIntBetween(1, 10);
-        }
-
-        private static Object randomVector() {
-            int numDims = randomIntBetween(10, 20);
-            float[] vector = new float[numDims];
-            for (int i = 0; i < numDims; i++) {
-                vector[i] = randomFloat();
-            }
-            return vector;
         }
 
         @Override

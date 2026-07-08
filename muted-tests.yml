@@ -184,9 +184,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/147838
-- class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
-  method: testRandomActivities
-  issue: https://github.com/elastic/elasticsearch/issues/147841
 - class: org.elasticsearch.xpack.stateless.autoscaling.search.AutoscalingReplicaIT
   method: testSearchSizeAffectsReplicasSPBetween100And250
   issue: https://github.com/elastic/elasticsearch-serverless/issues/5731
@@ -665,12 +662,9 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testConsecutiveRotations
   issue: https://github.com/elastic/elasticsearch/issues/152472
-- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
-  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double>, <dense_vector>}
-  issue: https://github.com/elastic/elasticsearch/issues/152794
-- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
-  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<long>, <dense_vector>}
-  issue: https://github.com/elastic/elasticsearch/issues/152795
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSourceRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/152800
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndTwoExpressions}
   issue: https://github.com/elastic/elasticsearch/issues/152801
@@ -770,3 +764,90 @@ tests:
 - class: org.elasticsearch.xpack.inference.RegionPolicyAuthorizationRefreshIT
   method: testPutRegionPolicy_WhenDeniedEndpointReferencedByPipelineOnly_OmitsEmptyIndexesField
   issue: https://github.com/elastic/elasticsearch/issues/153170
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSourceRelocationAndTargetRestart
+  issue: https://github.com/elastic/elasticsearch/issues/153173
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testMasterFailoverDuringCleanup
+  issue: https://github.com/elastic/elasticsearch/issues/153174
+- class: org.elasticsearch.packaging.test.PackageUpgradeTests
+  method: test12SetupBwcVersion
+  issue: https://github.com/elastic/elasticsearch/issues/152819
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecUnmappedLoadIT
+  method: test {csv-spec:unmapped-load.loadMultiIndexPartialMultiFieldInSubquery}
+  issue: https://github.com/elastic/elasticsearch/issues/153176
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecUnmappedLoadIT
+  method: test {csv-spec:unmapped-load.loadUnmappedFieldTypeConflictAcrossSubqueriesIsUnsupported}
+  issue: https://github.com/elastic/elasticsearch/issues/153177
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecApproximationIT
+  method: test {csv-spec:approximation.Lookup join before and after stats by}
+  issue: https://github.com/elastic/elasticsearch/issues/153178
+- class: org.elasticsearch.xpack.inference.RegionPolicyAuthorizationRefreshIT
+  method: testPutRegionPolicy_WhenDeniedEndpointReferencedByIndexOnly_OmitsEmptyPipelinesField
+  issue: https://github.com/elastic/elasticsearch/issues/153180
+- class: org.elasticsearch.xpack.inference.RegionPolicyAuthorizationRefreshIT
+  method: testPutRegionPolicy_WithAllowedRegions_TriggersAuthorizationRefresh
+  issue: https://github.com/elastic/elasticsearch/issues/153181
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataFilterPathLike [ndjson.bz2/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/153182
+- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
+  method: testConcurrentProducerLoopsOnSharedPoolDoNotDeadlock
+  issue: https://github.com/elastic/elasticsearch/issues/153183
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats_sparkline.sparklineInInlineStatsByMvField}
+  issue: https://github.com/elastic/elasticsearch/issues/153184
+- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
+  method: testColumnarBadDateTokenNullsCellEagerAndDeferred
+  issue: https://github.com/elastic/elasticsearch/issues/153187
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAll {pref=null mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153189
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchDenseVector {pref=null mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153190
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAggregateMetricDouble {pref=null mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153191
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAllOnlyFromRemotes {pref=null mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153192
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAllOnlyFromRemotes {pref=NONE mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153193
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchDenseVector {pref=NONE mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153194
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAll {pref=NONE mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153195
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAggregateMetricDouble {pref=NONE mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153196
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {delta_byte_array}
+  issue: https://github.com/elastic/elasticsearch/issues/153198
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {lz4_raw_compressed}
+  issue: https://github.com/elastic/elasticsearch/issues/153199
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {plain-dict-uncompressed-checksum}
+  issue: https://github.com/elastic/elasticsearch/issues/153200
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {page_v2_empty_compressed}
+  issue: https://github.com/elastic/elasticsearch/issues/153201
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAll {pref=STORED mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153204
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAggregateMetricDouble {pref=STORED mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153205
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAllOnlyFromRemotes {pref=STORED mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153206
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchDenseVector {pref=STORED mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153207
+- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
+  method: testConcurrentProducerLoopsThroughStatsCapturingWrapperDoNotDeadlock
+  issue: https://github.com/elastic/elasticsearch/issues/153210

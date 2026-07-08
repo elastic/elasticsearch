@@ -811,3 +811,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/153282
+- class: org.elasticsearch.action.search.KnnSearchSingleNodeTests
+  method: testKnnWithQuery
+  issue: https://github.com/elastic/elasticsearch/issues/153319

@@ -23,6 +23,7 @@ public class VectorTestUtils {
     }
 
     public static float[] randomFloatVector(Random random, int dims) {
+        assert dims > 0;
         float[] vec = new float[dims];
         generateRandomFloatVector(random, vec);
         return vec;
@@ -33,6 +34,7 @@ public class VectorTestUtils {
     }
 
     public static float[] randomNormalizedFloatVector(Random random, int dims) {
+        assert dims > 0;
         float[] vec = new float[dims];
         double squareSum = generateRandomFloatVector(random, vec);
 
@@ -45,8 +47,9 @@ public class VectorTestUtils {
 
     private static double generateRandomFloatVector(Random random, float[] vec) {
         // we don't want a zero-length vector
-        double squareSum = 0f;
+        double squareSum;
         do {
+            squareSum = 0;
             for (int i = 0; i < vec.length; i++) {
                 // from -1 to +1
                 vec[i] = random.nextFloat() * 2f - 1f;
@@ -62,6 +65,7 @@ public class VectorTestUtils {
     }
 
     public static byte[] randomByteVector(Random random, int dims) {
+        assert dims > 0;
         // we don't want a zero-length vector
         byte[] vec = new byte[dims];
         do {

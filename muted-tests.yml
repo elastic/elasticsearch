@@ -403,6 +403,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecChangePointIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/151132
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileTests
+  method: "testAggregateIntermediate {TestCase=<exponential_histogram>, <integer>}"
+  issue: https://github.com/elastic/elasticsearch/issues/153270
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
   method: test {p0=ml/jobs_get_result_overall_buckets/Test overall buckets given top_n is negative}
   issue: https://github.com/elastic/elasticsearch/issues/151160

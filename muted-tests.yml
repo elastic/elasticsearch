@@ -769,9 +769,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.fileMetadataFilterPathLike [ndjson.bz2/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/153182
-- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
-  method: testConcurrentProducerLoopsOnSharedPoolDoNotDeadlock
-  issue: https://github.com/elastic/elasticsearch/issues/153183
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats_sparkline.sparklineInInlineStatsByMvField}
   issue: https://github.com/elastic/elasticsearch/issues/153184
@@ -826,9 +823,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
   method: testFetchDenseVector {pref=STORED mode=logsdb}
   issue: https://github.com/elastic/elasticsearch/issues/153207
-- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
-  method: testConcurrentProducerLoopsThroughStatsCapturingWrapperDoNotDeadlock
-  issue: https://github.com/elastic/elasticsearch/issues/153210
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/147841

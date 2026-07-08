@@ -1692,34 +1692,33 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (ready.isDone() == false) {
                 return parkUntilReady(ready, state, completionListener);
             }
-            if (pages.hasNext() == false) {
-                // Race: waitForReady reported done (page available or EOF), but by the time we
-                // called hasNext the state advanced (e.g. another consumer drained, or POISON
-                // got handled inside hasNext and the next slot is not yet populated). For
-                // synchronous iterators where the default waitForReady returns immediately-done,
-                // hasNext=false truly means EOF and the recheck remains done. For async iterators
-                // like {@code StreamingParallelIterator}, a non-done recheck means the iterator
-                // is still producing — yield and let the parser-side {@code signalReady()} wake us.
+            Page page = pages.tryAdvance();
+            if (page == null) {
+                // tryAdvance returned null: either EOF or the iterator is between chunks.
+                // Recheck waitForReady: not-done = more data coming, yield. Done = hasNext
+                // gives the definitive answer (won't block since isReadyNow was just true).
                 SubscribableListener<Void> recheck = pages.waitForReady();
                 if (recheck.isDone()) {
-                    return DrainResult.EOF;
+                    if (pages.hasNext() == false) {
+                        return DrainResult.EOF;
+                    }
+                    page = pages.next();
+                } else {
+                    return parkUntilReady(recheck, state, completionListener);
                 }
-                return parkUntilReady(recheck, state, completionListener);
             }
+            // Check downstream space BEFORE committing the page to the buffer. The page is
+            // already consumed from the iterator (tryAdvance/next popped it), so if we must
+            // park on space we hold it in the listener closure and deliver it on resume.
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {
-                return parkUntilReady(space, state, completionListener);
+                return parkUntilReadyWithPage(space, page, state, completionListener);
             }
             if (buffer.noMoreInputs()) {
+                page.releaseBlocks();
                 return DrainResult.DONE;
             }
-            Page page = pages.next();
-            int rows = page.getPositionCount();
-            page.allowPassingToDifferentDriver();
-            buffer.addPage(page);
-            if (rowLimit != FormatReader.NO_LIMIT) {
-                state.rowsRemaining -= rows;
-            }
+            deliverPage(page, state);
         }
     }
 
@@ -1761,6 +1760,47 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             completionListener.onFailure(e);
         }));
         return DrainResult.BLOCKED;
+    }
+
+    /**
+     * Like {@link #parkUntilReady} but holds an already-consumed page across the park. On resume
+     * the page is delivered to the buffer (or released if the buffer was finished); then the
+     * producer loop continues.
+     */
+    private DrainResult parkUntilReadyWithPage(
+        SubscribableListener<Void> signal,
+        Page page,
+        ProducerState state,
+        ActionListener<Void> completionListener
+    ) {
+        signal.addListener(ActionListener.wrap(v -> {
+            try {
+                if (state.buffer.noMoreInputs()) {
+                    page.releaseBlocks();
+                } else {
+                    deliverPage(page, state);
+                }
+                producerExecutor.execute(() -> runProducerLoop(state, completionListener));
+            } catch (Exception e) {
+                page.releaseBlocks();
+                clearCurrentIterator(state);
+                completionListener.onFailure(e);
+            }
+        }, e -> {
+            page.releaseBlocks();
+            clearCurrentIterator(state);
+            completionListener.onFailure(e);
+        }));
+        return DrainResult.BLOCKED;
+    }
+
+    private void deliverPage(Page page, ProducerState state) {
+        int rows = page.getPositionCount();
+        page.allowPassingToDifferentDriver();
+        state.buffer.addPage(page);
+        if (rowLimit != FormatReader.NO_LIMIT) {
+            state.rowsRemaining -= rows;
+        }
     }
 
     /**

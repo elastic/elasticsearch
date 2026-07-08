@@ -160,7 +160,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         if (algorithm.get(bucketOrd) == LINEAR_COUNTING) {
             upgradeToHll(bucketOrd);
         }
-        hll.addRunLen(bucketOrd, register, runLen);
+        hll.addRunLen(0, register, runLen);
     }
 
     void upgradeToHll(long bucketOrd) {

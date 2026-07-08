@@ -54,6 +54,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.junit.After;
 import org.junit.Before;
@@ -232,6 +233,23 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             return;
         }
         try {
+            // Stop new frozen transitions from being submitted, then wait for any transitions still
+            // in flight (e.g. a retry racing the disruption) to finish before tearing down the cluster.
+            // Otherwise a transition can still be mounting a searchable snapshot (writing to the
+            // .snapshot-blob-cache system index) after the test wipes indices, resurrecting that
+            // index and leaving its shard locked when InternalTestCluster asserts after the test.
+            updateClusterSettings(Settings.builder().put(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING.getKey(), false));
+            assertBusy(() -> {
+                for (DLMFrozenTransitionService service : internalCluster().getInstances(DLMFrozenTransitionService.class)) {
+                    assertFalse(service.getTransitionExecutor().hasSubmittedTransitions());
+                }
+            }, 60, TimeUnit.SECONDS);
+        } catch (Throwable t) {
+            // AssertionError from a stuck assertBusy is possible here; treat it like every other
+            // best-effort cleanup step below so a lingering transition can't fail the whole test.
+            logger.warn("Failed to wait for frozen transitions during cleanup", t);
+        }
+        try {
             updateClusterSettings(Settings.builder().putNull(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey()));
         } catch (Exception e) {
             logger.warn("Failed to clear default repository setting during cleanup", e);
@@ -277,6 +295,13 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             client().admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPO_NAME).get();
         } catch (Exception e) {
             logger.warn("Failed to delete repository during cleanup", e);
+        }
+        try {
+            for (BlobStoreCacheService blobStoreCacheService : internalCluster().getDataNodeInstances(BlobStoreCacheService.class)) {
+                assertTrue(blobStoreCacheService.waitForInFlightCacheFillsToComplete(30L, TimeUnit.SECONDS));
+            }
+        } catch (Throwable t) {
+            logger.warn("Failed to wait for blob cache fills to complete during cleanup", t);
         }
     }
 

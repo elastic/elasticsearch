@@ -21,6 +21,11 @@ import com.tngtech.archunit.lang.SimpleConditionEvent
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.api.Task
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.Handle
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
 import spock.lang.Shared
 import spock.lang.Specification
 
@@ -65,6 +70,23 @@ class IntegTestCoverageArchUnitSpec extends Specification {
      * not be added here — add a test instead. Existing entries should be removed as coverage is
      * filled in (the staleness test enforces this).
      */
+    /**
+     * Subclasses of {@link AbstractGradleInternalPluginFuncTest} that legitimately call
+     * {@code disableConfigurationCache()} because the plugin under test has a known
+     * configuration-cache incompatibility. New entries must not be added here without
+     * first filing a follow-up to fix the underlying incompatibility.
+     */
+    private static final Set<String> KNOWN_CC_INCOMPATIBLE = [
+        "BuildPluginFuncTest",
+        "DraResolvePluginFuncTest",
+        "ElasticsearchDistributionPluginFuncTest",
+        "GlobalBuildInfoPluginFuncTest",
+        "InternalBwcGitPluginFuncTest",
+        "InternalDistributionBwcSetupPluginFuncTest",
+        "JdkDownloadPluginFuncTest",
+        "SnykDependencyMonitoringGradlePluginFuncTest",
+    ] as Set
+
     private static final Set<String> KNOWN_UNCOVERED = [
         // --- plugins lacking a *FuncTest ---
         "org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin",
@@ -96,7 +118,6 @@ class IntegTestCoverageArchUnitSpec extends Specification {
         "org.elasticsearch.gradle.internal.test.DistroTestPlugin",
         "org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin",
         "org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin",
-        "org.elasticsearch.gradle.internal.test.MutedTestPlugin",
         "org.elasticsearch.gradle.internal.test.StandaloneRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.StandaloneTestPlugin",
         "org.elasticsearch.gradle.internal.test.TestWithDependenciesPlugin",
@@ -188,6 +209,37 @@ class IntegTestCoverageArchUnitSpec extends Specification {
 
         expect:
         rule.check(productionClasses)
+    }
+
+    def "no new AbstractGradleInternalPluginFuncTest subclass disables configuration cache"() {
+        given:
+        List<String> violations = productionClasses
+            .findAll { JavaClass c ->
+                c.isAssignableTo(AbstractGradleInternalPluginFuncTest)
+                && c.modifiers.contains(JavaModifier.ABSTRACT) == false
+                && KNOWN_CC_INCOMPATIBLE.contains(c.simpleName) == false
+                && callsDisableConfigurationCache(c)
+            }
+            .collect { it.fullName }
+            .sort()
+
+        expect:
+        assert violations.isEmpty(), "These AbstractGradleInternalPluginFuncTest subclasses call disableConfigurationCache() -- fix the underlying plugin incompatibility instead:\n  ${violations.join('\n  ')}"
+    }
+
+    def "the cc-incompatible baseline contains no stale entries"() {
+        given:
+        Map<String, JavaClass> bySimpleName = productionClasses.collectEntries { [(it.simpleName): it] }
+
+        when:
+        List<String> stale = KNOWN_CC_INCOMPATIBLE.findAll { String name ->
+            JavaClass c = bySimpleName[name]
+            c == null || callsDisableConfigurationCache(c) == false
+        }.sort()
+
+        then:
+        assert stale.isEmpty(),
+            "Stale KNOWN_CC_INCOMPATIBLE entries (fixed or removed) — delete them:\n  " + stale.join("\n  ")
     }
 
     def "the known-uncovered allowlist contains no stale entries"() {
@@ -282,6 +334,41 @@ class IntegTestCoverageArchUnitSpec extends Specification {
             }
         }
         return names
+    }
+
+    /**
+     * Returns {@code true} if the compiled class for {@code javaClass} contains an
+     * {@code invokedynamic} call to {@code disableConfigurationCache}.
+     *
+     * <p>Groovy compiles {@code disableConfigurationCache(...)} to an {@code invokedynamic}
+     * instruction whose Groovy {@code IndyInterface} bootstrap receives the actual method
+     * name as its first static argument. ASM's {@code visitInvokeDynamicInsn} exposes that
+     * argument directly, making the detection bytecode-precise and comment-proof.
+     */
+    private static boolean callsDisableConfigurationCache(JavaClass javaClass) {
+        String classPath = javaClass.fullName.replace('.', '/') + '.class'
+        URL resource = Thread.currentThread().contextClassLoader.getResource(classPath)
+        if (resource == null) return false
+        boolean[] found = [false]
+        resource.openStream().withCloseable { InputStream stream ->
+            new ClassReader(stream).accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                MethodVisitor visitMethod(int access, String name, String desc, String sig, String[] exceptions) {
+                    return new MethodVisitor(Opcodes.ASM9) {
+                        @Override
+                        void visitInvokeDynamicInsn(String name2, String desc2, Handle bsm, Object... bsmArgs) {
+                            if (bsm.owner == 'org/codehaus/groovy/vmplugin/v8/IndyInterface'
+                                    && bsm.name == 'bootstrap'
+                                    && bsmArgs.length > 0
+                                    && bsmArgs[0] == 'disableConfigurationCache') {
+                                found[0] = true
+                            }
+                        }
+                    }
+                }
+            }, 0)
+        }
+        return found[0]
     }
 
     private static List<File> testSourceRoots() {

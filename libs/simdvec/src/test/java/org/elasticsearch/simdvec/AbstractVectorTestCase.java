@@ -83,6 +83,14 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         }
     }
 
+    public static byte[] randomNonZeroByteArray(int dims) {
+        byte[] vec;
+        do {
+            vec = randomByteArrayOfLength(dims);
+        } while (Arrays.equals(vec, new byte[dims]));
+        return vec;
+    }
+
     static IntFunction<float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
         float[] fa = new float[size];
         for (int i = 0; i < size; i++) {

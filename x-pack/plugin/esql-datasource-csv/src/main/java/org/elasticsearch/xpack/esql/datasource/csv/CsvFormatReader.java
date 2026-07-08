@@ -694,7 +694,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String commentPrefix = parseString(config.get(CONFIG_COMMENT), baseline.commentPrefix());
         String nullValue = parseString(config.get(CONFIG_NULL_VALUE), baseline.nullValue());
         Charset encoding = parseEncoding(config.get(CONFIG_ENCODING), baseline.encoding());
-        DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), baseline.datetimeFormatter());
+        DateFormatter datetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), baseline.datetimeFormatter());
         int maxFieldSize = parseInt(config.get(CONFIG_MAX_FIELD_SIZE), baseline.maxFieldSize());
         boolean headerRow = parseBooleanOption(CONFIG_HEADER_ROW, config.get(CONFIG_HEADER_ROW), baseline.headerRow());
         String columnPrefix = parseString(config.get(CONFIG_COLUMN_PREFIX), baseline.columnPrefix());
@@ -830,12 +830,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private static DateTimeFormatter parseDatetimeFormat(Object value, DateTimeFormatter baseline) {
+    /**
+     * Compiles the file-level {@code datetime_format} option into an ES {@link DateFormatter} — the same engine the
+     * per-column declared {@code format} ({@link #withDeclaredDateFormats}), the NDJSON reader's identically-named
+     * option and the date field mapper all parse with. One option name must not mean two pattern dialects.
+     */
+    private static DateFormatter parseDatetimeFormat(Object value, DateFormatter baseline) {
         if (value == null || value.toString().isEmpty()) {
             return baseline;
         }
         try {
-            return DateTimeFormatter.ofPattern(value.toString(), Locale.ROOT);
+            return DateFormatter.forPattern(value.toString());
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid datetime format [" + value + "]", e);
         }
@@ -2714,7 +2719,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final boolean hasCommentFilter;
         private final boolean hasCustomNullValue;
         private final String nullValueStr;
-        private final DateTimeFormatter datetimeFormatter;
+        private final DateFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
         private final String sourceLocation;
         private final SkipWarnings skipWarnings;
@@ -5679,9 +5684,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // epoch shortcut, the file-level datetime_format, and the ISO fast path — for THIS column only. The parse
             // goes through the shared DeclaredTypeCoercions.parseDatetimeMillis, the SAME string->datetime conversion
             // the columnar readers use for their string->date coercion, so identical bytes + declared format produce
-            // the identical instant regardless of source format. It is zone-aware (defaults a missing zone to UTC),
-            // unlike the LocalDateTime.parse path below which discards any parsed offset. Other columns keep today's
-            // behavior.
+            // the identical instant regardless of source format. Other columns keep today's behavior.
             if (columnIndex >= 0
                 && declaredFormatters != null
                 && columnIndex < declaredFormatters.length
@@ -5698,10 +5701,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return Long.parseLong(value);
                 } catch (NumberFormatException e) {}
             }
+            // The file-level datetime_format runs the same parse as the declared branch above, only with the
+            // file-wide formatter rather than a per-column one. Catch Exception like that branch: a single bad cell
+            // nulls out under the error policy, it never aborts the batch.
             if (datetimeFormatter != null) {
                 try {
-                    return LocalDateTime.parse(value, datetimeFormatter).toInstant(ZoneOffset.UTC).toEpochMilli();
-                } catch (DateTimeParseException e) {
+                    return DeclaredTypeCoercions.parseDatetimeMillis(value, datetimeFormatter);
+                } catch (Exception e) {
                     lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
                     return null;
                 }
@@ -5756,11 +5762,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return Long.parseLong(value);
                 } catch (NumberFormatException e) {}
             }
+            // Same formatter, same nanosecond conversion as the no-format branch below — only the parse pattern
+            // differs. See tryParseDatetime for why the catch is Exception.
             if (datetimeFormatter != null) {
                 try {
-                    Instant instant = LocalDateTime.parse(value, datetimeFormatter).toInstant(ZoneOffset.UTC);
-                    return org.elasticsearch.common.time.DateUtils.toLong(instant);
-                } catch (DateTimeParseException | ArithmeticException e) {
+                    return EsqlDataTypeConverter.dateNanosToLong(value, datetimeFormatter);
+                } catch (Exception e) {
                     lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
                     return null;
                 }

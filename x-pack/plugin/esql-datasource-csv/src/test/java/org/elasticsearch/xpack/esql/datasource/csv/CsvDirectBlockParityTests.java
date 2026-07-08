@@ -173,6 +173,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
      * non-ROOT locale the two would differ only in digit script; forcing ROOT pins the contract in the
      * production-relevant ASCII case without asserting that Jackson locale quirk.
      */
+
     private void assertFailFastParity(boolean tsv, Map<String, Object> config, List<String> projection, String content, String expected)
         throws IOException {
         Locale previous = Locale.getDefault();
@@ -416,6 +417,169 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         String iso = "2024-01-15T12:34:56.123456789Z";
         List<List<Object>> rows = read(false, Map.of(), "ts:date_nanos\n" + iso + "\n");
         assertEquals(List.of(row(EsqlDataTypeConverter.dateNanosToLong(iso))), rows);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // File-level datetime_format. The option compiles to an ES DateFormatter, so a pattern means on
+    // CSV/TSV exactly what it means on NDJSON, on a per-column declared `format` and in a date
+    // mapping: zone-aware, missing fields defaulted, named formats and `a||b` composites accepted.
+    //
+    // Expected instants below are the values NDJSON produces for the same pattern + bytes (see
+    // NdJsonPageIteratorTests); the two formats must agree exactly.
+    // ---------------------------------------------------------------------------------------------
+
+    /** A zone-bearing pattern honors the parsed offset rather than re-anchoring the wall clock to UTC. */
+    public void testDatetimeFormatHonorsZoneOffset() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ssXXX"),
+            "ts:datetime\n2024-01-01 10:00:00+05:00\n2024-01-01 10:00:00Z\n"
+        );
+        assertEquals(
+            List.of(row(Instant.parse("2024-01-01T05:00:00Z").toEpochMilli()), row(Instant.parse("2024-01-01T10:00:00Z").toEpochMilli())),
+            rows
+        );
+    }
+
+    public void testDateNanosFormatHonorsZoneOffset() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ssXXX"),
+            "ts:date_nanos\n2024-01-01 10:00:00+05:00\n"
+        );
+        assertEquals(List.of(row(EsqlDataTypeConverter.dateNanosToLong("2024-01-01T05:00:00Z"))), rows);
+    }
+
+    /** A date-only pattern parses; the missing time-of-day defaults to midnight UTC. */
+    public void testDatetimeFormatDateOnly() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("datetime_format", "yyyy-MM-dd"), "ts:datetime\n2024-01-01\n");
+        assertEquals(List.of(row(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli())), rows);
+    }
+
+    public void testDateNanosFormatDateOnly() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("datetime_format", "yyyy-MM-dd"), "ts:date_nanos\n2024-01-01\n");
+        assertEquals(List.of(row(EsqlDataTypeConverter.dateNanosToLong("2024-01-01T00:00:00Z"))), rows);
+    }
+
+    /** Sub-millisecond digits survive into the date_nanos block; the datetime block truncates to millis. */
+    public void testDatetimeFormatSubMillisecondPrecision() throws IOException {
+        String pattern = "yyyy-MM-dd HH:mm:ss.SSSSSSSSS";
+        String value = "2024-01-15 12:34:56.123456789";
+        assertEquals(
+            List.of(row(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z"))),
+            read(false, Map.of("datetime_format", pattern), "ts:date_nanos\n" + value + "\n")
+        );
+        assertEquals(
+            List.of(row(Instant.parse("2024-01-15T12:34:56.123Z").toEpochMilli())),
+            read(false, Map.of("datetime_format", pattern), "ts:datetime\n" + value + "\n")
+        );
+    }
+
+    /** BWC: a zone-less pattern keeps producing the UTC-anchored instant it produced before. */
+    public void testDatetimeFormatZonelessPatternUnchanged() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss"), "ts:datetime\n15/01/2021 14:30:00\n");
+        assertEquals(List.of(row(Instant.parse("2021-01-15T14:30:00Z").toEpochMilli())), rows);
+    }
+
+    /** ES named formats and `a||b` composites are accepted, matching NDJSON. */
+    public void testDatetimeFormatNamedFormat() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("datetime_format", "basic_date_time_no_millis"), "ts:datetime\n20240101T100000Z\n");
+        assertEquals(List.of(row(Instant.parse("2024-01-01T10:00:00Z").toEpochMilli())), rows);
+    }
+
+    public void testDatetimeFormatCompositePattern() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd"),
+            "ts:datetime\n2024-01-01 10:00:00\n2024-01-02\n"
+        );
+        assertEquals(
+            List.of(row(Instant.parse("2024-01-01T10:00:00Z").toEpochMilli()), row(Instant.parse("2024-01-02T00:00:00Z").toEpochMilli())),
+            rows
+        );
+    }
+
+    /** The numeric-epoch shortcut still wins over the file-level pattern, as it did before. */
+    public void testDatetimeFormatDoesNotShadowNumericEpoch() throws IOException {
+        long epoch = 1609459200000L; // 2021-01-01T00:00:00Z
+        List<List<Object>> rows = read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n" + epoch + "\n");
+        assertEquals(List.of(row(epoch)), rows);
+    }
+
+    /** An unparseable cell routes through the error policy: null-filled under null_field, surrounding rows survive. */
+    public void testDatetimeFormatUnparseableValueNullsCell() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"),
+            nullField(),
+            null,
+            "id:long,ts:datetime\n1,not-a-date\n2,2024-01-01 10:00:00\n"
+        );
+        assertEquals(List.of(row(1L, null), row(2L, Instant.parse("2024-01-01T10:00:00Z").toEpochMilli())), rows);
+    }
+
+    /**
+     * ...and under the default fail-fast policy the read aborts with that same per-field message rather than letting a
+     * raw parse exception escape the batch. Asserted as a prefix: the two arms render the trailing {@code row:}
+     * fragment differently for <em>every</em> field-level error (Jackson names the columns, the direct arm echoes the
+     * raw record), a pre-existing divergence that has nothing to do with datetime parsing.
+     */
+    public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
+        String content = "id:long,ts:datetime\n1,not-a-date\n";
+        CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
+        String expected = "line -1:-1: CSV parse error at row [1]: Failed to parse CSV datetime value [not-a-date]; row: ";
+        for (boolean directBlock : List.of(false, true)) {
+            String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
+            assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));
+        }
+    }
+
+    public void testDateNanosFormatUnparseableValueNullsCell() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"),
+            nullField(),
+            null,
+            "id:long,ts:date_nanos\n1,nope\n"
+        );
+        assertEquals(List.of(row(1L, null)), rows);
+    }
+
+    /** date_nanos cannot hold pre-epoch instants: the range error nulls the cell rather than escaping the batch. */
+    public void testDateNanosFormatPreEpochNullsCell() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd"),
+            nullField(),
+            null,
+            "id:long,ts:date_nanos\n1,1900-01-01\n"
+        );
+        assertEquals(List.of(row(1L, null)), rows);
+    }
+
+    /** TSV shares the reader, so it shares the fix. */
+    public void testTsvDatetimeFormatHonorsZoneOffset() throws IOException {
+        List<List<Object>> rows = read(
+            true,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ssXXX"),
+            "ts:datetime\n2024-01-01 10:00:00+05:00\n"
+        );
+        assertEquals(List.of(row(Instant.parse("2024-01-01T05:00:00Z").toEpochMilli())), rows);
+    }
+
+    /** A per-column declared `format` still overrides the file-level one for that column only. */
+    public void testDeclaredColumnFormatOverridesFileLevelDatetimeFormat() throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ssXXX"));
+        reader = reader.withDeclaredDateFormats(Map.of("ts", "dd/MM/yyyy"));
+        StorageObject object = new InMemoryStorageObject("ts:datetime\n02/01/2024\n".getBytes(StandardCharsets.UTF_8));
+        try (CloseableIterator<Page> pages = reader.read(object, null, 1024)) {
+            Page page = pages.next();
+            try {
+                assertEquals(Instant.parse("2024-01-02T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------------------------

@@ -10,11 +10,14 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.BitSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.CalibrationSource;
@@ -245,64 +248,61 @@ public class IvfAutoCalibration {
      * Returns a merged {@link IvfSegmentConfig} if the data has not changed significantly,
      * or {@code null} if merge-time calibration should be performed.
      */
-    IvfSegmentConfig selectFromMergeState(FieldInfo fieldInfo, MergeState mergeState) {
-        Map<QuantEncoding, Long> encodingDocCounts = new EnumMap<>(QuantEncoding.class);
-        double oversampleWeightedSum = 0;
-        long totalDocs = 0;
-        long largestSegmentDocs = 0;
-        long preconditionTrueDocs = 0;
-        long preconditionFalseDocs = 0;
+    IvfSegmentConfig selectFromMergeState(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        Map<QuantEncoding, EncodingStats> byEncoding = new EnumMap<>(QuantEncoding.class);
+        long totalVectors = 0;
         int calibratedSegments = 0;
 
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
             KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
+            if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
+                reader = perField.getFieldReader(fieldInfo.name);
+            }
             if (reader instanceof CalibrationAwareReader car) {
                 QuantEncoding enc = car.getQuantEncoding(fieldInfo);
-                if (enc == null) {
+                if (Float.isNaN(car.getOversampleFactor(fieldInfo)) || enc == null) {
                     continue;
                 }
-                Bits liveDocs = mergeState.liveDocs[i];
-                long docs;
-                if (liveDocs instanceof BitSet bitSet) {
-                    docs = bitSet.cardinality();
-                } else {
-                    // no deletions (null livedocs) or too expensive to count (non-BitSet livedocs), fall back to maxDocs
-                    docs = mergeState.maxDocs[i];
+                long vectors = liveVectorCount(reader, fieldInfo, mergeState.liveDocs[i]);
+                if (vectors == 0) {
+                    continue;
                 }
                 calibratedSegments++;
-                encodingDocCounts.merge(enc, docs, Long::sum);
-                float oversample = car.getOversampleFactor(fieldInfo);
-                oversampleWeightedSum += oversample * docs;
-                totalDocs += docs;
-                largestSegmentDocs = Math.max(largestSegmentDocs, docs);
-
+                EncodingStats stats = byEncoding.computeIfAbsent(enc, e -> new EncodingStats());
+                stats.vectors += vectors;
+                stats.oversampleWeightedSum += (double) car.getOversampleFactor(fieldInfo) * vectors;
                 if (car.shouldPrecondition(fieldInfo)) {
-                    preconditionTrueDocs += docs;
+                    stats.preconditionTrueVectors += vectors;
                 } else {
-                    preconditionFalseDocs += docs;
+                    stats.preconditionFalseVectors += vectors;
                 }
+                totalVectors += vectors;
             }
         }
 
-        if (calibratedSegments == 0) {
+        if (calibratedSegments == 0 || totalVectors == 0) {
             return null;
         }
 
-        if (encodingDocCounts.size() > 1) {
-            long maxEncDocs = encodingDocCounts.values().stream().mapToLong(Long::longValue).max().orElse(0);
-            if (maxEncDocs < ENCODING_AGREEMENT_THRESHOLD * totalDocs) {
-                logger.debug(
-                    "Merge calibration: encoding disagreement (max encoding covers [{}]% of docs), re-calibrating [inputSegments={}]",
-                    (100.0 * maxEncDocs / totalDocs),
-                    mergeState.knnVectorsReaders.length
-                );
-                return null;
-            }
+        Map.Entry<QuantEncoding, EncodingStats> best = byEncoding.entrySet()
+            .stream()
+            .max(Comparator.comparingLong(e -> e.getValue().vectors))
+            .orElseThrow();
+        long maxEncVectors = best.getValue().vectors;
+        if (byEncoding.size() > 1 && maxEncVectors < ENCODING_AGREEMENT_THRESHOLD * totalVectors) {
+            logger.debug(
+                "Merge calibration: encoding disagreement (max encoding covers [{}]% of vectors), re-calibrating [inputSegments={}]",
+                (100.0 * maxEncVectors / totalVectors),
+                mergeState.knnVectorsReaders.length
+            );
+            return null;
         }
 
-        QuantEncoding bestEncoding = encodingDocCounts.entrySet().stream().max(Map.Entry.comparingByValue()).orElseThrow().getKey();
-        float avgOversample = (float) (oversampleWeightedSum / totalDocs);
-        boolean doPreconditionResult = preconditionTrueDocs > preconditionFalseDocs;
+        // oversample and precondition are derived from the winning encoding's segments
+        QuantEncoding bestEncoding = best.getKey();
+        EncodingStats bestStats = best.getValue();
+        float avgOversample = (float) (bestStats.oversampleWeightedSum / bestStats.vectors);
+        boolean doPreconditionResult = bestStats.preconditionTrueVectors > bestStats.preconditionFalseVectors;
 
         logger.debug(
             "Merge calibration: reusing encoding [{}] (oversample={}, precondition={}) from [{}] input segments",
@@ -312,6 +312,37 @@ public class IvfAutoCalibration {
             calibratedSegments
         );
         return new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, doPreconditionResult, avgOversample);
+    }
+
+    /** Per-encoding accumulator for {@link #selectFromMergeState}: live-vector-weighted oversample and precondition votes. */
+    private static final class EncodingStats {
+        long vectors;
+        double oversampleWeightedSum;
+        long preconditionTrueVectors;
+        long preconditionFalseVectors;
+    }
+
+    /**
+     * number of live (non-deleted) vectors for {@code fieldInfo} in a single merge input.
+     */
+    private static long liveVectorCount(KnnVectorsReader reader, FieldInfo fieldInfo, Bits liveDocs) throws IOException {
+        KnnVectorValues values = fieldInfo.getVectorEncoding() == VectorEncoding.BYTE
+            ? reader.getByteVectorValues(fieldInfo.name)
+            : reader.getFloatVectorValues(fieldInfo.name);
+        if (values == null) {
+            return 0;
+        }
+        if (liveDocs == null) {
+            return values.size();
+        }
+        long live = 0;
+        KnnVectorValues.DocIndexIterator iterator = values.iterator();
+        for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+            if (liveDocs.get(doc)) {
+                live++;
+            }
+        }
+        return live;
     }
 
     /**
@@ -357,7 +388,7 @@ public class IvfAutoCalibration {
         SweepOutcome outcome = runCalibrationPipeline(ctx, similarityFunction, mode);
 
         switch (outcome) {
-            case SweepOutcome.Success s -> logger.info(
+            case SweepOutcome.Success s -> logger.debug(
                 () -> format(
                     "Selected: encoding [%s] docs per cluster %d preconditioning %s %d query bits %d document bits"
                         + " rerank %d candidates (expected recall %.2f%%)",
@@ -370,7 +401,7 @@ public class IvfAutoCalibration {
                     s.expectedRecall() * 100.0
                 )
             );
-            case SweepOutcome.BestEffort b -> logger.info(
+            case SweepOutcome.BestEffort b -> logger.debug(
                 "No encoding met target recall [{}], selecting best [{}] with oversample [{}] precondition [{}] and recall [{}]",
                 targetRecall,
                 outcome.config().quantEncoding(),
@@ -463,22 +494,25 @@ public class IvfAutoCalibration {
         double invDim,
         CalibrationSource calibrationSource
     ) throws IOException {
-        return sweepCandidates(
-            similarityFunction,
-            numVectors,
-            alpha,
-            invDim,
-            (candidate, precondition) -> ErrorModel.estimateMagnitudeFromManifoldResiduals(
-                alpha,
-                invDim,
-                calibrationSource,
-                precondition,
-                candidate.qbits(),
-                candidate.dbits(),
-                vectorsPerCluster,
-                numVectors
-            ).errorStd(vectorsPerCluster, numVectors)
-        );
+        Map<EncKey, QuantizationErrorStdModel> errorModelCache = new HashMap<>();
+        return sweepCandidates(similarityFunction, numVectors, alpha, invDim, (candidate, precondition) -> {
+            EncKey key = new EncKey(candidate.qbits(), candidate.dbits(), precondition);
+            QuantizationErrorStdModel errorModel = errorModelCache.get(key);
+            if (errorModel == null) {
+                errorModel = ErrorModel.estimateMagnitudeFromManifoldResiduals(
+                    alpha,
+                    invDim,
+                    calibrationSource,
+                    precondition,
+                    candidate.qbits(),
+                    candidate.dbits(),
+                    vectorsPerCluster,
+                    numVectors
+                );
+                errorModelCache.put(key, errorModel);
+            }
+            return errorModel.errorStd(vectorsPerCluster, numVectors);
+        });
     }
 
     private record CalibrationContext(

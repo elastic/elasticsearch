@@ -85,6 +85,7 @@ dependencies {
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(path: ':modules:data-streams')
+  testImplementation project(':modules:ip-location')
   testImplementation project(path: ':modules:mapper-extras')
   testImplementation project(path: ':modules:user-agent')
   testImplementation project(xpackModule('esql:compute:test'))

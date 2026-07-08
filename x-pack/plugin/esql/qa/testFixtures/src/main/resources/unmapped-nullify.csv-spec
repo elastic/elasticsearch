@@ -1312,3 +1312,33 @@ FROM employees
 s:long                                                           | cd:long
 [0, 92610, 0, 0, 44817, 0, 62405, 0, 49095, 103064, 218159, 0]  | 0
 ;
+
+dropNonMatchingPatternIsNoop
+required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_drop_non_matching_pattern_noop
+
+SET unmapped_fields="nullify"\;
+FROM sample_data
+| DROP no_such_field*
+| SORT @timestamp DESC
+| LIMIT 1
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1
+;
+
+dropExistingFieldAndNonMatchingPattern
+required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_drop_non_matching_pattern_noop
+
+SET unmapped_fields="nullify"\;
+FROM sample_data
+| DROP message, no_such_field*
+| SORT @timestamp DESC
+| LIMIT 1
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467
+;

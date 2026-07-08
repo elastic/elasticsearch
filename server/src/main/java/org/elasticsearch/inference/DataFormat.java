@@ -9,6 +9,7 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
@@ -19,7 +20,10 @@ import java.util.Locale;
  */
 public enum DataFormat {
     TEXT,
-    BASE64;
+    BASE64,
+    REFERENCE;
+
+    public static final TransportVersion REFERENCE_DATA_FORMAT = TransportVersion.fromName("inference_reference_data_format");
 
     @Override
     public String toString() {

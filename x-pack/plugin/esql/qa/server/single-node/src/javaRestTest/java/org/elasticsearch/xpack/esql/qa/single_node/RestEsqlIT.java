@@ -1518,7 +1518,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("pages_emitted", greaterThan(0))
                 .entry("values_loaded", greaterThanOrEqualTo(0))
                 .entry("bytes_read", greaterThanOrEqualTo(0))
-                .entry("readers_built", matchesMap().extraOk());
+                .entry("readers_built", matchesMap().extraOk())
+                .entry("source_docs_loaded", greaterThanOrEqualTo(0))
+                .entry("source_field_reads", greaterThanOrEqualTo(0))
+                .entry("source_bytes_loaded", greaterThanOrEqualTo(0));
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))

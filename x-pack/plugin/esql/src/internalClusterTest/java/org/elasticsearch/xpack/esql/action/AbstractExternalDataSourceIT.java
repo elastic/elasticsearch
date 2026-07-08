@@ -20,7 +20,6 @@ import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -85,10 +84,10 @@ import static org.hamcrest.Matchers.notNullValue;
  * supplied as a node plugin (a single discovery path), so {@code EsqlPlugin}'s duplicate-validator guard
  * never trips.
  *
- * <p>A single {@link #requireFeatureFlag()} {@code @Before} gates every subclass on the external-datasources
- * feature flag (which also gates {@code FROM <dataset>} resolution) and the local-filesystem feature flag,
- * and {@link #nodeSettings} allowlists the shared temp-dir root for {@code file://} access, so subclasses do
- * not repeat either the assume or the settings override.
+ * <p>A single {@link #requireFeatureFlag()} {@code @Before} gates every subclass on the
+ * {@code dataset-in-from-command} capability (which also gates {@code FROM <dataset>} resolution) and the
+ * local-filesystem feature flag, and {@link #nodeSettings} allowlists the shared temp-dir root for
+ * {@code file://} access, so subclasses do not repeat either the assume or the settings override.
  *
  * <p>Deliberately imposes no {@code @ClusterScope} and does not override {@code getPragmas()} — both
  * vary per concrete test, so subclasses keep their own.
@@ -177,13 +176,14 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * Gates every subclass on the external-datasources feature flag, which also gates {@code FROM <dataset>}
-     * resolution, plus the local-filesystem feature flag every subclass relies on for its {@code file://}
-     * fixtures. Mirrors {@code FromDatasetIT.requireFeatureFlag}, so subclasses no longer repeat the assume.
+     * Gates every subclass on the {@code dataset-in-from-command} capability, which also gates
+     * {@code FROM <dataset>} resolution, plus the local-filesystem feature flag every subclass relies on for
+     * its {@code file://} fixtures. Mirrors {@code FromDatasetIT.requireFeatureFlag}, so subclasses no longer
+     * repeat the assume.
      */
     @Before
     public void requireFeatureFlag() {
-        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires dataset-in-from-command capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 

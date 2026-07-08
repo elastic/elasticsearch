@@ -350,6 +350,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatch() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -363,6 +367,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testImpossibleFilterBeforeInlineStatsWithMatch() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | EVAL a = 1, b = a + 1, c = b + a
@@ -377,6 +385,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatchAndStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -393,6 +405,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereFalseBeforeGroupedInlineStatsWithMatch() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -406,6 +422,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | INLINE STATS max_id = MAX(id)
@@ -422,6 +442,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchAfterGroupedInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | INLINE STATS max_id = MAX(id) BY id
@@ -438,6 +462,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchAfterInlineStatsKeepingAggValue() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | INLINE STATS max_id = MAX(id)
@@ -454,6 +482,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotMatchAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | INLINE STATS max_id = MAX(id)
@@ -470,6 +502,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchNotPushableAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | INLINE STATS max_id = MAX(id)
@@ -486,6 +522,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchAfterInlineStatsWithAggExpressionFilter() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         // max_plus = id + 1 per row (grouped BY id); id > 2 lets the second condition pass
         var query = """
             FROM test
@@ -503,6 +543,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchAfterMultipleInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | INLINE STATS max_id = MAX(id)
@@ -520,6 +564,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchAfterInlineStatsWithAggValueFilter() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         // INLINE STATS BY id makes max_id = id per row; only id >= 6 passes the second condition
         var query = """
             FROM test

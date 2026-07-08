@@ -12,6 +12,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
@@ -364,6 +365,10 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchOperatorAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | INLINE STATS max_id = MAX(id)
@@ -380,6 +385,10 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchOperatorAfterGroupedInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | INLINE STATS max_id = MAX(id) BY id
@@ -396,6 +405,10 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotMatchOperatorAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | INLINE STATS max_id = MAX(id)
@@ -412,6 +425,10 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchOperatorNotPushableAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | INLINE STATS max_id = MAX(id)
@@ -428,6 +445,10 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatchOperator() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false

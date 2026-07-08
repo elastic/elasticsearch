@@ -1139,6 +1139,23 @@ emp_no:integer | full_name:keyword
 10005          | Kyoichi words words words Maliniak
 ;
 
+mvZipFieldDelim
+required_capability: mv_sort
+
+FROM employees
+| WHERE emp_no in (10001, 10002, 10003, 10004, 10005)
+| EVAL full_name = mv_zip(first_name, last_name, gender)
+| KEEP emp_no, full_name
+| SORT emp_no;
+
+emp_no:integer | full_name:keyword
+10001          | GeorgiMFacello
+10002          | BezalelFSimmel
+10003          | PartoMBamford
+10004          | ChirstianMKoblick
+10005          | KyoichiMMaliniak
+;
+
 
 showTextFields
 from hosts | sort description, card, ip0, ip1 | where host == "beta" | keep host, host_group, description;
@@ -1342,6 +1359,16 @@ Arumugam          |A              |1A94           |true
 Berni             |B              |1B14           |true           
 Bezalel           |B              |1B2            |true           
 Bojan             |B              |1B23           |true
+;
+
+replaceWithFieldRegexAndNewString
+from employees | where emp_no in (10001, 10002, 10003, 10020) | eval replaced = replace(first_name, gender, last_name) | keep emp_no, first_name, gender, last_name, replaced | sort emp_no;
+
+emp_no:integer | first_name:keyword | gender:keyword | last_name:keyword | replaced:keyword
+10001          | Georgi              | M              | Facello            | Georgi
+10002          | Bezalel             | F              | Simmel             | Bezalel
+10003          | Parto               | M              | Bamford            | Parto
+10020          | Mayuko              | M              | Warwick            | Warwickayuko
 ;
 
 replaceRegex
@@ -2286,6 +2313,16 @@ from employees | where emp_no == 10001 | eval split = split("fooMbar", gender) |
 
 gender:keyword | split:keyword 
 M              | [foo, bar]
+;
+
+splitFieldValue
+from employees | where emp_no in (10001, 10002, 10003, 10005) | eval parts = split(last_name, "a") | keep emp_no, last_name, parts | sort emp_no;
+
+emp_no:integer | last_name:keyword | parts:keyword
+10001          | Facello           | [F, cello]
+10002          | Simmel            | Simmel
+10003          | Bamford           | [B, mford]
+10005          | Maliniak          | [M, lini, k]
 ;
 
 locate

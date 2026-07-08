@@ -5701,9 +5701,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return Long.parseLong(value);
                 } catch (NumberFormatException e) {}
             }
-            // The file-level datetime_format runs the same parse as the declared branch above, only with the
-            // file-wide formatter rather than a per-column one. Catch Exception like that branch: a single bad cell
-            // nulls out under the error policy, it never aborts the batch.
+            // The file-level datetime_format runs the same parse as the declared branch above, with the file-wide
+            // formatter. It sits BELOW the epoch shortcut, not above it as the declared branch does: the option is
+            // file-wide, so a numeric cell in any datetime column stays epoch millis — CSV's stand-in for the JSON
+            // number token that bypasses NDJSON's string formatter. An all-digit pattern therefore never matches;
+            // a column genuinely in that dialect declares a per-column format, which outranks the shortcut.
+            // Catch Exception like the declared branch: a single bad cell nulls out under the error policy, it
+            // never aborts the batch.
             if (datetimeFormatter != null) {
                 try {
                     return DeclaredTypeCoercions.parseDatetimeMillis(value, datetimeFormatter);

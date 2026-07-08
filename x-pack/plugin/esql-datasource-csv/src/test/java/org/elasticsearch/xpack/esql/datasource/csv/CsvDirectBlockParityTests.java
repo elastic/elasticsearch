@@ -173,7 +173,6 @@ public class CsvDirectBlockParityTests extends ESTestCase {
      * non-ROOT locale the two would differ only in digit script; forcing ROOT pins the contract in the
      * production-relevant ASCII case without asserting that Jackson locale quirk.
      */
-
     private void assertFailFastParity(boolean tsv, Map<String, Object> config, List<String> projection, String content, String expected)
         throws IOException {
         Locale previous = Locale.getDefault();
@@ -424,8 +423,11 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     // CSV/TSV exactly what it means on NDJSON, on a per-column declared `format` and in a date
     // mapping: zone-aware, missing fields defaulted, named formats and `a||b` composites accepted.
     //
-    // Expected instants below are the values NDJSON produces for the same pattern + bytes (see
-    // NdJsonPageIteratorTests); the two formats must agree exactly.
+    // For a non-numeric-looking cell the expected instants below are the values NDJSON produces for the
+    // same pattern + bytes (see NdJsonPageIteratorTests) -- the two formats agree exactly. A
+    // numeric-looking cell is the documented exception: it reads as epoch millis whatever the file-level
+    // pattern says (testDatetimeFormatDoesNotShadowNumericEpoch), which is CSV's stand-in for NDJSON's
+    // JSON-number token bypassing that reader's string formatter.
     // ---------------------------------------------------------------------------------------------
 
     /** A zone-bearing pattern honors the parsed offset rather than re-anchoring the wall clock to UTC. */
@@ -499,11 +501,83 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         );
     }
 
-    /** The numeric-epoch shortcut still wins over the file-level pattern, as it did before. */
+    /**
+     * A numeric-looking cell keeps reading as epoch millis in preference to the file-level pattern, exactly as it did
+     * before this change. The consequence, pinned here so it is a decision rather than a latent surprise: an all-digit
+     * pattern can never match, because every value it would match is claimed by the shortcut first. That is true of the
+     * custom pattern {@code yyyyMMdd} on {@code main} today and is now equally true of the ES named formats that
+     * compile to all-digit patterns, which this change newly accepts ({@code basic_date}, {@code year},
+     * {@code epoch_second}). A file whose datetime columns are genuinely in an all-digit dialect declares a per-column
+     * {@code format} instead ({@link #testDeclaredColumnFormatOverridesNumericEpochShortcut}), which is evaluated
+     * before the shortcut.
+     */
     public void testDatetimeFormatDoesNotShadowNumericEpoch() throws IOException {
         long epoch = 1609459200000L; // 2021-01-01T00:00:00Z
         List<List<Object>> rows = read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n" + epoch + "\n");
         assertEquals(List.of(row(epoch)), rows);
+
+        // All-digit patterns, custom and named alike, are shadowed identically: the cell is epoch millis, not 2024-01-01.
+        for (String pattern : List.of("yyyyMMdd", "basic_date", "year", "epoch_second")) {
+            assertEquals(
+                "pattern " + pattern,
+                List.of(row(20240101L)),
+                read(false, Map.of("datetime_format", pattern), "ts:datetime\n20240101\n")
+            );
+        }
+    }
+
+    /** The per-column declared `format` is evaluated before the numeric shortcut, so it can name an all-digit dialect. */
+    public void testDeclaredColumnFormatOverridesNumericEpochShortcut() throws IOException {
+        CsvFormatReader reader = baseReader(false).withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        StorageObject object = new InMemoryStorageObject("ts:datetime\n1609459200\n".getBytes(StandardCharsets.UTF_8));
+        try (CloseableIterator<Page> pages = reader.read(object, null, 10)) {
+            Page page = pages.next();
+            try {
+                assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * ES compiles custom patterns with {@link java.time.format.ResolverStyle#STRICT}; the JDK's {@code ofPattern}
+     * defaulted to SMART, which clamped a calendar-invalid day-of-month to the end of the month. {@code 2024-02-31}
+     * therefore used to read as {@code 2024-02-29} and now fails the field, converging on NDJSON and the date mapper.
+     */
+    public void testDatetimeFormatStrictResolverRejectsInvalidCalendarDate() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"),
+            nullField(),
+            null,
+            "ts:datetime\n2024-02-31 10:00:00\n"
+        );
+        assertEquals(List.of(row((Object) null)), rows);
+    }
+
+    /** Named formats and composites reach date_nanos too, not just datetime. */
+    public void testDateNanosFormatNamedFormatAndComposite() throws IOException {
+        assertEquals(
+            List.of(row(EsqlDataTypeConverter.dateNanosToLong("2024-01-01T10:00:00Z"))),
+            read(false, Map.of("datetime_format", "basic_date_time_no_millis"), "ts:date_nanos\n20240101T100000Z\n")
+        );
+        assertEquals(
+            List.of(row(EsqlDataTypeConverter.dateNanosToLong("2024-01-02T00:00:00Z"))),
+            read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd"), "ts:date_nanos\n2024-01-02\n")
+        );
+    }
+
+    /** Under skip_row a datetime cell the pattern cannot parse drops its whole row; neighbours survive. */
+    public void testDatetimeFormatUnparseableValueSkipRow() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"),
+            skipRow(),
+            null,
+            "id:long,ts:datetime\n1,nope\n2,2024-01-01 10:00:00\n"
+        );
+        assertEquals(List.of(row(2L, Instant.parse("2024-01-01T10:00:00Z").toEpochMilli())), rows);
     }
 
     /** An unparseable cell routes through the error policy: null-filled under null_field, surrounding rows survive. */

@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -19,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -301,6 +304,42 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         assertAcked(indicesAdmin().prepareDelete(indexName));
     }
 
+    public void testDirectCancellationOfPrimaryRelocation() {
+        final var masterNode = startMasterOnlyNode();
+        final var sourceNode = startIndexNode();
+
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDocs(indexName, between(1, 50));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        final var targetNode = startIndexNode();
+        safeAcquire(TestRecoveryBlockerPlugin.afterShardCreatedGate);
+
+        client().execute(
+            TransportClusterRerouteAction.TYPE,
+            new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TimeValue.ZERO).add(
+                new MoveAllocationCommand(indexName, 0, sourceNode, targetNode)
+            )
+        );
+
+        safeAcquire(TestRecoveryBlockerPlugin.afterShardCreatedEntered);
+        TestRecoveryBlockerPlugin.afterShardCreatedEntered.release();
+
+        // Request cancellation directly on the shard object while still on the (blocked) cluster applier thread's
+        // capture of it, rather than going through CancelRecoveriesAction, which would be racy.
+        final var shard = TestRecoveryBlockerPlugin.latestCreatedIndexShard.get();
+        final var shardId = shard.shardId();
+        final var shardFailureReceived = shardCancelledFailureReceivedLatch(masterNode, shardId);
+        shard.requestRecoveryCancellation();
+
+        TestRecoveryBlockerPlugin.afterShardCreatedGate.release();
+
+        safeAwait(shardFailureReceived);
+        assertThat(directCancellationMetric(targetNode), equalTo(1L));
+    }
+
     public void testDirectCancellationAtPrimaryHandoffGetsIgnored() throws Exception {
         startMasterOnlyNode();
         final var sourceNode = startIndexNode();
@@ -482,7 +521,11 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         static final Semaphore beforeShardCreatedGate = new Semaphore(1);
         static final Semaphore beforeShardCreatedEntered = new Semaphore(0);
-        static final AtomicReference<ShardRouting> latestCreatedShard = new AtomicReference<>();
+        static final AtomicReference<ShardRouting> latestShardRouting = new AtomicReference<>();
+
+        static final Semaphore afterShardCreatedGate = new Semaphore(1);
+        static final Semaphore afterShardCreatedEntered = new Semaphore(0);
+        static final AtomicReference<IndexShard> latestCreatedIndexShard = new AtomicReference<>();
 
         static void reset() {
             beforeRecoveryGate.drainPermits();
@@ -491,7 +534,11 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
             beforeShardCreatedGate.drainPermits();
             beforeShardCreatedGate.release();
             beforeShardCreatedEntered.drainPermits();
-            latestCreatedShard.set(null);
+            latestShardRouting.set(null);
+            afterShardCreatedGate.drainPermits();
+            afterShardCreatedGate.release();
+            afterShardCreatedEntered.drainPermits();
+            latestCreatedIndexShard.set(null);
         }
 
         @Override
@@ -499,11 +546,28 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
             indexModule.addIndexEventListener(new IndexEventListener() {
                 @Override
                 public void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
-                    latestCreatedShard.set(routing);
+                    latestShardRouting.set(routing);
                     beforeShardCreatedEntered.release();
                     safeAcquire(beforeShardCreatedGate);
                     beforeShardCreatedGate.release();
                     safeAcquire(beforeShardCreatedEntered);
+                }
+
+                @Override
+                public void afterIndexShardCreated(IndexShard indexShard) {
+                    // Only block unsearchable-primary PEER recoveries (i.e. stateless primary relocations), so that
+                    // this doesn't race with unrelated shard creations elsewhere in the cluster (e.g. other indices).
+                    final var shardRouting = indexShard.routingEntry();
+                    if (shardRouting.recoverySource().getType() != RecoverySource.Type.PEER
+                        || shardRouting.primary() == false
+                        || shardRouting.isSearchable()) {
+                        return;
+                    }
+                    latestCreatedIndexShard.set(indexShard);
+                    afterShardCreatedEntered.release();
+                    safeAcquire(afterShardCreatedGate);
+                    afterShardCreatedGate.release();
+                    safeAcquire(afterShardCreatedEntered);
                 }
 
                 @Override

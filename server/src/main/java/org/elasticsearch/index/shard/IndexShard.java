@@ -1988,12 +1988,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /// Requests cancellation of a recovery that is not yet completed.
     ///
     /// Each recovery type checks whether a cancellation has been requested at its own phase boundaries
-    /// via [#ensureRecoveryNotCancelled]
+    /// via [#ensureRecoveryNotCancelled].
+    ///
     /// Note that `RESHARD_SPLIT` recoveries are currently not supported (support will be added via elasticsearch-team#2801).
     ///
     /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
     /// @throws IllegalStateException if the ongoing recovery is not of a supported type
-    ///
     public void requestRecoveryCancellation() {
         synchronized (mutex) {
             if (state == IndexShardState.CREATED) {

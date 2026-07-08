@@ -433,6 +433,90 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         awaitDirectCancellationMetric(replicaNode, 1L);
     }
 
+    public void testDirectCancellationOfStartedReplicaPeerRecoveryDuringTranslogPrep() throws Exception {
+        final var primaryNode = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexName);
+        }
+        flush(indexName);
+        ensureGreen(indexName);
+
+        final var blockedRecovery = new CountDownLatch(1);
+        final var proceedWithRecovery = new CountDownLatch(1);
+
+        // Stall the recovery right as it prepares for translog operations
+        final var transportService = MockTransportService.getInstance(primaryNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG)) {
+                blockedRecovery.countDown();
+                safeAwait(proceedWithRecovery);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var replicaNode = internalCluster().startDataOnlyNode();
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+        safeAwait(blockedRecovery);
+        disableAllocation();
+
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, replicaNode);
+        final var shard = indicesService.indexServiceSafe(index).getShard(0);
+        final var allocationId = shard.routingEntry().allocationId().getId();
+
+        final var shardFailureReceived = shardCancelledFailureReceivedLatch(transportService, shardId);
+
+        final var clusterService = internalCluster().getInstance(ClusterService.class, replicaNode);
+        waitNoPendingTasksOnAll();
+
+        final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().version(),
+            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+
+        client(replicaNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
+        proceedWithRecovery.countDown();
+
+        safeAwait(shardFailureReceived);
+        waitNoPendingTasksOnAll();
+        ensureYellow(indexName);
+
+        awaitClusterState(state -> {
+            final var indexShardRoutingTable = state.routingTable().shardRoutingTable(shardId);
+            assertTrue("Primary shard should be active", indexShardRoutingTable.primaryShard().active());
+
+            final var unassignedShards = indexShardRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED);
+            if (unassignedShards.isEmpty()) {
+                return false;
+            }
+            assertThat(unassignedShards, hasSize(1));
+            final var unassignedInfo = unassignedShards.getFirst().unassignedInfo();
+            assertNotNull("Replica should have non-null unassigned info", unassignedInfo);
+            assertThat(
+                "Expected unassignment reason to be ALLOCATION_FAILED",
+                unassignedInfo.reason(),
+                equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED)
+            );
+
+            final var failure = unassignedInfo.failure();
+            assertNotNull("Unassigned info should have failure details", failure);
+            assertThat(
+                "Failure should be RecoveryCancelledException",
+                ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class),
+                notNullValue()
+            );
+            return true;
+        });
+        awaitDirectCancellationMetric(replicaNode, 1L);
+    }
+
     public void testDirectCancellationOfPrimaryRelocationDuringFileTransfer() throws Exception {
         final var sourceNode = internalCluster().startNode();
         final var indexName = randomIndexName();

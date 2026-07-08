@@ -564,6 +564,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 this::registerThrottleTime
             )
         ) {
+            indexShard.ensureRecoveryNotCancelled();
             StoreFileMetadata metadata = fileInfo.metadata();
             int readSnapshotFileBufferSize = snapshotFilesProvider.getReadSnapshotFileBufferSizeForRepo(repository);
             multiFileWriter.writeFile(metadata, readSnapshotFileBufferSize, new FilterInputStream(inputStream) {

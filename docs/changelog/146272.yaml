@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 146272
+summary: Add `within_boost_window` attribute to cache population metrics
+type: enhancement

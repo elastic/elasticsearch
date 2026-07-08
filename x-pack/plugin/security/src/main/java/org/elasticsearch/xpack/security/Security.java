@@ -343,6 +343,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInte
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ValidateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ViewAndDatasetDlsFlsRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.privilege.KibanaWorkflowsImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -1042,9 +1043,10 @@ public class Security extends Plugin
             customRoleProviders,
             getLicenseState()
         );
-        final List<ImplicitPrivilegesProvider> implicitPrivilegesProviders = securityExtensions.stream()
-            .flatMap(extension -> extension.getImplicitPrivilegesProviders(extensionComponents).stream())
-            .toList();
+        final List<ImplicitPrivilegesProvider> implicitPrivilegesProviders = Stream.concat(
+            Stream.of(new KibanaWorkflowsImplicitPrivilegesProvider()),
+            securityExtensions.stream().flatMap(extension -> extension.getImplicitPrivilegesProviders(extensionComponents).stream())
+        ).toList();
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(
             settings,
             clusterService,

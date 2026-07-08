@@ -44,6 +44,7 @@ public class KibanaPluginTests extends ESTestCase {
 
     public void testNoSystemIndexPatternCoversWorkflowsDataStreams() {
         var indexDescriptors = new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY);
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-executions")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-events")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-execution-data-stream-logs")));
     }

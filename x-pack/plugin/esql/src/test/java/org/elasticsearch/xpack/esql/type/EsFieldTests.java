@@ -13,22 +13,11 @@ import org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomEsField;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
-    public static EsField randomEsField(int maxPropertiesDepth) {
-        String name = randomAlphaOfLength(4);
-        DataType esDataType = randomValueOtherThanMany(
-            t -> false == t.supportedVersion().supportedLocally(),
-            () -> randomFrom(DataType.types())
-        );
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
-        boolean aggregatable = randomBoolean();
-        boolean isAlias = randomBoolean();
-        EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
-        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType);
-    }
-
     @Override
     protected EsField createTestInstance() {
         return randomEsField(4);

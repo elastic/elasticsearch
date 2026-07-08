@@ -19,11 +19,13 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
@@ -174,7 +176,9 @@ public class Eval extends UnaryPlan
         fields.forEach(field -> {
             // check supported types
             DataType dataType = field.dataType();
-            if (DataType.isRepresentable(dataType) == false) {
+            if (DataType.isRepresentable(dataType) == false
+                && (Alias.unwrap(field) instanceof PackDimension == false)
+                && isNullSourceLiteral(field) == false) {
                 failures.add(
                     fail(
                         field,
@@ -185,5 +189,19 @@ public class Eval extends UnaryPlan
                 );
             }
         });
+    }
+
+    /**
+     * True for a {@code _source} column bound to a constant {@code null} — the shape
+     * {@code Analyzer.ResolveExternalRelations} produces for a requested {@code _source} on an
+     * external dataset declaring {@code _source.enabled: false}, mirroring a real index's
+     * disabled-source behavior (the {@code ConstantNull} block loader wired in
+     * {@code SourceFieldMapper} / {@code EsPhysicalOperationProviders}). {@code DataType.SOURCE} is
+     * otherwise excluded from {@link DataType#isRepresentable} because no scalar function computes a
+     * {@code _source} value; a constant null is the one legitimate exception, so it is carved out
+     * here rather than widening {@code isRepresentable} itself.
+     */
+    private static boolean isNullSourceLiteral(Alias field) {
+        return field.dataType() == DataType.SOURCE && Alias.unwrap(field) instanceof Literal literal && literal.value() == null;
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -57,6 +58,23 @@ final class FileListCompactor {
         return raw;
     }
 
+    /**
+     * Returns the path-encoded representation of a partition value, restoring Hive's
+     * {@code __HIVE_DEFAULT_PARTITION__} sentinel when {@link HivePartitionDetector} has decoded
+     * the value to {@code null}. This is required so {@link HiveFileList#path(int)} can reconstruct
+     * the original on-disk directory name.
+     */
+    private static String pathEncodedValue(Map<String, Object> partVals, String column) {
+        if (partVals == null) {
+            return "";
+        }
+        if (partVals.containsKey(column) == false) {
+            return "";
+        }
+        Object raw = partVals.get(column);
+        return raw == null ? HivePartitionDetector.HIVE_DEFAULT_PARTITION : raw.toString();
+    }
+
     private static String extractExtension(String leafSegment) {
         int dot = leafSegment.indexOf('.');
         if (dot >= 0 && (leafSegment.length() - dot) >= 4) {
@@ -76,8 +94,8 @@ final class FileListCompactor {
         String[] colNames = pm.partitionColumns().keySet().toArray(new String[0]);
         int numCols = colNames.length;
 
-        Map<String, Short>[] colValMaps = new Map[numCols];
-        List<String>[] colValLists = new List[numCols];
+        Map<String, Short>[] colValMaps = (Map<String, Short>[]) new Map<?, ?>[numCols];
+        List<String>[] colValLists = (List<String>[]) new List<?>[numCols];
         for (int c = 0; c < numCols; c++) {
             colValMaps[c] = new HashMap<>();
             colValLists[c] = new ArrayList<>();
@@ -90,7 +108,7 @@ final class FileListCompactor {
             Map<String, Object> partVals = pm.filePartitionValues().get(sp);
             StringBuilder keyBuilder = new StringBuilder();
             for (int c = 0; c < numCols; c++) {
-                String val = partVals != null ? String.valueOf(partVals.getOrDefault(colNames[c], "")) : "";
+                String val = pathEncodedValue(partVals, colNames[c]);
                 Short idx = colValMaps[c].get(val);
                 if (idx == null) {
                     if (colValLists[c].size() >= 65535) {
@@ -130,7 +148,7 @@ final class FileListCompactor {
             StoragePath firstPath = files.get(firstFile).path();
             Map<String, Object> firstPartVals = pm.filePartitionValues().get(firstPath);
             for (int c = 0; c < numCols; c++) {
-                String val = firstPartVals != null ? String.valueOf(firstPartVals.getOrDefault(colNames[c], "")) : "";
+                String val = pathEncodedValue(firstPartVals, colNames[c]);
                 groupValIndices[groupIdx][c] = colValMaps[c].get(val);
             }
 

@@ -40,18 +40,18 @@ public class RestPutDatasetAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            PutDatasetAction.Request req = PutDatasetAction.Request.fromXContent(
+            PutDatasetAction.Request putRequest = PutDatasetAction.Request.fromXContent(
                 parser,
                 RestUtils.getMasterNodeTimeout(request),
                 RestUtils.getAckTimeout(request),
                 name
             );
-            return channel -> client.execute(PutDatasetAction.INSTANCE, req, new RestToXContentListener<>(channel));
+            return channel -> client.execute(PutDatasetAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
         }
     }
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(EsqlDataSourcesCapabilities.DATA_SOURCES);
+        return Set.of(EsqlDataSourcesCapabilities.DATA_SOURCES, EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA);
     }
 }

@@ -55,6 +55,8 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -97,6 +99,7 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -111,6 +114,11 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
+    @Nullable
+    private StoreMetricsAwareExecutor metricsAwareExecutor;
+    @Nullable
+    private final Supplier<StoreMetrics> currentThreadStoreMetrics;
+    private long fetchThreadsBytesRead;
     private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
@@ -179,11 +187,13 @@ final class DefaultSearchContext extends SearchContext {
         boolean enableQueryPhaseParallelCollection,
         int minimumDocsPerSlice,
         long memoryAccountingBufferSize,
-        @Nullable CircuitBreaker circuitBreaker
+        @Nullable CircuitBreaker circuitBreaker,
+        @Nullable Supplier<StoreMetrics> currentThreadStoreMetrics
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
+        this.currentThreadStoreMetrics = currentThreadStoreMetrics;
         boolean success = false;
         try {
             this.searchType = request.searchType();
@@ -200,7 +210,8 @@ final class DefaultSearchContext extends SearchContext {
                 enableQueryPhaseParallelCollection,
                 field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
             );
-            if (executor == null || maximumNumberOfSlices <= 1) {
+            boolean searcherRequiresExecutor = executor != null && maximumNumberOfSlices > 1;
+            if (searcherRequiresExecutor == false) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -209,6 +220,12 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
+                boolean trackExecutorBytesRead = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled();
+                if (trackExecutorBytesRead) {
+                    this.metricsAwareExecutor = new StoreMetricsAwareExecutor(executor, currentThreadStoreMetrics);
+                    executor = this.metricsAwareExecutor;
+                }
+
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -219,6 +236,9 @@ final class DefaultSearchContext extends SearchContext {
                     maximumNumberOfSlices,
                     minimumDocsPerSlice
                 );
+            }
+            if (circuitBreaker != null) {
+                this.searcher.setCircuitBreaker(circuitBreaker);
             }
             closeFuture.addListener(ActionListener.releasing(Releasables.wrap(engineSearcher, searcher)));
             this.relativeTimeSupplier = relativeTimeSupplier;
@@ -246,6 +266,26 @@ final class DefaultSearchContext extends SearchContext {
                 close();
             }
         }
+    }
+
+    @Override
+    public long getWorkerThreadsBytesRead() {
+        return metricsAwareExecutor == null ? 0L : metricsAwareExecutor.workerBytesRead();
+    }
+
+    @Override
+    public Supplier<StoreMetrics> currentThreadStoreMetrics() {
+        return currentThreadStoreMetrics;
+    }
+
+    @Override
+    public long getFetchThreadsBytesRead() {
+        return fetchThreadsBytesRead;
+    }
+
+    @Override
+    public void addFetchThreadsBytesRead(long bytesRead) {
+        fetchThreadsBytesRead += bytesRead;
     }
 
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {

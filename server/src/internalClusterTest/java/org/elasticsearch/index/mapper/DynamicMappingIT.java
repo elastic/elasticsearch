@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
@@ -68,7 +70,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
@@ -97,7 +98,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testDynamicStringMappingWithoutAutoTextSubfield() {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         internalCluster().ensureAtLeastNumDataNodes(1);
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         FeatureService featureService = internalCluster().getInstance(FeatureService.class);
@@ -113,6 +113,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         );
         prepareIndex("test-auto-kw-off").setId("1").setSource("msg", "hello").get();
 
+        // Wait for all pending cluster state events (including the dynamic mapping update) to be
+        // applied on all nodes before retrieving mappings, to avoid a race where GetMappings hits
+        // a node that hasn't yet received the new mapping in its cluster state.
+        clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT).waitForEvents(Priority.LANGUID)).actionGet();
+
         GetMappingsResponse mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test-auto-kw-off").get();
         Map<String, Object> source = mappings.mappings().get("test-auto-kw-off").sourceAsMap();
         @SuppressWarnings("unchecked")
@@ -121,11 +126,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
         Map<String, Object> msg = (Map<String, Object>) props.get("msg");
         assertThat(msg.get("type"), equalTo("keyword"));
         assertThat(msg.containsKey("fields"), is(false));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> docValues = (Map<String, Object>) msg.get("doc_values");
-        assertThat(docValues, notNullValue());
-        assertThat(docValues.get("cardinality"), is("high"));
     }
 
     public void testSimpleDynamicMappingsSuccessful() {

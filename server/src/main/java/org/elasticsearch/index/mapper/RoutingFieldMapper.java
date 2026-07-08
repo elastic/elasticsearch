@@ -14,10 +14,10 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
-import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
@@ -32,7 +32,9 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.StringFieldScript;
@@ -196,13 +198,15 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
-                return new FuzzyQuery(
+                return FuzzyQueries.create(
                     new Term(name(), indexedValueForSearch(value)),
                     fuzziness.asDistance(BytesRefs.toString(value)),
                     prefixLength,
                     maxExpansions,
                     transpositions,
-                    MultiTermQuery.DOC_VALUES_REWRITE
+                    MultiTermQuery.DOC_VALUES_REWRITE,
+                    context,
+                    name()
                 );
             } else {
                 return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, rewriteMethod);
@@ -265,6 +269,41 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public Query regexpQuery(
+            String value,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (indexType.hasDocValues()) {
+                value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
+                Term term = new Term(name(), indexedValueForSearch(value));
+                if (context.getCircuitBreaker() != null) {
+                    Automaton dfa = AutomatonQueries.toRegexpAutomaton(
+                        term,
+                        syntaxFlags,
+                        matchFlags,
+                        maxDeterminizedStates,
+                        context.getCircuitBreaker()
+                    );
+                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                }
+                return new RegexpQuery(
+                    term,
+                    syntaxFlags,
+                    matchFlags,
+                    RegexpQuery.DEFAULT_PROVIDER,
+                    maxDeterminizedStates,
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+            }
+            return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             if (docValues) {
                 return new SortedOrdinalsIndexFieldData.Builder(
@@ -274,6 +313,15 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 );
             } else {
                 return super.fielddataBuilder(fieldDataContext);
+            }
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (docValues) {
+                return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+            } else {
+                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(NAME);
             }
         }
     }

@@ -120,7 +120,8 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
             job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT),
             datafeedConfig.getHeaders(),
             datafeedConfig.getIndicesOptions(),
-            datafeedConfig.getRuntimeMappings()
+            datafeedConfig.getRuntimeMappings(),
+            datafeedConfig.getProjectRouting()
         );
         return new CompositeAggregationDataExtractor(
             compositeAggregationBuilder,

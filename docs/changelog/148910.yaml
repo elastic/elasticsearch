@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 148910
+summary: Route Prometheus remote write via `data_stream` labels
+type: enhancement

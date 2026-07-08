@@ -10,6 +10,7 @@
 package org.elasticsearch.iplocation.api;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
 
@@ -60,7 +61,14 @@ public enum DatabaseProperty {
     SERVICE("service", String.class),
     REGISTERED_COUNTRY_IN_EUROPEAN_UNION("registered_country_in_european_union", Boolean.class),
     REGISTERED_COUNTRY_ISO_CODE("registered_country_iso_code", String.class),
-    REGISTERED_COUNTRY_NAME("registered_country_name", String.class);
+    REGISTERED_COUNTRY_NAME("registered_country_name", String.class),
+    ANYCAST("anycast", Boolean.class),
+    MOBILE("mobile", Boolean.class),
+    SATELLITE("satellite", Boolean.class),
+    DMA_CODE("dma_code", String.class),
+    GEONAME_ID("geoname_id", String.class),
+    ASN_CHANGED_DATE("asn_changed_date", String.class),
+    GEO_CHANGED_DATE("geo_changed_date", String.class);
 
     private final String fieldName;
     private final Class<?> fieldType;
@@ -76,6 +84,24 @@ public enum DatabaseProperty {
 
     public Class<?> fieldType() {
         return fieldType;
+    }
+
+    /**
+     * Builds the set of {@link DatabaseProperty} values whose {@link #fieldName()} is present in the given set of field names.
+     * Useful for bridging between the string-keyed field map from {@link IpDataLookupInfo#getFields()} and the enum-keyed
+     * validation required by {@link #parseProperty(Set, String)}.
+     *
+     * @param fieldNames the set of valid field name strings (e.g. from {@code info.getFields().keySet()})
+     * @return the subset of {@link DatabaseProperty} values matching the given field names
+     */
+    public static Set<DatabaseProperty> buildValidSet(Set<String> fieldNames) {
+        Set<DatabaseProperty> result = EnumSet.noneOf(DatabaseProperty.class);
+        for (DatabaseProperty dp : values()) {
+            if (fieldNames.contains(dp.fieldName())) {
+                result.add(dp);
+            }
+        }
+        return result;
     }
 
     /**

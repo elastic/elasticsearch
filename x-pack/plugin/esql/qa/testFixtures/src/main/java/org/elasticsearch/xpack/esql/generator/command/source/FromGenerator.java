@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.esql.generator.command.source;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.SubqueryGenerator;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.HashMap;
@@ -33,6 +36,13 @@ public class FromGenerator implements CommandGenerator {
      */
     public static final String UNMAPPED_FIELDS_ENABLED = "unmappedFieldsEnabled";
 
+    /**
+     * Set to {@code true} when the FROM produces a {@code UnionAll}, either from an embedded subquery
+     * or from a wildcard that matches both a view and regular indices. FORK must not be generated when
+     * this flag is set.
+     */
+    public static final String HAS_UNION_ALL = "hasUnionAll";
+
     public static final String SET_UNMAPPED_FIELDS_PREFIX = "SET unmapped_fields=\"nullify\";";
 
     public static final String SET_APPROXIMATION_PREFIX = "SET approximation=";
@@ -52,23 +62,26 @@ public class FromGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
-        boolean useUnmappedFields = shouldAddUnmappedFieldWithProbabilityIncrease(3);
+        // SET prefixes are only legal at the top level of a query, never inside a subquery.
+        boolean useUnmappedFields = context.isWithinASubquery() == false && shouldAddUnmappedFieldWithProbabilityIncrease(3);
         StringBuilder result = new StringBuilder();
         if (useUnmappedFields) {
             result.append(SET_UNMAPPED_FIELDS_PREFIX);
         }
-        boolean setQueryApproximation = EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled()
+        boolean setQueryApproximation = context.isWithinASubquery() == false
+            && EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled()
             && randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY;
         if (setQueryApproximation) {
             result.append(randomQueryApproximationSettings());
         }
-        appendFromClause(result, schema);
+        Map<String, Object> commandContext = new HashMap<>();
+        commandContext.put(UNMAPPED_FIELDS_ENABLED, useUnmappedFields);
+        appendFromCommand(result, schema, executor, context, commandContext);
         String query = result.toString();
-        Map<String, Object> context = new HashMap<>();
-        context.put(UNMAPPED_FIELDS_ENABLED, useUnmappedFields);
-        return new CommandDescription("from", this, query, context);
+        return new CommandDescription("from", this, query, commandContext);
     }
 
     @Override
@@ -83,17 +96,53 @@ public class FromGenerator implements CommandGenerator {
         return VALIDATION_OK;
     }
 
-    protected static void appendFromClause(StringBuilder result, QuerySchema schema) {
+    protected static final double SUBQUERY_PROBABILITY = 0.15;
+
+    /**
+     * Appends the {@code FROM <sources>} portion of the command and sets {@link #HAS_UNION_ALL} in
+     * {@code commandContext}. Subqueries and mixed-view wildcards are kept mutually exclusive, because
+     * nesting them triggers a planner error (https://github.com/elastic/elasticsearch/issues/149396).
+     */
+    protected static void appendFromCommand(
+        StringBuilder result,
+        QuerySchema schema,
+        QueryExecutor executor,
+        GenerationContext context,
+        Map<String, Object> commandContext
+    ) {
         result.append("from ");
         int items = randomIntBetween(1, 3);
         List<String> availableIndices = schema.baseIndices();
+        boolean canHaveSubquery = context.isFeatureEnabled(GenerativeFeature.SUBQUERIES) && context.isWithinASubquery() == false;
+        boolean hasSubquery = false;
+        boolean hasViewInFrom = false;
         for (int i = 0; i < items; i++) {
-            String pattern = EsqlQueryGenerator.indexPattern(availableIndices.get(randomIntBetween(0, availableIndices.size() - 1)));
             if (i > 0) {
                 result.append(",");
             }
-            result.append(pattern);
+            if (canHaveSubquery && hasViewInFrom == false && randomDouble() < SUBQUERY_PROBABILITY) {
+                result.append(SubqueryGenerator.build(context, schema, executor).queryText());
+                hasSubquery = true;
+            } else {
+                String idxName = availableIndices.get(randomIntBetween(0, availableIndices.size() - 1));
+                String pattern = EsqlQueryGenerator.indexPattern(idxName);
+                if (pattern.endsWith("*")) {
+                    String prefix = pattern.substring(0, pattern.length() - 1);
+                    // A wildcard hitting both a view and regular indices creates a ViewUnionAll nested
+                    // inside any outer UnionAll, which the planner rejects (see issue #149396).
+                    boolean hitsView = schema.viewNames().stream().anyMatch(v -> v.startsWith(prefix) && v.equals(idxName) == false);
+                    if (hitsView) {
+                        if (hasSubquery) {
+                            pattern = idxName;
+                        } else {
+                            hasViewInFrom = true;
+                        }
+                    }
+                }
+                result.append(pattern);
+            }
         }
+        commandContext.put(HAS_UNION_ALL, hasSubquery || hasViewInFrom);
     }
 
     protected String randomQueryApproximationSettings() {

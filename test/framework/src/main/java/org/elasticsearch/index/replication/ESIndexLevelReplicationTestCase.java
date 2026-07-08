@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -264,7 +265,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             );
             BulkItemRequest[] items = new BulkItemRequest[1];
             items[0] = new BulkItemRequest(0, writeRequest);
-            BulkShardRequest request = new BulkShardRequest(shardId, refreshPolicy, items);
+            BulkShardRequest request = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, refreshPolicy, items);
             new WriteReplicationAction(request, wrapBulkListener, this).execute();
             return listener.get();
         }
@@ -907,6 +908,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         ) throws Exception {
         final BulkShardRequest bulkShardRequest = new BulkShardRequest(
             shardId,
+            SplitShardCountSummary.IRRELEVANT,
             request.getRefreshPolicy(),
             new BulkItemRequest[] { new BulkItemRequest(0, request) }
         );

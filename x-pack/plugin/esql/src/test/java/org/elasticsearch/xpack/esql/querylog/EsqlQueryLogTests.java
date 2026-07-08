@@ -97,6 +97,7 @@ public class EsqlQueryLogTests extends ESTestCase {
 
     public void testPrioritiesOnSuccess() {
         EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -148,6 +149,7 @@ public class EsqlQueryLogTests extends ESTestCase {
 
     public void testPrioritiesOnFailure() {
         EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -201,6 +203,11 @@ public class EsqlQueryLogTests extends ESTestCase {
                     randomTimeSpan(),
                     randomTimeSpan(),
                     randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomIntBetween(0, 100),
+                    randomIntBetween(0, 100),
+                    randomIntBetween(0, 1000),
+                    randomNonNegativeLong(),
                     randomIntBetween(0, 100)
                 );
             }

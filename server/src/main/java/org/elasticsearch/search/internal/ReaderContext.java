@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -54,6 +55,13 @@ public class ReaderContext implements Releasable {
 
     private Map<String, Object> context;
 
+    // Id of the task that opened this reader context, captured for diagnostic logging on close.
+    // {@code 0L} sentinel means "not available" (e.g. relocated PIT contexts where the original
+    // creator is not recoverable, or test instantiations). Task ids issued by {@code TaskManager}
+    // start at 1, so 0 is unambiguous. The owning node id is the local SearchService node id, so
+    // it isn't stored here. See https://github.com/elastic/elasticsearch/issues/112680.
+    private final long creatorTaskId;
+
     @SuppressWarnings("this-escape")
     public ReaderContext(
         ShardSearchContextId id,
@@ -61,13 +69,15 @@ public class ReaderContext implements Releasable {
         IndexShard indexShard,
         Engine.SearcherSupplier searcherSupplier,
         long keepAliveInMillis,
-        boolean singleSession
+        boolean singleSession,
+        long creatorTaskId
     ) {
         this.id = id;
         this.indexService = indexService;
         this.indexShard = indexShard;
         this.searcherSupplier = searcherSupplier;
         this.singleSession = singleSession;
+        this.creatorTaskId = creatorTaskId;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
         this.refCounted = AbstractRefCounted.of(this::doClose);
@@ -126,7 +136,9 @@ public class ReaderContext implements Releasable {
      * <code>keepAliveInMillis</code>.
      */
     public Releasable markAsUsed(long keepAliveInMillis) {
-        refCounted.incRef();
+        if (refCounted.tryIncRef() == false) {
+            throw new SearchContextMissingException(id);
+        }
         tryUpdateKeepAlive(keepAliveInMillis);
         return Releasables.releaseOnce(() -> {
             this.lastAccessTime.accumulateAndGet(nowInMillis(), Math::max);
@@ -149,6 +161,15 @@ public class ReaderContext implements Releasable {
 
     public boolean isRelocating() {
         return false;
+    }
+
+    /**
+     * Returns the id of the task that opened this reader context, or {@code 0L} if it was
+     * not captured (relocated PIT contexts and test instantiations). The owning node id is
+     * the local node id at open time and is formatted by the caller for logging.
+     */
+    public long creatorTaskId() {
+        return creatorTaskId;
     }
 
     // BWC

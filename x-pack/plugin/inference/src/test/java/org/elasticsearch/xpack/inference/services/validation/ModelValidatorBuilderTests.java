@@ -29,7 +29,6 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.isA;
@@ -78,15 +77,7 @@ public class ModelValidatorBuilderTests extends ESTestCase {
 
         verify(mockService, times(1)).rerankInfer(
             any(),
-            eq(
-                new RerankRequest(
-                    InferenceString.fromStringList(List.of("how big")),
-                    new InferenceString(TEXT, "test query"),
-                    1,
-                    true,
-                    null
-                )
-            ),
+            eq(new RerankRequest(InferenceString.fromStringList(List.of("how big")), InferenceString.ofText("test query"), 1, true, null)),
             any(),
             any()
         );
@@ -110,22 +101,15 @@ public class ModelValidatorBuilderTests extends ESTestCase {
         );
     }
 
-    public void testBuildModelValidator_Rerank_CallsAppropriateRerankMethod_NewCodePath() {
-        testBuildModelValidator_Rerank_CallsAppropriateRerankMethod(true);
-    }
-
-    public void testBuildModelValidator_Rerank_CallsAppropriateRerankMethod_OldCodePath() {
-        testBuildModelValidator_Rerank_CallsAppropriateRerankMethod(false);
-    }
-
     @SuppressWarnings("unchecked")
-    private static void testBuildModelValidator_Rerank_CallsAppropriateRerankMethod(boolean supportsNewRerankCodePath) {
+    public void testBuildModelValidator_Rerank_CallsAppropriateRerankMethod() {
         var mockService = mock(InferenceService.class);
-        when(mockService.supportsNewRerankCodePath()).thenReturn(supportsNewRerankCodePath);
+        // The test explicitly expects that we don't call infer() but mock the return to prevent the listener from hanging if we do
         doAnswer(ans -> {
-            ((ActionListener<InferenceServiceResults>) ans.getArgument(9)).onResponse(mock());
+            ((ActionListener<InferenceServiceResults>) ans.getArgument(6)).onResponse(mock());
             return null;
-        }).when(mockService).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(mockService).infer(any(), any(), anyBoolean(), any(), any(), any(), any());
+
         doAnswer(ans -> {
             ((ActionListener<InferenceServiceResults>) ans.getArgument(3)).onResponse(mock());
             return null;
@@ -141,13 +125,8 @@ public class ModelValidatorBuilderTests extends ESTestCase {
         modelValidator.validate(mockService, rerankModel, timeout, listener);
         listener.actionGet(TEST_REQUEST_TIMEOUT);
 
-        if (supportsNewRerankCodePath) {
-            verify(mockService).rerankInfer(any(), any(), any(), any());
-            verify(mockService, never()).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
-        } else {
-            verify(mockService, never()).rerankInfer(any(), any(), any(), any());
-            verify(mockService).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
-        }
+        verify(mockService).rerankInfer(any(), any(), any(), any());
+        verify(mockService, never()).infer(any(), any(), anyBoolean(), any(), any(), any(), any());
     }
 
     private Map<TaskType, Class<? extends ModelValidator>> taskTypeToModelValidatorClassMap() {

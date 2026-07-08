@@ -26,7 +26,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
@@ -93,10 +92,6 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK.toString().toLowerCase(Locale.ROOT));
     }
 
-    @TestLogging(
-        value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.shard_files_deletes:debug",
-        reason = "log shard file deletions"
-    )
     public void testGenerationalFileBlobReferenceIsRetainedCorrectly() throws Exception {
         final String indexNode = startMasterAndIndexNode(
             Settings.builder()
@@ -127,14 +122,28 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
             assertNoFailures(bulkRequest.get(TimeValue.timeValueSeconds(10)));
         }
 
-        // Make sure the delayed release actually happen for deleting the old commit files
+        // Trigger a force merge to make sure the delayed release actually happens for deleting the old commit files.
+        // But the {@link org.elasticsearch.xpack.stateless.commits.IndexEngineDeletionPolicy.processCommits} call triggered
+        // by the force merge call won't actually delete old commit files if they haven't yet been uploaded.
+        // First make sure all commits have been uploaded before invoking force-merge.
+        final var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        final IndexShard indexShard = findIndexShard(indexName);
+        final Engine indexEngine = indexShard.getEngineOrNull();
+        final long lastBulkPhaseGeneration = indexEngine.getLastCommittedSegmentInfos().getGeneration();
+        assertBusy(() -> {
+            final var latestUploaded = statelessCommitService.getLatestUploadedBcc(indexShard.shardId());
+            assertNotNull("no BCC has been uploaded yet", latestUploaded);
+            assertThat(
+                "every bulk-phase commit must finish uploading before forceMerge() runs",
+                latestUploaded.lastCompoundCommit().primaryTermAndGeneration().generation(),
+                equalTo(lastBulkPhaseGeneration)
+            );
+        }, 30, TimeUnit.SECONDS);
         forceMerge();
         // speed up commit deletion since it uses delayed cluster consistency check from translog
         indexDoc(indexName, "doc-extra", "field", randomUnicodeOfLength(50));
 
         final ObjectStoreService objectStoreService = getObjectStoreService(indexNode);
-        final IndexShard indexShard = findIndexShard(indexName);
-        final Engine indexEngine = indexShard.getEngineOrNull();
         final long generation = indexEngine.getLastCommittedSegmentInfos().getGeneration();
         final BlobContainer blobContainer = objectStoreService.getProjectBlobContainer(
             indexShard.shardId(),
@@ -147,7 +156,6 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
             }, 30, TimeUnit.SECONDS);
         } catch (AssertionError e) {
             try {
-                final var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
                 logBlobReferences(statelessCommitService, indexShard.shardId(), Level.INFO);
             } catch (Exception loggingException) {
                 e.addSuppressed(loggingException);

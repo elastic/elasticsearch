@@ -746,18 +746,16 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
             tracked,
             buffer,
             exec,
-            ActionListener.runAfter(ActionListener.wrap(v -> drainDone.countDown(), e -> {
-                drainError.set(e);
-                drainDone.countDown();
-            }), () -> {
+            ActionListener.runAfter(ActionListener.wrap(v -> {}, drainError::set), () -> {
                 closeQuietly(tracked);
                 cleanupRan.set(true);
+                // countDown after cleanup so the awaiting thread observes cleanupRan==true (avoid race).
+                drainDone.countDown();
             })
         );
 
         // Let the buffer fill up (producer should be blocked waiting for space)
-        Thread.sleep(200);
-        assertTrue("Buffer should have pages", buffer.size() > 0);
+        assertBusy(() -> assertTrue("Buffer should have pages", buffer.size() > 0), 5, TimeUnit.SECONDS);
 
         // Cancel the query
         buffer.finish(true);

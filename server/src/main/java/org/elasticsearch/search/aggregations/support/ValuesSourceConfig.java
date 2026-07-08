@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -233,10 +235,23 @@ public class ValuesSourceConfig {
     private static AggregationScript.LeafFactory createScript(Script script, AggregationContext context) {
         if (script == null) {
             return null;
-        } else {
-            AggregationScript.Factory factory = context.compile(script, AggregationScript.CONTEXT);
-            return factory.newFactory(script.getParams(), context.lookup());
         }
+        AggregationScript.Factory factory = context.compile(script, AggregationScript.CONTEXT);
+        AggregationScript.LeafFactory delegate = factory.newFactory(script.getParams(), context.lookup());
+        final Runnable cancellationCheck = (context.searcher() instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null;
+        return new AggregationScript.LeafFactory() {
+            @Override
+            public AggregationScript newInstance(LeafReaderContext ctx) throws IOException {
+                AggregationScript s = delegate.newInstance(ctx);
+                s._setCancellationCheck(cancellationCheck);
+                return s;
+            }
+
+            @Override
+            public boolean needs_score() {
+                return delegate.needs_score();
+            }
+        };
     }
 
     private static DocValueFormat resolveFormat(

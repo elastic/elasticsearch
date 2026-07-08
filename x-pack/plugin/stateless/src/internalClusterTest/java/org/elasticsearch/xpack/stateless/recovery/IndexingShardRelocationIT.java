@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -562,7 +563,9 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         stopBreakingActions(indexNodeA, indexNodeB);
 
         ensureGreen();
-        assertNodeHasNoCurrentRecoveries(indexNodeB);
+        // The nodes stats response can temporarily omit the target node because the mock disconnect
+        // between index nodes is still reconnecting.
+        assertBusy(() -> assertNodeHasNoCurrentRecoveries(indexNodeB));
         // Have to assertBusy here because sometimes the failed IndexShard lingers on indexNodeB
         assertBusy(() -> assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs)));
     }
@@ -883,6 +886,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                 .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .build()
         );
         ensureGreen(indexName);
@@ -1084,7 +1088,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
@@ -1092,7 +1096,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     // the number of written regions in cache after the shard is started we are sure no other regions are likely to be
                     // warmed afterward.
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, false, subscribableListener);
+                    super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, false, subscribableListener);
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

@@ -137,11 +137,6 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
     }
 
     @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,

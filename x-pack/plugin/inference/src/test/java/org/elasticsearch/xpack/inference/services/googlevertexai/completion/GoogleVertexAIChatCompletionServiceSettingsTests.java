@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVe
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceSettingsTestCase<
     GoogleVertexAiChatCompletionServiceSettings> {
@@ -149,21 +150,19 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
         assertValidationFailure(
             buildServiceSettingsMap(TEST_PROJECT_ID, TEST_LOCATION, TEST_MODEL_ID, TEST_URL, null, null, null),
             Strings.format("""
-                Validation Failed: 1: 'provider' is either GOOGLE or null. For Google Vertex AI models 'uri' and 'streaming_uri' must \
-                not be provided. Remove 'url' and 'streaming_url' fields. Provided values: uri=%s, streaming_uri=%s;""", TEST_URL, null)
+                Validation Failed: 1: [provider] is either [GOOGLE] or null. \
+                For Google Vertex AI models [uri] and [streaming_uri] must not be provided. Remove [url] and [streaming_url] fields. \
+                Provided values: [uri] is [%s], [streaming_uri] is [%s];""", TEST_URL, null)
         );
     }
 
     public void testFromMapGoogleVertexAi_StreamingUrlPresent_Failure() {
         assertValidationFailure(
             buildServiceSettingsMap(TEST_PROJECT_ID, TEST_LOCATION, TEST_MODEL_ID, null, TEST_STREAMING_URL, null, null),
-            Strings.format(
-                """
-                    Validation Failed: 1: 'provider' is either GOOGLE or null. For Google Vertex AI models 'uri' and 'streaming_uri' must \
-                    not be provided. Remove 'url' and 'streaming_url' fields. Provided values: uri=%s, streaming_uri=%s;""",
-                null,
-                TEST_STREAMING_URL
-            )
+            Strings.format("""
+                Validation Failed: 1: [provider] is either [GOOGLE] or null. \
+                For Google Vertex AI models [uri] and [streaming_uri] must not be provided. Remove [url] and [streaming_url] fields. \
+                Provided values: [uri] is [%s], [streaming_uri] is [%s];""", null, TEST_STREAMING_URL)
         );
     }
 
@@ -201,8 +200,9 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
             buildServiceSettingsMap(null, null, null, TEST_URL, TEST_STREAMING_URL, null, null),
             Strings.format(
                 """
-                    Validation Failed: 1: 'provider' is either GOOGLE or null. For Google Vertex AI models 'uri' and 'streaming_uri' must \
-                    not be provided. Remove 'url' and 'streaming_url' fields. Provided values: uri=%s, streaming_uri=%s;""",
+                    Validation Failed: 1: [provider] is either [GOOGLE] or null. For Google Vertex AI models [uri] and [streaming_uri] \
+                    must not be provided. \
+                    Remove [url] and [streaming_url] fields. Provided values: [uri] is [%s], [streaming_uri] is [%s];""",
                 TEST_URL,
                 TEST_STREAMING_URL
             )
@@ -214,8 +214,9 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
             buildServiceSettingsMap(null, null, null, TEST_URL, TEST_STREAMING_URL, GoogleModelGardenProvider.GOOGLE.toString(), null),
             Strings.format(
                 """
-                    Validation Failed: 1: 'provider' is either GOOGLE or null. For Google Vertex AI models 'uri' and 'streaming_uri' must \
-                    not be provided. Remove 'url' and 'streaming_url' fields. Provided values: uri=%s, streaming_uri=%s;""",
+                    Validation Failed: 1: [provider] is either [GOOGLE] or null. For Google Vertex AI models [uri] and [streaming_uri] \
+                    must not be provided. \
+                    Remove [url] and [streaming_url] fields. Provided values: [uri] is [%s], [streaming_uri] is [%s];""",
                 TEST_URL,
                 TEST_STREAMING_URL
             )
@@ -277,7 +278,7 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
             buildServiceSettingsMap(null, null, null, null, null, GoogleModelGardenProvider.ANTHROPIC.toString(), null),
             Strings.format(
                 """
-                    Validation Failed: 1: Google Model Garden provider=%s selected. Either 'uri' or 'streaming_uri' must be provided;""",
+                    Validation Failed: 1: Google Model Garden [provider] is [%s]. Either [uri] or [streaming_uri] must be provided;""",
                 GoogleModelGardenProvider.ANTHROPIC.toString()
             )
         );
@@ -285,20 +286,43 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
 
     public void testFromMapGoogleVertexAi_NoModel_Failure() {
         assertValidationFailure(buildServiceSettingsMap(TEST_PROJECT_ID, TEST_LOCATION, null, null, null, null, null), Strings.format("""
-            Validation Failed: 1: For Google Vertex AI models, you must provide 'location', 'project_id', and 'model_id'. \
-            Provided values: location=%s, project_id=%s, model_id=%s;""", TEST_LOCATION, TEST_PROJECT_ID, null));
+            Validation Failed: 1: For Google Vertex AI models, you must provide [project_id] and [model_id]. \
+            Provided values: [project_id] is [%s], [model_id] is [%s];""", TEST_PROJECT_ID, null));
     }
 
-    public void testFromMapGoogleVertexAi_NoLocation_Failure() {
-        assertValidationFailure(buildServiceSettingsMap(TEST_PROJECT_ID, null, TEST_MODEL_ID, null, null, null, null), Strings.format("""
-            Validation Failed: 1: For Google Vertex AI models, you must provide 'location', 'project_id', and 'model_id'. \
-            Provided values: location=%s, project_id=%s, model_id=%s;""", null, TEST_PROJECT_ID, TEST_MODEL_ID));
+    public void testFromMapGoogleVertexAi_NoLocation_DefaultsToGlobalEndpoint() {
+        GoogleVertexAiChatCompletionServiceSettings settings = GoogleVertexAiChatCompletionServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_PROJECT_ID, null, TEST_MODEL_ID, null, null, null, TEST_RATE_LIMIT),
+            ConfigurationParseContext.REQUEST
+        );
+        assertThat(
+            settings,
+            is(
+                new GoogleVertexAiChatCompletionServiceSettings(
+                    TEST_PROJECT_ID,
+                    null,
+                    TEST_MODEL_ID,
+                    null,
+                    null,
+                    GoogleModelGardenProvider.GOOGLE,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+        assertThat(settings.location(), is(nullValue()));
     }
 
     public void testFromMapGoogleVertexAi_NoProject_Failure() {
         assertValidationFailure(buildServiceSettingsMap(null, TEST_LOCATION, TEST_MODEL_ID, null, null, null, null), Strings.format("""
-            Validation Failed: 1: For Google Vertex AI models, you must provide 'location', 'project_id', and 'model_id'. \
-            Provided values: location=%s, project_id=%s, model_id=%s;""", TEST_LOCATION, null, TEST_MODEL_ID));
+            Validation Failed: 1: For Google Vertex AI models, you must provide [project_id] and [model_id]. \
+            Provided values: [project_id] is [%s], [model_id] is [%s];""", null, TEST_MODEL_ID));
+    }
+
+    public void testFromMapGoogleVertexAi_EmptyLocation_Failure() {
+        assertValidationFailure(
+            buildServiceSettingsMap(TEST_PROJECT_ID, "", TEST_MODEL_ID, null, null, null, null),
+            "Validation Failed: 1: [service_settings] Invalid value empty string. [location] must be a non-empty string;"
+        );
     }
 
     public void testUpdateServiceSettings_GoogleVertexAi_AllFields_OnlyMutableFieldsAreUpdated() {
@@ -425,7 +449,7 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
     private static GoogleVertexAiChatCompletionServiceSettings createRandomWithGoogleVertexAiSettings() {
         return new GoogleVertexAiChatCompletionServiceSettings(
             randomString(),
-            randomString(),
+            randomOptionalString(),
             randomString(),
             null,
             null,

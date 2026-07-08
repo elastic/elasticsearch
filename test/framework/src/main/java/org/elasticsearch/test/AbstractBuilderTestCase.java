@@ -474,15 +474,21 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * Asserts that building the supplied query trips the circuit breaker with a "Data too large" message.
      */
     protected static void assertCircuitBreakerTripsOnQueryConstruction(String breakerLimit, Supplier<QueryBuilder> querySupplier) {
-        SearchExecutionContext context = new SearchExecutionContext(
-            createSearchExecutionContext(),
-            createCircuitBreakerService(breakerLimit)
-        );
+        CircuitBreaker breaker = createCircuitBreakerService(breakerLimit);
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), breaker);
 
         try {
             QueryBuilder query = querySupplier.get();
+            long beforeUsed = breaker.getUsed();
+            long beforeContextTally = context.getQueryConstructionMemoryUsed();
             CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> query.toQuery(context));
             assertThat(exception.getMessage(), containsString("Data too large"));
+            assertEquals("breaker must not retain bytes after a mid-walk query-construction trip", beforeUsed, breaker.getUsed());
+            assertEquals(
+                "query-construction tally must not retain bytes after a mid-walk trip",
+                beforeContextTally,
+                context.getQueryConstructionMemoryUsed()
+            );
         } finally {
             context.releaseQueryConstructionMemory();
         }

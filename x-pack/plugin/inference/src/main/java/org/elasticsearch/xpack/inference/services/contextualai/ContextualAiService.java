@@ -123,11 +123,6 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
     }
 
     @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,

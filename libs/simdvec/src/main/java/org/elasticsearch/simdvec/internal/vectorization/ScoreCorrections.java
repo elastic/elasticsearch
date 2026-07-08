@@ -90,7 +90,14 @@ public class ScoreCorrections {
     static final MethodHandle BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK = SIMILARITY_FUNCTIONS.bbqApplyCorrectionsMaxInnerProductBulk();
     static final MethodHandle BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_BULK = SIMILARITY_FUNCTIONS.bbqApplyCorrectionsDotProductBulk();
 
-    static float nativeBbqApplyCorrectionsBulk(
+    /**
+     * Apply corrections to a bulk of scores, reading per-vector correction trailers inline at
+     * {@code addresses[i] + vectorSizeInBytes} (BBQ-style layout). The trailing target component sum
+     * is encoded either as a 4-byte int ({@code readComponentSumAsInt = true}, or as a 2-byte unsigned short
+     * zero-extended to int ({@code readComponentSumAsInt = false}), mirroring
+     * {@code writeComponentSumAsInt} in {@code DiskBBQBulkWriter})
+     */
+    public static float nativeBbqApplyCorrectionsBulk(
         VectorSimilarityFunction similarityFunction,
         MemorySegment data,
         int bulkSize,
@@ -104,8 +111,10 @@ public class ScoreCorrections {
         float queryBitScale,
         float indexBitScale,
         float centroidDp,
+        boolean readComponentSumAsInt,
         MemorySegment scores
     ) {
+        byte readAsInt = readComponentSumAsInt ? (byte) 1 : (byte) 0;
         try {
             return switch (similarityFunction) {
                 case EUCLIDEAN -> (float) BBQ_APPLY_CORRECTIONS_EUCLIDEAN_BULK.invokeExact(
@@ -121,6 +130,7 @@ public class ScoreCorrections {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readAsInt,
                     scores
                 );
                 case DOT_PRODUCT, COSINE -> (float) BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_BULK.invokeExact(
@@ -136,6 +146,7 @@ public class ScoreCorrections {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readAsInt,
                     scores
                 );
                 case MAXIMUM_INNER_PRODUCT -> (float) BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK.invokeExact(
@@ -151,6 +162,7 @@ public class ScoreCorrections {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readAsInt,
                     scores
                 );
             };

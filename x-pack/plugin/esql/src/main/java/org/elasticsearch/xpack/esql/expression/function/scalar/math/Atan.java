@@ -33,10 +33,12 @@ public class Atan extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Atan::new)
         .description("Calculates the arctangent of all elements in the input vector.")
         .example("atan(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("atan");
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the arctangent of a number.",
         description = "Returns the {wikipedia}/Inverse_trigonometric_functions[arctangent] of the input\n"
             + "numeric expression as an angle, expressed in radians.",
         examples = @Example(file = "floats", tag = "atan")

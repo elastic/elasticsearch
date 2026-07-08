@@ -101,7 +101,7 @@ public class MetricRecorder<I> {
      * Record a call made to the registered instrument represented by the {@link InstrumentType} enum.
      */
     public void call(InstrumentType instrumentType, String name, Number value, Map<String, Object> attributes) {
-        metrics.get(instrumentType).call(name, new Measurement(value, attributes, instrumentType.isDouble));
+        metrics.get(instrumentType).call(name, new Measurement(value, Map.copyOf(attributes), instrumentType.isDouble));
     }
 
     /**

@@ -39,6 +39,7 @@ public class Md5 extends AbstractHashFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Computes the MD5 hash of the input.",
         description = "Computes the MD5 hash of the input (if the MD5 hash is available on the JVM).",
         examples = { @Example(file = "hash", tag = "md5") }
     )

@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.generator;
 
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+
+import java.util.List;
+
 /**
  * This is used by generative tests and by command generators,
  * to run queries for test or to run intermediate queries,
@@ -24,4 +28,17 @@ public interface QueryExecutor {
      * @return The results of the execution
      */
     QueryExecuted execute(String query, int depth);
+
+    /**
+     * Returns {@code true} if the given failure is a known/allowed error that the test suite tolerates,
+     * {@code false} if the failure is unexpected and should propagate.
+     * The default implementation treats every failure as unexpected.
+     */
+    default boolean isAllowedFailure(
+        QueryExecuted result,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        return false;
+    }
 }

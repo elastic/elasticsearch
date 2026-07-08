@@ -53,7 +53,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         if (in.getTransportVersion().supports(BULK_SHARD_BATCH)) {
             bulkShardBatch = in.readOptionalWriteable(BulkShardBatch::new);
             if (bulkShardBatch != null) {
-                BulkShardBatch.attachBatchToItems(bulkShardBatch.getEirfBatch(), items);
+                BulkShardBatch.attachBatchToItems(bulkShardBatch.getBatch(), items);
             }
         }
     }
@@ -65,14 +65,6 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         BulkItemRequest[] items
     ) {
         this(shardId, splitShardCountSummary, refreshPolicy, items, false);
-    }
-
-    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
-        this(shardId, SplitShardCountSummary.UNSET, refreshPolicy, items, false);
-    }
-
-    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean isSimulated) {
-        this(shardId, SplitShardCountSummary.UNSET, refreshPolicy, items, isSimulated);
     }
 
     public BulkShardRequest(

@@ -766,7 +766,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     private static RoleDescriptor buildViewerRoleDescriptor() {
         return new RoleDescriptor(
             "viewer",
-            new String[] {},
+            new String[] { "monitor_inference" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // Stack
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -778,6 +778,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .indices(".slo-observability.*")
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // Evaluations
+                RoleDescriptor.IndicesPrivileges.builder().indices(".evaluation-*").privileges("read", "view_index_metadata").build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -828,7 +830,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     private static RoleDescriptor buildEditorRoleDescriptor() {
         return new RoleDescriptor(
             "editor",
-            new String[] {},
+            new String[] { "monitor_inference" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // Stack
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -843,6 +845,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".slo-observability.*")
                     .privileges("read", "view_index_metadata", "write", "manage")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".evaluation-*")
+                    .privileges("read", "view_index_metadata", "write")
                     .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()

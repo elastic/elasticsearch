@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149034
-summary: Use search threadpool for coordination in ES|QL
-type: bug

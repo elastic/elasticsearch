@@ -1420,6 +1420,27 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("unmapped_object.b").getValue(), equalTo("bar"));
     }
 
+    public void testUnmappedFieldsWildcardWithNonBmpName() throws IOException {
+        MapperService mapperService = createMapperService();
+
+        // name contains U+1D54F (a surrogate pair), so the wildcard pattern's literal portion must match by code point
+        final String objName = "unmapped_\uD835\uDD4F";
+
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(objName)
+            .field("a", "foo")
+            .field("b", "bar")
+            .endObject()
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList(objName + ".*", null, true));
+        assertThat(fields.size(), equalTo(2));
+        assertThat(fields.keySet(), containsInAnyOrder(objName + ".a", objName + ".b"));
+        assertThat(fields.get(objName + ".a").getValue(), equalTo("foo"));
+        assertThat(fields.get(objName + ".b").getValue(), equalTo("bar"));
+    }
+
     public void testLastFormatWins() throws IOException {
         MapperService mapperService = createMapperService();
 

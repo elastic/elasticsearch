@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -27,6 +28,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
+import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -43,6 +45,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.aggregations.ExponentialHistogramAggregatorTestCase;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -702,6 +705,158 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                 return List.of();
             }
         };
+    }
+
+    public void testExponentialHistogramValuesReader() throws IOException {
+        try (Directory directory = newDirectory()) {
+            ExponentialHistogramCircuitBreaker noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+
+            // Build a list with guaranteed non-null histograms interspersed with nulls.
+            // Each non-null histogram is rebuilt with a double-based zero bucket so it round-trips
+            // exactly through the sortable-long doc values encoding.
+            List<ExponentialHistogram> inputHistograms = new ArrayList<>();
+            int nonNullCount = randomIntBetween(3, 5);
+            for (int i = 0; i < nonNullCount; i++) {
+                int nullsBefore = randomIntBetween(0, 2);
+                for (int j = 0; j < nullsBefore; j++) {
+                    inputHistograms.add(null);
+                }
+                ReleasableExponentialHistogram raw = ExponentialHistogramTestUtils.randomHistogram(noopBreaker);
+                inputHistograms.add(
+                    ExponentialHistogram.builder(raw, noopBreaker)
+                        .zeroBucket(ZeroBucket.create(raw.zeroBucket().zeroThreshold(), raw.zeroBucket().count()))
+                        .build()
+                );
+            }
+            if (randomBoolean()) {
+                inputHistograms.add(null);
+            }
+
+            IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
+
+            AtomicInteger currentId = new AtomicInteger(0);
+            inputHistograms.forEach(
+                histo -> ExponentialHistogramAggregatorTestCase.addHistogramDoc(
+                    indexWriter,
+                    "field",
+                    histo,
+                    new NumericDocValuesField("doc_index", currentId.getAndIncrement())
+                )
+            );
+            indexWriter.close();
+
+            int totalDocsChecked = 0;
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                for (LeafReaderContext leafCtx : reader.leaves()) {
+                    LeafReader leafReader = leafCtx.reader();
+                    int maxDoc = leafReader.maxDoc();
+                    totalDocsChecked += maxDoc;
+
+                    // Collect per-doc expected values for this leaf (in doc-ID order).
+                    List<ExponentialHistogram> perDocExpected = new ArrayList<>(maxDoc);
+                    NumericDocValues docIndexDv = leafReader.getNumericDocValues("doc_index");
+                    for (int docId = 0; docId < maxDoc; docId++) {
+                        assertThat(docIndexDv.advanceExact(docId), equalTo(true));
+                        perDocExpected.add(inputHistograms.get((int) docIndexDv.longValue()));
+                    }
+
+                    // Convenience: sorted list of docIds that carry a histogram in this leaf.
+                    List<Integer> histoDocIds = new ArrayList<>();
+                    List<ExponentialHistogram> histoExpected = new ArrayList<>();
+                    for (int docId = 0; docId < maxDoc; docId++) {
+                        if (perDocExpected.get(docId) != null) {
+                            histoDocIds.add(docId);
+                            histoExpected.add(perDocExpected.get(docId));
+                        }
+                    }
+
+                    // For each histogram doc a random access method is chosen.
+                    {
+                        ExponentialHistogramValuesReader valuesReader = ExponentialHistogramFieldMapper.createDocValuesReader(
+                            leafReader,
+                            "field"
+                        );
+                        DocIdSetIterator iter = valuesReader.docIdIterator();
+
+                        // Initial state: iterator at -1, all value accessors throw before any advance
+                        assertThat(iter.docID(), equalTo(-1));
+                        expectThrows(IllegalStateException.class, valuesReader::histogramValue);
+                        expectThrows(IllegalStateException.class, valuesReader::sumValue);
+                        expectThrows(IllegalStateException.class, valuesReader::minValue);
+                        expectThrows(IllegalStateException.class, valuesReader::maxValue);
+
+                        int lastDocVisited = -1;
+                        for (int histoIndex = 0; histoIndex < histoDocIds.size(); histoIndex++) {
+                            int targetDocId = histoDocIds.get(histoIndex);
+                            ExponentialHistogram expectedHistogram = histoExpected.get(histoIndex);
+                            switch (randomInt(2)) {
+                                case 0 -> {
+                                    // advanceExact: walk every doc from lastDocVisited+1 to targetDocId,
+                                    // verifying non-histogram docs return false and throw, the histogram
+                                    // doc returns true with correct values.
+                                    for (int docId = lastDocVisited + 1; docId <= targetDocId; docId++) {
+                                        ExponentialHistogram expected = perDocExpected.get(docId);
+                                        if (expected != null) {
+                                            assertThat(valuesReader.advanceExact(docId), equalTo(true));
+                                            assertThat(valuesReader.histogramValue(), equalTo(expected));
+                                            assertThat(valuesReader.valuesCountValue(), equalTo(expected.valueCount()));
+                                            if (expected.isEmpty()) {
+                                                assertThat(valuesReader.sumValue(), equalTo(0.0));
+                                                assertThat(valuesReader.minValue(), equalTo(Double.POSITIVE_INFINITY));
+                                                assertThat(valuesReader.maxValue(), equalTo(Double.NEGATIVE_INFINITY));
+                                            } else {
+                                                assertThat(valuesReader.sumValue(), equalTo(expected.sum()));
+                                                assertThat(valuesReader.minValue(), equalTo(expected.min()));
+                                                assertThat(valuesReader.maxValue(), equalTo(expected.max()));
+                                            }
+                                        } else {
+                                            assertThat(valuesReader.advanceExact(docId), equalTo(false));
+                                            expectThrows(IllegalStateException.class, valuesReader::histogramValue);
+                                            expectThrows(IllegalStateException.class, valuesReader::sumValue);
+                                            expectThrows(IllegalStateException.class, valuesReader::minValue);
+                                            expectThrows(IllegalStateException.class, valuesReader::maxValue);
+                                        }
+                                    }
+                                }
+                                case 1 -> {
+                                    // nextDoc: advance from the current position to the next histogram doc
+                                    assertThat(iter.nextDoc(), equalTo(targetDocId));
+                                    assertThat(iter.docID(), equalTo(targetDocId));
+                                    assertThat(valuesReader.histogramValue(), equalTo(expectedHistogram));
+                                }
+                                case 2 -> {
+                                    // advance: jump to targetDocId or the first histogram doc at or past it
+                                    assertThat(iter.advance(targetDocId), equalTo(targetDocId));
+                                    assertThat(iter.docID(), equalTo(targetDocId));
+                                    assertThat(valuesReader.histogramValue(), equalTo(expectedHistogram));
+                                }
+                            }
+                            lastDocVisited = targetDocId;
+                        }
+                        assertThat(iter.nextDoc(), equalTo(DocIdSetIterator.NO_MORE_DOCS));
+                        assertThat(iter.docID(), equalTo(DocIdSetIterator.NO_MORE_DOCS));
+
+                        // Gap check: verify that advance into a non-histogram doc between the first and
+                        // second histogram docs correctly lands on the second histogram doc.
+                        if (histoDocIds.size() >= 2) {
+                            int firstDocId = histoDocIds.get(0);
+                            int secondDocId = histoDocIds.get(1);
+                            if (secondDocId > firstDocId + 1) {
+                                ExponentialHistogramValuesReader gapReader = ExponentialHistogramFieldMapper.createDocValuesReader(
+                                    leafReader,
+                                    "field"
+                                );
+                                DocIdSetIterator gapIter = gapReader.docIdIterator();
+                                assertThat(gapIter.advance(firstDocId + 1), equalTo(secondDocId));
+                                assertThat(gapIter.docID(), equalTo(secondDocId));
+                            }
+                        }
+                    }
+                }
+            }
+            assertThat(totalDocsChecked, equalTo(inputHistograms.size()));
+        }
     }
 
     public void testFormattedDocValues() throws IOException {

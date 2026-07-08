@@ -195,7 +195,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     public void testStartsWithKeyword() throws IOException {
-        // StartsWith pushes as RECHECK + translates to a prefix-range FilterPredicate.
+        // StartsWith pushes as YES + translates to a prefix-range FilterPredicate.
         // The reader must produce identical rows whether the row group is fully matched
         // (all URLs share the prefix) or partially.
         runDifferential(startsWith(URL, "https://google"));
@@ -254,7 +254,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     public void testFilterMatchingNoRows() throws IOException {
         // Stats-pruned: id > ROW_COUNT * 2 — every row group's max < threshold, so
         // RowGroupFilter drops all groups. Reader returns zero pages.
-        runDifferential(gt(ID, (long) (ROW_COUNT * 2L), DataType.LONG));
+        runDifferential(gt(ID, ROW_COUNT * 2L, DataType.LONG));
     }
 
     public void testFilterMatchingAllRows() throws IOException {
@@ -839,7 +839,9 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      */
     private Set<Long> oracleA_apacheMr(byte[] parquetBytes, Expression filter) throws IOException {
         FilterPredicate filterPredicate = safeTranslateForApacheMr(filter);
-        GroupReaderBuilder builder = new GroupReaderBuilder(new ParquetStorageObjectAdapter(inMemoryStorageObject(parquetBytes)));
+        GroupReaderBuilder builder = new GroupReaderBuilder(
+            new ParquetStorageObjectAdapter(inMemoryStorageObject(parquetBytes), blockFactory.arrowAllocator())
+        );
         if (filterPredicate != null) {
             builder.withFilter(FilterCompat.get(filterPredicate));
         }

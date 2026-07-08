@@ -1,0 +1,7 @@
+ProjectExec[[$$Positions$${r}#0, _meta_field{f}#1, emp_no{f}#2, gender{f}#3, hire_date{f}#4, job{f}#5, job.raw{f}#6, languages{f}#7, last_name{f}#8, long_noidx{f}#9, salary{f}#10]]
+\_FieldExtractExec[_meta_field{f}#1, emp_no{f}#2, gender{f}#3, hire_date{f}#4, job{f}#5, job.raw{f}#6, languages{f}#7, long_noidx{f}#9, salary{f}#10]<[],[],[]>
+  \_FilterExec[last_name{f}#8 == Facello[KEYWORD]]
+    \_FieldExtractExec[last_name{f}#8]<[],[],[]>
+      \_BulkLookupMvFilterExec[first_name{f}#11]
+        \_FieldExtractExec[first_name{f}#11]<[],[],[]>
+          \_ParameterizedQueryExec[[_doc{f}#12, $$Positions$${r}#0],[MatchConfig[fieldName=first_name, channel=0, type=KEYWORD]],null,null,false,first_name{r}#13,first_name{f}#11]

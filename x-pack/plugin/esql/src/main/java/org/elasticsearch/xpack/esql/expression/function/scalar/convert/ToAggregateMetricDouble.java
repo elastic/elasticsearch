@@ -74,6 +74,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
     @FunctionInfo(
         preview = true,
         returnType = "aggregate_metric_double",
+        briefSummary = "Converts a numeric value to an aggregate_metric_double.",
         description = "Encode a numeric to an aggregate_metric_double.",
         examples = {
             @Example(file = "convert", tag = "toAggregateMetricDouble"),

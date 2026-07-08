@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -76,6 +77,47 @@ public class ExternalSourceExecTests extends ESTestCase {
         );
         ExternalSourceExec narrowed = original.withAttributes(List.of());
         assertEquals(List.of(), narrowed.output());
+    }
+
+    public void testNodePropertiesOmitsSecretsSecureStringPath() {
+        // Dataset path: config map carries SecureString values.
+        Map<String, Object> secretConfig = Map.of("secret_key", new SecureString("S3CR3T_DO_NOT_LEAK_SecureString".toCharArray()));
+        Map<String, Object> secretSourceMetadata = Map.of("token", new SecureString("TOKEN_DO_NOT_LEAK".toCharArray()));
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/file.parquet",
+            "parquet",
+            List.of(field("id", DataType.LONG)),
+            secretConfig,
+            secretSourceMetadata,
+            null,
+            42
+        );
+
+        assertFalse("nodeProperties() must not contain the config map", exec.nodeProperties().contains(secretConfig));
+        assertFalse("nodeProperties() must not contain the sourceMetadata map", exec.nodeProperties().contains(secretSourceMetadata));
+        String rendered = exec.nodeString() + " " + exec.toString();
+        assertFalse("EXPLAIN output must not contain the secret value", rendered.contains("S3CR3T_DO_NOT_LEAK_SecureString"));
+        assertFalse("EXPLAIN output must not contain the token value", rendered.contains("TOKEN_DO_NOT_LEAK"));
+    }
+
+    public void testNodePropertiesOmitsSecretsPlainStringPath() {
+        // Inline EXTERNAL path: config map carries plain String values (foldOptionLiterals output).
+        Map<String, Object> secretConfig = Map.of("secret_key", "PLAINTEXT_DO_NOT_LEAK_String");
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/file.parquet",
+            "parquet",
+            List.of(field("id", DataType.LONG)),
+            secretConfig,
+            Map.of(),
+            null,
+            null
+        );
+
+        assertFalse("nodeProperties() must not contain the config map", exec.nodeProperties().contains(secretConfig));
+        String rendered = exec.nodeString() + " " + exec.toString();
+        assertFalse("EXPLAIN output must not contain the secret value", rendered.contains("PLAINTEXT_DO_NOT_LEAK_String"));
     }
 
     private static FieldAttribute field(String name, DataType type) {

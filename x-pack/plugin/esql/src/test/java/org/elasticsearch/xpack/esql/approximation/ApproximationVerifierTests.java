@@ -7,7 +7,12 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.Arrays;
 import java.util.List;
@@ -26,29 +31,38 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         verify("FROM test | REGISTERED_DOMAIN rd = last_name | STATS c = COUNT() BY rd.registered_domain | LIMIT 10");
     }
 
+    public void testVerify_validQuery_oldDataNodes() {
+        TransportVersion OLD_VERSION = TransportVersionUtils.randomVersion();
+        verify("FROM test | WHERE emp_no<99 | SORT last_name | MV_EXPAND salary | STATS COUNT() BY gender", OLD_VERSION);
+        verify("FROM test | EVAL x=1 | DROP emp_no | STATS sum=SUM(salary) BY x | CHANGE_POINT sum ON x", OLD_VERSION);
+        verify("FROM test | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no) | LIMIT 1000", OLD_VERSION);
+        verify("FROM test | EVAL blah=1 | GROK last_name \"%{IP:x}\" | SAMPLE 0.1 | STATS a=COUNT() | LIMIT 100 | SORT a", OLD_VERSION);
+        verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10", OLD_VERSION);
+        verify("FROM test | URI_PARTS parts = last_name | STATS scheme_count = COUNT() BY parts.scheme | LIMIT 10", OLD_VERSION);
+        verify("FROM test | REGISTERED_DOMAIN rd = last_name | STATS c = COUNT() BY rd.registered_domain | LIMIT 10", OLD_VERSION);
+    }
+
     public void testVerify_inlineStats() {
         assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
         verify("FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10");
     }
 
-    public void testVerify_inlineStats_disabled() {
-        assumeTrue("needs approximation inline stats disabled", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled() == false);
-        assertError(
-            "FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10",
-            equalTo("line 1:13: approximation not supported: query with [INLINE STATS COUNT() BY last_name] cannot be approximated")
+    public void testVerify_lookupJoin() {
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
+        verify(
+            "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
+            TransportVersionUtils.randomVersionSupporting(TransportVersion.fromName("esql_approximation_lookup_join"))
         );
     }
 
-    public void testVerify_lookupJoin() {
-        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
-        verify("FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()");
-    }
-
-    public void testVerify_lookupJoin_disabled() {
-        assumeTrue("needs approximation lookup join disabled", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled() == false);
+    public void testVerify_lookupJoin_oldDataNodes() {
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
         assertError(
             "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
-            equalTo("line 1:13: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")
+            TransportVersionUtils.randomVersionNotSupporting(TransportVersion.fromName("esql_approximation_lookup_join")),
+            equalTo(
+                "line 1:13: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated on all nodes"
+            )
         );
     }
 
@@ -60,26 +74,18 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         verify("FROM test | STATS COUNT() | FORK (WHERE true) (WHERE true)");
     }
 
-    public void testVerify_fork_disabled() {
-        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled() == false);
-        assertError(
-            "FROM test | FORK (EVAL x=1 | STATS c = COUNT()) (EVAL y=1 | STATS c = COUNT())",
-            equalTo(
-                "line 1:13: approximation not supported: "
-                    + "query with [FORK (EVAL x=1 | STATS c = COUNT()) (EVAL y=1 | STATS c = COUNT())] cannot be approximated"
-            )
+    public void testVerify_nestedSubqueries() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        // We need the plan before optimization here, because otherwise the verification exception
+        // "Nested subqueries are not supported" is thrown at the end of logical optimization.
+        LogicalPlan plan = EsqlTestUtils.analyzer().addDefaultIndex().query("FROM test, (FROM test, (FROM test)) | STATS COUNT()");
+        VerificationException exception = assertThrows(
+            VerificationException.class,
+            () -> ApproximationVerifier.verifyPlanOrThrow(plan, TransportVersion.current())
         );
-        assertError(
-            "FROM test | FORK (EVAL x=1) (EVAL y=1) | STATS c = COUNT()",
-            equalTo("line 1:13: approximation not supported: query with [FORK (EVAL x=1) (EVAL y=1)] cannot be approximated")
-        );
-        assertError(
-            "FROM test | FORK (WHERE true) (STATS c = COUNT())",
-            equalTo("line 1:13: approximation not supported: query with [FORK (WHERE true) (STATS c = COUNT())] cannot be approximated")
-        );
-        assertError(
-            "FROM test | STATS COUNT() | FORK (WHERE true) (WHERE true)",
-            equalTo("line 1:29: approximation not supported: query with [FORK (WHERE true) (WHERE true)] cannot be approximated")
+        assertThat(
+            exception.getMessage(),
+            equalTo("line 1:18: approximation not supported: query with multiple or nested forks or subqueries cannot be approximated")
         );
     }
 
@@ -261,8 +267,24 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
             equalTo("line 1:70: approximation not supported: query with chained [STATS] cannot be approximated")
         );
         assertError(
+            "FROM test | FORK (EVAL x=1) (STATS COUNT_DISTINCT(emp_no) BY emp_no) | STATS COUNT()",
+            equalTo("line 1:72: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+        assertError(
             "FROM test | FORK (EVAL x=1) (WHERE true) | STATS COUNT() BY emp_no | STATS COUNT()",
             equalTo("line 1:70: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+    }
+
+    public void testVerify_noChainedStats_subquery() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        assertError(
+            "FROM test, (FROM test | STATS x = MAX(emp_no) BY gender) | STATS c = COUNT(*)",
+            equalTo("line 1:60: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test, (FROM test | INLINE STATS x = MAX(emp_no) BY gender) | STATS c = COUNT(*)",
+            equalTo("line 1:67: approximation not supported: query with chained [STATS] cannot be approximated")
         );
     }
 
@@ -325,6 +347,5 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
             "FROM test | FORK (STATS MAX(emp_no)) (WHERE true) (STATS COUNT_DISTINCT(emp_no))",
             equalTo("line 1:25: approximation not supported: aggregation function [MAX(emp_no)] cannot be approximated")
         );
-
     }
 }

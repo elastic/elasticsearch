@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ABS` function [esql-abs]
 
-:::{include} ../../_snippets/functions/layout/abs.md
+:::{include} ../../_snippets/generated/x-pack-esql-function-math/functions/layout/abs.md
 :::

@@ -125,6 +125,7 @@ final class ConfigDatabases implements Closeable {
         for (DatabaseReaderLazyLoader lazyLoader : configDatabases.values()) {
             lazyLoader.shutdown();
         }
+        configDatabases.clear();
     }
 
     private class GeoipDirectoryListener implements FileChangesListener {

@@ -21,7 +21,7 @@ import java.util.Arrays;
  * Vector implementation that stores a constant long value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantLongVector extends AbstractVector implements LongVector {
+public final class ConstantLongVector extends AbstractVector implements LongVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class);
 
@@ -53,8 +53,8 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     }
 
     @Override
-    public LongVector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstantLongVector(value, positions.length);
+    public LongVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantLongVector(value, length);
     }
 
     @Override

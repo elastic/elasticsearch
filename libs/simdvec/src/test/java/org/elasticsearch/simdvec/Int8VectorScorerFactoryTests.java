@@ -19,7 +19,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.junit.BeforeClass;
 
@@ -47,43 +46,33 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
     }
 
-    // Tests that the provider instance is present or not on expected platforms/architectures
-    public void testSupport() {
-        supported();
-    }
-
     public void testZeros() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testZeros"), MMapDirectory.DEFAULT_MAX_CHUNK_SIZE)) {
             testRandomSupplier(dir, byte[]::new, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT);
         }
     }
 
     public void testRandomMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"), MMapDirectory.DEFAULT_MAX_CHUNK_SIZE)) {
-            testRandomSupplier(dir, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
+            testRandomSupplier(dir, AbstractVectorTestCase::randomNonZeroByteArray, VectorSimilarityType.values());
         }
     }
 
     public void testRandomNIO() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
-            testRandomSupplier(dir, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
+            testRandomSupplier(dir, AbstractVectorTestCase::randomNonZeroByteArray, VectorSimilarityType.values());
         }
     }
 
     public void testRandomMaxChunkSizeSmall() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
-            testRandomSupplier(dir, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
+            testRandomSupplier(dir, AbstractVectorTestCase::randomNonZeroByteArray, VectorSimilarityType.values());
         }
     }
 
     void testRandomSupplier(Directory dir, IntFunction<byte[]> bytesSupplier, VectorSimilarityType... types) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = randomIntBetween(1, 4096);
         final int size = randomIntBetween(2, 100);
@@ -120,8 +109,6 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     // Test that the scorer works well when the IndexInput is greater than the directory segment chunk size
     public void testDatasetGreaterThanChunkSize() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testDatasetGreaterThanChunkSize"), 8192)) {
             final int dims = 1024;
@@ -158,22 +145,18 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testSupplierBulkWithMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (var dir = new MMapDirectory(createTempDir("testBulkWithMMap"))) {
             testSupplierBulkImpl(dir);
         }
     }
 
     public void testSupplierBulkWithNIO() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (var dir = new NIOFSDirectory(createTempDir("testBulkWithNIO"))) {
             testSupplierBulkImpl(dir);
         }
     }
 
     private void testSupplierBulkImpl(Directory dir) throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = randomIntBetween(1, 4096);
         final int size = randomIntBetween(2, 100);
@@ -182,7 +165,7 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
         logger.info("Testing " + fileName);
         try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
             for (int i = 0; i < size; i++) {
-                byte[] vec = randomByteArrayOfLength(dims);
+                byte[] vec = randomNonZeroByteArray(dims);
                 out.writeBytes(vec, vec.length);
                 vectors[i] = vec;
             }
@@ -219,7 +202,6 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
     // These test the query scorer which accepts both MMap and DirectAccessInput (SNAP).
 
     public void testScorerWithMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
         try (var dir = new MMapDirectory(createTempDir("testScorerWithMMap"))) {
             testScorerImpl(dir);
@@ -227,7 +209,6 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testScorerWithSNAP() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
         try (var dir = SearchableSnapshotDirectoryFactory.newDirectory(createTempDir("testScorerWithSNAP"))) {
             testScorerImpl(dir);
@@ -235,16 +216,16 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     private void testScorerImpl(Directory dir) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
         final int dims = randomIntBetween(1, 4096);
         final int size = randomIntBetween(2, 100);
         final byte[][] vectors = new byte[size][];
-        final byte[] queryVector = randomByteArrayOfLength(dims);
+        final byte[] queryVector = randomNonZeroByteArray(dims);
 
         String fileName = "testScorerImpl-" + dir.getClass().getSimpleName() + "-" + dims;
         try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
             for (int i = 0; i < size; i++) {
-                byte[] vec = randomByteArrayOfLength(dims);
+                // cosine doesn't like zero-length vectors
+                byte[] vec = randomNonZeroByteArray(dims);
                 out.writeBytes(vec, vec.length);
                 vectors[i] = vec;
             }
@@ -265,7 +246,6 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testScorerBulkWithMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
         try (var dir = new MMapDirectory(createTempDir("testScorerBulkWithMMap"))) {
             testScorerBulkImpl(dir);
@@ -273,7 +253,6 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testScorerBulkFallback() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
         // Small chunk size forces multi-segment mmap; segmentSliceOrNull(0, length) returns null,
         // so bulkScoreWithSparse falls back to super.bulkScore() (one-at-a-time scoring).
@@ -283,7 +262,6 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testScorerBulkWithSNAP() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
         try (var dir = SearchableSnapshotDirectoryFactory.newDirectory(createTempDir("testScorerBulkWithSNAP"))) {
             testScorerBulkImpl(dir);
@@ -291,16 +269,15 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     private void testScorerBulkImpl(Directory dir) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
         final int dims = randomIntBetween(64, 4096);
         final int size = randomIntBetween(2, 100);
         final byte[][] vectors = new byte[size][];
-        final byte[] queryVector = randomByteArrayOfLength(dims);
+        final byte[] queryVector = randomNonZeroByteArray(dims);
 
         String fileName = "testScorerBulk-" + dir.getClass().getSimpleName() + "-" + dims;
         try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
             for (int i = 0; i < size; i++) {
-                byte[] vec = randomByteArrayOfLength(dims);
+                byte[] vec = randomNonZeroByteArray(dims);
                 out.writeBytes(vec, vec.length);
                 vectors[i] = vec;
             }
@@ -333,18 +310,16 @@ public class Int8VectorScorerFactoryTests extends AbstractVectorTestCase {
     // Verifies that bulkScore with zero nodes returns NEGATIVE_INFINITY without throwing,
     // as Lucene's exactSearch path can call bulkScore with an empty batch when filters exclude all docs.
     public void testScorerBulkWithZeroNodes() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
-        var factory = AbstractVectorTestCase.factory.get();
         final int dims = randomIntBetween(64, 4096);
         final int size = randomIntBetween(2, 100);
-        final byte[] queryVector = randomByteArrayOfLength(dims);
+        final byte[] queryVector = randomNonZeroByteArray(dims);
 
         try (var dir = new MMapDirectory(createTempDir("testScorerBulkWithZeroNodes"))) {
             String fileName = "testScorerBulkWithZeroNodes-" + dims;
             try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
                 for (int i = 0; i < size; i++) {
-                    byte[] vec = randomByteArrayOfLength(dims);
+                    byte[] vec = randomNonZeroByteArray(dims);
                     out.writeBytes(vec, vec.length);
                 }
                 CodecUtil.writeFooter(out);

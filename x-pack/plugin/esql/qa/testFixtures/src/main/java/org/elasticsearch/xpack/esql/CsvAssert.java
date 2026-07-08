@@ -626,8 +626,8 @@ public final class CsvAssert {
             );
             case FLATTENED -> {
                 if (actualValue instanceof List<?> list) {
-                    // VALUES(flattened) returns a list of maps from REST; convert each to a JSON string
-                    yield list.stream().map(v -> convertActualFlattenedValue(v)).toList();
+                    // REST tests return List<Map> for multi-value flattened (e.g. from mv_append)
+                    yield list.stream().map(CsvAssert::convertActualFlattenedValue).toList();
                 }
                 yield convertActualFlattenedValue(actualValue);
             }

@@ -150,7 +150,7 @@ tf:boolean     |t2l:long       |f2l:long       |tf2l:long
 [true, false]  |1              |0              |[1, 0]
 ;
 
-convertStringToLong#[skip:-8.13.99, reason:warning changed in 8.14]
+convertStringToLong
 // tag::to_long-str[]
 ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 | EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)
@@ -289,6 +289,7 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup3
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -346,6 +347,7 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup5
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -412,6 +414,7 @@ string:keyword | base:integer | part1:long | part2:long | part3:integer | part4:
 ;
 
 convertStringToBaseIndexGroup7
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -516,7 +519,7 @@ int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer
 2147483647       |2147483646.2        |2147483647  |2147483646
 ;
 
-convertStringToIntFail#[skip:-8.13.99, reason:warning changed in 8.14]
+convertStringToIntFail
 
 row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
 warningRegex:Line 1:79: evaluation of \[to_integer\(str1\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -1195,49 +1198,49 @@ required_capability: agg_values
       [1, 4] | null
 ;
 
-signumOfPositiveInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfPositiveInteger
 row i = 100 | eval s = signum(i);
 
 i:integer | s:double
 100       | 1.0
 ;
 
-signumOfNegativeInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfNegativeInteger
 row i = -100 | eval s = signum(i);
 
 i:integer | s:double
 -100      | -1.0
 ;
 
-signumOfZeroInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfZeroInteger
 row i = 0 | eval s = signum(i);
 
 i:integer | s:double
 0         | 0.0
 ;
 
-signumOfPositiveLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfPositiveLong
 row l = to_long(100) | eval s = signum(l);
 
 l:long | s:double
 100    | 1.0
 ;
 
-signumOfNegativeLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfNegativeLong
 row l = to_long(-100) | eval s = signum(l);
 
 l:long | s:double
 -100   | -1.0
 ;
 
-signumOfZeroLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumOfZeroLong
 row l = to_long(0) | eval s = signum(l);
 
 l:long | s:double
 0      | 0.0
 ;
 
-signumWithEvalWhereAndStats#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumWithEvalWhereAndStats
 
 from employees
 | eval s = signum(mv_min(salary_change.int))
@@ -1248,7 +1251,7 @@ x:double
 0.5409836065573771
 ;
 
-signumWithEvalAndSort#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signumWithEvalAndSort
 from employees
 | eval s = signum(60000 - salary)
 | where signum(salary - 55000) >= 0

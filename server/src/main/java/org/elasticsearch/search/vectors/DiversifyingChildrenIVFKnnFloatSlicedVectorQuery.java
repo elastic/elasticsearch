@@ -13,6 +13,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 
 import java.util.Objects;
 
@@ -25,15 +26,15 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
     private final BitSetProducer parentsFilter;
 
     /**
-     * @param field         the vector field to search
-     * @param query         the query vector
-     * @param k             the number of nearest neighbors to return
-     * @param numCands      the number of nearest neighbor candidates per shard
-     * @param childFilter   filter applied to child hits
-     * @param parentsFilter bit set of parent documents for join diversification
-     * @param visitRatio    IVF visit ratio
-     * @param sliceField    index-sort slice field (e.g. {@code _routing})
-     * @param sliceId       slice term to restrict the search doc id space
+     * @param field            the vector field to search
+     * @param query            the query vector
+     * @param k                the number of nearest neighbors to return
+     * @param numCands         the number of nearest neighbor candidates per shard
+     * @param childFilter      filter applied to child hits
+     * @param parentsFilter    bit set of parent documents for join diversification
+     * @param visitRatio       IVF visit ratio
+     * @param sliceField       index-sort slice field (e.g. {@code _routing})
+     * @param sliceId          slice term to restrict the search doc id space
      */
     public DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
         String field,
@@ -43,11 +44,11 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
         Query childFilter,
         BitSetProducer parentsFilter,
         float visitRatio,
-        boolean doPrecondition,
+        IvfQueryConfigResolver queryConfigResolver,
         String sliceField,
-        BytesRef sliceId
+        BytesRef... sliceId
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, sliceField, sliceId);
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, sliceField, sliceId);
         this.parentsFilter = Objects.requireNonNull(parentsFilter);
     }
 

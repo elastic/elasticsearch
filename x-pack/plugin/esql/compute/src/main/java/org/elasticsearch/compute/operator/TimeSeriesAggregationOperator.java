@@ -47,6 +47,19 @@ import static java.util.stream.Collectors.joining;
  */
 public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
+    /**
+     * Default target rows per output page when chunking partial/intermediate output, i.e. the default of the
+     * {@code esql.time_series.target_chunk_rows} setting. In partial/intermediate mode the operator slices its single
+     * emitted result into pages of about this many rows, bounding the size of each page sent to the coordinator. A
+     * {@code _tsid} may straddle a page boundary; the coordinator re-merges groups by key.
+     */
+    public static final int DEFAULT_TARGET_CHUNK_ROWS = 100_000;
+
+    /**
+     * @param targetChunkRows target number of rows per output page when chunking partial/intermediate output. The
+     *        operator slices its emitted result into pages of about this many rows. Only takes effect in
+     *        partial/intermediate mode; final output is not chunked here.
+     */
     public record Factory(
         Rounding.Prepared timeBucket,
         boolean dateNanos,
@@ -55,7 +68,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         List<GroupingAggregator.Factory> aggregators,
         int aggregationBatchSize,
         Rounding.Prepared outputTimeBucket,
-        boolean collapsed
+        int targetChunkRows
     ) implements OperatorFactory {
 
         public Factory(
@@ -66,12 +79,26 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             List<GroupingAggregator.Factory> aggregators,
             int aggregationBatchSize
         ) {
-            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, null, false);
+            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, null);
+        }
+
+        public Factory(
+            Rounding.Prepared timeBucket,
+            boolean dateNanos,
+            List<BlockHash.GroupSpec> groups,
+            AggregatorMode aggregatorMode,
+            List<GroupingAggregator.Factory> aggregators,
+            int aggregationBatchSize,
+            Rounding.Prepared outputTimeBucket
+        ) {
+            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, outputTimeBucket, Integer.MAX_VALUE);
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            final boolean outputFinal = aggregatorMode.isOutputPartial() == false;
+            final boolean outputPartial = aggregatorMode.isOutputPartial();
+            final boolean outputFinal = outputPartial == false;
+            final int effectiveTargetChunkRows = outputPartial ? targetChunkRows : Integer.MAX_VALUE;
             return new TimeSeriesAggregationOperator(
                 timeBucket,
                 dateNanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
@@ -92,7 +119,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     return BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, true);
                 },
                 outputTimeBucket,
-                collapsed,
+                effectiveTargetChunkRows,
                 driverContext
             );
         }
@@ -110,7 +137,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     private final Rounding.Prepared timeBucket;
     private final DateFieldMapper.Resolution timeResolution;
     private final Rounding.Prepared outputTimeBucket;
-    private final boolean collapsed;
     private ExpandingGroups expandingGroups = null;
     private int numGroupsBeforeExpanding = -1;
 
@@ -121,14 +147,13 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
         Rounding.Prepared outputTimeBucket,
-        boolean collapsed,
+        int targetChunkRows,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, Integer.MAX_VALUE, driverContext);
+        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
         this.outputTimeBucket = outputTimeBucket;
-        this.collapsed = collapsed;
     }
 
     @Override

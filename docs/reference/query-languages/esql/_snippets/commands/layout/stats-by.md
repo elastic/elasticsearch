@@ -100,7 +100,7 @@ The following examples demonstrate common `STATS` patterns.
 
 Combine an aggregation with `BY` to compute a value for each group:
 
-:::{include} ../examples/stats.csv-spec/stats.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/stats.md
 :::
 
 ### Aggregate without grouping
@@ -108,14 +108,14 @@ Combine an aggregation with `BY` to compute a value for each group:
 Omitting `BY` returns one row with the aggregations applied over the entire
 dataset:
 
-:::{include} ../examples/stats.csv-spec/statsWithoutBy.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/statsWithoutBy.md
 :::
 
 ### Calculate multiple values
 
 Separate multiple aggregations with commas to compute them in a single pass:
 
-:::{include} ../examples/stats.csv-spec/statsCalcMultipleValues.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/statsCalcMultipleValues.md
 :::
 
 ### Filter aggregations with WHERE
@@ -123,7 +123,7 @@ Separate multiple aggregations with commas to compute them in a single pass:
 Use per-aggregation `WHERE` to compute conditional metrics from the same
 dataset in a single pass:
 
-:::{include} ../examples/stats.csv-spec/aggFiltering.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/aggFiltering.md
 :::
 
 ### Mix filtered and unfiltered aggregations
@@ -131,7 +131,7 @@ dataset in a single pass:
 Filtered and unfiltered aggregations can be freely mixed. Grouping is also
 optional:
 
-:::{include} ../examples/stats.csv-spec/aggFilteringNoGroup.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/aggFilteringNoGroup.md
 :::
 
 ### Filter on the grouping key
@@ -139,20 +139,20 @@ optional:
 The `WHERE` clause can also filter on the grouping key. The group itself will
 still appear in the output, but with a default value for the aggregation:
 
-:::{include} ../examples/stats.csv-spec/aggFilteringOnGroup.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/aggFilteringOnGroup.md
 :::
 
 Compare this to filtering with `WHERE` before `STATS`, where rows are excluded
 before grouping, so non-matching groups don't appear in the output at all:
 
-:::{include} ../examples/stats.csv-spec/aggFilteringBefore.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/aggFilteringBefore.md
 :::
 
 ### Group by multiple values
 
 Separate multiple grouping expressions with a comma:
 
-:::{include} ../examples/stats.csv-spec/statsGroupByMultipleValues.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/statsGroupByMultipleValues.md
 :::
 
 $$$esql-stats-mv-group$$$
@@ -160,24 +160,24 @@ $$$esql-stats-mv-group$$$
 
 If the grouping key is multivalued then the input row is in all groups:
 
-:::{include} ../examples/stats.csv-spec/mv-group.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/mv-group.md
 :::
 
 If all the grouping keys are multivalued then the input row is in all groups:
 
-:::{include} ../examples/stats.csv-spec/multi-mv-group.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/multi-mv-group.md
 :::
 
 The input **ROW** is in all groups. The entire row. All the values. Even group
 keys. That means that:
 
-:::{include} ../examples/stats.csv-spec/mv-group-values.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/mv-group-values.md
 :::
 
 The `VALUES` function above sees the whole row - all of the values of the group
 key. If you want to send the group key to the function then `MV_EXPAND` first:
 
-:::{include} ../examples/stats.csv-spec/mv-group-values-expand.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/mv-group-values-expand.md
 :::
 
 Refer to [elasticsearch/issues/134792](https://github.com/elastic/elasticsearch/issues/134792#issuecomment-3361168090)
@@ -190,13 +190,13 @@ useful for using `STATS` on multivalue columns. For example, to calculate the
 average salary change, use `MV_AVG` to first average the multiple values per
 employee, then pass the result to `AVG`:
 
-:::{include} ../examples/stats.csv-spec/docsStatsAvgNestedExpression.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/docsStatsAvgNestedExpression.md
 :::
 
 Grouping expressions aren't limited to column references: any expression
 works. For example, group by a derived value using `LEFT`:
 
-:::{include} ../examples/stats.csv-spec/docsStatsByExpression.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/docsStatsByExpression.md
 :::
 
 ### Output column naming
@@ -205,12 +205,12 @@ Specifying the output column name is optional. If not specified, the new column
 name is equal to the expression. The following query returns a column named
 `AVG(salary)`:
 
-:::{include} ../examples/stats.csv-spec/statsUnnamedColumn.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/statsUnnamedColumn.md
 :::
 
 Because this name contains special characters,
 [it needs to be quoted](/reference/query-languages/esql/esql-syntax.md#esql-identifiers)
 with backticks (```) when using it in subsequent commands:
 
-:::{include} ../examples/stats.csv-spec/statsUnnamedColumnEval.md
+:::{include} ../../generated/x-pack-esql/commands/examples/stats.csv-spec/statsUnnamedColumnEval.md
 :::

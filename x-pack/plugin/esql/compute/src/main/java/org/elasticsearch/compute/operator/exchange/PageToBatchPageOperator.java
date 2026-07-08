@@ -25,7 +25,7 @@ import org.elasticsearch.compute.operator.SinkOperator;
  *   <li>If no pages were produced (empty result), sends an empty marker page</li>
  * </ul>
  */
-final class PageToBatchPageOperator extends SinkOperator {
+public final class PageToBatchPageOperator extends SinkOperator {
     private static final Logger logger = LogManager.getLogger(PageToBatchPageOperator.class);
 
     private final SinkOperator delegate;

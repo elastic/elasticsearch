@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * CircuitBreakingException} to the client when that reservation can't fit.
  *
  * <p>This is the UBQ companion to {@link ReindexCircuitBreakerTests}; the two paths share the lifecycle in
- * {@link AbstractAsyncBulkByScrollAction} but each concrete action has its own breaker wiring with a distinct
+ * {@link AbstractAsyncBulkByPaginatedSearchAction} but each concrete action has its own breaker wiring with a distinct
  * label, so each needs its own end-to-end coverage to guard against wiring drift.
  */
 public class UpdateByQueryCircuitBreakerTests extends ESSingleNodeTestCase {

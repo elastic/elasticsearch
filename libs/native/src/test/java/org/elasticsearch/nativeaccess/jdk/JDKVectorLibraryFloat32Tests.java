@@ -427,4 +427,5 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
             throw rethrow(t);
         }
     }
+
 }

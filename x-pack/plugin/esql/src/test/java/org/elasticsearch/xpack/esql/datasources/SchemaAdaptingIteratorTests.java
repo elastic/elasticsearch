@@ -6,12 +6,17 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -337,6 +342,41 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
     }
 
     /**
+     * Collision regression: a Hive partition key ({@code year}) shadows a same-named physical
+     * column. On the data node the unified attributes are [id, value, year] with {@code year} the
+     * appended partition column; the file-backed mapping is data-only (width 2). The factory must
+     * pass the data-only view ({@code dataAttributesOf(attrs, {"year"})}, width 2) — not the full
+     * width-3 attribute list — so the size-vs-width guard does not misfire. Pairs with
+     * {@link #testConstructorRejectsMismatchedSchemaSize}, the negative case.
+     */
+    public void testCollisionDataOnlySchemaMatchesMappingWidth() {
+        List<Attribute> fullAttributes = List.of(
+            attr("id", DataType.INTEGER),
+            attr("value", DataType.KEYWORD),
+            attr("year", DataType.INTEGER) // partition column appended at tail; shadows a physical 'year'
+        );
+        // Mirrors AsyncExternalSourceOperatorFactory#queryDataSchema: data-only, partition excluded.
+        List<Attribute> dataOnly = ExternalSchema.dataAttributesOf(fullAttributes, java.util.Set.of("year")).attributes();
+        assertThat(dataOnly.size(), equalTo(2));
+
+        // Non-identity mapping (reorder) so adaptSchema does not short-circuit; width matches data-only.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0 }, null);
+
+        Block valueBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("alpha"), 2);
+        IntBlock idBlock = blockFactory.newConstantIntBlockWith(7, 2);
+        // File-natural order is [value, id]; mapping reorders to the unified [id, value].
+        Page inputPage = new Page(2, new Block[] { valueBlock, idBlock });
+
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), dataOnly, mapping, blockFactory)) {
+            Page result = iter.next();
+            assertThat(result.getBlockCount(), equalTo(2));
+            assertThat(result.getPositionCount(), equalTo(2));
+            IntBlock resultId = result.getBlock(0);
+            assertThat(resultId.getInt(0), equalTo(7));
+        }
+    }
+
+    /**
      * Verifies the constructor rejects a schema whose size doesn't match the mapping's
      * column count. This guards against accidentally passing the full attributes list
      * (including partition columns) instead of just the data column prefix.
@@ -366,6 +406,97 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         );
         assertThat(ex.getMessage(), containsString("output schema size [3] does not match mapping width [2]"));
         assertThat(ex.getMessage(), containsString("partition columns"));
+    }
+
+    /**
+     * Regression test for a latent thread-affinity bug. {@link SchemaAdaptingIterator} runs on
+     * the producer side of {@link AsyncExternalSourceBuffer} (a generic-pool thread draining
+     * pages from the format reader); the driver pins its own thread on the driver-local
+     * {@link LocalCircuitBreaker} via {@link LocalCircuitBreaker#assertBeginRunLoop()}. If the
+     * iterator were given the driver-local {@link BlockFactory}, its null-fill allocations
+     * would trip {@link LocalCircuitBreaker#assertSingleThread()} (debug builds) and silently
+     * corrupt the breaker's reserved-bytes accounting (production: assertions stripped).
+     * <p>
+     * The test pins a {@link LocalCircuitBreaker} to a sentinel "driver" thread, then runs
+     * {@link SchemaAdaptingIterator#next()} from the test thread:
+     * <ul>
+     *   <li>Passing the driver-local factory must trip {@code assertSingleThread} — proving the
+     *   pattern is dangerous and the test catches accidental regressions.</li>
+     *   <li>Passing the root factory must succeed — proving the production wiring in
+     *   {@link AsyncExternalSourceOperatorFactory#adaptSchema} is exactly what's needed.</li>
+     * </ul>
+     */
+    public void testNullFillFromProducerThreadRequiresRootBlockFactory() throws Exception {
+        assumeTrue("requires assertions enabled (-ea) to detect the producer-thread race", assertionsEnabled());
+
+        // Tracking BigArrays (asserts no leaks at close), root factory shared across both cases.
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1)).withCircuitBreaking();
+        CircuitBreaker rootBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory rootFactory = BlockFactory.builder(bigArrays).breaker(rootBreaker).build();
+        LocalCircuitBreaker driverLocalBreaker = new LocalCircuitBreaker(rootBreaker, 0, 0);
+        BlockFactory driverFactory = rootFactory.newChildFactory(driverLocalBreaker);
+
+        // Pin the driver-local breaker to a "driver" thread that simulates Driver.run(). We
+        // call assertBeginRunLoop on a short-lived worker; activeThread is set to that worker
+        // and never cleared, so it stays != this test thread — exactly the production race
+        // shape (consumer/driver thread != producer thread).
+        Thread setup = new Thread(() -> assertTrue(driverLocalBreaker.assertBeginRunLoop()), "setup-pin-driver-breaker");
+        setup.start();
+        setup.join();
+
+        try {
+            // 1. Buggy wiring: driver-local factory on a thread != the pinned active thread must
+            // trip assertSingleThread on the very first allocation (the null-fill).
+            AssertionError ae = expectThrows(AssertionError.class, () -> runNullFillOnCurrentThread(rootFactory, driverFactory));
+            assertThat(ae.getMessage(), containsString("Local breaker must be accessed by a single thread"));
+
+            // 2. Fixed wiring: root factory has no thread affinity, so the same flow succeeds.
+            Page result = runNullFillOnCurrentThread(rootFactory, rootFactory);
+            try {
+                assertThat(result.getBlockCount(), equalTo(2));
+                assertThat(result.getPositionCount(), equalTo(4));
+                Block nullBlock = result.getBlock(0);
+                for (int i = 0; i < 4; i++) {
+                    assertTrue("missing column must be null at position " + i, nullBlock.isNull(i));
+                }
+            } finally {
+                result.releaseBlocks();
+            }
+        } finally {
+            // assertEndRunLoop just clears activeThread; close() then sees null and is happy.
+            assertTrue(driverLocalBreaker.assertEndRunLoop());
+            driverLocalBreaker.close();
+            assertThat("root breaker must reset to zero after release", rootBreaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    /**
+     * Builds a fresh input page using {@code readerFactory} and runs the adapter's {@code
+     * next()} on the current thread, with {@code adapterFactory} for null-fill. Re-throws any
+     * {@link AssertionError} the iterator surfaces (including ones the iterator's own
+     * {@code catch (Exception)} would not catch — they propagate naturally).
+     */
+    private static Page runNullFillOnCurrentThread(BlockFactory readerFactory, BlockFactory adapterFactory) {
+        // File-local schema is [a]; unified is [missing, a]. The null-fill at unified index 0
+        // must be allocated BEFORE the incRef at unified index 1, so when assertSingleThread
+        // trips on the very first allocation no partial state has been built up — the outer
+        // finally simply releases filePage and we exit cleanly with no ref-counted leak.
+        List<Attribute> unified = List.of(attr("missing", DataType.LONG), attr("a", DataType.INTEGER));
+        ColumnMapping mapping = new ColumnMapping(new int[] { -1, 0 }, null);
+
+        IntBlock aBlock = readerFactory.newConstantIntBlockWith(1, 4);
+        Page inputPage = new Page(4, new Block[] { aBlock });
+
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), unified, mapping, adapterFactory)) {
+            return iter.next();
+        }
+    }
+
+    @SuppressWarnings("AssertWithSideEffects")
+    private static boolean assertionsEnabled() {
+        boolean enabled = false;
+        assert enabled = true;
+        return enabled;
     }
 
     private static Attribute attr(String name, DataType type) {

@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.encryption.EncryptionPlugin;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
@@ -177,6 +178,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             DataStreamsPlugin.class,
             // ESQL and its dependency needed for node features
             EsqlCorePlugin.class,
+            // Encryption plugin needed to deserialize the project encryption key custom in cluster state from DEFAULT distribution
+            // nodes, and must precede EsqlPlugin: EsqlPlugin.createComponents reads EncryptionServiceRegistry, populated by the
+            // encryption plugin's createComponents.
+            EncryptionPlugin.class,
             EsqlPlugin.class,
             // basic multi-project functionality
             TestOnlyMultiProjectPlugin.class,

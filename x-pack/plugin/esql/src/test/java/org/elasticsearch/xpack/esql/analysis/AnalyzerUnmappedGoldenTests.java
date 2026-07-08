@@ -811,7 +811,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTSTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
@@ -819,7 +819,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             TS k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
-            """, DimensionValues.DIMENSION_VALUES_VERSION);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTypeConflictTimeseriesDoubleUnmappedWithCast() throws Exception {
@@ -827,21 +827,21 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM k8s, k8s_unmapped
             | EVAL cost = network.cost::double
             | KEEP cost
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTypeConflictTimeseriesStatsWithCast() throws Exception {
         runTests("""
             FROM k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTSTypeConflictTimeseriesStatsWithCast() throws Exception {
         runTests("""
             TS k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
-            """, DimensionValues.DIMENSION_VALUES_VERSION);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTypeConflictTimeseriesWhereWithCast() throws Exception {
@@ -849,7 +849,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM k8s, k8s_unmapped
             | WHERE network.cost::double > 10.0
             | KEEP cluster, network.cost
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testPartiallyMappedField() throws Exception {
@@ -909,7 +909,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | EVAL event_duration = event_duration::long
             | KEEP event_duration
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTypeConflictMappedTimesTwoAndUnmapped() throws Exception {
@@ -917,7 +917,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data_ts_long, sample_data, no_mapping_sample_data
             | EVAL ts = @timestamp::date
             | KEEP ts
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testNoTypeConflictKeywordAndUnmappedWhere() throws Exception {
@@ -1015,7 +1015,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTestsLoadOnly("""
             FROM k8s-downsampled, k8s_unmapped
             | KEEP network.eth0.tx
-            """, STAGES);
+            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testSingleTypeTextUnmappedWithMatchOperatorLoadOnly() throws Exception {

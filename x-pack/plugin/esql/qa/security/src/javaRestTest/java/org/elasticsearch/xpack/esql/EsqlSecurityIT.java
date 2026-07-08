@@ -2611,6 +2611,39 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
+     * Explicit-name counterpart of {@link #testListDatasetsAsNonSuperuserWithCoresidentHiddenDataStream}: a user
+     * authorized on the co-resident data stream asks for it by its literal name, not via a wildcard. Dataset
+     * resolution must preserve explicit-name not-found semantics instead of treating the foreign resource like a
+     * wildcard-expanded value that can be silently filtered away.
+     */
+    public void testGetDatasetByExplicitNameOfCoresidentHiddenDataStream() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{\"hidden\":true}}");
+        setUser(tmpl, "test-admin");
+        assertOK(client().performRequest(tmpl));
+        Request createDs = new Request("PUT", "/_data_stream/entities-updates-default");
+        setUser(createDs, "test-admin");
+        assertOK(client().performRequest(createDs));
+
+        try {
+            Request get = new Request("GET", "/_query/dataset/entities-updates-default");
+            setUser(get, "ds_repro_broad_reader");
+            ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(get));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));
+            assertThat(ex.getMessage(), containsString("dataset [entities-updates-default] not found"));
+        } finally {
+            Request delDs = new Request("DELETE", "/_data_stream/entities-updates-default");
+            setUser(delDs, "test-admin");
+            client().performRequest(delDs);
+            Request delTmpl = new Request("DELETE", "/_index_template/entities-updates-tmpl");
+            setUser(delTmpl, "test-admin");
+            client().performRequest(delTmpl);
+        }
+    }
+
+    /**
      * {@code FROM <dataset>} requires the index {@code read} privilege on the dataset name — the name is routed
      * through the security filter before the rewrite strips it from the plan. A principal without read on the name
      * gets the same {@code Unknown index} error a missing index produces — like unauthorized indices and views,

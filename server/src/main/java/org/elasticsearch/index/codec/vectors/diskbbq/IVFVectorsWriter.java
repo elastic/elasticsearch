@@ -361,10 +361,8 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         for (int d = 0; d < dimension; d++) {
             centroid[d] /= count;
         }
-        // For flat centroid assignments there is a single global centroid and no SOAR (secondary) centroid assignments,
-        // so we pass an empty array for soarAssignments.
-        int[] assignments = new int[count];
-        return new CentroidInformation(dimension, new float[][] { centroid }, assignments, new SoarAssignments(new int[0]));
+        // For flat centroid assignments there is a single global centroid and no secondary centroid assignments
+        return new CentroidInformation(dimension, new float[][] { centroid }, new int[count], OverspillAssignments.NONE);
     }
 
     @Override

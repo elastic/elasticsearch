@@ -309,6 +309,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS,
 
         /**
+         * Fixes a bug when using an EVAL on the grouped by columns after a STATS.
+         *
+         * See https://github.com/elastic/elasticsearch/issues/152496.
+         */
+        OPTIONAL_FIELDS_UNMAPPED_EVAL_AFTER_STATS_FIX,
+
+        /**
          * Fix for a {@code ClassCastException} when an explicitly cast or implicitly widened partially unmapped small numeric field.
          * See https://github.com/elastic/elasticsearch/issues/151525.
          */
@@ -340,6 +347,13 @@ public class EsqlCapabilities {
          * KEYWORD converter and so cannot be loaded from _source: it falls back to null in the indices where it is unmapped.
          */
         OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
+
+        /**
+         * With {@code unmapped_fields="nullify"} or {@code "load"}, a {@code DROP} wildcard that matches no field is a no-op
+         * instead of failing with "No matches found for pattern".
+         * See https://github.com/elastic/elasticsearch/issues/143226
+         */
+        OPTIONAL_FIELDS_DROP_NON_MATCHING_PATTERN_NOOP,
 
         /**
          * Fixes count on an unmapped field. Previously, it tried to push down a query filter on the unmapped field, leading to a 0-count
@@ -2735,6 +2749,14 @@ public class EsqlCapabilities {
          * verification failure that old coordinators in a mixed cluster still hit.
          */
         FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * A present-but-empty field on a string (KEYWORD/TEXT) column in an external CSV/TSV datasource reads as the empty
+         * string {@code ""} instead of {@code null}. Genuinely missing fields (a row shorter than the schema) and empty
+         * fields on non-string columns still read as {@code null}. Used to gate the affected external csv-spec tests so they
+         * are skipped on mixed clusters where a pre-change node still maps empty string cells to {@code null}.
+         */
+        EXTERNAL_CSV_EMPTY_STRING_NOT_NULL(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.

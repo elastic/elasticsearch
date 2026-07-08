@@ -1017,6 +1017,115 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         private final List<String> lines = new ArrayList<>();
     }
 
+    /**
+     * Evidence-first repro for the {@code esql_external_io} segmentator-saturation hazard
+     * (elastic/esql-planning #1093, structural-fix item 4). Faithfully mirrors the post-#153074 two-pool
+     * wiring: segmentators <em>and</em> their one-shot parser tasks share a single bounded pool of size
+     * {@code K} (the production {@code esql_external_io} pool), while the consumer drains run on a
+     * <strong>separate</strong> pool (the production {@code esql_worker} producer-loop drivers).
+     * <p>
+     * With {@code F >= K} concurrently-open streaming reads over content large enough that each segmentator
+     * stays alive across many chunks, every pool thread could be pinned by a segmentator that is itself
+     * blocked — on {@code chunkQueue.put}, {@code dispatchPermits.acquire}, or {@code bufferPool.take} —
+     * waiting for a parser task to drain its per-iterator queues. Those parser tasks are queued behind
+     * the segmentators on the same pool and would never get a thread; the off-pool consumers would then wait
+     * forever for pages that never arrive — a producer-side thread-footprint deadlock, independent of the
+     * #153074 drain-side fix.
+     * <p>
+     * The {@link StreamingSegmentatorAdmission} gate closes it: sized to {@code poolSize - 1} here, it lets at
+     * most {@code K - 1} segmentators occupy the pool at once, keeping a thread free for parser tasks; the
+     * remaining segmentators are queued in the controller (holding no pool thread) and dispatched as running
+     * ones finish. The test drives {@code F == K} readers with large per-file content and asserts every read
+     * drains within a generous deadline. Without the admission gate this hangs (caught by the deadline, not an
+     * infinite suite stall — {@code shutdownNow} in the finally unwinds any parked threads); a
+     * {@code sharedIoPool}-sized admission proves the fix restores liveness.
+     */
+    public void testConcurrentSegmentatorsSaturatingSharedPoolDoNotDeadlock() throws Exception {
+        int sharedPoolSize = 4;
+        int fileCount = sharedPoolSize; // F == K: enough segmentators to pin every shared-pool thread
+        int parsingParallelism = 4;
+        int lineCount = 20_000; // large enough that each segmentator loops across hundreds of chunks
+        int chunkSize = 128;    // tiny chunks force the segmentator to stay alive and keep dispatching
+        byte[] contentBytes = buildContent(lineCount).getBytes(StandardCharsets.UTF_8);
+
+        // Segmentators + parser tasks share this bounded pool (production: esql_external_io).
+        ExecutorService sharedIoPool = Executors.newFixedThreadPool(sharedPoolSize);
+        // Consumer drains run here (production: esql_worker producer-loop drivers), one per reader.
+        ExecutorService drainPool = Executors.newFixedThreadPool(fileCount);
+        // Cap concurrent segmentators one below the pool size so a thread always remains for parser tasks.
+        StreamingSegmentatorAdmission admission = new StreamingSegmentatorAdmission(sharedPoolSize - 1);
+        List<CloseableIterator<Page>> iterators = new ArrayList<>();
+        try {
+            for (int f = 0; f < fileCount; f++) {
+                LineFormatReader reader = new LineFormatReader(chunkSize);
+                iterators.add(
+                    StreamingParallelParsingCoordinator.parallelRead(
+                        reader,
+                        new ByteArrayInputStream(contentBytes),
+                        null,
+                        List.of("line"),
+                        50,
+                        parsingParallelism,
+                        sharedIoPool,
+                        ErrorPolicy.STRICT,
+                        null,
+                        0L,
+                        SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                        null,
+                        -1L,
+                        StripeColumnScope.PROJECTED,
+                        null,
+                        admission
+                    )
+                );
+            }
+
+            CountDownLatch done = new CountDownLatch(fileCount);
+            List<Throwable> failures = new CopyOnWriteArrayList<>();
+            AtomicInteger totalRows = new AtomicInteger();
+            for (CloseableIterator<Page> it : iterators) {
+                drainPool.execute(() -> {
+                    try {
+                        int rows = 0;
+                        while (it.hasNext()) {
+                            Page page = it.next();
+                            rows += page.getPositionCount();
+                            page.releaseBlocks();
+                        }
+                        totalRows.addAndGet(rows);
+                    } catch (Throwable t) {
+                        failures.add(t);
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+
+            boolean completed = done.await(30, TimeUnit.SECONDS);
+            assertTrue(
+                "F("
+                    + fileCount
+                    + ") concurrent streaming segmentators on a shared pool of size "
+                    + sharedPoolSize
+                    + " never drained: their parser tasks starved. The admission gate ("
+                    + admission.maxConcurrentSegmentators()
+                    + " concurrent segmentators) must keep a pool thread free for parsers "
+                    + "(regression of the esql-planning #1093 item 4 fix).",
+                completed
+            );
+            assertTrue("no drain thread should have failed: " + failures, failures.isEmpty());
+            assertEquals("every reader must deliver all rows", fileCount * lineCount, totalRows.get());
+        } finally {
+            for (CloseableIterator<Page> it : iterators) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            drainPool.shutdownNow();
+            sharedIoPool.shutdownNow();
+        }
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {

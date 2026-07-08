@@ -5,7 +5,10 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -287,3 +290,43 @@ tasks.named('javaRestTest') {
     showStandardStreams = false
   }
 }
+
+// The csvSpecTest source set (created by the plugin above) hosts ParquetFormatSpecIT,
+// ParquetCompressedFormatSpecIT, and ParquetCompressedMultifileSpecIT plus their shared
+// abstract base. Keeping them out of javaRestTest prevents ClickBenchParquetSpecIT (which
+// fires EsqlSpecTestCase.INGEST with an empty indicesToLoad) from poisoning the JVM-global
+// INGEST guard before the spec ITs run.
+// No variants are declared — the IT classes are hand-written in src/csvSpecTest/java/ because
+// the generator hardcodes a 6-parameter constructor and parquet tests need 7+ (StorageBackend,
+// codec).
+esqlCsvSpecTests {
+  specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+  packageName = 'org.elasticsearch.xpack.esql.qa.parquet'
+}
+
+// Provide the generated Parquet fixtures as test resources for the csvSpecTest source set,
+// mirroring the javaRestTest resource wiring above.
+sourceSets.csvSpecTest.resources.srcDir layout.buildDirectory.get().dir("parquet-fixtures")
+tasks.named('processCsvSpecTestResources').configure {
+  dependsOn generateParquetFixtures
+}
+
+// Runs the three csv-spec ITs (ParquetFormatSpecIT, ParquetCompressedFormatSpecIT,
+// ParquetCompressedMultifileSpecIT) in their own JVM, separate from javaRestTest.
+// All three extend AbstractParquetExternalSpecTestCase, which declares the shared
+// ElasticsearchCluster at the abstract-class level — INGEST fires exactly once for the
+// entire suite. Isolation from ClickBenchParquetSpecIT (which fires INGEST with an empty
+// indicesToLoad) is achieved by having the spec ITs live in the csvSpecTest source set.
+def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  dependsOn generateParquetFixtures
+  dependsOn generateEsqlSpecTests
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+}
+
+tasks.named('check').configure { dependsOn csvSpecTests }

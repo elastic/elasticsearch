@@ -154,8 +154,6 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            null,
-            null,
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
@@ -291,7 +289,6 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                     clusterService.state(),
                     startContext.config.getSource().getIndex(),
                     startContext.config.getDest().getIndex(),
-                    null,
                     SourceDestValidations.ALL_VALIDATIONS,
                     l.map(ignored -> startContext)
                 );

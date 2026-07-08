@@ -13,10 +13,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -64,6 +66,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private final AtomicInteger splitsScanned;
     /** Estimated bytes scanned across the discovered external splits. */
     private final AtomicLong bytesScanned;
+    /** The query-level unmapped field resolution mode. */
+    private volatile UnmappedResolution unmappedResolution;
     /**
      * Number of external relations whose ungrouped aggregate was served <em>warm</em> — answered purely
      * from canonical-stripe / whole-file statistics with the data scan short-circuited away (split
@@ -83,12 +87,13 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         "esql_separate_dependency_resolution"
     );
     private static final TransportVersion ESQL_EXTERNAL_SCAN_PROFILE = TransportVersion.fromName("esql_external_scan_profile");
+    private static final TransportVersion ESQL_PROFILE_UNMAPPED_FIELDS_MODE = TransportVersion.fromName("esql_vsr_source_load_profile");
     private static final TransportVersion ESQL_EXTERNAL_WARM_AGGREGATE_PROFILE = TransportVersion.fromName(
         "esql_external_warm_aggregate_profile"
     );
 
     public EsqlQueryProfile() {
-        this(null, null, null, null, null, null, null, null, null, null, 0, 0, 0, 0L, 0);
+        this(null, null, null, null, null, null, null, null, null, null, 0, 0, 0, 0L, UnmappedResolution.DEFAULT, 0);
     }
 
     // For testing
@@ -107,6 +112,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         int filesScanned,
         int splitsScanned,
         long bytesScanned,
+        UnmappedResolution unmappedResolution,
         int externalWarmAggregates
     ) {
         this.totalMarker = new TimeSpanMarker(QUERY, true, query);
@@ -123,6 +129,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         this.filesScanned = new AtomicInteger(filesScanned);
         this.splitsScanned = new AtomicInteger(splitsScanned);
         this.bytesScanned = new AtomicLong(bytesScanned);
+        this.unmappedResolution = unmappedResolution;
         this.externalWarmAggregates = new AtomicInteger(externalWarmAggregates);
     }
 
@@ -165,6 +172,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             splitsScanned = in.readVInt();
             bytesScanned = in.readVLong();
         }
+        UnmappedResolution unmappedResolution = UnmappedResolution.DEFAULT;
+        if (in.getTransportVersion().supports(ESQL_PROFILE_UNMAPPED_FIELDS_MODE)) {
+            unmappedResolution = in.readEnum(UnmappedResolution.class);
+        }
         int externalWarmAggregates = 0;
         if (in.getTransportVersion().supports(ESQL_EXTERNAL_WARM_AGGREGATE_PROFILE)) {
             externalWarmAggregates = in.readVInt();
@@ -184,6 +195,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             filesScanned,
             splitsScanned,
             bytesScanned,
+            unmappedResolution,
             externalWarmAggregates
         );
     }
@@ -224,6 +236,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             out.writeVInt(splitsScanned.get());
             out.writeVLong(bytesScanned.get());
         }
+        if (out.getTransportVersion().supports(ESQL_PROFILE_UNMAPPED_FIELDS_MODE)) {
+            out.writeEnum(unmappedResolution);
+        }
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_WARM_AGGREGATE_PROFILE)) {
             out.writeVInt(externalWarmAggregates.get());
         }
@@ -247,6 +262,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             && filesScanned.get() == that.filesScanned.get()
             && splitsScanned.get() == that.splitsScanned.get()
             && bytesScanned.get() == that.bytesScanned.get()
+            && unmappedResolution == that.unmappedResolution
             && externalWarmAggregates.get() == that.externalWarmAggregates.get();
     }
 
@@ -267,6 +283,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             filesScanned.get(),
             splitsScanned.get(),
             bytesScanned.get(),
+            unmappedResolution,
             externalWarmAggregates.get()
         );
     }
@@ -302,6 +319,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             + splitsScanned.get()
             + ", bytesScanned="
             + bytesScanned.get()
+            + ", unmappedResolution="
+            + unmappedResolution
             + ", externalWarmAggregates="
             + externalWarmAggregates.get()
             + '}';
@@ -438,6 +457,14 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         );
     }
 
+    public void setUnmappedResolution(UnmappedResolution unmappedResolution) {
+        this.unmappedResolution = unmappedResolution;
+    }
+
+    public UnmappedResolution unmappedResolution() {
+        return unmappedResolution;
+    }
+
     /**
      * Safely stops all markers that were started but not yet stopped.
      * This is useful in error paths where we need to ensure all timing data is captured.
@@ -469,6 +496,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
                 builder.field("bytes_scanned", bytes);
             }
         }
+        builder.field("unmapped_fields", unmappedResolution.name().toLowerCase(Locale.ROOT));
         // The affirmative warm signal: emitted only when at least one external aggregate was served from
         // statistics with the scan short-circuited away. Its presence (with the scan counters above
         // absent/zero) is what distinguishes a warm short-circuit from a cold scan without inferring from

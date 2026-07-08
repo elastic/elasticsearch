@@ -1629,6 +1629,32 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("user")));
     }
 
+    /**
+     * Same fixture as {@link #testScalarThenObjectConflictLenientNullFillsAndWarns}, but with
+     * {@link FormatReadContext#informationalWarningSink()} supplied: the shape-conflict warning must route
+     * through the sink instead of {@link org.elasticsearch.common.logging.HeaderWarning}, since
+     * {@code read} can be invoked from a background reader thread whose thread-local response
+     * headers never reach the client (see {@code SkipWarnings}).
+     */
+    public void testScalarThenObjectConflictLenientRoutesThroughWarningSinkWhenSupplied() throws IOException {
+        String ndjson = """
+            {"event":1,"user":"alice"}
+            {"event":2,"user":{"id":"bob","tier":"gold"}}
+            {"event":3,"user":"carol"}
+            """;
+        var object = new BytesStorageObject("memory://scalar-then-object-sink.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<String> sunk = new ArrayList<>();
+        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).informationalWarningSink(sunk::add).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            iterator.next();
+        }
+        assertFalse("expected a warning for the shape conflict routed through the sink", sunk.isEmpty());
+        assertTrue("warning should name the conflicting field, got: " + sunk, sunk.stream().anyMatch(w -> w.contains("user")));
+        assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
+    }
+
     private static int indexOf(List<Attribute> schema, String name) {
         for (int i = 0; i < schema.size(); i++) {
             if (schema.get(i).name().equals(name)) {

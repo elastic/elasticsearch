@@ -103,10 +103,14 @@ final class CsvRecordSplitter implements RecordSplitter {
 
     /**
      * Hard cap on a single {@link #findProvenRecordBoundary(InputStream)} pass (advance to a clean symbol plus the
-     * lockstep scan). Bounded by {@code maxRecordBytes} so the probe can never converge inside a record that the
-     * exact walk would reject as {@link #RECORD_TOO_LARGE}; capped at {@link #PROBE_CONVERGENCE_WINDOW_BYTES} so a
-     * failed probe on a quote-free window reads little before falling back. This is a performance knob, not a
-     * correctness one: any real record longer than it simply yields {@link #AMBIGUOUS} and defers to the exact walk.
+     * lockstep scan). Capped at {@link #PROBE_CONVERGENCE_WINDOW_BYTES} so a failed probe on a quote-free window reads
+     * little before falling back, and also bounded by {@code maxRecordBytes} so a probe can never scan a whole
+     * oversized record's body before giving up. This is a performance knob, not a correctness one: a probe that
+     * cannot converge within it yields {@link #AMBIGUOUS} and defers to the exact walk, which owns the
+     * {@link #RECORD_TOO_LARGE} verdict. It does not mean the proved boundary always terminates a record shorter than
+     * {@code maxRecordBytes}: a record that began before the probe offset can be over the cap yet close within the
+     * window, so the probe converges at its terminator. That boundary is still a true record start, and the oversized
+     * record still fails loudly wherever it is actually read.
      */
     private long convergenceWindow() {
         return Math.min((long) maxRecordBytes, PROBE_CONVERGENCE_WINDOW_BYTES);

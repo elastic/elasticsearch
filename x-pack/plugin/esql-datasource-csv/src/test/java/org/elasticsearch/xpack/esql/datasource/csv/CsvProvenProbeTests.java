@@ -62,6 +62,8 @@ public class CsvProvenProbeTests extends ESTestCase {
     public void testExactWalkMatchesOracleCrLfAndLoneCr() throws IOException {
         String data = "a,b\r\nc,d\r\"e\rf\",g\r\nlast,row\r\n";
         assertExactWalkMatchesOracle(quoted(), bytes(data));
+        // The lone-CR terminator (stepProbe's pendingCr resolution) is exercised by the probe too, not only the walk.
+        assertProbeInvariants(quoted(), bytes(data));
     }
 
     public void testProbeNeverLandsInsideQuotedField() throws IOException {
@@ -245,7 +247,9 @@ public class CsvProvenProbeTests extends ESTestCase {
                 }
                 sb.append(randomField(options));
             }
-            sb.append(randomBoolean() ? "\n" : "\r\n");
+            // Mix all three terminators so the probe's lone-CR branch (\r not followed by \n) is covered, not only
+            // the walk's.
+            sb.append(randomFrom("\n", "\r\n", "\r"));
         }
         return sb.toString();
     }
@@ -259,6 +263,9 @@ public class CsvProvenProbeTests extends ESTestCase {
             shapes.add("\"embedded\nnewline\"");
             shapes.add("\"doubled \"\"quote\"\"\"");
             shapes.add("\"comma,inside\"");
+            // Field-leading whitespace before an opening quote: isCleanSymbol treats leading whitespace as non-clean,
+            // so the probe must stay AMBIGUOUS here rather than mistaking the quote for a clean-symbol start.
+            shapes.add(" \"leading ws\"");
         }
         if (options.escaping()) {
             shapes.add("a\\\nb"); // escaped newline (in-field)

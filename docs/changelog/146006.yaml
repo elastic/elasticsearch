@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 146006
+summary: Switch GPU SQ format to ES94 (OSQ-based)
+type: enhancement

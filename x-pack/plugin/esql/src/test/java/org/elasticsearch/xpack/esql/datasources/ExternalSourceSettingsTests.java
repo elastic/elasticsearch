@@ -127,7 +127,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(7, ExternalSourceSettings.settings().size());
+        assertEquals(8, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
     }
 
@@ -138,6 +138,15 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     public void testManagedIdentityCanBeEnabled() {
         Settings settings = Settings.builder().put("esql.datasource.managed_identity.enabled", true).build();
         assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
+    }
+
+    public void testFederatedIdentityDefaultFalse() {
+        assertFalse(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(Settings.EMPTY));
+    }
+
+    public void testFederatedIdentityCanBeEnabled() {
+        Settings settings = Settings.builder().put("esql.datasource.federated_identity.enabled", true).build();
+        assertTrue(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings));
     }
 
     // --- Backwards compatibility: the deprecated workload_identity.enabled key still works via fallback ---

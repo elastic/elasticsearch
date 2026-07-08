@@ -359,7 +359,9 @@ public final class DeclaredTypeCoercions {
                 : v -> NumberFieldMapper.NumberType.LONG.parse(v, true).longValue();
             case DATE_NANOS -> {
                 if (fromString) {
-                    yield v -> EsqlDataTypeConverter.dateNanosToLong((String) v);
+                    // Mirrors the DATETIME arm above: the declared format, when the column has one, is the parse
+                    // dialect. Without it dateNanosToLong falls back to ISO-8601.
+                    yield v -> EsqlDataTypeConverter.dateNanosToLong((String) v, declaredFormat);
                 }
                 if (from == DataType.DATETIME) {
                     // millis -> nanos widen; DateUtils.toNanoSeconds throws IllegalArgumentException

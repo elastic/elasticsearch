@@ -22,7 +22,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestDeleteDataSourceAction extends BaseRestHandler {
 
     @Override

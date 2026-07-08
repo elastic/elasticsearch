@@ -1485,6 +1485,161 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     /*
+     * Project[[first_name{f}#33, a{r}#26, gender{f}#34]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[MATCH(first_name{f}#33,Anna[KEYWORD])]
+     *     \_InlineJoin[LEFT,[gender{f}#34],[gender{r}#34]]
+     *       |_EsRelation[employees][_meta_field{f}#38, emp_no{f}#32, first_name{f}#33, ..]
+     *       \_Project[[a{r}#26, gender{f}#34]]
+     *         \_Eval[[$$SUM$a$0{r$}#43 / $$COUNT$a$1{r$}#44 AS a#26]]
+     *           \_Aggregate[[gender{f}#34],[SUM(salary{f}#37,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
+     * long_overflow_warn[KEYWORD]) AS $$SUM$a$0#43, COUNT(salary{f}#37,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$a$1#44,
+     * gender{f}#34]]
+     *             \_StubRelation[[_meta_field{f}#38, emp_no{f}#32, first_name{f}#33, gender{f}#34, hire_date{f}#39, job{f}#40,
+     * job.raw{f}#41, languages{f}#35, last_name{f}#36, long_noidx{f}#42, salary{f}#37]]
+     *
+     * reoptimized (right-hand side resolved into a LocalRelation, then re-run through PushDownAndCombineFilters):
+     * Project[[first_name{f}#33, a{r}#26, gender{f}#34]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[gender{f}#34],[gender{r}#34]]
+     *     |_Filter[MATCH(first_name{f}#33,Anna[KEYWORD])]
+     *     | \_EsRelation[employees][_meta_field{f}#38, emp_no{f}#32, first_name{f}#33, ..]
+     *     \_LocalRelation[[a{r}#26, gender{f}#34],Page{blocks=[DoubleVectorBlock[vector=ConstantDoubleVector[positions=1,
+     * value=5.5]], BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[4d]]]]}]
+     */
+    public void testPushDown_NonKeyFilter_PastResolvedInlineJoin() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS a = AVG(salary) BY gender
+            | WHERE MATCH(first_name, "Anna")
+            | KEEP first_name, a, gender
+            """);
+
+        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlans = InlineJoin.firstSubPlan(plan, subPlansResults);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+
+        // common filter, above InlineJoin -- not pushed yet, since the right-hand side is still live
+        var commonFilter = as(limit.child(), Filter.class);
+
+        var match = as(commonFilter.condition(), Match.class);
+        var matchField = as(match.field(), FieldAttribute.class);
+        assertEquals("first_name", matchField.name());
+
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        as(ij.left(), EsRelation.class);
+        var right = as(ij.right(), Project.class);
+
+        // simulate EsqlSession having already executed the INLINE STATS sub-plan and substituted the result
+        List<Attribute> schema = right.output(); // [a{r}, gender{f}]
+        Block[] blocks = new Block[schema.size()];
+        blocks[0] = BlockUtils.constantBlock(
+            TestBlockFactory.getNonBreakingInstance(),
+            new Literal(Source.EMPTY, 5.5, DataType.DOUBLE).value(),
+            1
+        );
+        blocks[1] = BlockUtils.constantBlock(
+            TestBlockFactory.getNonBreakingInstance(),
+            new Literal(Source.EMPTY, new BytesRef("M"), DataType.KEYWORD).value(),
+            1
+        );
+        var resultWrapper = new LocalRelation(subPlans.originalSubPlan().source(), schema, LocalSupplier.of(new Page(blocks)));
+        var resolvedMainPlan = newMainPlan(plan, subPlans, resultWrapper);
+
+        // re-running PushDownAndCombineFilters pushes the MATCH filter into the resolved InlineJoin's left branch,
+        // with no filter left above the join.
+        var reoptimized = new PushDownAndCombineFilters().apply(resolvedMainPlan, optimizerContext);
+
+        var reoptimizedProject = as(reoptimized, Project.class);
+        var reoptimizedLimit = as(reoptimizedProject.child(), Limit.class);
+        var reoptimizedIj = as(reoptimizedLimit.child(), InlineJoin.class);
+
+        // the InlineJoin's right-hand side is already the resolved LocalRelation...
+        assertThat(reoptimizedIj.right(), instanceOf(LocalRelation.class));
+
+        // ...and the MATCH filter, which references neither the join key (gender) nor the aggregate's output
+        // (a), has been pushed into the left branch instead of staying above the join.
+        var pushedFilter = as(reoptimizedIj.left(), Filter.class);
+        assertThat(pushedFilter.condition(), instanceOf(Match.class));
+        as(pushedFilter.child(), EsRelation.class);
+    }
+
+    /*
+     * Project[[first_name{f}#12, a{r}#5, gender{f}#13]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[a{r}#5 > 50000[INTEGER]]
+     *     \_InlineJoin[LEFT,[gender{f}#13],[gender{r}#13]]
+     *       |_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *       \_Project[[a{r}#5, gender{f}#13]]
+     *         \_Eval[[$$SUM$a$0{r$}#22 / $$COUNT$a$1{r$}#23 AS a#5]]
+     *           \_Aggregate[[gender{f}#13],[SUM(salary{f}#16,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
+     * long_overflow_warn[KEYWORD]) AS $$SUM$a$0#22, COUNT(salary{f}#16,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$a$1#23,
+     * gender{f}#13]]
+     *             \_StubRelation[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19,
+     * job.raw{f}#20, languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
+     *
+     * reoptimized (right-hand side resolved into a LocalRelation, then re-run through PushDownAndCombineFilters):
+     * Project[[first_name{f}#12, a{r}#5, gender{f}#13]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[a{r}#5 > 50000[INTEGER]]
+     *     \_InlineJoin[LEFT,[gender{f}#13],[gender{r}#13]]
+     *       |_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *       \_LocalRelation[[a{r}#5, gender{f}#13],Page{blocks=[DoubleVectorBlock[vector=ConstantDoubleVector[positions=1,
+     * value=5.5]], BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[4d]]]]}]
+     */
+    public void testCorrectlyDontPushDown_FilterUsingComputedValue_PastResolvedInlineJoin() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS a = AVG(salary) BY gender
+            | WHERE a > 50000
+            | KEEP first_name, a, gender
+            """);
+
+        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlans = InlineJoin.firstSubPlan(plan, subPlansResults);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+
+        // common filter, above InlineJoin -- references the aggregate's output, so it can never be pushed down
+        var commonFilter = as(limit.child(), Filter.class);
+        assertThat(commonFilter.condition(), instanceOf(GreaterThan.class));
+
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        var right = as(ij.right(), Project.class);
+
+        // simulate EsqlSession having already executed the INLINE STATS sub-plan and substituted the result
+        List<Attribute> schema = right.output(); // [a{r}, gender{f}]
+        Block[] blocks = new Block[schema.size()];
+        blocks[0] = BlockUtils.constantBlock(
+            TestBlockFactory.getNonBreakingInstance(),
+            new Literal(Source.EMPTY, 5.5, DataType.DOUBLE).value(),
+            1
+        );
+        blocks[1] = BlockUtils.constantBlock(
+            TestBlockFactory.getNonBreakingInstance(),
+            new Literal(Source.EMPTY, new BytesRef("M"), DataType.KEYWORD).value(),
+            1
+        );
+        var resultWrapper = new LocalRelation(subPlans.originalSubPlan().source(), schema, LocalSupplier.of(new Page(blocks)));
+        var resolvedMainPlan = newMainPlan(plan, subPlans, resultWrapper);
+
+        // re-running PushDownAndCombineFilters still leaves the filter above the join, unlike the MATCH filter in
+        // testPushDown_NonKeyFilter_PastResolvedInlineJoin -- "a" isn't carried by the left branch at all.
+        var reoptimized = new PushDownAndCombineFilters().apply(resolvedMainPlan, optimizerContext);
+
+        var reoptimizedProject = as(reoptimized, Project.class);
+        var reoptimizedLimit = as(reoptimizedProject.child(), Limit.class);
+        var reoptimizedFilter = as(reoptimizedLimit.child(), Filter.class);
+        assertThat(reoptimizedFilter.condition(), instanceOf(GreaterThan.class));
+        var reoptimizedIj = as(reoptimizedFilter.child(), InlineJoin.class);
+        assertThat(reoptimizedIj.right(), instanceOf(LocalRelation.class));
+        as(reoptimizedIj.left(), EsRelation.class);
+    }
+
+    /*
      * Project[[avgByL{r}#5, avgByG{r}#9, languages{f}#20, gender{f}#19, emp_no{f}#17]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[languages{f}#20 > 2[INTEGER]]

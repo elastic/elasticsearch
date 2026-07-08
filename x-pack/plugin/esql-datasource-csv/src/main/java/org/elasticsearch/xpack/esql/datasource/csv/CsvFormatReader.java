@@ -5936,8 +5936,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /**
          * Reads a {@link #looksNumeric} cell as a raw epoch value. Returns {@code null} when the digits overflow a
-         * {@code long} — the single caller decides whether that is a hard field error (a file-level format is set, so
-         * nothing else will parse it) or a fall-through to the ISO stages.
+         * {@code long}; each caller decides what that means. Under a file-level format it is a hard field error —
+         * nothing else will parse the cell. Without one it falls through to the ISO stages, which report the failure.
          */
         private static Long parseEpoch(String value) {
             try {

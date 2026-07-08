@@ -153,10 +153,7 @@ public class TencentCloudCommonServiceSettingsTests extends AbstractBWCWireSeria
         switch (between(0, 2)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 1 -> uri = uri == null ? URI.create("http://" + randomAlphaOfLength(6) + "/v1") : null;
-            case 2 -> rateLimitSettings = randomValueOtherThan(
-                rateLimitSettings,
-                () -> new RateLimitSettings(randomIntBetween(1, 1000))
-            );
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, () -> new RateLimitSettings(randomIntBetween(1, 1000)));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new TencentCloudCommonServiceSettings(modelId, uri, rateLimitSettings);

@@ -38,9 +38,7 @@ public final class TencentCloudEndpointUtils {
         }
         String host = uri.getHost();
         if (host == null || host.isBlank()) {
-            validationException.addValidationError(
-                String.format(Locale.ROOT, "[%s] in [%s] must include a host", fieldName, scope)
-            );
+            validationException.addValidationError(String.format(Locale.ROOT, "[%s] in [%s] must include a host", fieldName, scope));
             return uri;
         }
         String normalizedHost = normalizeHost(host);

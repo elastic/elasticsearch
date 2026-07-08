@@ -57,7 +57,14 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
         @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(inferenceId, TaskType.TEXT_EMBEDDING, TencentCloudService.NAME, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(
+                inferenceId,
+                TaskType.TEXT_EMBEDDING,
+                TencentCloudService.NAME,
+                serviceSettings,
+                taskSettings,
+                chunkingSettings
+            ),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings(),

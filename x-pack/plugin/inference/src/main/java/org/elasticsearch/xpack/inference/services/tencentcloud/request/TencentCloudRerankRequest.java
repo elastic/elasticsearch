@@ -51,7 +51,8 @@ public class TencentCloudRerankRequest implements OutboundRerankRequest {
         HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new TencentCloudRerankRequestEntity(query, input, returnDocuments, topN, model)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new TencentCloudRerankRequestEntity(query, input, returnDocuments, topN, model))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

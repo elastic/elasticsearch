@@ -29,6 +29,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -49,9 +50,11 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +62,8 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,6 +85,42 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         // So that a failed test cannot corrupt subsequent ones.
         TestRecoveryBlockerPlugin.reset();
         BlockingFsRepositoryPlugin.reset();
+    }
+
+    @After
+    public void verifyRecoveryStatsAndMetrics() {
+        final var nodes = internalCluster().getNodeNames();
+        final Predicate<RecoveryStats> noMoreRecoveriesInStats = RecoveryStats::noCurrentRecoveries;
+        awaitRecoveryCountStats(Arrays.stream(nodes).collect(Collectors.toMap(node -> node, ignored -> noMoreRecoveriesInStats)));
+
+        final var nodeToTelemetry = Arrays.stream(nodes)
+            .collect(
+                Collectors.toMap(
+                    node -> node,
+                    node -> internalCluster().getInstance(PluginsService.class, node)
+                        .filterPlugins(TestTelemetryPlugin.class)
+                        .findFirst()
+                        .orElseThrow()
+                )
+            );
+        final var noMoreRecoveriesInMetrics = Map.of(
+            RecoveryMetricsCollector.QUEUED_STORE_RECOVERIES,
+            0L,
+            RecoveryMetricsCollector.CURRENT_STORE_RECOVERIES,
+            0L,
+            RecoveryMetricsCollector.QUEUED_PEER_RECOVERIES_AS_SOURCE,
+            0L,
+            RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_SOURCE,
+            0L,
+            RecoveryMetricsCollector.QUEUED_PEER_RECOVERIES_AS_TARGET,
+            0L,
+            RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_TARGET,
+            0L
+        );
+        awaitRecoveryCountMetrics(
+            nodeToTelemetry,
+            Arrays.stream(nodes).collect(Collectors.toMap(node -> node, ignored -> noMoreRecoveriesInMetrics))
+        );
     }
 
     @Override

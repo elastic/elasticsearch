@@ -302,12 +302,14 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
 
     private RecoveryListener wrapListenerForExecution(RecoveryListener listener, PendingRecovery recovery) {
         final RecoverySource.Type recoveryType = recovery.recoveryState().getRecoverySource().getType();
+
         final RecoveryListener handleCancellation = RecoveryListener.delegateFailure(listener, (l, e, sendFailure) -> {
             if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
                 schedulingListener.onStartedRecoveryCancelled(recoveryType, RecoveryRole.TARGET);
             }
             l.onRecoveryFailure(e, sendFailure);
         });
+
         final RecoveryListener releaseSlot = RecoveryListener.runAfter(handleCancellation, () -> releaseSlot(recovery));
         return RecoveryListener.wrapPreservingContext(releaseSlot, recovery.context);
     }
@@ -356,7 +358,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     ) {}
 
     /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped
-    /// with `runAfter` (to release a recovery slot on completion) and `assertOnce` (to ensure there is only one terminal callback).
+    /// with `assertOnce` (to ensure there is only one terminal callback).
     private static class RecoveryRunnable extends AbstractRunnable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;

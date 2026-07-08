@@ -1987,13 +1987,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /// Requests cancellation of a recovery that is not yet completed.
     ///
-    /// In `CREATED` state the flag is stored and checked when the recovery begins.
-    /// In `RECOVERING` state, `StoreRecovery` checks via [#ensureRecoveryNotCancelled] at phase boundaries for non-PEER
-    /// recoveries, and [RecoveryTarget] checks it at its own phase boundaries (receiving file info, file chunks,
-    /// cleaning files, and translog operations) for `PEER` recoveries. Note that the primary handoff boundary is not
-    /// checked, i.e. a cancellation requested once the handoff has started is silently ignored and the recovery
-    /// completes normally. `RESHARD_SPLIT` recoveries are currently not supported (support will be added in a
-    /// follow-up, see: elasticsearch-team#2801).
+    /// Each recovery type checks whether a cancellation has been requested at its own phase boundaries
+    /// via [#ensureRecoveryNotCancelled]
+    /// Note that `RESHARD_SPLIT` recoveries are currently not supported (support will be added via elasticsearch-team#2801).
     ///
     /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
     /// @throws IllegalStateException if the ongoing recovery is not of a supported type
@@ -2021,8 +2017,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /// Throws [RecoveryCancelledException] if a cancellation has been requested via [#requestRecoveryCancellation].
     ///
-    /// Must only be called from within the active recovery sequence, at natural checkpoint boundaries: [StoreRecovery]
-    /// phase boundaries for non-PEER recoveries, or at [RecoveryTarget]'s own phase boundaries for `PEER` recoveries.
+    /// Must only be called from within the active recovery sequence, at natural checkpoint boundaries.
     /// Callers should let the exception propagate up the call stack, or catch it to forward it unchanged or wrapped
     /// (preserving it as the cause), e.g. via `onFailure`.
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {

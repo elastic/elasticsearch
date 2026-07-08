@@ -1,0 +1,5 @@
+Limit[1000[INTEGER],false,false]
+\_SemiJoin[[version{f}#0],[version{f}#1]]
+  |_EsRelation[all_types][!alias_integer, boolean{f}#2, byte{f}#3, constant_keyword-foo{f}#4, date{f}#5, date_nanos{f}#6, dense_vector{f}#7, double{f}#8, float{f}#9, half_float{f}#10, integer{f}#11, ip{f}#12, keyword{f}#13, long{f}#14, scaled_float{f}#15, semantic_text{f}#16, short{f}#17, text{f}#18, unsigned_long{f}#19, version{f}#0, wildcard{f}#20]
+  \_Project[[version{f}#1]]
+    \_EsRelation[all_types][!alias_integer, boolean{f}#21, byte{f}#22, constant_keyword-foo{f}#23, date{f}#24, date_nanos{f}#25, dense_vector{f}#26, double{f}#27, float{f}#28, half_float{f}#29, integer{f}#30, ip{f}#31, keyword{f}#32, long{f}#33, scaled_float{f}#34, semantic_text{f}#35, short{f}#36, text{f}#37, unsigned_long{f}#38, version{f}#1, wildcard{f}#39]

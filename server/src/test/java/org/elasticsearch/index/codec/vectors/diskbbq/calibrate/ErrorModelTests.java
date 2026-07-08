@@ -18,7 +18,10 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.apache.lucene.util.VectorUtil.l2normalize;
 import static org.hamcrest.Matchers.greaterThan;
@@ -29,6 +32,100 @@ public class ErrorModelTests extends ESTestCase {
         byte[] a = { 1, 2, 3 };
         byte[] b = { 4, 5, 6 };
         assertEquals((long) 4 + 2 * 5 + 3 * 6, (long) ESVectorUtil.dotProduct(a, b));
+    }
+
+    public void testSelectTopNDescendingReturnsLargestInDescendingOrder() {
+        double[] keys = { 5.0, 1.0, 4.0, 2.0, 3.0 };
+        int[] idx = new int[keys.length];
+        ErrorModel.selectTopNDescending(keys, idx, keys.length, 3);
+        // top-3 keys are 5, 4, 3 at indices 0, 2, 4; only idx[0..n) is specified by the contract.
+        assertEquals(0, idx[0]);
+        assertEquals(2, idx[1]);
+        assertEquals(4, idx[2]);
+    }
+
+    public void testSelectTopNDescendingSingleElement() {
+        // n == 1: picks the (a) maximum key. 7.0 ties at indices 1 and 3.
+        double[] keys = { -3.0, 7.0, 2.0, 7.0, 1.0 };
+        int[] idx = new int[keys.length];
+        ErrorModel.selectTopNDescending(keys, idx, keys.length, 1);
+        assertEquals(7.0, keys[idx[0]], 0.0);
+        assertTopN(keys, 1);
+    }
+
+    public void testSelectTopNDescendingFullSortWhenNEqualsLen() {
+        // n >= len takes the full-sort branch: the whole array is permuted into descending key order.
+        double[] keys = { 2.0, 5.0, -1.0, 3.0 };
+        int[] idx = new int[keys.length];
+        ErrorModel.selectTopNDescending(keys, idx, keys.length, keys.length);
+        assertEquals(1, idx[0]); // 5.0
+        assertEquals(3, idx[1]); // 3.0
+        assertEquals(0, idx[2]); // 2.0
+        assertEquals(2, idx[3]); // -1.0
+        assertTopN(keys, keys.length);
+    }
+
+    public void testSelectTopNDescendingSingletonArray() {
+        double[] keys = { 42.0 };
+        int[] idx = new int[1];
+        ErrorModel.selectTopNDescending(keys, idx, 1, 1);
+        assertEquals(0, idx[0]);
+    }
+
+    public void testSelectTopNDescendingHandlesDuplicateKeys() {
+        // Four docs tie at the top; the top-3 must all be those, and the singleton 1.0 must be excluded.
+        double[] keys = { 4.0, 4.0, 4.0, 1.0, 4.0 };
+        int[] idx = new int[keys.length];
+        ErrorModel.selectTopNDescending(keys, idx, keys.length, 3);
+        for (int i = 0; i < 3; i++) {
+            assertEquals(4.0, keys[idx[i]], 0.0);
+        }
+        assertTrue("the sole non-top key 1.0 must not be selected", keys[idx[0]] != 1.0 && keys[idx[1]] != 1.0 && keys[idx[2]] != 1.0);
+        assertTopN(keys, 3);
+    }
+
+    public void testSelectTopNDescendingRandomizedMatchesFullSort() {
+        for (int iter = 0; iter < 100; iter++) {
+            int len = randomIntBetween(1, 200);
+            double[] keys = new double[len];
+            for (int i = 0; i < len; i++) {
+                // Mix a small integer range (frequent ties) with a wide continuous range (negatives included).
+                keys[i] = randomBoolean() ? randomIntBetween(-5, 5) : randomDouble() * 2000 - 1000;
+            }
+            assertTopN(keys, randomIntBetween(1, len));
+        }
+    }
+
+    /**
+     * Verifies the {@link ErrorModel#selectTopNDescending} postcondition: {@code idx[0..n)} holds distinct in-range
+     * indices whose keys are the {@code n} largest, listed in non-increasing key order. Compares selected key
+     * <em>values</em> (not indices) against a reference full sort so it is robust to how ties are broken.
+     */
+    private static void assertTopN(double[] keys, int n) {
+        int len = keys.length;
+        int[] idx = new int[len];
+        ErrorModel.selectTopNDescending(keys, idx, len, n);
+
+        Set<Integer> seen = new HashSet<>();
+        for (int i = 0; i < n; i++) {
+            assertTrue("index out of range: " + idx[i], idx[i] >= 0 && idx[i] < len);
+            assertTrue("duplicate index: " + idx[i], seen.add(idx[i]));
+        }
+        for (int i = 1; i < n; i++) {
+            assertTrue("keys not in descending order at position " + i, keys[idx[i - 1]] >= keys[idx[i]]);
+        }
+
+        double[] sortedAsc = keys.clone();
+        Arrays.sort(sortedAsc);
+        double[] expectedTopN = new double[n];
+        for (int i = 0; i < n; i++) {
+            expectedTopN[i] = sortedAsc[len - 1 - i];
+        }
+        double[] actualTopN = new double[n];
+        for (int i = 0; i < n; i++) {
+            actualTopN[i] = keys[idx[i]];
+        }
+        assertArrayEquals(expectedTopN, actualTopN, 0.0);
     }
 
     public void testEstimateQuantizationErrorStdModelReturnsFiniteModel() throws IOException {

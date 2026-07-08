@@ -9,15 +9,20 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.foreign.CloseableByteBuffer;
+import java.lang.foreign.MemorySegment;
 
-/** A closeable buffer backed by a mapped file. */
-public interface CloseableMappedByteBuffer extends CloseableByteBuffer {
+/** A closeable segment backed by a mapped file. */
+public interface MappedSegment extends AutoCloseable {
 
     /**
-     * Returns a slice of this buffer. Closing a slice does not close it's parent.
+     * Returns the underlying {@link MemorySegment} backing this mapped region.
      */
-    CloseableMappedByteBuffer slice(long index, long length);
+    MemorySegment segment();
+
+    /**
+     * Returns a slice of this segment. Closing a slice does not close its parent.
+     */
+    MappedSegment slice(long index, long length);
 
     /**
      * Prefetches the given offset and length.
@@ -33,4 +38,7 @@ public interface CloseableMappedByteBuffer extends CloseableByteBuffer {
      * @param advice the access pattern advice; see {@link MadviseAdvice} constants
      */
     void madvise(long offset, long length, int advice);
+
+    @Override
+    void close();
 }

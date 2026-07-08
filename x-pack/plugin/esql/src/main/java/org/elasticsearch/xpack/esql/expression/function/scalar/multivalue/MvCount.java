@@ -149,12 +149,11 @@ public class MvCount extends AbstractMultivalueFunction {
         protected Block evalNullable(Block block) {
             try (var builder = driverContext.blockFactory().newIntBlockBuilder(block.getPositionCount())) {
                 for (int p = 0; p < block.getPositionCount(); p++) {
-                    int valueCount = block.getValueCount(p);
-                    if (valueCount == 0) {
+                    if (block.isNull(p)) {
                         builder.appendNull();
                         continue;
                     }
-                    builder.appendInt(valueCount);
+                    builder.appendInt(block.getValueCount(p));
                 }
                 return builder.build();
             }

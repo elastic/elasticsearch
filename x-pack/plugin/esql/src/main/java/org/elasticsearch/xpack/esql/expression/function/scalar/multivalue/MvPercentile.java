@@ -184,13 +184,13 @@ public class MvPercentile extends EsqlScalarFunction {
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) DoubleSortingScratch scratch
     ) {
-        int valueCount = values.getValueCount(position);
-        int firstValueIndex = values.getFirstValueIndex(position);
-
-        if (valueCount == 0) {
+        if (values.isNull(position)) {
             builder.appendNull();
             return;
         }
+
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (percentile < 0 || percentile > 100) {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
@@ -207,13 +207,13 @@ public class MvPercentile extends EsqlScalarFunction {
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) IntSortingScratch scratch
     ) {
-        int valueCount = values.getValueCount(position);
-        int firstValueIndex = values.getFirstValueIndex(position);
-
-        if (valueCount == 0) {
+        if (values.isNull(position)) {
             builder.appendNull();
             return;
         }
+
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (percentile < 0 || percentile > 100) {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
@@ -230,13 +230,13 @@ public class MvPercentile extends EsqlScalarFunction {
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) LongSortingScratch scratch
     ) {
-        int valueCount = values.getValueCount(position);
-        int firstValueIndex = values.getFirstValueIndex(position);
-
-        if (valueCount == 0) {
+        if (values.isNull(position)) {
             builder.appendNull();
             return;
         }
+
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (percentile < 0 || percentile > 100) {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");

@@ -73,7 +73,7 @@ abstract class DoubleSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            return block.isNull(position);
         }
     }
 
@@ -92,7 +92,7 @@ abstract class DoubleSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            return block.isNull(position);
         }
     }
 
@@ -116,7 +116,7 @@ abstract class DoubleSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            return block.isNull(position);
         }
     }
 
@@ -140,7 +140,7 @@ abstract class DoubleSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            return block.isNull(position);
         }
     }
 }

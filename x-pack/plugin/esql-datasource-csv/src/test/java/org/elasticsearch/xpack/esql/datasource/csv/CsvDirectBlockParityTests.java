@@ -1059,6 +1059,18 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
+     * The escaped-mode routing gate consults no delimiter, so comma-delimited CSV must behave exactly as the TSV
+     * cases above. Pinned separately because every other escaped × {@code _rowPosition} test here is TSV, and a
+     * custom {@code escape} char rides the same {@code decodeFieldValue} that the gate now guards.
+     */
+    public void testRowPositionEscapedDecodesOnceForCommaCsvAndCustomEscapeChar() throws IOException {
+        String csv = "id:integer,note:keyword\n1,x~~ty\n";
+        Map<String, Object> config = Map.of("mode", "escaped", "escape", "~");
+        assertEquals(List.of(row(br("x~ty"))), read(false, config, null, List.of("note"), csv));
+        assertEquals(List.of(br("x~ty")), column(read(false, config, null, List.of("_rowPosition", "note"), csv), 1));
+    }
+
+    /**
      * Non-regression pin for the OTHER arm of the same routing decision: with stripe capture on and no
      * {@code _rowPosition}, escaped mode rides {@code newTrackedJacksonBulkIterator}, which delivers RAW values —
      * so the batch loop must still decode. Guards against "fixing" the double-decode by suppressing the decode

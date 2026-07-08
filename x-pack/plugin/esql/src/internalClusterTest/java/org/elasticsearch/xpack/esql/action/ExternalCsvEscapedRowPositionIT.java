@@ -80,6 +80,11 @@ public class ExternalCsvEscapedRowPositionIT extends AbstractExternalDataSourceI
             }
             assertThat("projecting _rowPosition must not re-decode escape sequences", notes, equalTo(EXPECTED_NOTES));
         }
+
+        // _file.record_ref is the other user-facing column that forces _rowPosition onto the reader, via the same
+        // SyntheticColumns.rowPositionIndexInNames rail. Pin it too: it is named in the bug report as an affected
+        // surface, and nothing else would catch it were the two rails ever to diverge.
+        assertThat(notes("FROM " + dataset + " METADATA _file.record_ref | SORT id | KEEP note"), equalTo(EXPECTED_NOTES));
     }
 
     private List<String> notes(String query) throws Exception {

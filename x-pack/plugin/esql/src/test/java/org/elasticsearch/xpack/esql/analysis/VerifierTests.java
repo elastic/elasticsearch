@@ -4530,20 +4530,20 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsInvalidEnumOptions() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOption("encoder", "xml");
         assertInvalidHighlightOption("boundary_scanner", "chars");
         assertInvalidHighlightOption("order", "doc");
     }
 
     public void testHighlightEncoderIsCaseSensitive() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         // boundary_scanner and order are case-insensitive, but encoder mirrors Query DSL and is case-sensitive.
         assertInvalidHighlightOption("encoder", "HTML");
     }
 
     public void testHighlightRejectsWrongValueTypesAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Option [pre_tags] must be a string"));
         assertInvalidHighlightOptionValue("post_tags", "true", containsString("Option [post_tags] must be a string"));
         assertInvalidHighlightOptionValue(
@@ -4556,7 +4556,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsMalformedBoundaryScannerLocaleAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue(
             "boundary_scanner_locale",
             "\"en_US\"",
@@ -4568,14 +4568,14 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsDecimalNumericsAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue("number_of_fragments", "0.9", containsString("Option [number_of_fragments] must be an integer"));
         assertInvalidHighlightOptionValue("fragment_size", "10.5", containsString("Option [fragment_size] must be an integer"));
         assertInvalidHighlightOptionValue("max_analyzed_offset", "10.9", containsString("Option [max_analyzed_offset] must be an integer"));
     }
 
     public void testHighlightRejectsOutOfRangeNumericsAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue("number_of_fragments", "-1", containsString("Option [number_of_fragments] must be >= 0"));
         assertInvalidHighlightOptionValue("fragment_size", "-1", containsString("Option [fragment_size] must be >= 0"));
         assertInvalidHighlightOptionValue("no_match_size", "-1", containsString("Option [no_match_size] must be >= 0"));

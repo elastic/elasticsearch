@@ -354,6 +354,20 @@ public final class Automatons {
         return minimize(res);
     }
 
+    /**
+     * Equivalent to {@link #minusAndMinimize(Automaton, Automaton)}, but skips the subtraction when {@code include} and
+     * {@code exclude} accept disjoint states, returning {@code include} unchanged.
+     * <p>
+     * {@code include} must already be deterministic and minimal (e.g. produced by {@link #patterns}), since it may be
+     * returned as-is and is consumed by callers such as {@link #subsetOf(Automaton, Automaton)}.
+     */
+    public static Automaton minusAndMinimizeUnlessDisjoint(Automaton include, Automaton exclude) {
+        if (Operations.isEmpty(intersection(include, exclude))) {
+            return include;
+        }
+        return minusAndMinimize(include, exclude);
+    }
+
     public static Automaton intersectAndMinimize(Automaton a1, Automaton a2) {
         Automaton res = intersection(a1, a2);
         return minimize(res);

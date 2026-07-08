@@ -226,6 +226,41 @@ public class AutomatonsTests extends ESTestCase {
         assertMismatch(automaton, otherLiteral);
     }
 
+    public void testMinusAndMinimizeUnlessDisjointMatchesMinusAndMinimize() {
+        // Stand-in for the restricted (system) index automaton that index-privilege groups subtract.
+        final Automaton restricted = patterns(".security-*", ".security", ".async-search*");
+
+        // Disjoint include (ordinary indices, plus hidden-but-not-system indices such as the alerting-v2 ones): the
+        // subtraction is a no-op, so the short-circuit must return the very same automaton and accept exactly the same
+        // language as minusAndMinimize - and, crucially, must not match any restricted name.
+        final Automaton disjointInclude = patterns(".alert-actions*", ".rule-events*", "logs-*", "my-index");
+        final Automaton shortCircuited = Automatons.minusAndMinimizeUnlessDisjoint(disjointInclude, restricted);
+        assertThat("disjoint subtraction should reuse the input automaton", shortCircuited, sameInstance(disjointInclude));
+        assertTrue(
+            "disjoint short-circuit diverged from minusAndMinimize",
+            AutomatonTestUtil.sameLanguage(shortCircuited, Automatons.minusAndMinimize(disjointInclude, restricted))
+        );
+        final CharacterRunAutomaton disjointRun = new CharacterRunAutomaton(shortCircuited);
+        assertTrue(disjointRun.run(".alert-actions-000001"));
+        assertTrue(disjointRun.run("logs-2026"));
+        assertFalse("must never match a restricted index", disjointRun.run(".security-7"));
+        assertFalse("must never match a restricted index", disjointRun.run(".async-search-abc"));
+
+        // Overlapping include (the "*" pattern intersects the restricted set): the full subtraction must run, excluding
+        // restricted names exactly as minusAndMinimize does.
+        final Automaton overlappingInclude = patterns("*");
+        final Automaton subtracted = Automatons.minusAndMinimizeUnlessDisjoint(overlappingInclude, restricted);
+        assertThat("overlapping input must not be returned unchanged", subtracted, not(sameInstance(overlappingInclude)));
+        assertTrue(
+            "overlapping result diverged from minusAndMinimize",
+            AutomatonTestUtil.sameLanguage(subtracted, Automatons.minusAndMinimize(overlappingInclude, restricted))
+        );
+        final CharacterRunAutomaton subtractedRun = new CharacterRunAutomaton(subtracted);
+        assertTrue(subtractedRun.run("logs-2026"));
+        assertFalse("subtraction must remove restricted names from '*'", subtractedRun.run(".security-7"));
+        assertFalse("subtraction must remove restricted names from '*'", subtractedRun.run(".async-search-abc"));
+    }
+
     private static void assertSameLanguageBothBuilders(Collection<String> patterns) {
         final Automaton original = Automatons.buildPatternsAutomaton(patterns, false);
         final Automaton partitioned = Automatons.buildPatternsAutomaton(patterns, true);

@@ -211,6 +211,11 @@ public final class EscfBatch implements SourceBatch {
         return built;
     }
 
+    /**
+     * Returns a view of this batch containing rows in {@code [from, to)}. Column data is shared with
+     * the parent via {@link BytesReference#slice}, not copied. The returned batch holds no ownership
+     * over the parent's underlying buffers — closing it is a no-op; the parent must be closed instead.
+     */
     @Override
     public SourceBatch slice(int from, int to) {
         if (from < 0 || to > docCount || from > to) {
@@ -275,7 +280,7 @@ public final class EscfBatch implements SourceBatch {
             int[] srcOffsets = col.offsets();
             int byteFrom = srcOffsets[from];
             int byteTo = srcOffsets[from + newCount];
-            BytesReference data = copyRange(col.data(), byteFrom, byteTo - byteFrom);
+            BytesReference data = col.data().slice(byteFrom, byteTo - byteFrom);
             int[] offsets = rebasedOffsets(srcOffsets, from, newCount, byteFrom);
             return typeVector != null
                 ? ElasticsearchColumnData.ofUnion(newCount, absent, typeVector, offsets, data)
@@ -286,7 +291,7 @@ public final class EscfBatch implements SourceBatch {
             return ElasticsearchColumnData.ofBool(newCount, absent, values);
         }
         // LONG / DOUBLE: 8-byte slots
-        BytesReference data = copyRange(col.data(), from * 8, newCount * 8);
+        BytesReference data = col.data().slice(from * 8, newCount * 8);
         return ElasticsearchColumnData.ofFixed64(col.kind(), newCount, absent, data);
     }
 
@@ -298,12 +303,6 @@ public final class EscfBatch implements SourceBatch {
         return out;
     }
 
-    private static BytesReference copyRange(BytesReference src, int from, int length) {
-        BytesRef ref = src.slice(from, length).toBytesRef();
-        return new BytesArray(Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + length));
-    }
-
-    /** Copies bits {@code [from, from + count)} of {@code src} into a fresh bitset at {@code [0, count)}; out-of-range bits read as clear. */
     private static FixedBitSet sliceBitset(FixedBitSet src, int from, int count) {
         FixedBitSet out = new FixedBitSet(Math.max(1, count));
         int cap = src.length();

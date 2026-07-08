@@ -17,10 +17,10 @@ import java.nio.file.Path;
 
 public class Clusters {
     public static ElasticsearchCluster mixedVersionCluster() {
-        return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory());
+        return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory(), false);
     }
 
-    public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath) {
+    public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath, boolean shared) {
         String oldVersionString = System.getProperty("tests.old_cluster_version");
         Version oldVersion = Version.fromString(oldVersionString);
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
@@ -44,6 +44,9 @@ public class Clusters {
         if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        if (shared) {
+            cluster.shared(true);
         }
         return cluster.build();
     }

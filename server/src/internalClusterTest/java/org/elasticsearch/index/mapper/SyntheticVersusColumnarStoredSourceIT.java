@@ -22,7 +22,6 @@ import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
-import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.index.IndexMode;
@@ -30,7 +29,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -44,11 +42,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  * (both using {@code columnar} index mode) return identical {@code _source} for every document.
  */
 public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
-
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
@@ -109,6 +102,63 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         // 'extra' is not in the mapping, so it is dynamically mapped inside the nested object.
         var document = Map.of("n", List.of(Map.of("leaf", "a", "extra", "x"), Map.of("leaf", "b", "extra", "y")));
         assertEqualSource(mappingXContent, document, randomBoolean());
+    }
+
+    /**
+     * The mapping declares a single level of nesting ({@code n}), which columnar supports. An object sub-field
+     * that appears as an array of objects ({@code obj}) is materialized under {@code subobjects:false} as its own child
+     * documents, parented to the {@code n} child - a second <em>physical</em> level of documents in the Lucene block,
+     * even though no second {@code nested} field is declared.
+     */
+    public void testNestedWithObjectArraySubfield() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("n")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("obj")
+            .startObject("properties")
+            .startObject("val")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        var document = Map.of("n", List.of(Map.of("obj", List.of(Map.of("val", 1), Map.of("val", 2)))));
+        assertEqualSource(mappingXContent, document, randomBoolean());
+    }
+
+    /**
+     * With the time-series doc-values format disabled, a keyword sub-field of a nested field whose values exceed
+     * {@code ignore_above} keeps a copy of the ignored values in a per-document stored field so synthetic source can reconstruct
+     * them. Each nested array entry is a separate Lucene document, but columnar_stored reconstructs them all through one reused
+     * single-document reader that always reports the same doc id, and a reused stored-field loader skips re-reading on an unchanged
+     * doc id - so it used to return the first entry's stored values for every sibling. Verify every entry keeps its own values.
+     */
+    public void testNestedWithIgnoredKeywordPerEntry() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("n")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .field("ignore_above", 4)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        // Every value exceeds ignore_above (length 4), so all are stored in the ignored-value fallback. The first entry is
+        // multi-valued to make first-entry-duplication observable if the reused stored-field loader is not read per entry.
+        var document = Map.of("n", List.of(Map.of("kw", List.of("aaaaa", "bbbbb")), Map.of("kw", "ccccc"), Map.of("kw", "ddddd")));
+        // The stored-field fallback (and thus this bug) only occurs with the time-series doc-values format disabled.
+        assertEqualSource(mappingXContent, document, false);
     }
 
     private void runTest(boolean useTimeSeriesDocValuesFormat) throws Exception {
@@ -184,30 +234,9 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
                 // Randomly attach a string multi-field (text<->keyword) to string fields, exercising columnar source
                 // equivalence with multi-fields present. Only TEXT/KEYWORD are used since the other string types are
                 // filtered out above.
-                new MultifieldAddonHandler(Map.of(FieldType.TEXT, List.of(FieldType.KEYWORD), FieldType.KEYWORD, List.of(FieldType.TEXT))),
-                new DefaultMappingParametersHandler() {
-                    @Override
-                    public DataSourceResponse.LeafMappingParametersGenerator handle(
-                        DataSourceRequest.LeafMappingParametersGenerator request
-                    ) {
-                        var delegated = super.handle(request);
-                        if (delegated == null) {
-                            return null;
-                        }
-                        return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
-                            var mapping = new HashMap<>(delegated.mappingGenerator().get());
-                            // synthetic_source_keep is not allowed in columnar index mode
-                            mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
-                            mapping.remove("store");
-                            mapping.remove("copy_to");
-                            // doc_values cannot be disabled in columnar modes: a field must be reconstructable from its
-                            // doc values, so let it fall back to the (enabled) default.
-                            mapping.remove("doc_values");
-                            return mapping;
-                        });
-                    }
-                }
+                new MultifieldAddonHandler(Map.of(FieldType.TEXT, List.of(FieldType.KEYWORD), FieldType.KEYWORD, List.of(FieldType.TEXT)))
             ))
+            .withIndexMode(IndexMode.COLUMNAR)
             .build();
     }
 }

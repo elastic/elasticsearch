@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.qa.mixed;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -18,27 +17,19 @@ import java.nio.file.Path;
 
 public class Clusters {
     public static ElasticsearchCluster mixedVersionCluster() {
-        return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory());
+        return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory(), false);
     }
 
-    public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath) {
+    public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath, boolean shared) {
         String oldVersionString = System.getProperty("tests.old_cluster_version");
         Version oldVersion = Version.fromString(oldVersionString);
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            // The columnar index mode is behind a feature flag and isn't supported across mixed node versions, so disable it here to
-            // keep its tests out of upgrade clusters. Only set it on nodes that know the flag: older BWC nodes predate it and would
-            // fail to start with an unknown property. The property is ignored once the flag is removed.
-            .systemProperty(
-                "es.columnar_index_mode_feature_flag_enabled",
-                () -> "false",
-                spec -> spec.getVersion().onOrAfter(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG.from)
-            )
             .withNode(node -> node.version(oldVersionString, isDetachedVersion))
-            .withNode(node -> node.version(Version.CURRENT))
+            .withNode(node -> node.version(Version.CURRENT).setting("esql.datasource.local_allowed_paths", csvDataPath::toString))
             .withNode(node -> node.version(oldVersionString, isDetachedVersion))
-            .withNode(node -> node.version(Version.CURRENT))
+            .withNode(node -> node.version(Version.CURRENT).setting("esql.datasource.local_allowed_paths", csvDataPath::toString))
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
@@ -53,6 +44,9 @@ public class Clusters {
         if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        if (shared) {
+            cluster.shared(true);
         }
         return cluster.build();
     }

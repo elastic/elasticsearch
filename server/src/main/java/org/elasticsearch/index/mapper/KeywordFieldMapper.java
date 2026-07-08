@@ -186,16 +186,13 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+        if (indexSettings.getMode().isStrictColumnar() == false) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
         }
 
         boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        if (indexSettings.getMode().isStrictColumnar()) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue);
-        }
-
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
+        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability);
     }
 
     private static KeywordFieldMapper toType(FieldMapper in) {
@@ -295,7 +292,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             this.docValuesParameters = DocValuesParameter.of(
                 defaultDocValuesParameters(indexSettings),
-                m -> toType(m).docValuesParameters()
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
             );
 
             this.dimension = TimeSeriesParams.dimensionParam(
@@ -377,8 +375,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
+            var defaultDocValues = defaultDocValuesParameters(indexSettings);
             this.docValuesParameters.setValue(
-                new DocValuesParameter.Values(true, cardinality, defaultDocValuesParameters(indexSettings).multiValue())
+                new DocValuesParameter.Values(true, cardinality, defaultDocValues.multiValue(), defaultDocValues.nullability())
             );
             return this;
         }
@@ -503,11 +502,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
-            enforceIndexSortDocValuesCompatibility(
-                context.buildFullName(leafName()),
-                indexSettings.getIndexSortConfig(),
-                docValuesParameters
-            );
             FieldType fieldtype = resolveFieldType(forceDocValuesSkipper, context.buildFullName(leafName()));
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();
@@ -525,7 +519,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
             // High-cardinality (binary doc values) fields in strict columnar mode store their values in document order directly in the
             // binary doc values (ArrayOrderInlineNull) instead of recording a sidecar .offsets field; low-cardinality (sorted-set) fields
-            // keep using offsets.
+            // keep using offsets. This applies to index sort fields too: both MultiValuedBinaryDocValuesSortField (index sorting) and
+            // AbstractBinaryDocValuesQuery (term/prefix/wildcard/range queries against fields with no inverted index, e.g. the
+            // host.name skip-index sort field - see shouldUseHostnameSkipper) decode both the ArrayOrderInlineNull and SeparateCount
+            // binary formats.
             if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
                 this.arrayOrderBinaryDocValues = true;
                 this.offsetsFieldName = null;
@@ -1449,6 +1446,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    public boolean isNullable() {
+        return docValuesParameters.nullability() || fieldType().nullValue != null;
     }
 
     @Override

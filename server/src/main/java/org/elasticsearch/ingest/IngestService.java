@@ -60,7 +60,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -1339,11 +1338,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 try {
                     // check for self-references if necessary, (i.e. if a script processor has run), and clear the bit
                     if (ingestDocument.doNoSelfReferencesCheck()) {
-                        CollectionUtils.ensureNoSelfReferences(ingestDocument.getSource(), null);
+                        ingestDocument.ensureNoSelfReferences();
                         ingestDocument.doNoSelfReferencesCheck(false);
                     }
                 } catch (IllegalArgumentException ex) {
-                    // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
+                    // An IllegalArgumentException can be thrown when an ingest processor creates self-referencing data.
                     // In that case, we catch and wrap the exception, so we can include more details
                     exceptionHandler.accept(
                         new IngestPipelineException(

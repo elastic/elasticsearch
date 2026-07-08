@@ -44,7 +44,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -112,6 +114,7 @@ import org.elasticsearch.xpack.stateless.utils.TransferableCloseables;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -515,15 +518,30 @@ public class FakeStatelessNode implements Closeable {
         return commits;
     }
 
+    public List<StatelessCommitRef> generateIndexCommitsWithoutCompoundFiles(int commitsNumber) throws IOException {
+        return generateIndexCommits(commitsNumber, false, true, generation -> {}, false);
+    }
+
     public List<StatelessCommitRef> generateIndexCommits(
         int commitsNumber,
         boolean merge,
         boolean includeDeletions,
         LongConsumer onCommitClosed
     ) throws IOException {
+        return generateIndexCommits(commitsNumber, merge, includeDeletions, onCommitClosed, true);
+    }
+
+    private List<StatelessCommitRef> generateIndexCommits(
+        int commitsNumber,
+        boolean merge,
+        boolean includeDeletions,
+        LongConsumer onCommitClosed,
+        boolean useCompoundFile
+    ) throws IOException {
         var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         indexWriterConfig.setMergePolicy(new TieredMergePolicy().setSegmentsPerTier(10)); // lucene 10.3 changed default to 8
+        indexWriterConfig.setUseCompoundFile(useCompoundFile);
         return generateIndexCommits(commitsNumber, merge, includeDeletions, onCommitClosed, (commitNumber) -> {
             LuceneDocument document = new LuceneDocument();
             document.add(new KeywordField("field0", "term", Field.Store.YES));
@@ -593,6 +611,43 @@ public class FakeStatelessNode implements Closeable {
             .put(PATH_REPO_SETTING.getKey(), repoPath)
             .put(BUCKET_SETTING.getKey(), repoPath)
             .build();
+    }
+
+    /**
+     * Lazily yields {@code length} synthetic bytes. The byte values are irrelevant: callers only read to trigger a cache fill, never
+     * to assert content.
+     */
+    public static InputStream syntheticBytes(long length) {
+        return new InputStream() {
+            private long remaining = length;
+
+            @Override
+            public int read() {
+                if (remaining == 0) {
+                    return -1;
+                }
+                remaining -= 1;
+                return 1;
+            }
+        };
+    }
+
+    /**
+     * Wraps {@code inner} in a {@link FilterBlobContainer} that serves {@link #syntheticBytes synthetic bytes} for any ranged
+     * {@code readBlob}, so a cache read populates a region without needing real object-store content. Children are not re-wrapped.
+     */
+    public static FilterBlobContainer syntheticBytesContainer(BlobContainer inner) {
+        return new FilterBlobContainer(inner) {
+            @Override
+            protected BlobContainer wrapChild(BlobContainer child) {
+                return child;
+            }
+
+            @Override
+            public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) {
+                return syntheticBytes(length);
+            }
+        };
     }
 
     protected StatelessCommitCleaner createCommitCleaner(

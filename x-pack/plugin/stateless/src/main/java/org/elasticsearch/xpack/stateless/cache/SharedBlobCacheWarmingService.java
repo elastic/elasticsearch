@@ -121,7 +121,7 @@ public class SharedBlobCacheWarmingService {
     public static final String BLOB_CACHE_WARMING_ID_LOOKUP_PREWARM_REQS_TOTAL_METRIC =
         "es.blob_cache_warming.id_lookup_prewarm_reqs.total";
     public static final String SEARCH_RECOVERY_WARM_DURATION_METRIC = "es.blob_cache_warming.search_recovery.warm_duration.histogram";
-    public static final String SEARCH_RECOVERY_WAIT_DURATION_METRIC = "es.blob_cache_warming.search_recovery.wait_duration.histogram";
+    public static final String SEARCH_RECOVERY_WAIT_DURATION_METRIC = "es.blob_cache_warming.search_recovery.wait_for_resume_duration.histogram";
 
     /** Region of a blob **/
     private record BlobRegion(BlobFile blob, int region) {}

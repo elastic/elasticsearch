@@ -1874,7 +1874,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     fileSplit.offset(),
                     rangeEnd,
                     PhysicalNames.translateSchema(perFileResolvedAttributes, renames),
-                    errorPolicy
+                    errorPolicy,
+                    state.buffer::recordInformationalWarning
                 );
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);
@@ -1939,7 +1940,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     PhysicalNames.translateSchema(perFileReadSchema, renames),
                     fileSplit.offset(),
                     state.buffer.capturedSourceMetadataSink(),
-                    state.buffer::recordWarning
+                    state.buffer::recordWarning,
+                    state.buffer::recordInformationalWarning
                 );
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
@@ -1964,6 +1966,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         // its trailing stripe to EOF).
                         .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
+                        .informationalWarningSink(state.buffer::recordInformationalWarning)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -2135,7 +2138,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 PhysicalNames.translateSchema(perFileReadSchema, renames),
                 0L,
                 state.buffer.capturedSourceMetadataSink(),
-                state.buffer::recordWarning
+                state.buffer::recordWarning,
+                state.buffer::recordInformationalWarning
             );
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
@@ -2147,6 +2151,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
+                    .informationalWarningSink(state.buffer::recordInformationalWarning)
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
@@ -2226,6 +2231,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .errorPolicy(errorPolicy)
             .maxRecordBytes(maxRecordBytes)
             .statsColumnScope(statsColumnScope)
+            .informationalWarningSink(buffer::recordInformationalWarning)
             .build();
         FormatReader reader = readerWithDynamicThreshold(formatReader);
         reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
@@ -2267,7 +2273,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 null,
                 0L,
                 buffer.capturedSourceMetadataSink(),
-                buffer::recordWarning
+                buffer::recordWarning,
+                buffer::recordInformationalWarning
             );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -2277,6 +2284,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .errorPolicy(errorPolicy)
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
+                    .informationalWarningSink(buffer::recordInformationalWarning)
                     .build();
                 pages = reader.read(storageObject, ctx);
             }
@@ -2516,7 +2524,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable List<Attribute> perFileReadSchema,
         long baseFileOffset,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-        @Nullable Consumer<String> partialResultsWarningSink
+        @Nullable Consumer<String> partialResultsWarningSink,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -2546,7 +2555,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     statsStripeSize,
                     statsColumnScope,
                     splitIsFileFinal,
-                    externalSourceMetrics
+                    externalSourceMetrics,
+                    warningSink
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -2588,7 +2598,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         captureSink,
                         statsStripeSize,
                         statsColumnScope,
-                        partialResultsWarningSink,
+                        new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
                         streamingSegmentatorAdmission
                     );
                 } catch (Exception e) {

@@ -661,9 +661,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
   method: testConjunctionOfRangeFiltersMatchesBruteForce
   issue: https://github.com/elastic/elasticsearch/issues/152887
-- class: org.elasticsearch.xpack.esql.action.NdJsonScalarObjectConflictIT
-  method: testSkipRowPolicyNullFillsAndWarnsClient
-  issue: https://github.com/elastic/elasticsearch/issues/152891
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/149663

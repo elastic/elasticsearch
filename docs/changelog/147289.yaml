@@ -1,0 +1,16 @@
+area: ES|QL
+issues: []
+pr: 147289
+summary: Change ES|QL time-series aggregate windows from future-looking to past-looking samples, matching common analytics behavior and helping visualization tools avoid cutoffs at the end of charts
+type: bug
+highlight:
+  notable: true
+  title: Past-looking windows for ES|QL time-series aggregations
+  body: |-
+    ES|QL time-series aggregate windows now use past samples instead of future samples. The previous
+    future-looking behavior could make functions such as `*_over_time` and `rate` depend on data that
+    does not exist yet at the right edge of a chart.
+
+    Using past-looking windows matches common analytics behavior and makes time-series results easier
+    for existing visualization tools to interpret without cutting off or dropping values at the end of
+    charts.

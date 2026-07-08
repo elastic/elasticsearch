@@ -1,0 +1,16 @@
+area: ES|QL
+issues: []
+pr: 144967
+summary: Add the ES|QL `TSTEP` grouping function to group time-series data into stable, fixed-interval buckets for consistent chart steps across time zones and daylight saving time changes
+type: feature
+highlight:
+  notable: true
+  title: Stable fixed-interval time buckets in ES|QL
+  body: |-
+    ES|QL now supports `TSTEP` for grouping time-series data into fixed-interval buckets. This is useful
+    when charts need stable step boundaries that do not shift with time zones or daylight saving time
+    changes.
+
+    For example, `TS metrics | STATS AVG(rate(requests)) BY TSTEP(5 minutes)` emits one bucket for each
+    five-minute step. This gives visualization tools a predictable time grid for rendering time-series
+    results.

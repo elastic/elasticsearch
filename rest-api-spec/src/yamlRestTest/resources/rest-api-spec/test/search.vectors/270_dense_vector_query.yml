@@ -274,3 +274,89 @@ setup:
   - match: { hits.hits.0._id: "3" }
   - close_to: {hits.hits.0._score: {value: $rabbit_score, error: 0.000001}}
 
+---
+"dense_vector used only as a bool filter clause matches without scoring":
+  # No must/should clause, so this exercises the ScoreMode.COMPLETE_NO_SCORES path: dense_vector
+  # unconditionally matches every doc with the field regardless of query vector, so the filter alone
+  # matches all docs.
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            bool:
+              filter:
+                - dense_vector:
+                    field: vector
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 3 }
+
+---
+"dense_vector combined with a second dense_vector clause in a bool must":
+  # Confirms two simultaneous vector-scored clauses required together conjoin without error, not
+  # just a single dense_vector clause paired with an ordinary term filter as above.
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            bool:
+              must:
+                - dense_vector:
+                    field: vector
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+                - dense_vector:
+                    field: vector
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "1" }
+
+---
+"dense_vector combined with a bool should clause does not error":
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            bool:
+              should:
+                - dense_vector:
+                    field: vector
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+                - term:
+                    name: rabbit.jpg
+  - match: { hits.total.value: 3 }
+
+---
+"dense_vector as a bool must_not clause excludes all matching docs":
+  # dense_vector unconditionally matches every doc with the field, so must_not excludes them all.
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            bool:
+              must:
+                - match_all: {}
+              must_not:
+                - dense_vector:
+                    field: vector
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 0 }
+
+---
+"dense_vector wrapped in constant_score matches without scoring":
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            constant_score:
+              filter:
+                dense_vector:
+                  field: vector
+                  query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._score: 1.0 }

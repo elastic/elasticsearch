@@ -363,6 +363,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_COUNT_ON_UNMAPPED,
 
         /**
+         * Auto-cast a partially unmapped small-numeric field (e.g., {@code short}) to its widened type (e.g., {@code integer}) under
+         * {@code unmapped_fields="load"}, so the unmapped leg loads from _source instead of falling back to null.
+         * See https://github.com/elastic/elasticsearch/issues/152997.
+         */
+        OPTIONAL_FIELDS_FIX_IMPLICIT_CAST_ON_SMALL_NUMERIC_PUNK,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

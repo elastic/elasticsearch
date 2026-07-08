@@ -3572,7 +3572,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             return fa;
                         }
 
-                        var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
+                        // Look up the converter by the widened type so a partially unmapped short is auto-cast to integer, matching a
+                        // fully mapped short. The mapped leg keeps its original type below (see typeResolutions).
+                        DataType widenedType = mappedType.widenSmallNumeric();
+                        var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(widenedType);
                         ConvertFunction convert = convertFactory == null
                             ? null
                             : convertFactory.apply(fa.source(), fa, context.configuration());

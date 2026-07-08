@@ -7423,12 +7423,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggExec = as(topLimit.child(), AggregateExec.class);
         var exchangeExec = as(aggExec.child(), ExchangeExec.class);
         var aggExec2 = as(exchangeExec.child(), AggregateExec.class);
-        // TODO: Remove the eval entirely, since the distance is no longer required after filter pushdown
+        // The "distance" eval is pruned entirely: once both filters on it are fully pushed to Lucene,
+        // nothing downstream still references it (only "location", for the centroid agg, and
+        // "country", for the group-by, survive), so PruneUnusedEvalFields drops the dead EvalExec.
         var extract = as(aggExec2.child(), FieldExtractExec.class);
-        var evalExec = as(extract.child(), EvalExec.class);
-        var stDistance = as(evalExec.fields().get(0).child(), StDistance.class);
-        assertThat("Expect distance function to expect doc-values", stDistance.leftDocValues(), is(true));
-        var source = assertChildIsGeoPointExtract(evalExec, FieldExtractPreference.DOC_VALUES);
+        assertThat("Extracting location from doc-values for the centroid agg", extract.docValuesAttributes(), is(not(empty())));
+        var source = as(extract.child(), EsQueryExec.class);
 
         // No sort is pushed down
         assertThat(source.limit(), nullValue());

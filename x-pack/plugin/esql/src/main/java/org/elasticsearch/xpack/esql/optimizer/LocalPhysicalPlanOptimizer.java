@@ -83,6 +83,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new PushLimitToSource(),
             new PushLimitToExternalSource(),
             new PushFiltersToSource(),
+            // Runs in the same iterative batch as PushLimitToSource (rather than in the later
+            // "Field extraction" batch) so that once it drops a now-dead EvalExec that
+            // PushFiltersToSource left behind, a subsequent pass of this batch gets another
+            // chance to push a LimitExec that is now sitting directly above the EsQueryExec.
+            new PruneUnusedEvalFields(),
             new PushSampleToSource(),
             new ReplaceSampledStatsByExactStats(),
             new PushStatsToSource(),
@@ -108,7 +113,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         var fieldExtraction = new Batch<>(
             "Field extraction",
             Limiter.ONCE,
-            new PruneUnusedEvalFields(),
             new PushExpressionsToFieldLoad(), // It's important for this to run after Query and Tags
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),

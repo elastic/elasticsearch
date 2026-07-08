@@ -921,11 +921,21 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private static boolean excludedInColumnar(DataType type, IndexMode mode) {
+        if (mode.isStrictColumnar() == false) {
+            return false;
+        }
         // geo_shape/cartesian_shape are reconstructable in columnar only on nodes that have the feature, so exclude them
         // during a rolling upgrade where an older node would reject them in a columnar index.
-        return mode.isStrictColumnar()
-            && (type == DataType.GEO_SHAPE || type == DataType.CARTESIAN_SHAPE)
-            && clusterHasFeature("mapper.columnar.supports_shape_fields") == false;
+        if ((type == DataType.GEO_SHAPE || type == DataType.CARTESIAN_SHAPE)
+            && clusterHasFeature("mapper.columnar.supports_shape_fields") == false) {
+            return true;
+        }
+        // flattened fields use the document-order binary doc values format in columnar mode; an older node without the
+        // feature misreads the synthetic source doc values during a rolling upgrade.
+        if (type == DataType.FLATTENED && clusterHasFeature("mapper.flattened.columnar_document_order") == false) {
+            return true;
+        }
+        return false;
     }
 
     private static String fieldName(DataType type) {

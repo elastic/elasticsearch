@@ -2110,6 +2110,69 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(logLine, not(containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"_action\"")));
     }
 
+    public void testCustomizerSuppressReceivesPopulatedContext() throws Exception {
+        // an authentication with a non-null creator realm, so the event carries a realm in its context
+        final Authentication authentication = randomValueOtherThanMany(
+            authc -> ApiKeyService.getCreatorRealmName(authc) == null,
+            this::createAuthentication
+        );
+        final String expectedRealm = ApiKeyService.getCreatorRealmName(authentication);
+        final MockIndicesRequest request = new MockIndicesRequest(threadContext);
+        final String[] expectedIndices = request.indices();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+
+        // suppress() only fires when the context carries the event's realm and indices
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public boolean suppress(AuditEventContext ctx) {
+                    return expectedRealm.equals(ctx.realm()) && Arrays.equals(expectedIndices, ctx.indices());
+                }
+            }
+        );
+        auditTrail.accessGranted(randomRequestId(), authentication, "_action", request, authorizationInfo);
+
+        assertEmptyLog(logger);
+    }
+
+    public void testCustomizerEnrichReceivesPopulatedContext() throws Exception {
+        // an authentication with a non-null creator realm, so the event carries a realm in its context
+        final Authentication authentication = randomValueOtherThanMany(
+            authc -> ApiKeyService.getCreatorRealmName(authc) == null,
+            this::createAuthentication
+        );
+        final String expectedRealm = ApiKeyService.getCreatorRealmName(authentication);
+        final MockIndicesRequest request = new MockIndicesRequest(threadContext);
+        final String[] expectedIndices = request.indices();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+
+        // enrich() writes a value derived from the context, proving it saw the event's realm and indices
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public void enrich(AuditEventContext ctx, AuditEntry entry) {
+                    entry.set(LoggingAuditTrail.ACTION_FIELD_NAME, ctx.realm() + ":" + ctx.indices().length);
+                }
+            }
+        );
+        auditTrail.accessGranted(randomRequestId(), authentication, "_action", request, authorizationInfo);
+
+        assertThat(
+            singleLogLine(logger),
+            containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"" + expectedRealm + ":" + expectedIndices.length + "\"")
+        );
+    }
+
     public void testSecurityConfigChangedEventSelection() {
         final String requestId = randomRequestId();
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));

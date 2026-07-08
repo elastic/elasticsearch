@@ -118,14 +118,9 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             this::onProgressAtLeast,
             originalProgressConsumer
         );
-        final ProgressListenableActionFuture upper = new ProgressListenableActionFuture(
-            splitPoint,
-            end,
-            p -> { if (lower.success) onProgressAtLeast(p); },
-            originalProgressConsumer == null ? null : p -> {
-                if (lower.success) originalProgressConsumer.accept(p);
-            }
-        );
+        final ProgressListenableActionFuture upper = new ProgressListenableActionFuture(splitPoint, end, p -> {
+            if (lower.success) onProgressAtLeast(p);
+        }, originalProgressConsumer == null ? null : p -> { if (lower.success) originalProgressConsumer.accept(p); });
 
         // When lower completes we catch up to wherever upper has already progressed, not just splitPoint.
         // upper.progress is always < upper.end (onProgress(end) returns early without updating the field),

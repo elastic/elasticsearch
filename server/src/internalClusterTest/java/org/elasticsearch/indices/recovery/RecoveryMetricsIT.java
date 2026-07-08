@@ -482,7 +482,6 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat("Direct cancellation measurements after pre-queued cancellation", cancellations, hasSize(1));
         assertThat(cancellations.getFirst().attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
         assertThat(cancellations.getFirst().attributes().get("es_recovery_scheduling_state"), equalTo("QUEUED"));
-        disableAllocation();
     }
 
     public void testDirectCancellationMetricsQueuedAndStarted() throws Exception {

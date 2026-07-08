@@ -481,9 +481,6 @@ tests:
 - class: org.elasticsearch.cluster.ClusterInfoServiceIT
   method: testMaxQueueLatenciesInClusterInfo
   issue: https://github.com/elastic/elasticsearch/issues/151837
-- class: org.elasticsearch.gradle.internal.InternalDistributionDownloadPluginFuncTest
-  method: resolves current version from local build
-  issue: https://github.com/elastic/elasticsearch/issues/151851
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/151884

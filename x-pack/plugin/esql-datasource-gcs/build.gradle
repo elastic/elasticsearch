@@ -62,14 +62,17 @@ dependencies {
   runtimeOnly 'com.google.http-client:google-http-client-gson:1.46.3'
   runtimeOnly 'com.google.http-client:google-http-client-appengine:1.46.3'
   runtimeOnly 'com.google.http-client:google-http-client-jackson2:1.46.3'
-  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  // Must match the Jackson bundled by the extended x-pack-esql plugin (see libs:arrow) so this
+  // copy is de-duplicated out of the plugin bundle instead of tripping the jar-hell check at boot.
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:2.21.4"
   runtimeOnly 'com.google.api:gax-httpjson:2.63.1'
   runtimeOnly 'io.opencensus:opencensus-api:0.31.1'
   runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   implementation 'com.google.apis:google-api-services-storage:v1-rev20250224-2.0.0'
   compileOnly 'org.checkerframework:checker-qual:3.49.0'
-  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.47.0'
-  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.47.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.62.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-common:1.62.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.62.0'
   runtimeOnly 'com.google.api.grpc:proto-google-cloud-storage-v2:2.50.0'
   runtimeOnly 'io.grpc:grpc-api:1.70.0'
 
@@ -234,7 +237,7 @@ dependencies {
   javaRestTestImplementation 'com.google.api:gax:2.63.1'
 
   // The DEFAULT distribution already bundles repository-gcs, workload-identity, and every
-  // esql-datasource-* module needed by GcsWorkloadIdentityAuthIT. Mapper plugins are not in
+  // esql-datasource-* module needed by GcsManagedIdentityAuthIT. Mapper plugins are not in
   // DEFAULT and still need to be provisioned explicitly for the test cluster.
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')

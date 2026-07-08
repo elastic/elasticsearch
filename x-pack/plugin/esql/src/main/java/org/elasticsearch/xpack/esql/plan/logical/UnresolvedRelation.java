@@ -204,6 +204,6 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
      *         which changes a number of behaviors in the planner.
      */
     public boolean isTimeSeriesMode() {
-        return indexMode == IndexMode.TIME_SERIES;
+        return indexMode.isTsdb();
     }
 }

@@ -96,14 +96,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             case D2Q4_STRIPED -> new NativeD2Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D2Q4_PACKED -> new NativeD2Q4PackedScorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_STRIPED -> new NativeD4Q4Scorer(in, dimensions, dataLength, bulkSize);
-            case D4Q4_PACKED -> new NativePackedInt4Scorer(in, dimensions, dataLength, bulkSize);
+            case D4Q4_PACKED -> new NativeD4Q4PackedScorer(in, dimensions, dataLength, bulkSize);
             case D7Q7 -> new NativeD7Q7Scorer(in, dimensions, dataLength, bulkSize);
         };
     }
 
     private static MemorySegmentScorer createPanamaScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
         return switch (enc) {
-            case D1Q1 -> new MSBitToBitESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D1Q1 -> new MSBitToBitES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D1Q4 -> new MSBitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D2Q4_STRIPED -> new MSDibitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D2Q4_PACKED -> new MemorySegmentScorer(in, dimensions, dataLength, bulkSize);  // no special implementation yet
@@ -258,13 +258,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         );
     }
 
-    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, NativeD7Q7Scorer, MSBitToBitESNextOSQVectorsScorer,
+    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, MSBitToBitES940OSQVectorsScorer,
         MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer,
-        MSD7Q7ES940OSQVectorsScorer, NativePackedInt4Scorer {
+        MSD7Q7ES940OSQVectorsScorer {
 
         static final float ONE_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[0];
         static final float TWO_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[1];
         static final float FOUR_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[3];
+        static final float SEVEN_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[6];
 
         static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
         static final VectorSpecies<Integer> INT_SPECIES_256 = IntVector.SPECIES_256;

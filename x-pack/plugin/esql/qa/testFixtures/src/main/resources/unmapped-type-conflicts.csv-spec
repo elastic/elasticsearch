@@ -430,12 +430,13 @@ c:long | last_name:keyword
 0      | Azuma
 ;
 
-// Verify that a partially-mapped TEXT field is not automatically loaded from _source for the unmapped field index.
-// employees_no_gender doesn't have the gender field in its mappings, but it does have it in its _source, while
-// employees_gender_text has gender mapped as a TEXT field. Don't load gender from _source for employees_no_gender.
+// Verify that a partially-mapped TEXT field is not implicitly converted from KEYWORD under LOAD.
+// employees_no_gender doesn't have the gender field in its mappings, so its values are null.
+// employees_gender_text has gender mapped as a TEXT field.
 typeConflictPartiallyUnmappedTextFieldNotLoaded
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -443,6 +444,7 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 | SORT emp_no, _index
 | LIMIT 6
 ;
+warning:Field [gender] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 emp_no:integer | gender:text           | _index:keyword
 10001          | M                     | employees_gender_text
@@ -457,6 +459,7 @@ emp_no:integer | gender:text           | _index:keyword
 typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -465,6 +468,7 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 | LIMIT 6
 ;
 
+warning:Field [gender] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 emp_no:integer | gender:text           | _index:keyword
 10001          | M                     | employees_gender_text
 10001          | null                  | employees_no_gender
@@ -2768,12 +2772,14 @@ addresses_no_continent  | Tokyo             | Milky Way
 deeplyNestedNonKeywordSubfieldUnderPartiallyUnmappedParentNotCast
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM addresses_text, addresses_no_continent METADATA _index
 | KEEP _index, city.country.continent.planet.galaxy
 | SORT _index
 ;
+warning:Field [city.country.continent.planet.galaxy] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 _index:keyword           | city.country.continent.planet.galaxy:text
 addresses_no_continent   | null
@@ -2790,12 +2796,14 @@ addresses_text           | Milky Way
 deeplyNestedNonKeywordSubfieldPartiallyUnmappedNotCast
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_warn_non_loadable_punk
 
 SET unmapped_fields="load"\;
 FROM addresses_text, addresses_no_continent METADATA _index
 | KEEP _index, city.country.continent.name
 | SORT _index
 ;
+warning:Field [city.country.continent.name] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 ignoreOrder:true
 
 _index:keyword           | city.country.continent.name:text
@@ -2936,6 +2944,36 @@ FROM k8s_unmapped, k8s_retyped
 # [network.cost] is LONG in k8s_retyped, unmapped in k8s_unmapped
 avg_cost:double | max_cost:long | min_cost:long
 6.245           | 13            | 0
+;
+
+# Reproducer for #152496
+cast_grouped_punk_after_stats
+required_capability: optional_fields_unmapped_eval_after_stats_fix
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s_unmapped, k8s_retyped METADATA _index
+| SORT @timestamp, _index
+| STATS c = COUNT(*) BY network.cost
+| EVAL kw = network.cost::KEYWORD
+| SORT network.cost
+;
+
+c:long | network.cost:long | kw:keyword
+23     | 0                 | 0
+34     | 1                 | 1
+33     | 2                 | 2
+29     | 3                 | 3
+24     | 4                 | 4
+31     | 5                 | 5
+25     | 6                 | 6
+30     | 7                 | 7
+40     | 8                 | 8
+33     | 9                 | 9
+28     | 10                | 10
+38     | 11                | 11
+31     | 12                | 12
+1      | 13                | 13
 ;
 
 #####################################

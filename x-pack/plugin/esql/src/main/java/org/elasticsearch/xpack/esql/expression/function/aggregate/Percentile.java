@@ -109,7 +109,11 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     public Percentile(
         Source source,
         @Param(name = "number", type = { "double", "integer", "long", "exponential_histogram", "tdigest" }) Expression field,
-        @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
+        @Param(
+            name = "percentile",
+            type = { "double", "integer", "long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT)
+        ) Expression percentile
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, percentile);
     }

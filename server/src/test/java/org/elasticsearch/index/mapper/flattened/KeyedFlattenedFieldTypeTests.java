@@ -32,7 +32,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
@@ -62,6 +63,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             IGNORE_ABOVE,
             true,
+            false,
             false,
             null,
             IndexVersion.current(),
@@ -101,6 +103,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             IGNORE_ABOVE,
             true,
             false,
+            false,
             null,
             IndexVersion.current(),
             false
@@ -133,13 +136,38 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             IGNORE_ABOVE,
             true,
             false,
+            false,
             null,
             IndexVersion.current(),
             false
         );
 
-        Query expected = new SlowCustomBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"));
+        Query expected = new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false);
         assertEquals(expected, ft.termQuery("value", null));
+    }
+
+    public void testTermQueryWithArrayOrderBinaryDocValues() {
+        KeyedFlattenedFieldType ft = new KeyedFlattenedFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            "key",
+            false,
+            Collections.emptyMap(),
+            false,
+            IGNORE_ABOVE,
+            true,
+            true,
+            false,
+            null,
+            IndexVersion.current(),
+            false
+        );
+
+        Query query = ft.termQuery("value", null);
+        // The array-order path uses KeyedArrayOrderInlineNullTermQuery, a distinct class from
+        // ScanningBinaryDocValuesTermQuery, giving each path a distinct query-cache identity.
+        assertNotEquals(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false), query);
+        assertTrue(query instanceof KeyedArrayOrderInlineNullTermQuery);
     }
 
     public void testTermQueryWithSortedSetDocValuesOnly() {
@@ -151,6 +179,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             IGNORE_ABOVE,
+            false,
             false,
             false,
             null,
@@ -173,15 +202,50 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             IGNORE_ABOVE,
             true,
             false,
+            false,
             null,
             IndexVersion.current(),
             false
         );
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(new SlowCustomBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value")), BooleanClause.Occur.SHOULD);
+        builder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false), BooleanClause.Occur.SHOULD);
         Query expected = new ConstantScoreQuery(builder.build());
         assertEquals(expected, ft.termsQuery(List.of("value"), null));
+    }
+
+    public void testTermsQueryWithArrayOrderBinaryDocValues() {
+        KeyedFlattenedFieldType ft = new KeyedFlattenedFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            "key",
+            false,
+            Collections.emptyMap(),
+            false,
+            IGNORE_ABOVE,
+            true,
+            true,
+            false,
+            null,
+            IndexVersion.current(),
+            false
+        );
+
+        Query result = ft.termsQuery(List.of("v1", "v2"), null);
+        // The result is a ConstantScoreQuery wrapping a BooleanQuery of per-term KeyedArrayOrderInlineNullTermQuery clauses.
+        assertTrue(result instanceof ConstantScoreQuery);
+        BooleanQuery bq = (BooleanQuery) ((ConstantScoreQuery) result).getQuery();
+        assertEquals(2, bq.clauses().size());
+        for (BooleanClause clause : bq.clauses()) {
+            assertTrue(clause.query() instanceof KeyedArrayOrderInlineNullTermQuery);
+        }
+        // Each clause uses KeyedArrayOrderInlineNullTermQuery, which has a distinct class identity from
+        // plain ScanningBinaryDocValuesTermQuery. The resulting query must not equal the non-array-order
+        // equivalent so the two paths get separate query-cache entries.
+        BooleanQuery.Builder nonArrayBuilder = new BooleanQuery.Builder();
+        nonArrayBuilder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v1"), false), BooleanClause.Occur.SHOULD);
+        nonArrayBuilder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v2"), false), BooleanClause.Occur.SHOULD);
+        assertNotEquals(new ConstantScoreQuery(nonArrayBuilder.build()), result);
     }
 
     public void testTermsQueryWithSortedSetDocValuesOnly() {
@@ -193,6 +257,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             IGNORE_ABOVE,
+            false,
             false,
             false,
             null,

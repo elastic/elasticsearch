@@ -30,7 +30,8 @@ import java.util.Locale;
  *                           consulted only when {@link #escaping} is {@code true} — inside quoted
  *                           fields when {@link #quoting} is also on, otherwise at value decode
  * @param commentPrefix      prefix for comment lines to skip (default: "//")
- * @param nullValue          string representation of null in the data (default: empty string)
+ * @param nullValue          token whose exact match reads as null (default: empty string, which installs
+ *                           no null token, so an empty field is a present empty value rather than null)
  * @param encoding           character encoding of the input (default: UTF-8)
  * @param datetimeFormatter  custom datetime format pattern, or null for ISO-8601/epoch
  * @param maxFieldSize       maximum size in bytes for a single field value; 0 means no limit
@@ -49,6 +50,17 @@ import java.util.Locale;
  *                           a raw newline is always a record boundary and a raw delimiter always a
  *                           field boundary, which is what allows the no-quote fast scan.
  * @param escaping           whether {@link #escapeChar} is consulted (see {@link #escapeChar}).
+ * @param trimSpaces         whether surrounding ASCII whitespace is trimmed from field values
+ *                           (default: {@code false}). Applies to string content only — typed
+ *                           (non-string) parses always tolerate padding (they trim before parsing,
+ *                           mirroring schema inference). Jackson only ever
+ *                           trimmed unquoted values; with this off an unquoted padded value is preserved,
+ *                           matching RFC 4180 and the byte-fidelity posture of {@link Mode#PLAIN}. Known
+ *                           limitation: {@code mode: escaped} (the one dialect that stays on Jackson under
+ *                           no-trim) still loses the FIRST column's leading whitespace (Jackson skips it at
+ *                           record start regardless of the feature); every other column and all trailing
+ *                           whitespace is preserved. PLAIN/QUOTED no-trim reads — including when the
+ *                           direct-block path is disabled — use the house grammar, which preserves it.
  */
 public record CsvFormatOptions(
     char delimiter,
@@ -63,7 +75,8 @@ public record CsvFormatOptions(
     boolean headerRow,
     String columnPrefix,
     boolean quoting,
-    boolean escaping
+    boolean escaping,
+    boolean trimSpaces
 ) {
 
     public enum MultiValueSyntax {
@@ -142,7 +155,8 @@ public record CsvFormatOptions(
         true,
         DEFAULT_COLUMN_PREFIX,
         true,
-        true
+        true,
+        false // trimSpaces (default; see the record javadoc)
     );
 
     /**
@@ -165,7 +179,8 @@ public record CsvFormatOptions(
         true,
         DEFAULT_COLUMN_PREFIX,
         false,
-        false
+        false,
+        false // trimSpaces (default; see the record javadoc)
     );
 
     /**
@@ -199,7 +214,8 @@ public record CsvFormatOptions(
             headerRow,
             columnPrefix,
             true,
-            true
+            true,
+            false // trimSpaces (default; see the record javadoc)
         );
     }
 

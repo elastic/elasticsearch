@@ -12,12 +12,23 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /** Base for golden tests that run with both unmapped_fields=nullify and unmapped_fields=load. */
 public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
+    @Override
+    protected List<String> filteredWarnings() {
+        var filtered = new ArrayList<>(super.filteredWarnings());
+        filtered.add(
+            "has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+        );
+        return filtered;
+    }
+
     /** Runs the query with both {@code NULLIFY} and {@code LOAD}; throws if either fails. */
     protected void runTestsNullifyAndLoad(
         String query,
@@ -63,9 +74,13 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, String... nestedPaths) {
-        tryRunTestsLoadOnly(query, stages, null, Map.of(), nestedPaths).ifPresent(
-            e -> { throw new RuntimeException("Load mode failed", e); }
-        );
+        runTestsLoadOnly(query, stages, null, nestedPaths);
+    }
+
+    protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, TransportVersion minimumSupportedVersion, String... nestedPaths) {
+        tryRunTestsLoadOnly(query, stages, minimumSupportedVersion, Map.of(), nestedPaths).ifPresent(e -> {
+            throw new RuntimeException("Load mode failed", e);
+        });
     }
 
     private Optional<Throwable> tryRunTestsNullifyOnly(

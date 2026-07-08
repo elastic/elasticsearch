@@ -39,6 +39,7 @@ import java.util.function.UnaryOperator;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.anyOf;
@@ -90,7 +91,7 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
     }
 
     public void testPrefetchStampsCacheRegionsWithCommitTimestamp() throws Exception {
-        long timestamp = randomLongBetween(1, Long.MAX_VALUE);
+        long timestamp = randomLongBetween(1, MAX_MILLIS_BEFORE_9999);
         startMasterAndIndexNode();
         var searchNode = startSearchNode();
         var indexName = randomIdentifier();

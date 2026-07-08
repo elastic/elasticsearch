@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 146878
+summary: Add `integer_bitmap` format to terms query
+type: feature

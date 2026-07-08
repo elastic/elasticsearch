@@ -60,12 +60,30 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         // Columnar mode always enables text doc values (see TextFieldMapper.defaultDocValuesParameters) so DISABLED is not valid option
         // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         if (isColumnar) {
-            return new FieldMapper.DocValuesParameter.Values(true, randomFrom(LOW, HIGH), multiValue, true);
+            return new FieldMapper.DocValuesParameter.Values(
+                true,
+                randomFrom(LOW, HIGH),
+                multiValue,
+                true,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+            );
         }
 
         return switch (randomInt(2)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, multiValue, true);
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, multiValue, true);
+            case 0 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                LOW,
+                multiValue,
+                true,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+            );
+            case 1 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                HIGH,
+                multiValue,
+                true,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+            );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };

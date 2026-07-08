@@ -61,13 +61,15 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
                 multiValue,
-                true
+                true,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
             );
             case 1 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
                 multiValue,
-                true
+                true,
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
             );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();

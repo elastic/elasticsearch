@@ -1571,17 +1571,7 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
-            /**
-             * Convenience constructor for the common case where {@code on_failure} isn't relevant yet; defaults it to {@link OnFailure#FAIL},
-             * which matches current behavior everywhere this is called.
-             *
-             * TODO: remove this in follow up PRs once failure handling logic is added.
-             */
-            public Values(boolean enabled, Cardinality cardinality, boolean multiValue, boolean nullability) {
-                this(enabled, cardinality, multiValue, nullability, OnFailure.FAIL);
-            }
-
-            public static Values DISABLED = new Values(false, Cardinality.LOW, true, true);
+            public static Values DISABLED = new Values(false, Cardinality.LOW, true, true, OnFailure.FAIL);
         }
 
         public final Parameter<Boolean> multiValueParameter;
@@ -1662,7 +1652,9 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": { "nullability": true }} - allow documents to omit the field or supply null (default)</li>
          *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null (sealed)</li>
          *   <li>{@code "doc_values": { "on_failure": "fail" }} - reject the document if it violates multi_value/nullability (default)</li>
-         *   <li>{@code "doc_values": { "on_failure": "ignore" }} - route the offending value to a per-field failure column instead</li>
+         *   <li>{@code "doc_values": { "on_failure": "ignore" }} - accepted and stored, but not yet enforced: {@link DocumentParserContext}
+         *       still unconditionally rejects multi_value/nullability violations, so this currently behaves identically to {@code fail}.
+         *       Reserved for future work that will route the offending value to a per-field failure column instead.</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying

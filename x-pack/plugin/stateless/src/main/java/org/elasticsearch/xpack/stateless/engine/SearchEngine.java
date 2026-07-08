@@ -684,6 +684,9 @@ public class SearchEngine extends Engine {
             private void doUpdateInternalState(NewCommitNotification latestNotification, SegmentInfos current) throws IOException {
                 final StatelessCompoundCommit latestCommit = latestNotification.compoundCommit();
                 final SegmentInfos next = Lucene.readSegmentInfos(directory);
+                final long previousMaxSequenceNumber = maxSequenceNumber;
+                final long previousProcessedLocalCheckpoint = processedLocalCheckpoint;
+                setSequenceNumbers(next);
 
                 assert next.getGeneration() == latestCommit.generation();
                 final SegmentInfosAndCommit previousSegmentInfosAndCommitSnapshot = segmentInfosAndCommit;
@@ -701,20 +704,17 @@ public class SearchEngine extends Engine {
                     engineReadLock.unlock();
                 }
 
-                // The reader-heap breaker deferred the refresh: revert segmentInfosAndCommit so the (commit,
-                // reader) invariant holds, and schedule a retry tied to the index's refresh_interval so the
-                // refresh is attempted again without waiting for a fresh commit notification.
+                // The reader-heap breaker deferred the refresh: revert segmentInfosAndCommit, max seq no and
+                // local checkpoint so the (commit, reader, seq no) invariant holds, and schedule a retry tied to
+                // the index's refresh_interval so the refresh is attempted again without waiting for a fresh
+                // commit notification.
                 if (lastRefreshDeferred) {
                     segmentInfosAndCommit = previousSegmentInfosAndCommitSnapshot;
+                    maxSequenceNumber = previousMaxSequenceNumber;
+                    processedLocalCheckpoint = previousProcessedLocalCheckpoint;
                     scheduleDeferredRefreshRetry(latestNotification);
                     return;
                 }
-
-                // Only now that the refresh actually applied is it safe to advance the cached max seq no /
-                // local checkpoint: doing this earlier (before knowing whether the reader-heap breaker would
-                // defer the refresh) would leave getMaxSeqNo()/getProcessedLocalCheckpoint() ahead of what is
-                // actually visible via segmentInfosAndCommit and getSeqNoStats().
-                setSequenceNumbers(next);
 
                 // must be after refresh for `addOrExecuteSegmentGenerationListener to work.
                 currentPrimaryTermGeneration = new PrimaryTermAndGeneration(

@@ -644,9 +644,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testUnreferencedCommitsAreReleasedAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/152730
-- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-  method: testSearchWithRandomDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/152734
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search only}
   issue: https://github.com/elastic/elasticsearch/issues/152784
@@ -809,3 +806,51 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
   method: testFetchAllOnlyFromRemotes {pref=null mode=logsdb}
   issue: https://github.com/elastic/elasticsearch/issues/153192
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAllOnlyFromRemotes {pref=NONE mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153193
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchDenseVector {pref=NONE mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153194
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAll {pref=NONE mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153195
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAggregateMetricDouble {pref=NONE mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153196
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {delta_byte_array}
+  issue: https://github.com/elastic/elasticsearch/issues/153198
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {lz4_raw_compressed}
+  issue: https://github.com/elastic/elasticsearch/issues/153199
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {plain-dict-uncompressed-checksum}
+  issue: https://github.com/elastic/elasticsearch/issues/153200
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {page_v2_empty_compressed}
+  issue: https://github.com/elastic/elasticsearch/issues/153201
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAll {pref=STORED mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153204
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAggregateMetricDouble {pref=STORED mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153205
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchAllOnlyFromRemotes {pref=STORED mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153206
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchDenseVector {pref=STORED mode=logsdb}
+  issue: https://github.com/elastic/elasticsearch/issues/153207
+- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
+  method: testConcurrentProducerLoopsThroughStatsCapturingWrapperDoNotDeadlock
+  issue: https://github.com/elastic/elasticsearch/issues/153210
+- class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
+  method: testRandomActivities
+  issue: https://github.com/elastic/elasticsearch/issues/147841
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {float16_zeros_and_nans}
+  issue: https://github.com/elastic/elasticsearch/issues/153214
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {alltypes_tiny_pages_plain}
+  issue: https://github.com/elastic/elasticsearch/issues/153215

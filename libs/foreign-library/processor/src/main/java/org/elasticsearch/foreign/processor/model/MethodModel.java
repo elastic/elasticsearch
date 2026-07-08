@@ -38,6 +38,7 @@ import javax.tools.Diagnostic.Kind;
  * @param isCritical whether the method is annotated with {@code @Critical}
  * @param fallbackAdapterClassName fully-qualified name of the JDK 21 {@code @Critical} fallback adapter class,
  *        or {@code null} if none was specified
+ * @param boundsChecks native-call bounds checks from parameter annotations, one entry per annotated parameter
  */
 public record MethodModel(
     String methodName,
@@ -45,7 +46,8 @@ public record MethodModel(
     NativeType returnType,
     List<NativeType> paramTypes,
     boolean isCritical,
-    String fallbackAdapterClassName
+    String fallbackAdapterClassName,
+    List<BoundsCheckModel> boundsChecks
 ) {
 
     /** Name of the static {@code MethodHandle} field generated for this method in the {@code $Impl} class. */
@@ -100,7 +102,12 @@ public record MethodModel(
             }
         }
 
-        return new MethodModel(methodName, function.value(), returnType, paramTypes, isCritical, fallbackAdapter);
+        List<BoundsCheckModel> boundsChecks = BoundsCheckModel.from(method, paramTypes, messager);
+        if (boundsChecks == null) {
+            return null;
+        }
+
+        return new MethodModel(methodName, function.value(), returnType, paramTypes, isCritical, fallbackAdapter, boundsChecks);
     }
 
     /**

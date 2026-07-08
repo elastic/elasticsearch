@@ -9,6 +9,7 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.foreign.processor.model.BoundsCheckModel;
 import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.MethodModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
@@ -35,6 +36,7 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.slotWidth;
 
 /**
  * Generates {@code <InterfaceName>$Impl} class files for {@code @LibrarySpecification}-annotated interfaces.
@@ -64,7 +66,10 @@ class ImplClassWriter {
     private static final ClassDesc CD_LinkerHelper = ClassDesc.of("org.elasticsearch.foreign.LinkerHelper");
     private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter");
     private static final ClassDesc CD_LoaderHelper = ClassDesc.of("org.elasticsearch.foreign.LoaderHelper");
+    private static final ClassDesc CD_Objects = ClassDesc.of("java.util.Objects");
 
+    private static final MethodTypeDesc MTD_byteSize = MethodTypeDesc.of(CD_long);
+    private static final MethodTypeDesc MTD_checkFromIndexSize = MethodTypeDesc.of(CD_long, CD_long, CD_long, CD_long);
     private static final MethodTypeDesc MTD_FunctionDescriptor_ofVoid = MethodTypeDesc.of(CD_FunctionDescriptor, CD_MemoryLayoutArray);
     private static final MethodTypeDesc MTD_FunctionDescriptor_of = MethodTypeDesc.of(
         CD_FunctionDescriptor,
@@ -222,6 +227,7 @@ class ImplClassWriter {
 
     private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
         cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), ClassFile.ACC_PUBLIC, code -> {
+            emitBoundsChecks(code, nm);
             boolean hasStringParams = nm.paramTypes().contains(NativeType.STRING);
             if (hasStringParams) {
                 emitNativeFunctionMethodWithStringParams(code, generatedDesc, nm);
@@ -239,6 +245,101 @@ class ImplClassWriter {
                 }));
             }
         });
+    }
+
+    /**
+     * Emits the fixed {@code Objects.checkFromIndexSize(0L, <shape>, segment.byteSize())} template for
+     * every {@code @VectorSegment}/{@code @MatrixSegment}-annotated parameter, in parameter order, at
+     * the very top of the method body — before the try block, so a failing check propagates its own
+     * {@link IndexOutOfBoundsException} rather than being wrapped in {@link AssertionError}.
+     */
+    private static void emitBoundsChecks(CodeBuilder cb, MethodModel nm) {
+        List<NativeType> paramTypes = nm.paramTypes();
+        int[] slots = computeParamSlots(paramTypes);
+        for (BoundsCheckModel check : nm.boundsChecks()) {
+            switch (check) {
+                case BoundsCheckModel.VectorSegmentCheck v -> emitVectorSegmentCheck(cb, paramTypes, slots, v);
+                case BoundsCheckModel.MatrixSegmentCheck m -> emitMatrixSegmentCheck(cb, paramTypes, slots, m);
+            }
+        }
+    }
+
+    /** Computes the local-variable slot of each parameter (slot 0 is {@code this}). */
+    private static int[] computeParamSlots(List<NativeType> paramTypes) {
+        int[] slots = new int[paramTypes.size()];
+        int slot = 1;
+        for (int i = 0; i < paramTypes.size(); i++) {
+            slots[i] = slot;
+            slot += slotWidth(paramTypes.get(i));
+        }
+        return slots;
+    }
+
+    /** Emits {@code Objects.checkFromIndexSize(0L, count * elementBits / 8, segment.byteSize())}. */
+    private static void emitVectorSegmentCheck(
+        CodeBuilder cb,
+        List<NativeType> paramTypes,
+        int[] slots,
+        BoundsCheckModel.VectorSegmentCheck check
+    ) {
+        cb.lconst_0();
+        emitLongParamLoad(cb, paramTypes.get(check.countParamIndex()), slots[check.countParamIndex()]);
+        cb.ldc((long) check.elementBits());
+        cb.lmul();
+        cb.ldc(8L);
+        cb.ldiv();
+        emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
+    }
+
+    /**
+     * Emits {@code Objects.checkFromIndexSize(0L, rows * rowBytes, segment.byteSize())}. When the row
+     * size comes from {@code cols}/{@code elementBits}, the whole {@code rows * cols * elementBits}
+     * product is computed before the single {@code / 8}, matching the existing hand-written bulk-check
+     * idiom exactly (dividing per-row first would truncate differently for odd {@code cols} with
+     * sub-byte elements).
+     */
+    private static void emitMatrixSegmentCheck(
+        CodeBuilder cb,
+        List<NativeType> paramTypes,
+        int[] slots,
+        BoundsCheckModel.MatrixSegmentCheck check
+    ) {
+        cb.lconst_0();
+        emitLongParamLoad(cb, paramTypes.get(check.rowsParamIndex()), slots[check.rowsParamIndex()]);
+        if (check.hasDirectRowBytes()) {
+            emitLongParamLoad(cb, paramTypes.get(check.rowBytesParamIndex()), slots[check.rowBytesParamIndex()]);
+            cb.lmul();
+        } else {
+            emitLongParamLoad(cb, paramTypes.get(check.colsParamIndex()), slots[check.colsParamIndex()]);
+            cb.lmul();
+            cb.ldc((long) check.elementBits());
+            cb.lmul();
+            cb.ldc(8L);
+            cb.ldiv();
+        }
+        emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
+    }
+
+    /** Stack on entry: {@code [0L, size]}. Pushes {@code segment.byteSize()}, calls the check, discards the result. */
+    private static void emitCheckFromIndexSize(CodeBuilder cb, int segSlot) {
+        cb.aload(segSlot);
+        cb.invokeinterface(CD_MemorySegment, "byteSize", MTD_byteSize);
+        cb.invokestatic(CD_Objects, "checkFromIndexSize", MTD_checkFromIndexSize);
+        cb.pop2();
+    }
+
+    /** Loads an {@code int}/{@code long} parameter and widens it to {@code long} on the stack. */
+    private static void emitLongParamLoad(CodeBuilder cb, NativeType type, int slot) {
+        switch (type) {
+            case INT -> {
+                cb.iload(slot);
+                cb.i2l();
+            }
+            case LONG -> cb.lload(slot);
+            case SHORT, BYTE, BOOLEAN, FLOAT, DOUBLE, ADDRESS, STRING, VOID -> throw new AssertionError(
+                "shape check operand must be int or long, got: " + type
+            );
+        }
     }
 
     /**
@@ -262,7 +363,7 @@ class ImplClassWriter {
         // Compute where params end and arena+marshaled-string locals begin.
         int paramSlotsEnd = 1; // slot 0 = this
         for (NativeType t : paramTypes) {
-            paramSlotsEnd += (t == NativeType.LONG || t == NativeType.DOUBLE) ? 2 : 1;
+            paramSlotsEnd += slotWidth(t);
         }
         int arenaSlot = paramSlotsEnd;
 
@@ -374,28 +475,14 @@ class ImplClassWriter {
      */
     private static int emitLoadParam(CodeBuilder cb, NativeType paramType, int slot) {
         switch (paramType) {
-            case INT, SHORT, BYTE, BOOLEAN -> {
-                cb.iload(slot);
-                return 1;
-            }
-            case LONG -> {
-                cb.lload(slot);
-                return 2;
-            }
-            case FLOAT -> {
-                cb.fload(slot);
-                return 1;
-            }
-            case DOUBLE -> {
-                cb.dload(slot);
-                return 2;
-            }
-            case ADDRESS -> {
-                cb.aload(slot);
-                return 1;
-            }
+            case INT, SHORT, BYTE, BOOLEAN -> cb.iload(slot);
+            case LONG -> cb.lload(slot);
+            case FLOAT -> cb.fload(slot);
+            case DOUBLE -> cb.dload(slot);
+            case ADDRESS -> cb.aload(slot);
             default -> throw new AssertionError("Unhandled param type: " + paramType);
         }
+        return slotWidth(paramType);
     }
 
     private static void emitTypedReturn(CodeBuilder cb, NativeType returnType) {

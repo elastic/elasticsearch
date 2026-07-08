@@ -29,7 +29,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -43,11 +42,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  * (both using {@code columnar} index mode) return identical {@code _source} for every document.
  */
 public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
-
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
@@ -136,6 +130,35 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .endObject();
         var document = Map.of("n", List.of(Map.of("obj", List.of(Map.of("val", 1), Map.of("val", 2)))));
         assertEqualSource(mappingXContent, document, randomBoolean());
+    }
+
+    /**
+     * With the time-series doc-values format disabled, a keyword sub-field of a nested field whose values exceed
+     * {@code ignore_above} keeps a copy of the ignored values in a per-document stored field so synthetic source can reconstruct
+     * them. Each nested array entry is a separate Lucene document, but columnar_stored reconstructs them all through one reused
+     * single-document reader that always reports the same doc id, and a reused stored-field loader skips re-reading on an unchanged
+     * doc id - so it used to return the first entry's stored values for every sibling. Verify every entry keeps its own values.
+     */
+    public void testNestedWithIgnoredKeywordPerEntry() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("n")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .field("ignore_above", 4)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        // Every value exceeds ignore_above (length 4), so all are stored in the ignored-value fallback. The first entry is
+        // multi-valued to make first-entry-duplication observable if the reused stored-field loader is not read per entry.
+        var document = Map.of("n", List.of(Map.of("kw", List.of("aaaaa", "bbbbb")), Map.of("kw", "ccccc"), Map.of("kw", "ddddd")));
+        // The stored-field fallback (and thus this bug) only occurs with the time-series doc-values format disabled.
+        assertEqualSource(mappingXContent, document, false);
     }
 
     private void runTest(boolean useTimeSeriesDocValuesFormat) throws Exception {

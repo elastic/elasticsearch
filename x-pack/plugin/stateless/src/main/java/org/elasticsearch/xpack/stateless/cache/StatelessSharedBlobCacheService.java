@@ -175,6 +175,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         IntConsumer bytesCopiedConsumer,
         Executor fetchExecutor,
         boolean force,
+        long timestampMillis,
         ActionListener<Void> listener,
         String... threadPools
     ) {
@@ -208,6 +209,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                     ),
                     fetchExecutor,
                     force,
+                    timestampMillis,
                     listeners.acquire().map(populated -> null)
                 );
             }
@@ -223,6 +225,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         IntConsumer bytesCopiedConsumer,
         Executor fetchExecutor,
         boolean force,
+        long timestampMillis,
         ActionListener<Void> listener
     ) {
         fetchRange(
@@ -234,6 +237,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             bytesCopiedConsumer,
             fetchExecutor,
             force,
+            timestampMillis,
             listener,
             StatelessPlugin.PREWARM_THREAD_POOL,
             StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL

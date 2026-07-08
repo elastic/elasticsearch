@@ -388,6 +388,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertTrue(escaped.formatConfig().contains("mode=escaped"));
     }
 
+    public void testSchemaCacheKeySeparatesTrimSpaces() {
+        // trim_spaces changes stored string values (and the null-ness of whitespace-only cells) on the
+        // same bytes, so two configs differing only in it must not share a cached schema/stats fingerprint.
+        SchemaCacheKey base = SchemaCacheKey.build("s3://b/f.csv", 1000L, ".csv", Map.of("format", "csv"));
+        SchemaCacheKey trimmed = SchemaCacheKey.build("s3://b/f.csv", 1000L, ".csv", Map.of("format", "csv", "trim_spaces", true));
+        assertNotEquals(base.formatConfig(), trimmed.formatConfig());
+        assertTrue(trimmed.formatConfig().contains("trim_spaces=true"));
+    }
+
     /**
      * Bare {@code multi_value_syntax: brackets} resolves the mode to quoted on a no-quote
      * baseline (and selects the bracket-aware record scanner everywhere), so two configs differing
@@ -856,6 +865,34 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             ExternalSourceCacheService.coerceColumnStatsToResolvedTypes(big, names, types, true)
                 .containsKey(SourceStatisticsSerializer.columnMaxKey("l"))
         );
+    }
+
+    /**
+     * A NON-Number extremum on a numeric-typed column — cross-declaration garbage, e.g. a keyword min reconciled onto a
+     * column another dataset over the same file declares DOUBLE (the reconcile matches on path+mtime+config, never the
+     * declared type). It must be DROPPED and marked unservable so the serve safe-misses, never left in the map where
+     * {@code buildBlock}'s {@code (Number)} cast would {@code ClassCastException}. Holds on both the stripe path and the
+     * whole-file path — a non-Number extremum is never servable on a numeric column.
+     */
+    public void testCoerceColumnStatsToResolvedTypesDropsNonNumberOnNumericColumn() {
+        String[] names = { "v" };
+        DataType[] types = { DataType.DOUBLE };
+        for (boolean dropUnrepresentable : new boolean[] { false, true }) {
+            Map<String, Object> in = new LinkedHashMap<>();
+            in.put(SourceStatisticsSerializer.columnMinKey("v"), "alpha"); // keyword min landed on a DOUBLE column
+            in.put(SourceStatisticsSerializer.columnMaxKey("v"), 42.0);    // a valid Double max — must survive untouched
+            Map<String, Object> out = ExternalSourceCacheService.coerceColumnStatsToResolvedTypes(in, names, types, dropUnrepresentable);
+            assertFalse(
+                "non-Number min must be dropped (dropUnrepresentable=" + dropUnrepresentable + ")",
+                out.containsKey(SourceStatisticsSerializer.columnMinKey("v"))
+            );
+            assertEquals(
+                "and marked unservable so the serve safe-misses",
+                Boolean.TRUE,
+                out.get(SourceStatisticsSerializer.columnMinUnservableKey("v"))
+            );
+            assertEquals("a valid Double max is left intact", Double.valueOf(42.0), out.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        }
     }
 
     public void testColumnValueCountFoldsAcrossStripesAsSum() throws Exception {

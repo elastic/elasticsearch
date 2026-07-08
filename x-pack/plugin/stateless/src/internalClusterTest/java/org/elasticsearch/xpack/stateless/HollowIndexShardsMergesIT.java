@@ -401,6 +401,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
             var queuedMergeBytes = internalCluster().getInstance(MergeMetrics.class, node).getQueuedMergeSizeInBytes();
             sb.append("queued merge size on [").append(node).append("]: ").append(queuedMergeBytes).append(" bytes\n");
         } catch (Exception e) {
+            logger.warn("could not read MergeMetrics", e);
             sb.append("could not read MergeMetrics for [").append(node).append("]: ").append(e).append('\n');
         }
         // Thread-pool stats quantify whether a pool is saturated (e.g. write threads all active with a non-empty queue),
@@ -431,6 +432,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
                 }
             }
         } catch (Exception e) {
+            logger.warn("could not read thread pool stats", e);
             sb.append("could not read thread pool stats for [").append(node).append("]: ").append(e).append('\n');
         }
         // Routing state distinguishes "relocation in flight but slow" from "relocation never progressed / stuck".
@@ -448,6 +450,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
                 }
             }
         } catch (Exception e) {
+            logger.warn("could not read routing table", e);
             sb.append("could not read routing table for [").append(indexName).append("]: ").append(e).append('\n');
         }
         sb.append("relevant thread stacks:\n");

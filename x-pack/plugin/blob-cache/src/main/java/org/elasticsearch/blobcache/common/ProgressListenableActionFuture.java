@@ -109,16 +109,19 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         assert splitPoint < end : splitPoint + " >= " + end;
 
         final LongConsumer originalProgressConsumer = this.progressConsumer;
+        // Splitting turns this future into a multi-producer sink: both lower's forward and upper's forward (plus the
+        // catch-up below) can deliver the same progress value, possibly out of order. Internal forwards therefore use
+        // the idempotent onProgressAtLeast rather than the strict onProgress
         final ProgressListenableActionFuture lower = new ProgressListenableActionFuture(
             start,
             splitPoint,
-            this::onProgress,
+            this::onProgressAtLeast,
             originalProgressConsumer
         );
         final ProgressListenableActionFuture upper = new ProgressListenableActionFuture(
             splitPoint,
             end,
-            p -> { if (lower.success) onProgress(p); },
+            p -> { if (lower.success) onProgressAtLeast(p); },
             originalProgressConsumer == null ? null : p -> {
                 if (lower.success) originalProgressConsumer.accept(p);
             }

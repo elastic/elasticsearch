@@ -21,10 +21,10 @@ import java.util.Locale;
 public enum DataType {
 
     TEXT(DataFormat.TEXT, EnumSet.of(DataFormat.TEXT)),
-    IMAGE(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64)),
-    AUDIO(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64)),
-    VIDEO(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64)),
-    PDF(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64));
+    IMAGE(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE)),
+    AUDIO(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE)),
+    VIDEO(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE)),
+    PDF(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE));
 
     private final DataFormat defaultFormat;
     private final EnumSet<DataFormat> supportedFormats;

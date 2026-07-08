@@ -50,10 +50,10 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public void testSupportedFormatsForType() {
         assertThat(DataType.TEXT.getSupportedFormats(), is(EnumSet.of(DataFormat.TEXT)));
-        assertThat(DataType.IMAGE.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64)));
-        assertThat(DataType.AUDIO.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64)));
-        assertThat(DataType.VIDEO.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64)));
-        assertThat(DataType.PDF.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64)));
+        assertThat(DataType.IMAGE.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE)));
+        assertThat(DataType.AUDIO.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE)));
+        assertThat(DataType.VIDEO.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE)));
+        assertThat(DataType.PDF.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE)));
     }
 
     public void testConstructorWithInvalidDataURI_throws() {

@@ -4519,6 +4519,43 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Same shape as {@link #testWarningsIncludeRowNumber}, but with {@link FormatReadContext#informationalWarningSink()}
+     * supplied: every emitted message must route through the sink instead of {@link HeaderWarning}, since
+     * {@link CsvFormatReader#read} can be invoked from a background reader thread whose thread-local response
+     * headers never reach the client (see {@code SkipWarnings}).
+     */
+    public void testWarningsRouteThroughWarningSinkWhenSupplied() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            bad_id,Bob
+            3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(100, true);
+        List<String> sunk = new ArrayList<>();
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(lenient).informationalWarningSink(sunk::add).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+        }
+
+        // 1 summary + 1 detail
+        assertEquals(2, sunk.size());
+        assertTrue("Summary should mention skip_row, got: " + sunk.get(0), sunk.get(0).contains("policy: skip_row"));
+        assertTrue("Detail should include row number, got: " + sunk.get(1), sunk.get(1).contains("Row [2]"));
+        assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
+    }
+
+    /**
      * Reads the response-header warnings emitted on the test thread and clears them so the
      * {@link ESTestCase#after()} no-warnings post-check passes. Returns the unwrapped warning
      * messages (without the "299 Elasticsearch-... " prefix and surrounding quotes).

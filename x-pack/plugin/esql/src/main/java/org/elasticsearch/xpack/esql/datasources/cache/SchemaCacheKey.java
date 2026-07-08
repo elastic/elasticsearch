@@ -67,7 +67,9 @@ public record SchemaCacheKey(
         "max_field_size",
         "schema_sample_size",
         "skip_rows",
-        "trim_whitespace",
+        // trim_spaces changes stored string values and the null-ness of whitespace-only cells on the
+        // same bytes, so neither captured stats nor schemas may cross it.
+        "trim_spaces",
         "error_mode",
         "max_errors",
         "max_error_ratio",

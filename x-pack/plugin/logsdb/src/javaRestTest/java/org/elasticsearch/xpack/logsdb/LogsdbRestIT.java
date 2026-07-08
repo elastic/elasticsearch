@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -17,7 +18,6 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
@@ -53,7 +53,7 @@ public class LogsdbRestIT extends ESRestTestCase {
     private static final ExternalResource randomizeColumnarRule = new ExternalResource() {
         @Override
         protected void before() {
-            columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+            columnarEnabled = randomBoolean();
         }
     };
 
@@ -164,7 +164,10 @@ public class LogsdbRestIT extends ESRestTestCase {
 
         String index = getDataStreamBackingIndexNames("logs-test-foo").getFirst();
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
-        assertEquals(columnarEnabled ? "logsdb_columnar" : "logsdb", settings.get("index.mode"));
+        // The provider only auto-selects logsdb_columnar in snapshot builds; mirror that here so this
+        // assertion holds in both snapshot and release-build test runs.
+        boolean expectColumnar = columnarEnabled && Build.current().isSnapshot();
+        assertEquals(expectColumnar ? "logsdb_columnar" : "logsdb", settings.get("index.mode"));
         assertNull(settings.get("index.mapping.source.mode"));
     }
 
@@ -282,7 +285,6 @@ public class LogsdbRestIT extends ESRestTestCase {
     }
 
     public void testEsqlRuntimeFieldsRejectedInLogsdbColumnar() throws IOException {
-        assumeTrue("logsdb_columnar requires the columnar feature flag", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-runtime-rejected-template");
         templateRequest.setJsonEntity("""
             {
@@ -624,7 +626,6 @@ public class LogsdbRestIT extends ESRestTestCase {
     }
 
     public void testSyntheticSourceRuntimeFieldQueriesRejectedInLogsdbColumnar() throws IOException {
-        assumeTrue("logsdb_columnar requires the columnar feature flag", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-synthetic-rejected-template");
         templateRequest.setJsonEntity("""
             {

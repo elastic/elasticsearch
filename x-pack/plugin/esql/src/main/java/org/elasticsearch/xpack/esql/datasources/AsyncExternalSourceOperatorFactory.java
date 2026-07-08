@@ -69,6 +69,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -190,6 +191,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     @Nullable
     private final String datasetName;
+    // Declared logical->physical column renames (source). Applied to reader-facing names (projection + read schema)
+    // at the last mile via PhysicalNames, so readers stay rename-agnostic. Empty when the dataset declares no rename.
+    private final Map<String, String> renames;
+    /**
+     * Declared {@code _id.path} (the logical name of the data column whose value supplies each row's {@code _id}), or
+     * {@code null} when the dataset declares no {@code mappings._id.path}. When set and {@code _id} is projected,
+     * {@link VirtualColumnIterator} stamps {@code _id} from that column instead of the synthetic (file+row-position)
+     * identity. Threaded to the iterator alongside {@code idPrefix}.
+     */
+    @Nullable
+    private final String idPath;
     /**
      * File last-modified epoch-millis used to materialise {@code _version} on the single-file
      * producer paths ({@link #startSyncWrapperRead} / {@link #startNativeAsyncRead} /
@@ -225,6 +237,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final long statsStripeSize;
     /** How much per-stripe statistics a fresh scan harvests (row count only / + projected / + all / nothing). */
     private final StripeColumnScope statsColumnScope;
+    /**
+     * Node-level gate bounding concurrent streaming (stream-only compressed) segmentators on the shared
+     * {@code esql_external_io} pool so their per-chunk parser tasks are never starved of a thread. Shared across
+     * queries/operators (see {@link StreamingSegmentatorAdmission}). Never {@code null}: production threads the
+     * per-node controller from {@link FileSourceFactory}; test builders default to
+     * {@link StreamingSegmentatorAdmission#unbounded()}, which dispatches immediately.
+     */
+    private final StreamingSegmentatorAdmission streamingSegmentatorAdmission;
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
@@ -303,6 +323,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         @Nullable String datasetName,
+        Map<String, String> renames,
+        @Nullable String idPath,
         @Nullable Long lastModifiedMillis,
         @Nullable BlockFactory producerBlockFactory,
         ExternalSliceQueue sliceQueue,
@@ -312,6 +334,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        StreamingSegmentatorAdmission streamingSegmentatorAdmission,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
@@ -404,6 +427,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes, this.partitionColumnNames);
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.datasetName = datasetName;
+        this.renames = renames == null ? Map.of() : renames;
+        this.idPath = idPath;
         this.lastModifiedMillis = lastModifiedMillis;
         this.producerBlockFactory = producerBlockFactory;
         this.sliceQueue = sliceQueue;
@@ -413,6 +438,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
         this.maxRecordBytes = maxRecordBytes;
+        this.streamingSegmentatorAdmission = streamingSegmentatorAdmission;
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
@@ -487,6 +513,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Map<String, Object> partitionValues;
         @Nullable
         private String datasetName;
+        private Map<String, String> renames = Map.of();
+        @Nullable
+        private String idPath;
         @Nullable
         private Long lastModifiedMillis;
         @Nullable
@@ -500,6 +529,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private long statsStripeSize = -1L;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
+        // Non-null default: test builders that never set one still get an (unbounded) controller, so the streaming
+        // coordinator's admission is never null. Production (FileSourceFactory) overrides with the per-node gate.
+        private StreamingSegmentatorAdmission streamingSegmentatorAdmission = StreamingSegmentatorAdmission.unbounded();
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
@@ -571,6 +603,22 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
          */
         public Builder datasetName(@Nullable String datasetName) {
             this.datasetName = datasetName;
+            return this;
+        }
+
+        /** Declared logical-&gt;physical column renames; applied to reader-facing names at the last mile. */
+        public Builder renames(Map<String, String> renames) {
+            this.renames = renames == null ? Map.of() : renames;
+            return this;
+        }
+
+        /**
+         * Declared {@code _id.path} (the logical name of the data column that supplies each row's {@code _id}), or
+         * {@code null} when the dataset declares no {@code mappings._id.path}. When set, {@link VirtualColumnIterator}
+         * stamps {@code _id} from that column instead of the synthetic (file+row-position) identity.
+         */
+        public Builder idPath(@Nullable String idPath) {
+            this.idPath = idPath;
             return this;
         }
 
@@ -696,6 +744,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * Node-level gate bounding concurrent streaming segmentators on the shared {@code esql_external_io} pool
+         * (see {@link StreamingSegmentatorAdmission}). Set by {@link FileSourceFactory} from node settings; when
+         * unset the builder keeps its {@link StreamingSegmentatorAdmission#unbounded()} default.
+         */
+        public Builder streamingSegmentatorAdmission(StreamingSegmentatorAdmission streamingSegmentatorAdmission) {
+            this.streamingSegmentatorAdmission = Objects.requireNonNull(streamingSegmentatorAdmission, "admission");
+            return this;
+        }
+
         public AsyncExternalSourceOperatorFactory build() {
             return new AsyncExternalSourceOperatorFactory(
                 storageProvider,
@@ -712,6 +770,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 partitionColumnNames,
                 partitionValues,
                 datasetName,
+                renames,
+                idPath,
                 lastModifiedMillis,
                 producerBlockFactory,
                 sliceQueue,
@@ -721,6 +781,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 maxRecordBytes,
                 statsStripeSize,
                 statsColumnScope,
+                streamingSegmentatorAdmission,
                 pushedExpressions,
                 pushdownSupport,
                 onClose,
@@ -1017,7 +1078,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             partitionColumnNames,
             partitionValuesForFile,
             producerBlockFactory(driverContext),
-            idPrefix
+            idPrefix,
+            idPath
         );
     }
 
@@ -1269,7 +1331,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     if (adapted.isEmpty()) {
                         reader = formatReader.withPushedFilter(null);
                     } else {
-                        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(adapted);
+                        // adapted is logical (mapFilters + queryDataSchema); physicalize it so the re-minted opaque
+                        // predicate references the file's physical columns, matching the plan-time mint.
+                        List<Expression> physicalAdapted = PhysicalNames.translateExpressionNames(adapted, renames);
+                        // Same invariant as the plan-time mint: no logical rename-source name may reach the reader's filter.
+                        assert PhysicalNames.noLogicalNamesRemain(
+                            physicalAdapted.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
+                            renames
+                        ) : "logical rename-source name leaked into the re-minted pushed filter: " + physicalAdapted;
+                        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(physicalAdapted);
                         reader = result.hasPushedFilter()
                             ? formatReader.withPushedFilter(result.pushedFilter())
                             : formatReader.withPushedFilter(null);
@@ -1297,7 +1367,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         throw new IllegalStateException("numeric threshold descriptor is incomplete");
                     }
                     threshold = new DynamicThreshold(
-                        thresholdColumnName,
+                        PhysicalNames.translate(thresholdColumnName, renames),
                         thresholdElementType,
                         thresholdAscending,
                         thresholdNullsFirst,
@@ -1305,7 +1375,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     );
                 } else if (minCompetitiveSupplier != null) {
                     threshold = new DynamicThreshold(
-                        thresholdColumnName,
+                        PhysicalNames.translate(thresholdColumnName, renames),
                         thresholdAscending,
                         thresholdNullsFirst,
                         minCompetitiveSupplier.get()
@@ -1795,12 +1865,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     ? perFileReadSchema
                     : readerResolvedAttributes;
                 RangeReadContext rangeCtx = new RangeReadContext(
-                    perFileCols,
+                    // main pins the reader to the PER-FILE projection/attributes (ColumnMapping owns position/cast);
+                    // our rename applies the last-mile logical->physical translation on top. Both are reader-facing, so
+                    // translate main's per-file values; the adapter below keeps them untranslated (reconciliation stays
+                    // logical). readSchema()/perFile* are in logical names — see rename-reconcile-merge-plan.
+                    PhysicalNames.translateNames(perFileCols, renames),
                     batchSize,
                     fileSplit.offset(),
                     rangeEnd,
-                    perFileResolvedAttributes,
-                    errorPolicy
+                    PhysicalNames.translateSchema(perFileResolvedAttributes, renames),
+                    errorPolicy,
+                    state.buffer::recordInformationalWarning
                 );
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);
@@ -1855,27 +1930,30 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pages = openWithParallelism(
                     fileReader,
                     obj,
-                    readerCols,
+                    PhysicalNames.translateNames(readerCols, renames),
                     errorPolicy,
                     recordAlignedMacro,
                     firstSplit,
                     splitIsFileFinal,
-                    perFileReadSchema,
+                    // Reader + stats harvester key off this schema; hand them the PHYSICAL (translated) names so harvest
+                    // keys stay physical — the declared-overlay stats boundary rekeys physical->logical, not the factory.
+                    PhysicalNames.translateSchema(perFileReadSchema, renames),
                     fileSplit.offset(),
                     state.buffer.capturedSourceMetadataSink(),
-                    state.buffer::recordWarning
+                    state.buffer::recordWarning,
+                    state.buffer::recordInformationalWarning
                 );
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
-                        .projectedColumns(readerCols)
+                        .projectedColumns(PhysicalNames.translateNames(readerCols, renames))
                         .batchSize(batchSize)
                         .rowLimit(FormatReader.NO_LIMIT)
                         .errorPolicy(errorPolicy)
                         .firstSplit(firstSplit)
                         .lastSplit(lastSplit)
                         .recordAligned(recordAlignedMacro)
-                        .readSchema(perFileReadSchema)
+                        .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                         .splitStartByte(fileSplit.offset())
                         .maxRecordBytes(maxRecordBytes)
                         // Per-stripe stats addressing for record-aligned macro-splits (a large file read at
@@ -1888,6 +1966,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         // its trailing stripe to EOF).
                         .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
+                        .informationalWarningSink(state.buffer::recordInformationalWarning)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -2048,28 +2127,31 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             pages = openWithParallelism(
                 fileReader,
                 obj,
-                perFileCols,
+                PhysicalNames.translateNames(perFileCols, renames),
                 errorPolicy,
                 false,
                 true,
                 // Whole-file read of one file in a multi-file list: the file is its own final split, so its
                 // trailing segment reaches EOF and may close the last stripe.
                 true,
-                perFileReadSchema,
+                // Physical (translated) names so harvest keys stay physical; see the split path above.
+                PhysicalNames.translateSchema(perFileReadSchema, renames),
                 0L,
                 state.buffer.capturedSourceMetadataSink(),
-                state.buffer::recordWarning
+                state.buffer::recordWarning,
+                state.buffer::recordInformationalWarning
             );
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(perFileCols)
+                    .projectedColumns(PhysicalNames.translateNames(perFileCols, renames))
                     .batchSize(batchSize)
                     .rowLimit(fileBudget)
                     .errorPolicy(errorPolicy)
-                    .readSchema(perFileReadSchema)
+                    .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
+                    .informationalWarningSink(state.buffer::recordInformationalWarning)
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
@@ -2143,12 +2225,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         buffer.setSplitsTotal(1);
         buffer.setCurrentSplit(1);
         FormatReadContext ctx = FormatReadContext.builder()
-            .projectedColumns(projectedColumns)
+            .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
             .batchSize(batchSize)
             .rowLimit(rowLimit)
             .errorPolicy(errorPolicy)
             .maxRecordBytes(maxRecordBytes)
             .statsColumnScope(statsColumnScope)
+            .informationalWarningSink(buffer::recordInformationalWarning)
             .build();
         FormatReader reader = readerWithDynamicThreshold(formatReader);
         reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
@@ -2181,7 +2264,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> pages = openWithParallelism(
                 reader,
                 storageObject,
-                projectedColumns,
+                PhysicalNames.translateNames(projectedColumns, renames),
                 errorPolicy,
                 false,
                 true,
@@ -2190,16 +2273,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 null,
                 0L,
                 buffer.capturedSourceMetadataSink(),
-                buffer::recordWarning
+                buffer::recordWarning,
+                buffer::recordInformationalWarning
             );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(projectedColumns)
+                    .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
                     .batchSize(batchSize)
                     .rowLimit(rowLimit)
                     .errorPolicy(errorPolicy)
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
+                    .informationalWarningSink(buffer::recordInformationalWarning)
                     .build();
                 pages = reader.read(storageObject, ctx);
             }
@@ -2439,7 +2524,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable List<Attribute> perFileReadSchema,
         long baseFileOffset,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-        @Nullable Consumer<String> partialResultsWarningSink
+        @Nullable Consumer<String> partialResultsWarningSink,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -2469,7 +2555,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     statsStripeSize,
                     statsColumnScope,
                     splitIsFileFinal,
-                    externalSourceMetrics
+                    externalSourceMetrics,
+                    warningSink
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -2511,7 +2598,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         captureSink,
                         statsStripeSize,
                         statsColumnScope,
-                        partialResultsWarningSink
+                        new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
+                        streamingSegmentatorAdmission
                     );
                 } catch (Exception e) {
                     try {

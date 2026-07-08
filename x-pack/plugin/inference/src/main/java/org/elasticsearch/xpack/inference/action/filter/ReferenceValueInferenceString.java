@@ -11,22 +11,30 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 class ReferenceValueInferenceString extends InferenceString {
     public static final String REFERENCE_VALUE_FIELD = "reference_value";
 
+    static final ConstructingObjectParser<ReferenceValueInferenceString, Void> PARSER = new ConstructingObjectParser<>(
+        ReferenceValueInferenceString.class.getSimpleName(),
+        args -> new ReferenceValueInferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2], (String) args[3])
+    );
+    static {
+        InferenceString.declareCommonFields(PARSER);
+        PARSER.declareString(optionalConstructorArg(), new ParseField(REFERENCE_VALUE_FIELD));
+    }
+
     private final String referenceValue;
 
-    ReferenceValueInferenceString(
-        DataType dataType,
-        @Nullable DataFormat dataFormat,
-        String value,
-        @Nullable String referenceValue
-    ) {
+    ReferenceValueInferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value, @Nullable String referenceValue) {
         super(dataType, dataFormat, value);
         this.referenceValue = referenceValue;
     }
@@ -38,9 +46,7 @@ class ReferenceValueInferenceString extends InferenceString {
     @Override
     protected void validateWriteTo() {
         if (referenceValue != null) {
-            throw new IllegalStateException(
-                "Cannot serialize a [" + REFERENCE_VALUE_FIELD + "] value"
-            );
+            throw new IllegalStateException("Cannot serialize a [" + REFERENCE_VALUE_FIELD + "] value");
         }
     }
 

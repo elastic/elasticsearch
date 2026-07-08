@@ -37,6 +37,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -110,6 +111,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.Consumer;
 
 /**
  * CSV/TSV format reader for external datasources.
@@ -1670,7 +1672,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             context.splitStartByte(),
             chunkMode ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
-            context.statsColumnScope()
+            context.statsColumnScope(),
+            context.informationalWarningSink()
         );
     }
 
@@ -2950,7 +2953,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             long splitStartByte,
             long statsStripeSize,
             boolean statsFileFinal,
-            StripeColumnScope statsColumnScope
+            StripeColumnScope statsColumnScope,
+            @Nullable Consumer<String> warningSink
         ) {
             this.reader = reader;
             this.recordReader = recordReader;
@@ -2986,7 +2990,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     + sourceLocation
                     + "] encountered parse errors handled per policy (policy: "
                     + errorPolicy.modeName()
-                    + "); affected rows/fields are listed below"
+                    + "); affected rows/fields are listed below",
+                warningSink
             );
         }
 

@@ -52,7 +52,9 @@ import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1244,10 +1246,59 @@ public abstract class DocsV3Support {
                 if (observabilityTier != null && observabilityTier != ObservabilityTier.LOGS_ESSENTIALS) {
                     builder.field("observability_tier", observabilityTier.toString());
                 }
+                renderOutputBlock(builder, command);
                 String rendered = Strings.toString(builder.endObject());
                 logger.info("Writing kibana command definition for [{}]", name);
                 logger.debug("{}", rendered);
                 writeToTempKibanaDir("definition", "json", rendered);
+            }
+        }
+
+        /**
+         * Package prefix under which the {@code <Command>OutputFields} reflection targets live, in the
+         * ES|QL test sourceset alongside {@code CommandLicenseTests}.
+         */
+        private static final String OUTPUT_FIELDS_PACKAGE = "org.elasticsearch.xpack.esql.plan.logical.";
+
+        /**
+         * Renders the "output" block by finding a public static {@code renderOutput(XContentBuilder)}
+         * method on the matching {@code <Command>OutputFields} class and calling it. Commands without a
+         * matching class or without that method render nothing.
+         */
+        private static void renderOutputBlock(XContentBuilder builder, LogicalPlan command) throws IOException {
+            Class<?> outputFieldsClass = findOutputFieldsClass(command);
+            if (outputFieldsClass == null) {
+                return;
+            }
+            try {
+                Method m = outputFieldsClass.getMethod("renderOutput", XContentBuilder.class);
+                if (Modifier.isStatic(m.getModifiers()) == false) {
+                    return;
+                }
+                m.invoke(null, builder);
+            } catch (NoSuchMethodException e) {
+                return;
+            } catch (InvocationTargetException e) {
+                if (e.getCause() instanceof IOException ioe) {
+                    throw ioe;
+                }
+                throw new RuntimeException(e);
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        /**
+         * Finds the {@code <Command>OutputFields} reflection target for the given command by naming
+         * convention, avoiding a per-command switch statement or a dependency on the command's own package.
+         * Returns {@code null} if no such class exists, meaning the command has no known output schema.
+         */
+        private static Class<?> findOutputFieldsClass(LogicalPlan command) {
+            String className = OUTPUT_FIELDS_PACKAGE + command.getClass().getSimpleName() + "OutputFields";
+            try {
+                return Class.forName(className);
+            } catch (ClassNotFoundException e) {
+                return null;
             }
         }
 

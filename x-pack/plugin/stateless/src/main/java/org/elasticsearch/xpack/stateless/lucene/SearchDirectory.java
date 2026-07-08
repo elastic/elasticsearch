@@ -49,7 +49,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 

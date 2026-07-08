@@ -2033,3 +2033,133 @@ This dog is really brown
 This is a brown dog
 This is a brown fox
 ;
+
+matchAfterInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE MATCH(author, "Faulkner")
+| KEEP book_no, max_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer
+2378            | 2022
+2713            | 2022
+2847            | 2022
+2883            | 2022
+3293            | 2022
+3535            | 2022
+3870            | 2022
+4502            | 2022
+4724            | 2022
+4977            | 2022
+5119            | 2022
+5404            | 2022
+5578            | 2022
+6151            | 2022
+7381            | 2022
+8077            | 2022
+8423            | 2022
+9896            | 2022
+;
+
+matchAfterGroupedInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year) BY year
+| WHERE MATCH(author, "Faulkner") AND max_year >= 2011
+| KEEP book_no, year, max_year
+| SORT book_no
+;
+
+book_no:keyword | year:integer | max_year:integer
+4724            | 2011         | 2011
+4977            | 2011         | 2011
+5119            | 2011         | 2011
+5404            | 2011         | 2011
+8077            | 2011         | 2011
+;
+
+notMatchAfterInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE NOT MATCH(author, "Faulkner")
+| STATS count = COUNT(*)
+;
+
+count:long
+61
+;
+
+matchNotPushableAfterInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE MATCH(author, "Faulkner") OR LENGTH(title) < 5
+| KEEP book_no
+| SORT book_no
+;
+
+book_no:keyword
+2378
+2713
+2847
+2883
+3293
+3535
+3870
+4502
+4724
+4977
+5119
+5404
+5578
+6151
+7381
+8077
+8423
+9896
+;
+
+matchAfterMultipleInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| INLINE STATS min_year = MIN(year)
+| WHERE MATCH(author, "Faulkner")
+| KEEP book_no
+| SORT book_no
+;
+
+book_no:keyword
+2378
+2713
+2847
+2883
+3293
+3535
+3870
+4502
+4724
+4977
+5119
+5404
+5578
+6151
+7381
+8077
+8423
+9896
+;

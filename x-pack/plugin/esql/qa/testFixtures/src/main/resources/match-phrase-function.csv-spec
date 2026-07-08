@@ -698,3 +698,68 @@ from all_types
 constant_keyword-foo:keyword | keyword:keyword
 foo                          | key2
 ;
+
+matchPhraseAfterInlineStats
+required_capability: match_phrase_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE MATCH_PHRASE(author, "William Faulkner")
+| KEEP book_no, max_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer
+2713            | 2022
+2883            | 2022
+4724            | 2022
+4977            | 2022
+5119            | 2022
+5404            | 2022
+5578            | 2022
+8077            | 2022
+9896            | 2022
+;
+
+matchPhraseAfterGroupedInlineStats
+required_capability: match_phrase_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year) BY year
+| WHERE MATCH_PHRASE(author, "William Faulkner") AND max_year >= 2011
+| KEEP book_no, year, max_year
+| SORT book_no
+;
+
+book_no:keyword | year:integer | max_year:integer
+4724            | 2011         | 2011
+4977            | 2011         | 2011
+5119            | 2011         | 2011
+5404            | 2011         | 2011
+8077            | 2011         | 2011
+;
+
+matchPhraseNotPushableAfterInlineStats
+required_capability: match_phrase_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE MATCH_PHRASE(author, "William Faulkner") OR LENGTH(title) < 5
+| KEEP book_no
+| SORT book_no
+;
+
+book_no:keyword
+2713
+2883
+4724
+4977
+5119
+5404
+5578
+8077
+9896
+;

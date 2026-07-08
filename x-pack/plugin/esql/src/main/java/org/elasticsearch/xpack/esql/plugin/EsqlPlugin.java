@@ -533,8 +533,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         }
 
         QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
-            for (var c : metricsCollectors)
+            for (var c : metricsCollectors) {
                 c.onQueryCompleted(metrics);
+            }
         };
 
         return List.of(

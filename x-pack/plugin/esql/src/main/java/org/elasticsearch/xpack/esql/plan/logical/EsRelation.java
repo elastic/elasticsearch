@@ -127,6 +127,19 @@ public class EsRelation extends LeafPlan {
         return indexNameWithModes;
     }
 
+    /**
+     * Whether every concrete index backing this relation is in {@link IndexMode#TIME_SERIES} mode.
+     * A relation backed by even one non-time-series index cannot supply the per-document
+     * dimension/metric semantics ({@code _tsid}, etc.) that time-series aggregation requires -
+     * unlike {@link #indexMode()}, which is just a static label taken from the {@code FROM}/{@code TS}
+     * command used to write the query, this inspects the actual per-concrete-index modes resolved
+     * from the cluster.
+     */
+    public boolean isFullyTimeSeries() {
+        return indexNameWithModes.isEmpty() == false
+            && indexNameWithModes.values().stream().allMatch(mode -> mode == IndexMode.TIME_SERIES);
+    }
+
     @Override
     public List<Attribute> output() {
         return attrs;

@@ -3558,6 +3558,63 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(resolution.get().mapping().get("status").getDataType(), equalTo(UNSUPPORTED));
     }
 
+    /**
+     * Unlike {@link #testTsStatsQueryWithConflictingTsTypesMarksFieldUnsupported}, this isn't about
+     * a field-type conflict — the fields agree across both indices. The problem is that one of the
+     * two matched indices isn't a time-series index at all, so the relation as a whole can't supply
+     * the per-document dimension/metric semantics (_tsid, etc.) a true time-series aggregation
+     * (here, last_over_time BY bucket(@timestamp, ...), which needs both bucketing and _tsid) needs.
+     * See https://github.com/elastic/elasticsearch/issues/153030.
+     */
+    public void testTsStatsQueryOverMixedTimeSeriesAndStandardIndexModesFails() {
+        assumeTrue(
+            "Requires the TS-requires-time-series-indices fix",
+            EsqlCapabilities.Cap.TS_COMMAND_REQUIRES_TIME_SERIES_INDICES.isEnabled()
+        );
+        Map<String, EsField> mapping = EsqlTestUtils.loadMapping("k8s-mappings.json");
+        var mixedIndex = new EsIndex(
+            "*",
+            mapping,
+            Map.of("ts_index", IndexMode.TIME_SERIES, "standard_index", IndexMode.STANDARD),
+            Map.of(),
+            Map.of()
+        );
+        var testAnalyzer = analyzer().addIndex(mixedIndex);
+        var e = expectThrows(
+            VerificationException.class,
+            () -> testAnalyzer.query("TS * | STATS last_over_time(events_received) BY bucket(@timestamp, 1 minute)")
+        );
+        assertThat(e.getMessage(), containsString("TS command requires all matched indices to be time-series indices"));
+        assertThat(e.getMessage(), containsString("standard_index"));
+    }
+
+    /**
+     * Boundary confirmation: a multi-index TS pattern where every matched index genuinely is
+     * time-series mode is unaffected by the fix above, even for a query that needs true
+     * time-series semantics (bucketing + an _over_time aggregate).
+     */
+    public void testTsStatsQueryOverUniformTimeSeriesIndexModesSucceeds() {
+        Map<String, EsField> mapping = EsqlTestUtils.loadMapping("k8s-mappings.json");
+        var uniformIndex = new EsIndex(
+            "*",
+            mapping,
+            Map.of("ts_index_a", IndexMode.TIME_SERIES, "ts_index_b", IndexMode.TIME_SERIES),
+            Map.of(),
+            Map.of()
+        );
+        var testAnalyzer = analyzer().addIndex(uniformIndex);
+        var plan = testAnalyzer.query("TS * | STATS last_over_time(events_received) BY bucket(@timestamp, 1 minute)");
+        assertNotNull(plan);
+    }
+
+    /**
+     * Both backing indices are {@link IndexMode#TIME_SERIES} deliberately - the conflict this
+     * builds (a field that's a dimension in one index and a metric in another) is a per-field role
+     * conflict, orthogonal to index mode. Keeping both indices genuinely time-series isolates this
+     * conflict from the separate "TS command requires all matched indices to be time-series"
+     * check (see https://github.com/elastic/elasticsearch/issues/153030), which would otherwise
+     * fire first and mask the conflict message if one of the two indices were STANDARD mode.
+     */
     private static FieldCapabilitiesResponse buildCapsWithConflictingTsTypes() {
         IndexFieldCapabilities timestamp = new IndexFieldCapabilitiesBuilder("@timestamp", "date").build();
         IndexFieldCapabilities dimensionField = new IndexFieldCapabilitiesBuilder("status", "keyword").isDimension(true).build();
@@ -3568,11 +3625,11 @@ public class AnalyzerTests extends ESTestCase {
             TimeSeriesParams.MetricType.COUNTER
         ).build();
         Map<String, IndexFieldCapabilities> tsFields = Map.of("@timestamp", timestamp, "status", dimensionField, "bytes_in", counter);
-        Map<String, IndexFieldCapabilities> stdFields = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
+        Map<String, IndexFieldCapabilities> tsFields2 = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
         return new FieldCapabilitiesResponse(
             List.of(
                 new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES),
-                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD)
+                new FieldCapabilitiesIndexResponse("ts_index_2", "hash_b", tsFields2, false, IndexMode.TIME_SERIES)
             ),
             List.of()
         );

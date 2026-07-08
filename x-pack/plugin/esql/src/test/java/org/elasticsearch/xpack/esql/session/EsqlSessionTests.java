@@ -422,6 +422,7 @@ public class EsqlSessionTests extends ESTestCase {
                 List<String> paths,
                 Map<String, Map<String, Object>> pathConfigs,
                 Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+                Map<String, org.elasticsearch.cluster.metadata.DatasetMapping> declaredMappings,
                 Set<String> pathsRequiringStats,
                 ActionListener<ExternalSourceResolution> listener
             ) {

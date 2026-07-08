@@ -10,7 +10,7 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.nativeaccess.jdk.PosixCloseableMappedByteBuffer;
+import org.elasticsearch.nativeaccess.jdk.PosixMappedSegment;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
@@ -217,8 +217,8 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
-    public CloseableMappedByteBuffer map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
-        return PosixCloseableMappedByteBuffer.ofShared(fileChannel, mode, position, size);
+    public MappedSegment map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
+        return PosixMappedSegment.ofShared(fileChannel, mode, position, size);
     }
 
     String rlimitToString(long value) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -41,6 +43,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Coordinates parallel parsing of a single file by splitting it into byte-range
@@ -402,6 +405,61 @@ public final class ParallelParsingCoordinator {
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics
     ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            readSchema,
+            baseFileOffset,
+            maxConcurrentOpenSegments,
+            captureSink,
+            maxRecordBytes,
+            statsStripeSize,
+            statsColumnScope,
+            splitIsFileFinal,
+            metrics,
+            null
+        );
+    }
+
+    /**
+     * As the {@code metrics} overload, plus a relay for client-visible lenient-policy warnings raised
+     * while parsing a segment (see {@link SkipWarnings}). Segment parsing runs on {@code executor}
+     * worker threads, so a direct {@link org.elasticsearch.common.logging.HeaderWarning} call there
+     * would attach to the wrong thread's response headers and be dropped; production passes
+     * {@code AsyncExternalSourceBuffer::recordInformationalWarning} so the operator can re-emit it on
+     * the driver thread without flipping the response's {@code is_partial} flag (these are per-record
+     * skip/null-fill warnings, not a truncation of the whole read — see
+     * {@code AsyncExternalSourceBuffer#recordWarning} for that case). Pass {@code null} to fall back to
+     * a direct {@code HeaderWarning} call on the parsing thread (tests, benchmarks).
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader,
+        List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxConcurrentOpenSegments,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        int maxRecordBytes,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        boolean splitIsFileFinal,
+        ExternalSourceMetrics metrics,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
 
@@ -433,6 +491,7 @@ public final class ParallelParsingCoordinator {
             // macro-split is never file-final — a later split supplies the terminal stripe.
             .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
             .statsColumnScope(statsColumnScope)
+            .informationalWarningSink(warningSink)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -462,7 +521,8 @@ public final class ParallelParsingCoordinator {
             statsStripeSize,
             statsColumnScope,
             splitIsFileFinal,
-            metrics
+            metrics,
+            warningSink
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
@@ -603,6 +663,13 @@ public final class ParallelParsingCoordinator {
         private final boolean splitIsFileFinal;
         /** Node telemetry sink for the {@code reader.pool.rejected} event; {@link ExternalSourceMetrics#NOOP} when unwired. */
         private final ExternalSourceMetrics metrics;
+        /**
+         * Relay for client-visible {@link SkipWarnings} messages raised while parsing a segment; see
+         * {@link #parallelRead}'s {@code warningSink} parameter. {@code null} falls back to a direct
+         * {@link org.elasticsearch.common.logging.HeaderWarning} call on the segment worker thread.
+         */
+        @Nullable
+        private final Consumer<String> warningSink;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -625,6 +692,17 @@ public final class ParallelParsingCoordinator {
         private volatile Page buffered = null;
         private volatile boolean closed = false;
 
+        /**
+         * Async-ready signal, mirroring {@code StreamingParallelIterator}. {@code null} when no consumer is
+         * parked. When {@link #waitForReady()} can't satisfy synchronously it installs a fresh listener here;
+         * the parser workers fire it on every event that can transition the iterator to a ready state (a page
+         * enqueued on the shared queue, a segment finishing, an error recorded, or close). Single-shot: after
+         * firing it is cleared and lazily replaced by the next {@code waitForReady}. Without it the default
+         * immediately-ready signal drops {@code drainHotPath} straight into {@link #hasNext()}, whose
+         * {@link #takeNextPage()} then blocks a scarce consumer-pool thread for the whole segment read.
+         */
+        private final AtomicReference<SubscribableListener<Void>> pendingReady = new AtomicReference<>();
+
         AsReadyParallelIterator(
             SegmentableFormatReader reader,
             StorageObject storageObject,
@@ -643,7 +721,8 @@ public final class ParallelParsingCoordinator {
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
             boolean splitIsFileFinal,
-            ExternalSourceMetrics metrics
+            ExternalSourceMetrics metrics,
+            @Nullable Consumer<String> warningSink
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -659,6 +738,7 @@ public final class ParallelParsingCoordinator {
             this.statsStripeSize = statsStripeSize;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
+            this.warningSink = warningSink;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -785,6 +865,7 @@ public final class ParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
                 .statsColumnScope(statsColumnScope)
+                .informationalWarningSink(warningSink)
                 .build();
 
             // Bind the consumer-owned sink on this worker so the reader's close hook (which publishes its
@@ -822,6 +903,8 @@ public final class ParallelParsingCoordinator {
                     return;
                 }
                 if (sharedQueue.offer(page, 500, TimeUnit.MILLISECONDS)) {
+                    // Wake any consumer parked on waitForReady(): a page is now available at the queue head.
+                    signalReady();
                     return;
                 }
             }
@@ -835,6 +918,64 @@ public final class ParallelParsingCoordinator {
         private void finishSegment() {
             allDone.countDown();
             remainingSegments.decrementAndGet();
+            // Only wake a parked consumer when this completion actually flips isReadyNow() to true: an error
+            // was recorded, or this was the last segment and the queue is now drained (terminal EOF). A
+            // mid-parse segment finishing with pages still to come leaves isReadyNow() false, so signalling
+            // here would spuriously complete the listener and drop drainHotPath into a blocking hasNext() —
+            // exactly the starvation this override removes. Enqueued pages are woken by enqueueOrRelease's
+            // own signalReady(), so no wake-up is lost. Mirrors StreamingParallelIterator's task-exit gate.
+            if (firstError.get() != null || (remainingSegments.get() == 0 && sharedQueue.isEmpty())) {
+                signalReady();
+            }
+        }
+
+        /**
+         * Returns {@code true} when {@link #hasNext()} can run without blocking on a segment read: a page is
+         * already buffered or sitting at the head of the shared queue, an error was recorded, the iterator is
+         * closed, or every segment has finished and the queue is drained (terminal EOF). Otherwise segments
+         * are still parsing with nothing yet enqueued, so {@link #hasNext()} would block in
+         * {@link #takeNextPage()} — the consumer should park on {@link #waitForReady()} instead.
+         */
+        private boolean isReadyNow() {
+            return buffered != null
+                || closed
+                || firstError.get() != null
+                || sharedQueue.peek() != null
+                || (remainingSegments.get() == 0 && sharedQueue.isEmpty());
+        }
+
+        @Override
+        public SubscribableListener<Void> waitForReady() {
+            if (isReadyNow()) {
+                return SubscribableListener.newSucceeded(null);
+            }
+            // Install a listener for the next state-change event (page enqueued, segment finished, EOF, error,
+            // close). Re-check after the CAS to close the gap where state flipped to ready between the first
+            // isReadyNow() call and the install — mirrors StreamingParallelIterator.waitForReady().
+            SubscribableListener<Void> existing = pendingReady.get();
+            if (existing != null) {
+                return existing;
+            }
+            SubscribableListener<Void> fresh = new SubscribableListener<>();
+            if (pendingReady.compareAndSet(null, fresh) == false) {
+                return pendingReady.get();
+            }
+            if (isReadyNow()) {
+                signalReady();
+                return SubscribableListener.newSucceeded(null);
+            }
+            return fresh;
+        }
+
+        /**
+         * Fires the pending readiness listener (if any). Parser workers call this from every state-change site
+         * so a consumer parked on {@link #waitForReady()} resumes promptly.
+         */
+        private void signalReady() {
+            SubscribableListener<Void> listener = pendingReady.getAndSet(null);
+            if (listener != null) {
+                listener.onResponse(null);
+            }
         }
 
         @Override
@@ -873,6 +1014,15 @@ public final class ParallelParsingCoordinator {
         private Page takeNextPage() throws InterruptedException {
             while (true) {
                 checkError();
+                // EOF-first: once every segment has finished and the queue is drained no page will ever
+                // arrive, so return without burning a residual 200ms poll. This is the same terminal
+                // condition the post-poll branch below checks; hoisting it only removes the final idle wait.
+                // The poll below remains the termination guarantee for the racing case where the last
+                // segment finishes just after this check but before a page we still need to drain. No
+                // checkError() here: the top-of-loop call just ran and nothing yields in between.
+                if (remainingSegments.get() == 0 && sharedQueue.isEmpty()) {
+                    return null;
+                }
                 Page page = sharedQueue.poll(200, TimeUnit.MILLISECONDS);
                 if (page != null) {
                     return page;
@@ -904,6 +1054,8 @@ public final class ParallelParsingCoordinator {
             // accept as complete and cache as an under-count. So a non-clean scan poisons the file.
             boolean cleanCompletion = firstError.get() == null && remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null;
             closed = true;
+            // Wake any consumer parked on waitForReady(); isReadyNow() now returns true on closed.
+            signalReady();
             // Release the page parked by a hasNext() with no following next(); drainQueue() only sees the shared
             // queue, so without this its Blocks leak against the breaker on every early close.
             if (buffered != null) {

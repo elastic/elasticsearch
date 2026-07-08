@@ -595,6 +595,7 @@ FROM partial_mapping_sample_data
 // Reproducer for #141990: replacing an unmapped field from an empty mapping with an EVAL expression should not drop source loading.
 replaceUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
@@ -610,6 +611,7 @@ date_string:date
 
 aggregateUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
@@ -622,6 +624,7 @@ max_date:date
 
 dropReplacedUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields

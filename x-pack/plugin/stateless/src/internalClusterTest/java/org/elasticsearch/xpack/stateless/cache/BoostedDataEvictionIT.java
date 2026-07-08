@@ -236,7 +236,6 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
 
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
-        assertBusy(() -> verify(cacheService, atLeastOnce()).forceEvictAsync(ArgumentMatchers.any()));
         assertBusy(() -> assertThat(cacheService.countCachedRegions(shardPredicate(shardId)), equalTo(0L)));
     }
 

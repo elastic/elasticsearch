@@ -19,6 +19,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -295,7 +296,8 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                     BlobCacheMetrics.NOOP,
                     capturingPolicy,
                     System::nanoTime,
-                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
                 ) {};
             }
 

@@ -125,9 +125,35 @@ public final class ExternalSourceAggregatePushdown {
         return switch (support.blockKind()) {
             case INT -> exactIntegerInRange(value, Integer.MIN_VALUE, Integer.MAX_VALUE) ? value : null;
             case LONG -> exactIntegerInRange(value, Long.MIN_VALUE, Long.MAX_VALUE) ? value : null;
-            // The non-integral buildBlock arms coerce without integral truncation, so these serve as-is.
-            case DOUBLE, BOOLEAN, BYTES_REF -> value;
+            // A shared file+config cache entry can be cross-pollinated by a sibling dataset that declares this column a
+            // DIFFERENT type (the stats reconcile matches path+mtime+config only, never the declared type), so the value
+            // here may not be this arm's harvested Java type (ColumnStatsAccumulator emits Boolean / Integer / Long /
+            // Double / BytesRef). Serve only the representation buildBlock's matching arm can materialize without a crash
+            // (BOOLEAN: parseBoolean(BytesRef.toString()=hex); BYTES_REF: toBytesRef((Number).toString()); DOUBLE:
+            // (Number) cast) or a silent wrong answer; anything else safe-misses so the aggregate re-scans and is correct.
+            // This gate cannot catch a foreign value of the SAME Java type (a sibling column's Long min on a LONG column,
+            // or a keyword min that is exactly this IP column's 16 bytes): that wrong-VALUE channel closes only when the
+            // declared schema enters the cross-node stats fingerprint (tracked in the declared-schema-fingerprint follow-up).
+            case DOUBLE -> value instanceof Number ? value : null;
+            case BOOLEAN -> value instanceof Boolean ? value : null;
+            case BYTES_REF -> servableBytesRef(value, type);
         };
+    }
+
+    /**
+     * A BYTES_REF extremum is servable only as the harvested representation for the column's type: a variable-length
+     * {@link BytesRef} (or String) for KEYWORD/TEXT, or the fixed 16-byte {@code InetAddressPoint} encoding for IP (an
+     * ES|QL IP block holds exactly 16 bytes, so an ascii keyword {@code BytesRef} cross-pollinated onto an IP column
+     * would mis-decode at response rendering). A foreign {@link Number}/{@link Boolean} would be {@code toString()}'d
+     * into a bogus keyword. Serve only a matching representation; anything else safe-misses (re-scan). The 16-byte gate
+     * for IP is a representation check, not provenance: a foreign keyword min that is coincidentally 16 bytes still
+     * serves and mis-decodes — that same-representation residual closes only with the declared-schema fingerprint.
+     */
+    private static Object servableBytesRef(Object value, DataType type) {
+        if (type == DataType.IP) {
+            return value instanceof BytesRef b && b.length == 16 ? value : null;
+        }
+        return value instanceof BytesRef || value instanceof String ? value : null;
     }
 
     /** True iff {@code value} is an exact integer in {@code [min, max]}; false for fractional, out-of-range, or non-numeric. */

@@ -2163,6 +2163,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                         assertEquals("\n", initialValue);
                         initialValue = "";
                     }
+                    case "md" -> {
+                        // the markdown formatter always writes a header row and a separator row, even when no
+                        // columns are known yet (the still-running response has no column info)
+                        assertEquals("|\n|\n", initialValue);
+                        initialValue = "";
+                    }
                 }
             }
             // issue a second request to "async get" the results

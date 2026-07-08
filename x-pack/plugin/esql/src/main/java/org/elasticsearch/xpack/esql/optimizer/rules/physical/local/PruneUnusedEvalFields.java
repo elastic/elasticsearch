@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -30,8 +32,14 @@ import java.util.List;
  * The rule walks the local physical plan top-down (like {@code ProjectAwayColumns}), accumulating
  * the set of attributes required by everything above the current node, so it can decide — with the
  * whole-plan visibility that {@link PushFiltersToSource} lacks locally — whether each eval field is
- * still needed. It only removes dead aliases; it never re-runs pushdown, so it does not fight with
- * the "Push to ES" batch re-executing.
+ * still needed. It only removes dead aliases; it never re-runs pushdown itself.
+ * <p>
+ * It runs as part of the iterative "Push to ES" batch (alongside {@link PushFiltersToSource} and
+ * {@link PushLimitToSource}), not in a later once-only batch: dropping a dead {@link EvalExec} can
+ * expose a {@link LimitExec} that now sits directly above an {@link EsQueryExec}, and only a
+ * subsequent pass of that same batch gives {@link PushLimitToSource} another chance to push it.
+ * Running this rule once, after the batch had already stabilized, left such limits stranded as a
+ * residual {@code LimitOperator} in the data-node driver.
  */
 public class PruneUnusedEvalFields extends Rule<PhysicalPlan, PhysicalPlan> {
 

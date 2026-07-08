@@ -100,6 +100,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final boolean hasSearchRole;
     private final boolean cacheBoostPreferenceEnabled;
 
+    // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
@@ -157,7 +158,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     }
 
     // for tests
-    public StatelessSharedBlobCacheService(
+    protected StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,

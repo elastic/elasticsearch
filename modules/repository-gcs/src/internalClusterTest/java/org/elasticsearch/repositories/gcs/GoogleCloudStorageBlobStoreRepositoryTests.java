@@ -55,6 +55,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.threeten.bp.Duration;
 
@@ -285,6 +286,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests:INFO",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/152286"
+    )
     public void testWriteFileMultipleOfChunkSize() throws IOException {
         final int uploadSize = Math.toIntExact(randomIntBetween(2, 4) * ByteSizeValue.ofMb(1).getBytes());
         try (BlobStore store = newBlobStore()) {
@@ -325,7 +330,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         super.testRequestStats();
     }
 
-    // todo(szybia): remove once problem is solved
+    // todo(szybia): remove once problem is solved. issue #152286: SocketTimeoutException on GCP request.
+    // so adding thread dump to identify why GCP mock threadpool of 2 threads is not responding within 60 seconds.
     private static void dumpThreadsOnReadTimeout(Throwable cause, boolean willRetry) {
         final StringBuilder b = new StringBuilder(
             "\n==== thread dump on GCS SocketTimeoutException (#152286), willRetry=" + willRetry + " ====\n"

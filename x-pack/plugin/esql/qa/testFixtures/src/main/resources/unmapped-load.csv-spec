@@ -2117,8 +2117,7 @@ fork2         | 42              | 43
 ;
 
 loadUnmappedFieldDropInOneForkBranchWildcardKeepMatchesMaterializedUnmapped
-// DROP unmapped_message is a mention, so unmapped_message is materialized as a FORK column; the trailing wildcard KEEP *message then
-// matches it just like it matches message. See https://github.com/elastic/elasticsearch/issues/152843
+// #152843: DROP-mention materializes unmapped_message, so the wildcard KEEP *message matches it.
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
 
@@ -2136,8 +2135,7 @@ fork2         | 42              | 43
 ;
 
 loadUnmappedFieldForkDropInOneBranchNoKeepLoadsNonDroppedBranch
-// DROP of an unmapped field is a mention (like KEEP/WHERE/EVAL): unmapped_message is loaded in every FORK branch, materialized in the
-// non-dropping branch and null-filled in the dropping one. See https://github.com/elastic/elasticsearch/issues/152843
+// #152843: DROP of an unmapped field is a mention, so the non-dropping branch materializes it and the dropping one null-fills it.
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
 
@@ -2165,9 +2163,7 @@ FROM partial_mapping_sample_data
 ;
 
 loadUnmappedFieldForkWhereRefThenDropInOneBranchNoKeep
-// unmapped_message is referenced in WHERE and then DROPped in the same branch (and nowhere else); it is still a mention, so the sibling
-// branch materializes it. WHERE unmapped_message == "foo" matches nothing, so only the sibling contributes rows.
-// See https://github.com/elastic/elasticsearch/issues/152843
+// #152843: WHERE then DROP of an unmapped field is still a mention, so the sibling branch materializes it (WHERE matches nothing here).
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
 

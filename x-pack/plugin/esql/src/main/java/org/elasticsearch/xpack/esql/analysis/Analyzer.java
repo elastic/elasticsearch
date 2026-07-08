@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -1721,17 +1722,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // FORK branches share one source index, so load-align across them; subqueries/views (UnionAll) read independent
             // sources and are handled in ResolveUnmapped. See #142033.
             boolean loadAlignAcrossBranches = unmappedResolution == UnmappedResolution.LOAD && fork instanceof UnionAll == false;
-            Set<String> forkLoadableUnmappedKeywordNames = loadAlignAcrossBranches ? loadableUnmappedKeywordNames(fork) : Set.of();
 
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
             // DROP of an unmapped field in a branch is a mention: the field is loaded into that branch's source but dropped from its
             // output, so Fork.outputUnion misses it. Surface it as a FORK column when a sibling branch can materialize it (the dropping
             // branch then null-fills it). Skip it when no branch can surface it, else it would be null in every branch and isn't a real
-            // column. See #152843.
+            // column.
             if (loadAlignAcrossBranches && fork.children().stream().anyMatch(ResolveRefs::branchCanSurfaceLoadedField)) {
                 addDroppedUnmappedKeywordsMissingFromUnion(outputUnion, unmappedKeywordsDroppedByProjection(fork));
             }
             List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
+            Set<String> forkLoadableUnmappedKeywordNames = loadAlignAcrossBranches ? loadableUnmappedKeywordNames(fork) : Set.of();
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -1874,10 +1875,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Unmapped keywords ({@link PotentiallyUnmappedKeywordEsField}) that a {@link Project} in some FORK branch drops outright: present
-         * in the projection's input but neither surfaced nor referenced by it (so a plain DROP, not a RENAME that carries the field over
-         * under a new name). Keyed by name, first occurrence wins. A field consumed by an {@link Aggregate} (e.g. {@code STATS ... BY f})
-         * is intentionally excluded: it never was a branch output column, so it must not become a FORK column. See #152843.
+         * Unmapped keywords a {@link Project} in a FORK branch drops outright — in the projection input but neither surfaced nor referenced
+         * (a plain DROP, not a RENAME). Keyed by name, first occurrence wins. A field consumed by an {@link Aggregate}
+         * (e.g., {@code STATS ... BY f}) is excluded: it was never a branch output column, so it must not become a FORK column.
          */
         private static Map<String, FieldAttribute> unmappedKeywordsDroppedByProjection(Fork fork) {
             Map<String, FieldAttribute> byName = new LinkedHashMap<>();
@@ -1899,10 +1899,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Adds to {@code outputUnion} a fresh keyword loader for every dropped unmapped keyword whose name is not already in the union,
-         * surfacing a DROP-mentioned field as a proper FORK column. The loaders are inserted right before the {@code _fork} discriminator
-         * so a DROP-mentioned field lands in the same position as a WHERE/KEEP-mentioned one and {@code _fork} stays the last column, as
-         * everywhere else in FORK output. See #152843.
+         * Mutates {@code outputUnion} in place, inserting a loader for each dropped unmapped keyword missing from it right before the
+         * {@code _fork} discriminator, so a DROP-mentioned field lands where a WHERE/KEEP-mentioned one would and {@code _fork} stays last.
          */
         private static void addDroppedUnmappedKeywordsMissingFromUnion(
             List<Attribute> outputUnion,
@@ -1911,34 +1909,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (droppedUnmappedKeywords.isEmpty()) {
                 return;
             }
-            Set<String> unionNames = new HashSet<>();
-            for (Attribute attr : outputUnion) {
-                unionNames.add(attr.name());
-            }
+            Set<String> unionNames = new HashSet<>(Expressions.names(outputUnion));
             List<Attribute> loaders = new ArrayList<>();
-            droppedUnmappedKeywords.forEach((name, attr) -> {
-                if (unionNames.contains(name) == false) {
-                    loaders.add(insistKeyword(attr));
+            for (Map.Entry<String, FieldAttribute> entry : droppedUnmappedKeywords.entrySet()) {
+                if (unionNames.contains(entry.getKey()) == false) {
+                    loaders.add(insistKeyword(entry.getValue()));
                 }
-            });
+            }
             if (loaders.isEmpty()) {
                 return;
             }
-            int forkFieldIndex = indexOfName(outputUnion, Fork.FORK_FIELD);
+            int forkFieldIndex = Iterables.indexOf(outputUnion, a -> a.name().equals(Fork.FORK_FIELD));
             if (forkFieldIndex < 0) {
-                outputUnion.addAll(loaders);
-            } else {
-                outputUnion.addAll(forkFieldIndex, loaders);
+                forkFieldIndex = outputUnion.size();
             }
-        }
-
-        private static int indexOfName(List<Attribute> attributes, String name) {
-            for (int i = 0; i < attributes.size(); i++) {
-                if (attributes.get(i).name().equals(name)) {
-                    return i;
-                }
-            }
-            return -1;
+            outputUnion.addAll(forkFieldIndex, loaders);
         }
 
         /**

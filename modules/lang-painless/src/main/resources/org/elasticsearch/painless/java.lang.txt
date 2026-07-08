@@ -769,7 +769,7 @@ class java.lang.String {
   boolean startsWith(String)
   boolean startsWith(String,int)
   String substring(int)
-  String substring(int,int)
+  String substring(int,int) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
   char[] toCharArray()
   String toLowerCase()
   String toLowerCase(Locale)

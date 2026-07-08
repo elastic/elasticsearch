@@ -9,7 +9,9 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestSettings;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
@@ -240,17 +242,25 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testManySetProcessorsWithCopyFromOfLargeFieldTripsCumulativeSizeLimit() throws Exception {
-        // Reproduces the shape of https://github.com/elastic/security/issues/5580 : a pipeline made of 499 `set` processors,
+        // Reproduces the shape of https://github.com/elastic/security/issues/5580 : a pipeline made of many `set` processors,
         // each copying the same already-large field into a distinct new field (the exact shape of the reported exploit script).
-        // No single copy is large, but the cumulative effect of many of them (499 * 100,000 bytes =~ 47mb here) should trip
-        // IngestDocument's cumulative field value size guard well before all processors run, rather than being allowed to build
-        // a document that OOMs the node when it's later serialized in full.
+        // No single copy is large, but the cumulative effect of many of them should trip IngestDocument's cumulative field
+        // value size guard well before all processors run, rather than being allowed to build a document that OOMs the node
+        // when it's later serialized in full.
+        //
+        // The number of processors is derived from the *actual* configured default limit (rather than a hardcoded guess) so
+        // this test keeps working if that default is ever retuned -- IngestDocument estimates a String's size as
+        // length * 2 bytes, so this comfortably clears the limit with plenty of processors to spare.
+        int fieldLength = 50_000;
+        long defaultLimitBytes = IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES.getDefault(Settings.EMPTY).getBytes();
+        int iterations = Math.toIntExact(defaultLimitBytes / (fieldLength * 2L)) + 10;
+
         Map<String, Object> document = new HashMap<>();
-        document.put("foo", randomAlphaOfLength(50_000));
+        document.put("foo", randomAlphaOfLength(fieldLength));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            for (int i = 0; i < 499; i++) {
+            for (int i = 0; i < iterations; i++) {
                 createSetProcessor("bar" + i, null, "foo", true, false).execute(ingestDocument);
             }
         });

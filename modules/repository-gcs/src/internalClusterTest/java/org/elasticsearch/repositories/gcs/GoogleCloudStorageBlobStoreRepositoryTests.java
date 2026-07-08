@@ -91,7 +91,7 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CL
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
-    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageBlobStoreRepositoryTests.class);
+    private static final Logger gcpTestLogger = LogManager.getLogger(GoogleCloudStorageBlobStoreRepositoryTests.class);
 
     private static final String CLIENT_ID_HEADER = "x-es-test-client-id";
 
@@ -286,7 +286,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     }
 
     public void testWriteFileMultipleOfChunkSize() throws IOException {
-        final int uploadSize = randomIntBetween(2, 4) * GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE;
+        final int uploadSize = Math.toIntExact(randomIntBetween(2, 4) * ByteSizeValue.ofMb(1).getBytes());
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             final String key = randomIdentifier();
@@ -334,7 +334,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             b.append(ti);
         }
         b.append("^^==============================================\n");
-        logger.warn(b.toString(), cause);
+        gcpTestLogger.warn(b.toString(), cause);
     }
 
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
@@ -361,7 +361,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                                 StorageRetryStrategy.getLegacyStorageRetryStrategy(),
                                 (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
                                     final boolean willRetry = delegate.shouldRetry(prevThrowable, prevResponse);
-                                    logger.info(
+                                    gcpTestLogger.info(
                                         () -> "GCS storage retry decision willRetry=" + willRetry + " cause=[" + prevThrowable + "]"
                                     );
                                     if (ExceptionsHelper.unwrap(prevThrowable, SocketTimeoutException.class) != null) {

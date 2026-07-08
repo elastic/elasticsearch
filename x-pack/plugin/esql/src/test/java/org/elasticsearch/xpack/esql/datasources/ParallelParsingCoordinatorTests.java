@@ -67,6 +67,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 public class ParallelParsingCoordinatorTests extends ESTestCase {
 
@@ -386,6 +387,73 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 + contributions,
             partialCount,
             Matchers.greaterThanOrEqualTo(2L)
+        );
+    }
+
+    /**
+     * Regression test for the "lost warnings" half of the parallel-parse warning bug: prior to routing
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings}-shaped reader parse warnings
+     * through an explicit sink, segment workers had no way to get a warning back to the client at all
+     * (their {@code HeaderWarning} writes landed on a forked worker's thread context, never merged back).
+     * This asserts the sink threaded through the widest {@code parallelRead} overload actually reaches
+     * every segment worker — one call per segment, none dropped.
+     */
+    public void testParallelReadRoutesReaderWarningsThroughSink() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        int lineCount = 200;
+        for (int i = 0; i < lineCount; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
+        }
+        byte[] contentBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(contentBytes);
+        WarningEmittingLineReader reader = new WarningEmittingLineReader(blockFactory());
+
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(
+            reader,
+            obj,
+            contentBytes.length,
+            4,
+            reader.minimumSegmentSize()
+        );
+        assertThat("test must drive the multi-segment worker path", segments.size(), Matchers.greaterThanOrEqualTo(2));
+
+        List<String> collected = new CopyOnWriteArrayList<>();
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                4,
+                exec,
+                null,
+                false,
+                true,
+                null,
+                0L,
+                ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                false,
+                ExternalSourceMetrics.NOOP,
+                collected::add
+            );
+            try (iter) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+        }
+
+        assertEquals(
+            "every segment worker must route its warning through the sink, none lost: saw " + collected,
+            segments.size(),
+            collected.size()
         );
     }
 
@@ -1491,6 +1559,28 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Wraps {@link LineFormatReader} so each segment's {@code read} call emits one warning through
+     * {@link FormatReadContext#warningSink()} when present — mirroring how a real reader's
+     * {@code SkipWarnings} instance would route a null-fill/skip-row event. Used by
+     * {@link #testParallelReadRoutesReaderWarningsThroughSink} to verify the sink threaded through the
+     * coordinator actually reaches every segment worker.
+     */
+    private static class WarningEmittingLineReader extends LineFormatReader {
+        WarningEmittingLineReader(BlockFactory blockFactory) {
+            super(blockFactory);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            Consumer<String> sink = context.warningSink();
+            if (sink != null) {
+                sink.accept("simulated reader parse warning for segment starting at byte " + context.splitStartByte());
+            }
+            return super.read(object, context);
+        }
     }
 
     /**

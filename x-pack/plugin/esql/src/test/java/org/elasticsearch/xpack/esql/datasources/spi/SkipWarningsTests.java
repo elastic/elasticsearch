@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class SkipWarningsTests extends ESTestCase {
@@ -91,6 +92,63 @@ public class SkipWarningsTests extends ESTestCase {
             20,
             SkipWarnings.MAX_ADDED_WARNINGS
         );
+    }
+
+    public void testCustomSinkReceivesSummaryDetailAndOverflowInsteadOfHeaderWarning() {
+        List<String> sunk = new ArrayList<>();
+        SkipWarnings warnings = new SkipWarnings("summary", sunk::add);
+        int total = SkipWarnings.MAX_ADDED_WARNINGS_PER_SHARED_SINK + 5;
+        for (int i = 0; i < total; i++) {
+            warnings.add("detail " + i);
+        }
+
+        // Nothing should have gone through HeaderWarning/the thread context on the sink-routed path.
+        assertNull(threadContext.getResponseHeaders().get("Warning"));
+
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS_PER_SHARED_SINK + 2, sunk.size());
+        assertEquals("summary", sunk.get(0));
+        assertEquals("detail 0", sunk.get(1));
+        assertTrue(sunk.get(sunk.size() - 1).contains("further warnings suppressed"));
+    }
+
+    /**
+     * A sink-routed instance must cap itself far below {@link SkipWarnings#MAX_ADDED_WARNINGS}: that sink
+     * is shared by many concurrent per-segment/per-chunk instances feeding one small central budget (see
+     * {@code AsyncExternalSourceBuffer#recordReaderWarning}), so a single instance hitting the full
+     * MAX_ADDED_WARNINGS cap could exhaust the whole shared budget by itself.
+     */
+    public void testSinkRoutedInstanceUsesSmallerCapThanDefault() {
+        assertTrue(
+            "sink-routed cap must be strictly smaller than the default so one instance can't hog a shared budget",
+            SkipWarnings.MAX_ADDED_WARNINGS_PER_SHARED_SINK < SkipWarnings.MAX_ADDED_WARNINGS
+        );
+
+        List<String> sunk = new ArrayList<>();
+        SkipWarnings warnings = SkipWarnings.of(ErrorPolicy.LENIENT, "summary", sunk::add);
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS_PER_SHARED_SINK; i++) {
+            warnings.add("detail " + i);
+        }
+        // Exactly at the cap: no overflow line yet.
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS_PER_SHARED_SINK + 1, sunk.size());
+        assertFalse(sunk.get(sunk.size() - 1).contains("further warnings suppressed"));
+
+        warnings.add("one more");
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS_PER_SHARED_SINK + 2, sunk.size());
+        assertTrue(sunk.get(sunk.size() - 1).contains("further warnings suppressed"));
+    }
+
+    public void testOfWithSinkStrictPolicyReturnsNoop() {
+        List<String> sunk = new ArrayList<>();
+        assertSame(SkipWarnings.NOOP, SkipWarnings.of(ErrorPolicy.STRICT, "ignored", sunk::add));
+    }
+
+    public void testOfWithSinkLenientPolicyRoutesToSink() {
+        List<String> sunk = new ArrayList<>();
+        SkipWarnings warnings = SkipWarnings.of(ErrorPolicy.LENIENT, "live summary", sunk::add);
+        assertNotSame(SkipWarnings.NOOP, warnings);
+        warnings.add("a detail");
+        assertEquals(List.of("live summary", "a detail"), sunk);
+        assertNull(threadContext.getResponseHeaders().get("Warning"));
     }
 
     private List<String> drain() {

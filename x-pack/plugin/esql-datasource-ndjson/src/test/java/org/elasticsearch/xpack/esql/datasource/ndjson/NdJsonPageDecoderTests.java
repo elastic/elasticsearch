@@ -504,7 +504,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 "test://declared-date",
                 new NdJsonReaderCounters(),
                 Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"),
-                Set.of()
+                Set.of(),
+                null
             )
         ) {
             try (Page page = decoder.decodePage()) {

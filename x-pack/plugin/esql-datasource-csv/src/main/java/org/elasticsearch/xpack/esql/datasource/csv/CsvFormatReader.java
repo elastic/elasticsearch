@@ -37,6 +37,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -110,6 +111,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.Consumer;
 
 /**
  * CSV/TSV format reader for external datasources.
@@ -1670,7 +1672,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             context.splitStartByte(),
             chunkMode ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
-            context.statsColumnScope()
+            context.statsColumnScope(),
+            context.warningSink()
         );
     }
 
@@ -2950,7 +2953,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             long splitStartByte,
             long statsStripeSize,
             boolean statsFileFinal,
-            StripeColumnScope statsColumnScope
+            StripeColumnScope statsColumnScope,
+            @Nullable Consumer<String> warningSink
         ) {
             this.reader = reader;
             this.recordReader = recordReader;
@@ -2980,14 +2984,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
             this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal) : null;
-            this.skipWarnings = SkipWarnings.of(
-                errorPolicy,
-                "CSV read from ["
-                    + sourceLocation
-                    + "] encountered parse errors handled per policy (policy: "
-                    + errorPolicy.modeName()
-                    + "); affected rows/fields are listed below"
-            );
+            String skipWarningsSummary = "CSV read from ["
+                + sourceLocation
+                + "] encountered parse errors handled per policy (policy: "
+                + errorPolicy.modeName()
+                + "); affected rows/fields are listed below";
+            this.skipWarnings = warningSink != null
+                ? SkipWarnings.of(errorPolicy, skipWarningsSummary, warningSink)
+                : SkipWarnings.of(errorPolicy, skipWarningsSummary);
         }
 
         @Override

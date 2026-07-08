@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Immutable context for a single {@link FormatReader#read} or {@link FormatReader#readAsync} call.
@@ -79,6 +80,12 @@ import java.util.List;
  *                         {@link StripeColumnScope#PROJECTED} (back-compat for call sites that predate the
  *                         setting); the compact constructor collapses {@code null} to that default so
  *                         readers do one check.
+ * @param warningSink      where readers should route {@link SkipWarnings}-shaped skip/null-fill warnings,
+ *                         or {@code null} to use the default ({@link SkipWarnings}'s own
+ *                         {@code HeaderWarning}-direct behavior). Non-{@code null} on reads dispatched to a
+ *                         forked worker thread whose response headers never reach the client directly
+ *                         (the parallel-parsing coordinators), so warnings can be routed to a consumer-thread
+ *                         re-emission mechanism instead.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -94,7 +101,8 @@ public record FormatReadContext(
     long statsBaseOffset,
     long statsStripeSize,
     boolean statsFileFinal,
-    StripeColumnScope statsColumnScope
+    StripeColumnScope statsColumnScope,
+    @Nullable Consumer<String> warningSink
 ) {
 
     public FormatReadContext {
@@ -138,7 +146,8 @@ public record FormatReadContext(
             statsBaseOffset,
             statsStripeSize,
             statsFileFinal,
-            statsColumnScope
+            statsColumnScope,
+            warningSink
         );
     }
 
@@ -160,7 +169,8 @@ public record FormatReadContext(
             statsBaseOffset,
             statsStripeSize,
             statsFileFinal,
-            statsColumnScope
+            statsColumnScope,
+            warningSink
         );
     }
 
@@ -182,7 +192,31 @@ public record FormatReadContext(
             statsBaseOffset,
             statsStripeSize,
             statsFileFinal,
-            statsColumnScope
+            statsColumnScope,
+            warningSink
+        );
+    }
+
+    /**
+     * Returns a copy with a different warning sink; see {@link #warningSink()}.
+     */
+    public FormatReadContext withWarningSink(@Nullable Consumer<String> warningSink) {
+        return new FormatReadContext(
+            projectedColumns,
+            batchSize,
+            rowLimit,
+            errorPolicy,
+            firstSplit,
+            lastSplit,
+            recordAligned,
+            readSchema,
+            splitStartByte,
+            maxRecordBytes,
+            statsBaseOffset,
+            statsStripeSize,
+            statsFileFinal,
+            statsColumnScope,
+            warningSink
         );
     }
 
@@ -209,6 +243,8 @@ public record FormatReadContext(
         private long statsStripeSize = -1L;
         private boolean statsFileFinal = false;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
+        @Nullable
+        private Consumer<String> warningSink = null;
 
         private Builder() {}
 
@@ -291,6 +327,12 @@ public record FormatReadContext(
             return this;
         }
 
+        /** See {@link FormatReadContext#warningSink()}; pass {@code null} for the default HeaderWarning-direct behavior. */
+        public Builder warningSink(@Nullable Consumer<String> warningSink) {
+            this.warningSink = warningSink;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -309,7 +351,8 @@ public record FormatReadContext(
                 statsBaseOffset,
                 statsStripeSize,
                 statsFileFinal,
-                statsColumnScope
+                statsColumnScope,
+                warningSink
             );
         }
     }

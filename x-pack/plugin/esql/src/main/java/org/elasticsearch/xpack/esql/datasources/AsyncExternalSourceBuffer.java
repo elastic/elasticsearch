@@ -12,7 +12,9 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -85,6 +87,24 @@ public final class AsyncExternalSourceBuffer {
     private final Queue<String> pendingWarnings = new ConcurrentLinkedQueue<>();
 
     /**
+     * Cap on reader-parse-warning lines a single query may emit, applied ONCE across every segment/chunk
+     * instead of per {@link SkipWarnings} instance — otherwise each segment/chunk's own cap would multiply
+     * the response header size by the segment/chunk count. The {@code +2} mirrors the 1 summary + 1
+     * overflow line a single {@link SkipWarnings} instance adds around its {@code MAX_ADDED_WARNINGS} details.
+     */
+    private static final int MAX_READER_WARNINGS = SkipWarnings.MAX_ADDED_WARNINGS + 2;
+
+    /**
+     * Client-visible reader parse warnings (null-fill/skip-row events). Distinct from {@link #pendingWarnings}:
+     * these never flip {@link #partial}, since that's exactly what a non-strict policy asked for. Drained
+     * and re-emitted the same way as {@link #pendingWarnings} — see its javadoc.
+     */
+    private final Queue<String> pendingReaderWarnings = new ConcurrentLinkedQueue<>();
+    // Each caller gets a unique count, so exactly one caller ever sees count == MAX_READER_WARNINGS and
+    // adds the overflow line — no separate overflow flag needed.
+    private final AtomicInteger readerWarningsAdded = new AtomicInteger();
+
+    /**
      * Set when the background reader path drops data under a lenient policy — currently a streaming
      * {@code max_record_size} truncation under a non-strict {@code error_mode}. Surfaced through the
      * operator's {@code Status} into {@link org.elasticsearch.compute.operator.DriverCompletionInfo} so the
@@ -134,6 +154,25 @@ public final class AsyncExternalSourceBuffer {
     /** Removes and returns the next recorded warning, or {@code null} if none remain. */
     public String pollWarning() {
         return pendingWarnings.poll();
+    }
+
+    /**
+     * Records a client-visible reader parse warning (see {@link #pendingReaderWarnings}), applying
+     * {@link #MAX_READER_WARNINGS} as a single cap across every caller. Thread-safe: called from
+     * concurrent parse-worker threads, potentially many per query.
+     */
+    public void recordReaderWarning(String warning) {
+        int count = readerWarningsAdded.incrementAndGet();
+        if (count < MAX_READER_WARNINGS) {
+            pendingReaderWarnings.add(warning);
+        } else if (count == MAX_READER_WARNINGS) {
+            pendingReaderWarnings.add("... further reader warnings suppressed (more than " + (MAX_READER_WARNINGS - 1) + " recorded)");
+        }
+    }
+
+    /** Removes and returns the next recorded reader parse warning, or {@code null} if none remain. */
+    public String pollReaderWarning() {
+        return pendingReaderWarnings.poll();
     }
 
     /**

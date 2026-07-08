@@ -59,6 +59,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Parses NDJSON into {@link Page}s for a single input stream.
@@ -317,7 +318,8 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             counters,
             Map.of(),
-            Set.of()
+            Set.of(),
+            null
         );
     }
 
@@ -332,7 +334,8 @@ public class NdJsonPageDecoder implements Closeable {
         String sourceLocation,
         NdJsonReaderCounters counters,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Set<String> declaredTypeColumns,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         this(
             input,
@@ -349,7 +352,8 @@ public class NdJsonPageDecoder implements Closeable {
             counters,
             NdJsonUtils.JSON_FACTORY,
             declaredDateFormats,
-            declaredTypeColumns
+            declaredTypeColumns,
+            warningSink
         );
     }
 
@@ -380,7 +384,8 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             counters,
             Map.of(),
-            Set.of()
+            Set.of(),
+            null
         );
     }
 
@@ -403,7 +408,8 @@ public class NdJsonPageDecoder implements Closeable {
         String sourceLocation,
         NdJsonReaderCounters counters,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Set<String> declaredTypeColumns,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         this(
             null,
@@ -420,7 +426,8 @@ public class NdJsonPageDecoder implements Closeable {
             counters,
             NdJsonUtils.JSON_FACTORY,
             declaredDateFormats,
-            declaredTypeColumns
+            declaredTypeColumns,
+            warningSink
         );
     }
 
@@ -454,7 +461,8 @@ public class NdJsonPageDecoder implements Closeable {
             new NdJsonReaderCounters(),
             factory,
             Map.of(),
-            Set.of()
+            Set.of(),
+            null
         );
     }
 
@@ -473,7 +481,8 @@ public class NdJsonPageDecoder implements Closeable {
         NdJsonReaderCounters counters,
         JsonFactory factory,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Set<String> declaredTypeColumns,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         this.jsonFactory = factory;
         this.input = input;
@@ -502,14 +511,14 @@ public class NdJsonPageDecoder implements Closeable {
         this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.declaredTypeColumns = declaredTypeColumns != null ? Set.copyOf(declaredTypeColumns) : Set.of();
-        this.skipWarnings = SkipWarnings.of(
-            errorPolicy,
-            "NDJSON read from ["
-                + sourceLocation
-                + "] encountered parse errors handled per policy (policy: "
-                + errorPolicy.modeName()
-                + "); affected rows are listed below"
-        );
+        String skipWarningsSummary = "NDJSON read from ["
+            + sourceLocation
+            + "] encountered parse errors handled per policy (policy: "
+            + errorPolicy.modeName()
+            + "); affected rows are listed below";
+        this.skipWarnings = warningSink != null
+            ? SkipWarnings.of(errorPolicy, skipWarningsSummary, warningSink)
+            : SkipWarnings.of(errorPolicy, skipWarningsSummary);
 
         List<Attribute> fullSchema = attributes;
         // Three projection cases:

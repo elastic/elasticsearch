@@ -1914,7 +1914,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     PhysicalNames.translateSchema(perFileReadSchema, renames),
                     fileSplit.offset(),
                     state.buffer.capturedSourceMetadataSink(),
-                    state.buffer::recordWarning
+                    state.buffer::recordWarning,
+                    state.buffer::recordReaderWarning
                 );
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
@@ -2110,7 +2111,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 PhysicalNames.translateSchema(perFileReadSchema, renames),
                 0L,
                 state.buffer.capturedSourceMetadataSink(),
-                state.buffer::recordWarning
+                state.buffer::recordWarning,
+                state.buffer::recordReaderWarning
             );
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
@@ -2242,7 +2244,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 null,
                 0L,
                 buffer.capturedSourceMetadataSink(),
-                buffer::recordWarning
+                buffer::recordWarning,
+                buffer::recordReaderWarning
             );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -2491,7 +2494,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable List<Attribute> perFileReadSchema,
         long baseFileOffset,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-        @Nullable Consumer<String> partialResultsWarningSink
+        @Nullable Consumer<String> partialResultsWarningSink,
+        @Nullable Consumer<String> readerWarningSink
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -2521,7 +2525,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     statsStripeSize,
                     statsColumnScope,
                     splitIsFileFinal,
-                    externalSourceMetrics
+                    externalSourceMetrics,
+                    readerWarningSink
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -2563,7 +2568,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         captureSink,
                         statsStripeSize,
                         statsColumnScope,
-                        partialResultsWarningSink
+                        partialResultsWarningSink,
+                        readerWarningSink
                     );
                 } catch (Exception e) {
                     try {

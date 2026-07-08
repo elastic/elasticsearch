@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -41,6 +42,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Coordinates parallel parsing of a single file by splitting it into byte-range
@@ -402,6 +404,58 @@ public final class ParallelParsingCoordinator {
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics
     ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            readSchema,
+            baseFileOffset,
+            maxConcurrentOpenSegments,
+            captureSink,
+            maxRecordBytes,
+            statsStripeSize,
+            statsColumnScope,
+            splitIsFileFinal,
+            metrics,
+            null
+        );
+    }
+
+    /**
+     * As the {@code metrics} overload, plus an explicit sink for {@link SkipWarnings}-shaped reader parse
+     * warnings raised by segment workers. Each segment parses on a forked executor thread whose response
+     * headers never reach the client directly (see the class-level {@code Warning} routing note in
+     * {@code AsyncExternalSourceOperatorFactory#openWithParallelism}), so warnings are routed to this sink
+     * for consumer-thread re-emission instead of the default {@code HeaderWarning}-direct behavior. Pass
+     * {@code null} to leave {@link SkipWarnings} on its default (which is a no-op on a forked thread).
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader,
+        List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxConcurrentOpenSegments,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        int maxRecordBytes,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        boolean splitIsFileFinal,
+        ExternalSourceMetrics metrics,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
 
@@ -433,6 +487,7 @@ public final class ParallelParsingCoordinator {
             // macro-split is never file-final — a later split supplies the terminal stripe.
             .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
             .statsColumnScope(statsColumnScope)
+            .warningSink(warningSink)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -462,7 +517,8 @@ public final class ParallelParsingCoordinator {
             statsStripeSize,
             statsColumnScope,
             splitIsFileFinal,
-            metrics
+            metrics,
+            warningSink
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
@@ -603,6 +659,13 @@ public final class ParallelParsingCoordinator {
         private final boolean splitIsFileFinal;
         /** Node telemetry sink for the {@code reader.pool.rejected} event; {@link ExternalSourceMetrics#NOOP} when unwired. */
         private final ExternalSourceMetrics metrics;
+        /**
+         * Where each segment worker routes {@link SkipWarnings}-shaped reader parse warnings, or {@code null}
+         * for the default ({@code HeaderWarning}-direct) behavior. See the class-level dispatch method's
+         * javadoc for why segment workers cannot rely on {@code HeaderWarning} reaching the client directly.
+         */
+        @Nullable
+        private final Consumer<String> warningSink;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -643,7 +706,8 @@ public final class ParallelParsingCoordinator {
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
             boolean splitIsFileFinal,
-            ExternalSourceMetrics metrics
+            ExternalSourceMetrics metrics,
+            @Nullable Consumer<String> warningSink
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -659,6 +723,7 @@ public final class ParallelParsingCoordinator {
             this.statsStripeSize = statsStripeSize;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
+            this.warningSink = warningSink;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -785,6 +850,7 @@ public final class ParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
                 .statsColumnScope(statsColumnScope)
+                .warningSink(warningSink)
                 .build();
 
             // Bind the consumer-owned sink on this worker so the reader's close hook (which publishes its

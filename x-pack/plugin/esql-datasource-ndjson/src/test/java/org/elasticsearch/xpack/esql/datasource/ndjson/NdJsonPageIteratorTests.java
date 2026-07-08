@@ -478,7 +478,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 chunk,
                 ErrorPolicy.STRICT,
                 "test://input",
-                new NdJsonRecordSplitter(maxRecordBytes)
+                new NdJsonRecordSplitter(maxRecordBytes),
+                null
             )
         ) {
             IOException ex = expectThrows(IOException.class, trimmed::readAllBytes);
@@ -500,7 +501,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 chunk,
                 ErrorPolicy.LENIENT,
                 "test://input",
-                new NdJsonRecordSplitter(maxRecordBytes)
+                new NdJsonRecordSplitter(maxRecordBytes),
+                null
             )
         ) {
             assertEquals(0, trimmed.readAllBytes().length);
@@ -515,7 +517,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 4,
                 ErrorPolicy.LENIENT,
                 "test://input",
-                new NdJsonRecordSplitter(8)
+                new NdJsonRecordSplitter(8),
+                null
             )
         ) {
             assertEquals("ok\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
@@ -530,7 +533,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 5,
                 ErrorPolicy.LENIENT,
                 "test://input",
-                new NdJsonRecordSplitter(8)
+                new NdJsonRecordSplitter(8),
+                null
             )
         ) {
             assertEquals("ok\r\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
@@ -545,7 +549,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 12,
                 ErrorPolicy.LENIENT,
                 "test://input",
-                new NdJsonRecordSplitter(8)
+                new NdJsonRecordSplitter(8),
+                null
             )
         ) {
             assertEquals("ok\nnext\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -22,6 +23,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 /**
  * Wraps an NDJSON byte stream and exposes only bytes through the last {@code '\n'} in the stream,
@@ -62,21 +64,30 @@ final class TrimLastPartialLineInputStream extends InputStream {
             DEFAULT_TRIM_CHUNK_SIZE,
             errorPolicy,
             sourceLocation,
-            new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES)
+            new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+            null
         );
     }
 
     TrimLastPartialLineInputStream(InputStream delegate, int chunkSize, ErrorPolicy errorPolicy, String sourceLocation) {
-        this(delegate, chunkSize, errorPolicy, sourceLocation, new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES));
+        this(
+            delegate,
+            chunkSize,
+            errorPolicy,
+            sourceLocation,
+            new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+            null
+        );
     }
 
     TrimLastPartialLineInputStream(
         InputStream delegate,
         ErrorPolicy errorPolicy,
         String sourceLocation,
-        NdJsonRecordSplitter recordSplitter
+        NdJsonRecordSplitter recordSplitter,
+        @Nullable Consumer<String> warningSink
     ) {
-        this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy, sourceLocation, recordSplitter);
+        this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy, sourceLocation, recordSplitter, warningSink);
     }
 
     TrimLastPartialLineInputStream(
@@ -84,7 +95,8 @@ final class TrimLastPartialLineInputStream extends InputStream {
         int chunkSize,
         ErrorPolicy errorPolicy,
         String sourceLocation,
-        NdJsonRecordSplitter recordSplitter
+        NdJsonRecordSplitter recordSplitter,
+        @Nullable Consumer<String> warningSink
     ) {
         this.delegate = delegate;
         Check.isTrue(chunkSize > 0, "chunkSize must strictly positive");
@@ -93,10 +105,14 @@ final class TrimLastPartialLineInputStream extends InputStream {
         this.errorPolicy = errorPolicy;
         Check.isTrue(recordSplitter != null, "recordSplitter must not be null");
         this.recordSplitter = recordSplitter;
-        this.skipWarnings = SkipWarnings.of(
-            errorPolicy,
-            "NDJSON read from [" + sourceLocation + "] discarded an oversized partial line (policy: " + errorPolicy.modeName() + ")"
-        );
+        String skipWarningsSummary = "NDJSON read from ["
+            + sourceLocation
+            + "] discarded an oversized partial line (policy: "
+            + errorPolicy.modeName()
+            + ")";
+        this.skipWarnings = warningSink != null
+            ? SkipWarnings.of(errorPolicy, skipWarningsSummary, warningSink)
+            : SkipWarnings.of(errorPolicy, skipWarningsSummary);
     }
 
     @Override

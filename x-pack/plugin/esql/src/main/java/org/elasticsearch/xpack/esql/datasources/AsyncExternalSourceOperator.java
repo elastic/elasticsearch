@@ -159,17 +159,23 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     }
 
     /**
-     * Drains the buffer's recorded partial-results warnings and re-emits them via {@link HeaderWarning}.
-     * The driver invokes {@link #close()} on its own thread during teardown — the same thread whose
-     * response headers {@code DriverRunner} collects into the client response. The producer records these
-     * off a forked reader / parse-worker thread whose own response headers are never merged back, so the
-     * re-emission must happen here, on the driver thread, for the warning to reach the client (see #835).
+     * Drains the buffer's recorded partial-results warnings AND reader parse warnings, re-emitting both
+     * via {@link HeaderWarning}. The driver invokes {@link #close()} on its own thread during teardown —
+     * the same thread whose response headers {@code DriverRunner} collects into the client response. The
+     * producer records these off a forked reader / parse-worker thread whose own response headers are
+     * never merged back, so the re-emission must happen here, on the driver thread, for the warning to
+     * reach the client (see #835 for partial-results warnings; the reader-warning channel extends the
+     * same mechanism to {@link org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings}-shaped
+     * null-fill/skip-row events, which are lost or flooded on the parallel-parsing paths otherwise).
      * This mirrors how {@link org.elasticsearch.compute.operator.AsyncOperator} flushes a
      * {@code ResponseHeadersCollector} from its {@code close()}.
      */
     private void emitPendingWarnings() {
         String warning;
         while ((warning = buffer.pollWarning()) != null) {
+            HeaderWarning.addWarning(warning);
+        }
+        while ((warning = buffer.pollReaderWarning()) != null) {
             HeaderWarning.addWarning(warning);
         }
     }

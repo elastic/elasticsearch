@@ -68,6 +68,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
@@ -186,6 +187,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                null,
                 null
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
@@ -246,6 +248,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                null,
                 null
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
@@ -446,6 +449,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     sink,
                     64L, // stripe addressing active
                     StripeColumnScope.PROJECTED,
+                    null,
                     null
                 )
             );
@@ -473,6 +477,65 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     ctx.statsBaseOffset() >= baseFileOffset
                 );
             }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Regression test for the per-chunk warning flood: prior to routing
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings}-shaped reader parse warnings
+     * through a shared sink, each chunk parsed with its own independent {@code SkipWarnings} instance,
+     * so N chunks could each emit up to {@code MAX_ADDED_WARNINGS + 2} lines — unbounded in N. This
+     * asserts every chunk's {@link FormatReadContext} carries the SAME sink instance passed to
+     * {@code parallelRead}, and that invoking each chunk's sink (as a real reader's {@code SkipWarnings}
+     * would on a null-fill/skip event) delivers exactly one message per chunk to that single shared sink
+     * — the substrate the central cap in {@code AsyncExternalSourceBuffer#recordReaderWarning} relies on.
+     */
+    public void testStreamingParallelReadThreadsSameReaderWarningSinkToEveryChunk() throws Exception {
+        int lineCount = 1000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+
+        List<String> collected = new CopyOnWriteArrayList<>();
+        Consumer<String> readerWarningSink = collected::add;
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            LineFormatReader reader = new LineFormatReader(1024);
+            collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    stream,
+                    null,
+                    List.of("line"),
+                    100,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT,
+                    null,
+                    0L,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    null,
+                    -1L,
+                    StripeColumnScope.PROJECTED,
+                    null,
+                    readerWarningSink
+                )
+            );
+
+            List<FormatReadContext> seen;
+            synchronized (reader.seenContexts) {
+                seen = new ArrayList<>(reader.seenContexts);
+            }
+            assertTrue("test needs at least 2 chunks to be meaningful, saw " + seen.size(), seen.size() >= 2);
+            for (FormatReadContext ctx : seen) {
+                assertSame("every chunk must be threaded the SAME reader-warning sink instance", readerWarningSink, ctx.warningSink());
+            }
+
+            for (int i = 0; i < seen.size(); i++) {
+                seen.get(i).warningSink().accept("chunk " + i + " simulated null-fill warning");
+            }
+            assertEquals("one message per chunk must reach the single shared sink, none lost", seen.size(), collected.size());
         } finally {
             executor.shutdownNow();
         }
@@ -1186,6 +1249,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                null,
                 null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
@@ -1235,6 +1299,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                null,
                 null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
@@ -1266,6 +1331,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                null,
                 null
             );
             List<String> got = collectLines(lenientIterator);
@@ -1314,7 +1380,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                sink::add
+                sink::add,
+                null
             );
             List<String> got = collectLines(iterator);
             assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());
@@ -1363,6 +1430,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
+            null,
             null
         );
         List<String> got = collectLines(iterator);

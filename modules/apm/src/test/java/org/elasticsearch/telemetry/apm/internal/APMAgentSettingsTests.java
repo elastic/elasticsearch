@@ -189,6 +189,12 @@ public class APMAgentSettingsTests extends ESTestCase {
         verify(apmTelemetryProvider.getTracer()).setRecordExceptionStacks(true);
     }
 
+    public void testTracingSampleRateIsNotDynamicallyUpdatable() {
+        assertTrue(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.isDynamic());
+        assertTrue(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.isDynamic());
+        assertFalse(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.isDynamic());
+    }
+
     private void triggerUpdateConsumer(Settings initial, Settings update) {
         ClusterService clusterService = mock();
         ClusterSettings clusterSettings = new ClusterSettings(

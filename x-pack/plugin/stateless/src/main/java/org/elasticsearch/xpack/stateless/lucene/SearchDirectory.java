@@ -178,7 +178,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     public boolean updateCommit(StatelessCompoundCommit newCommit, Map<String, BlobFileRanges> commitFilesRangesOverride) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
 
-        final Map<String, BlobFileRanges> commitFileRanges = buildBlobFileRanges(newCommit, commitFilesRangesOverride);
+        final Map<String, BlobFileRanges> commitFileRanges = createIncomingFileRangesForCommit(newCommit, commitFilesRangesOverride);
 
         mergeMetadata(commitFileRanges, false);
         // TODO: Commits may not arrive in order. However, the maximum commit we have received is the commit of this directory since the
@@ -207,7 +207,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * @return a map of file name to {@link BlobFileRanges}, containing blob location and optional
      *         timestamp range for efficient filtering and remote reading
      */
-    private static Map<String, BlobFileRanges> buildBlobFileRanges(
+    private static Map<String, BlobFileRanges> createIncomingFileRangesForCommit(
         final StatelessCompoundCommit commit,
         final Map<String, BlobFileRanges> commitFilesRangesOverride
     ) {
@@ -217,7 +217,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             final BlobLocation blobLocation = entry.getValue();
             final BlobFileRanges override = commitFilesRangesOverride.get(fileName);
 
-            if (override != null) {
+            if (override == null) {
+                final var ts = commit.internalFiles().contains(fileName) ? commit.getTimestampFieldValueRange() : null;
+                commitFileRanges.put(fileName, new BlobFileRanges(blobLocation, ts));
+            } else {
                 assert override.blobLocation().equals(blobLocation)
                     : "BlobFileRanges override for ["
                         + fileName
@@ -226,9 +229,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                         + ", commit="
                         + blobLocation;
                 commitFileRanges.put(fileName, override);
-            } else {
-                final var ts = commit.internalFiles().contains(fileName) ? commit.getTimestampFieldValueRange() : null;
-                commitFileRanges.put(fileName, new BlobFileRanges(blobLocation, ts));
             }
         }
         return commitFileRanges;
@@ -601,23 +601,23 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         mergeMetadata(commitFileRanges, true);
     }
 
-    private void mergeMetadata(Map<String, BlobFileRanges> commitFilesRanges, boolean pitContextRelocationTransfer) {
+    private void mergeMetadata(Map<String, BlobFileRanges> incomingFileRanges, boolean pitContextRelocationTransfer) {
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
 
         var previousGenerationalFilesTermAndGen = this.lastAcquiredGenerationalFilesTermAndGen;
         try {
-            final var updatedMetadata = new HashMap<>(currentMetadata);
+            final var reconciledMetadata = new HashMap<>(currentMetadata);
             PrimaryTermAndGeneration generationalFilesTermAndGen = null;
             long commitSize = 0L;
-            for (var entry : commitFilesRanges.entrySet()) {
+            for (var entry : incomingFileRanges.entrySet()) {
                 final String fileName = entry.getKey();
-                final BlobFileRanges updatedRanges = updatedFileRanges(fileName, updatedMetadata.get(fileName), entry.getValue());
+                final BlobFileRanges updatedRanges = reconcileBlobFileRanges(fileName, reconciledMetadata.get(fileName), entry.getValue());
                 if (isGenerationalFile(fileName)) {
                     // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
                     // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
                     // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
                     // instances).
-                    updatedMetadata.putIfAbsent(fileName, updatedRanges);
+                    reconciledMetadata.putIfAbsent(fileName, updatedRanges);
                     if (generationalFilesTermAndGen == null) {
                         generationalFilesTermAndGen = updatedRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
                     }
@@ -629,7 +629,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                             + " which is different from "
                             + generationalFilesTermAndGen;
                 } else {
-                    updatedMetadata.put(fileName, updatedRanges);
+                    reconciledMetadata.put(fileName, updatedRanges);
                 }
                 commitSize += updatedRanges.blobLocation().fileLength();
             }
@@ -651,7 +651,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 // commit has no generational files, and we're not opening a PIT reader during relocation
                 this.lastAcquiredGenerationalFilesTermAndGen = null;
             }
-            currentMetadata = Map.copyOf(updatedMetadata);
+            currentMetadata = Map.copyOf(reconciledMetadata);
             if (pitContextRelocationTransfer == false) {
                 currentDataSetSizeInBytes = commitSize;
             }
@@ -664,12 +664,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         }
     }
 
-    private static BlobFileRanges updatedFileRanges(String fileName, BlobFileRanges existingRanges, BlobFileRanges newRanges) {
-        if (newRanges.hasReplicatedRanges()) {
-            // newRanges came from the override path with replicated ranges - use it directly
-            return newRanges;
+    private static BlobFileRanges reconcileBlobFileRanges(String fileName, BlobFileRanges existingRanges, BlobFileRanges incomingRanges) {
+        if (incomingRanges.hasReplicatedRanges()) {
+            // incomingRanges came from the override path with replicated ranges - use it directly
+            return incomingRanges;
         }
-        if (existingRanges != null && existingRanges.blobLocation().equals(newRanges.blobLocation())) {
+        if (existingRanges != null && existingRanges.blobLocation().equals(incomingRanges.blobLocation())) {
             // File already tracked at the same location - preserve its existing entry so the timestamp originally
             // stamped from the file's originating CC is retained.
             return existingRanges;
@@ -680,7 +680,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 + "] has unexpectedly changed blob location from "
                 + existingRanges.blobLocation()
                 + " to "
-                + newRanges.blobLocation();
-        return newRanges;
+                + incomingRanges.blobLocation();
+        return incomingRanges;
     }
 }

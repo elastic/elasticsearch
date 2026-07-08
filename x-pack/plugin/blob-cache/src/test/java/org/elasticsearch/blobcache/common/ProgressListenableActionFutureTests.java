@@ -19,6 +19,8 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -444,6 +446,52 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         future.onResponse(future.end);
 
         assertTrue(listener.isDone());
+    }
+
+    public void testConcurrentSplitProgressForwardingIsIdempotent() throws Exception {
+        final int iterations = 100;
+        for (int i = 0; i < iterations; i++) {
+            final long end = 2000L;
+            final long splitPoint = 1000L;
+            final ProgressListenableActionFuture future = new ProgressListenableActionFuture(0L, end, null);
+            final ProgressListenableActionFuture[] parts = future.split(splitPoint);
+            final ProgressListenableActionFuture lower = parts[0];
+            final ProgressListenableActionFuture upper = parts[1];
+
+            final CyclicBarrier barrier = new CyclicBarrier(2);
+            final AtomicReference<Throwable> failure = new AtomicReference<>();
+
+            final Thread upperThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    // Sweep upper across its whole range so that lower's completion is likely to land in the tiny window
+                    // between "upper.progress := p" and upper forwarding p to the parent.
+                    for (long p = splitPoint + 1L; p < end; p++) {
+                        upper.onProgress(p);
+                    }
+                    upper.onResponse(end);
+                } catch (Throwable t) {
+                    failure.compareAndSet(null, t);
+                }
+            }, "upper-" + i);
+
+            final Thread lowerThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    lower.onResponse(splitPoint);
+                } catch (Throwable t) {
+                    failure.compareAndSet(null, t);
+                }
+            }, "lower-" + i);
+
+            upperThread.start();
+            lowerThread.start();
+            upperThread.join();
+            lowerThread.join();
+
+            final Throwable t = failure.get();
+            assertThat("Split progress forwarding should cause assertion errors", t, nullValue());
+        }
     }
 
     private static ProgressListenableActionFuture randomFuture() {

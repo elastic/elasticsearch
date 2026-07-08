@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.simdvec.internal;
+package org.elasticsearch.simdvec;
 
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
@@ -14,22 +14,20 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.DirectAccessInput;
+import org.elasticsearch.simdvec.internal.vectorization.JdkFeatures;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.ref.Reference;
-import java.nio.ByteBuffer;
 import java.util.function.IntFunction;
-
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /**
  * Utility for obtaining a {@link MemorySegment} view of data in an
  * {@link IndexInput} and passing it to a caller-supplied action. The
  * segment may come from a {@link MemorySegmentAccessInput} (mmap),
- * a direct {@link java.nio.ByteBuffer} view (e.g. blob-cache), or a
+ * a {@link DirectAccessInput} (e.g. blob-cache), or a
  * heap copy as a last resort.
  *
  * <p>All resource management (ref-counting, buffer release) is handled
@@ -53,7 +51,7 @@ public final class IndexInputUtils {
      *
      * <p> This method first tries to obtain a slice via
      * {@link MemorySegmentAccessInput#segmentSliceOrNull}. If that
-     * returns {@code null}, it tries a direct {@link java.nio.ByteBuffer}
+     * returns {@code null}, it tries a direct {@link MemorySegment}
      * view via {@link DirectAccessInput}. As a last resort it copies the
      * data onto the heap using a byte array obtained from
      * {@code scratchSupplier}.
@@ -87,10 +85,9 @@ public final class IndexInputUtils {
             long offset = in.getFilePointer();
             @SuppressWarnings("unchecked")
             R[] result = (R[]) new Object[1];
-            boolean available = dai.withByteBufferSlice(offset, length, bb -> {
-                assert bb.isDirect();
+            boolean available = dai.withMemorySegmentSlice(offset, length, seg -> {
                 in.skipBytes(length);
-                result[0] = action.apply(MemorySegment.ofBuffer(bb));
+                result[0] = action.apply(seg);
             });
             if (available) {
                 return result[0];
@@ -103,7 +100,7 @@ public final class IndexInputUtils {
      * Resolves {@code count} file ranges to native memory addresses and passes the
      * address array to the action. Tries {@link MemorySegmentAccessInput} first
      * (contiguous segment, pointer arithmetic), then {@link DirectAccessInput}
-     * ({@code withByteBufferSlices}). Returns {@code false} without invoking the
+     * ({@code withMemorySegmentSlices}). Returns {@code false} without invoking the
      * action if neither path is available - there is no heap fallback since native
      * addresses are required.
      *
@@ -117,7 +114,7 @@ public final class IndexInputUtils {
      * <p>With the current callers, the backing memory is independently kept alive:
      * on the MSAI path, the arena is owned by the {@code IndexInput} which the
      * caller holds as a field; on the DAI path, cache regions are ref-counted by
-     * {@link DirectAccessInput#withByteBufferSlices} for the duration of the
+     * {@link DirectAccessInput#withMemorySegmentSlices} for the duration of the
      * callback. However, that safety relies on implementation details of
      * {@code MMapDirectory} and {@code SharedBlobCacheService}. The JIT is also
      * permitted to discard local references after their last use (JLS 12.6.1),
@@ -199,16 +196,16 @@ public final class IndexInputUtils {
         MemorySegment addrs,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
-        return dai.withByteBufferSlices(offsets, length, count, bbs -> {
-            assert validateByteBuffers(bbs, count, length);
+        return dai.withMemorySegmentSlices(offsets, length, count, segments -> {
+            assert validateMemorySegments(segments, count, length);
             for (int i = 0; i < count; i++) {
-                addrs.setAtIndex(ValueLayout.ADDRESS, i, MemorySegment.ofBuffer(bbs[i]));
+                addrs.setAtIndex(ValueLayout.ADDRESS, i, segments[i]);
             }
             assert validateAddresses(addrs, count);
             try {
                 action.accept(addrs);
             } finally {
-                Reference.reachabilityFence(bbs);
+                Reference.reachabilityFence(segments);
             }
         });
     }
@@ -233,12 +230,13 @@ public final class IndexInputUtils {
         return true;
     }
 
-    private static boolean validateByteBuffers(ByteBuffer[] bbs, int count, int length) {
-        assert bbs.length >= count : "ByteBuffer array too small: " + bbs.length + " < " + count;
+    private static boolean validateMemorySegments(MemorySegment[] segments, int count, int length) {
+        assert segments.length >= count : "MemorySegment array too small: " + segments.length + " < " + count;
         for (int i = 0; i < count; i++) {
-            assert bbs[i] != null : "null ByteBuffer at index " + i;
-            assert bbs[i].isDirect() : "ByteBuffer at index " + i + " is not direct (heap-backed)";
-            assert bbs[i].remaining() >= length : "ByteBuffer at index " + i + " too small: " + bbs[i].remaining() + " < " + length;
+            final long segByteSize = segments[i].byteSize();
+            assert segments[i] != null : "null MemorySegment at index " + i;
+            assert segments[i].isNative() : "MemorySegment at index " + i + " is not native (off-heap)";
+            assert segByteSize >= length : "MemorySegment at index " + i + " too small: " + segByteSize + " < " + length;
         }
         return true;
     }
@@ -287,7 +285,7 @@ public final class IndexInputUtils {
     ) throws IOException {
         byte[] buf = scratchSupplier.apply(bytesToRead);
         in.readBytes(buf, 0, bytesToRead);
-        if (SUPPORTS_HEAP_SEGMENTS) {
+        if (JdkFeatures.SUPPORTS_HEAP_SEGMENTS) {
             return action.apply(MemorySegment.ofArray(buf).asSlice(0, bytesToRead));
         }
         try (Arena arena = Arena.ofConfined()) {

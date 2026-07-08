@@ -82,6 +82,29 @@ public final class StreamingParallelParsingCoordinator {
     private StreamingParallelParsingCoordinator() {}
 
     /**
+     * Bundles the two independent, easily-confused warning relays a streaming parallel read may need
+     * to thread onto worker threads, as a single typed parameter — two bare adjacent
+     * {@code Consumer<String>} parameters/fields invite silent transposition at a call site.
+     *
+     * @param partialResultsWarningSink receives a single client-visible message if a non-strict
+     *                                  {@link ErrorPolicy} truncates the read at a {@code max_record_size}
+     *                                  cap-hit — a genuine partial-results signal. Production passes
+     *                                  {@link AsyncExternalSourceBuffer#recordWarning} so the operator can
+     *                                  re-emit it on the driver thread (the segmentator runs on a forked
+     *                                  worker whose response headers never reach the client — see #835).
+     * @param informationalWarningSink  the unrelated, generic per-format relay (see
+     *                                  {@link FormatReadContext#informationalWarningSink()}) for warnings a
+     *                                  chunk's own reader raises while decoding (e.g. a malformed row skipped
+     *                                  or a field null-filled) — these do not carry the same "fewer records
+     *                                  than the source held" guarantee, so they must not be conflated with
+     *                                  {@code partialResultsWarningSink}. Production passes
+     *                                  {@link AsyncExternalSourceBuffer#recordInformationalWarning}.
+     */
+    public record WarningSinks(@Nullable Consumer<String> partialResultsWarningSink, @Nullable Consumer<String> informationalWarningSink) {
+        public static final WarningSinks NONE = new WarningSinks(null, null);
+    }
+
+    /**
      * Creates a parallel-parsing iterator over a sequential decompressed stream.
      *
      * @param reader              the segmentable format reader (provides record boundary semantics)
@@ -117,7 +140,7 @@ public final class StreamingParallelParsingCoordinator {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
-            null
+            WarningSinks.NONE
         );
     }
 
@@ -143,11 +166,11 @@ public final class StreamingParallelParsingCoordinator {
      * {@link ParallelParsingCoordinator}).
      * <p>
      * {@code partialResultsWarningSink} receives a single client-visible message if a non-strict
-     * {@link ErrorPolicy} truncates the read at a {@code max_record_size} cap-hit. Production passes
-     * {@link AsyncExternalSourceBuffer#recordWarning} so the operator can re-emit it on the driver
-     * thread (the segmentator runs on a forked worker whose response headers never reach the client —
-     * see #835). Pass {@code null} to fall back to a direct {@link HeaderWarning} on the current thread
-     * (tests, benchmarks).
+     * {@link ErrorPolicy} truncates the read at a {@code max_record_size} cap-hit — a genuine partial-
+     * results signal. Production passes {@link AsyncExternalSourceBuffer#recordWarning} so the operator
+     * can re-emit it on the driver thread (the segmentator runs on a forked worker whose response
+     * headers never reach the client — see #835). Pass {@code null} to fall back to a direct
+     * {@link HeaderWarning} on the current thread (tests, benchmarks).
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -164,7 +187,99 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
-        @Nullable Consumer<String> partialResultsWarningSink
+        @Nullable Consumer<String> partialResultsWarningSink,
+        StreamingSegmentatorAdmission admission
+    ) throws IOException {
+        return parallelRead(
+            reader,
+            decompressedStream,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            readSchema,
+            baseFileOffset,
+            maxRecordBytes,
+            captureSink,
+            statsStripeSize,
+            statsColumnScope,
+            new WarningSinks(partialResultsWarningSink, null)
+        );
+    }
+
+    /**
+     * As the above, plus {@code warningSinks.informationalWarningSink()} — see {@link WarningSinks}'
+     * Javadoc. Kept as a separate overload so the many existing truncation-focused callers (tests,
+     * benchmarks) that don't care about generic per-format warnings are unaffected.
+     * <p>
+     * Supplies an {@link StreamingSegmentatorAdmission#unbounded()} controller: the segmentator is
+     * dispatched immediately, matching the pre-admission behavior. Retained for tests and benchmarks
+     * running on an isolated, generously-sized pool where segmentator saturation cannot arise;
+     * production always threads the per-node admission gate via the overload below.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        InputStream decompressedStream,
+        @Nullable StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        @Nullable List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxRecordBytes,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        WarningSinks warningSinks
+    ) throws IOException {
+        return parallelRead(
+            reader,
+            decompressedStream,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            readSchema,
+            baseFileOffset,
+            maxRecordBytes,
+            captureSink,
+            statsStripeSize,
+            statsColumnScope,
+            warningSinks,
+            StreamingSegmentatorAdmission.unbounded()
+        );
+    }
+
+    /**
+     * Full-control overload that also accepts an explicit {@link StreamingSegmentatorAdmission}
+     * controller, bounding how many segmentators occupy the shared executor at once (see
+     * {@link StreamingSegmentatorAdmission}). Production always threads the per-node admission gate;
+     * the overload above supplies {@link StreamingSegmentatorAdmission#unbounded()} for tests and
+     * benchmarks running on an isolated, generously-sized pool where segmentator saturation cannot arise.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        InputStream decompressedStream,
+        @Nullable StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        @Nullable List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxRecordBytes,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        WarningSinks warningSinks,
+        StreamingSegmentatorAdmission admission
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -191,6 +306,7 @@ public final class StreamingParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(baseFileOffset, statsStripeSize, true)
                 .statsColumnScope(statsColumnScope)
+                .informationalWarningSink(warningSinks.informationalWarningSink())
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -210,7 +326,8 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
-            partialResultsWarningSink
+            warningSinks,
+            admission
         );
     }
 
@@ -245,16 +362,28 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable
         private final ConcurrentMap<String, List<Map<String, Object>>> captureSink;
         /**
-         * Receives the truncation warning when a non-strict policy converts a {@code max_record_size}
-         * cap-hit into a graceful stop. Production wires {@link AsyncExternalSourceBuffer#recordWarning}
-         * so the operator re-emits it on the driver thread; {@code null} falls back to a direct
-         * {@link HeaderWarning} on the segmentator thread (tests / benchmarks). See {@link #emitTruncationWarning}.
+         * The two independent warning relays this iterator's workers may need — see {@link WarningSinks}.
+         * {@link WarningSinks#partialResultsWarningSink()} receives the truncation warning when a
+         * non-strict policy converts a {@code max_record_size} cap-hit into a graceful stop (production
+         * wires {@link AsyncExternalSourceBuffer#recordWarning}; {@code null} falls back to a direct
+         * {@link HeaderWarning} on the segmentator thread — tests / benchmarks. See
+         * {@link #emitTruncationWarning}). {@link WarningSinks#informationalWarningSink()} is the
+         * unrelated, generic per-format relay (see {@link FormatReadContext#informationalWarningSink()})
+         * for warnings a chunk's own reader raises while decoding (e.g. a malformed row skipped or a
+         * field null-filled) — these do not necessarily mean the read returned fewer records than the
+         * source held, so they must not be conflated with the truncation sink.
          */
-        @Nullable
-        private final Consumer<String> partialResultsWarningSink;
+        private final WarningSinks warningSinks;
         /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
         @Nullable
         private final StorageObject storageObject;
+        /**
+         * Node-level gate bounding how many segmentators occupy the shared {@code esql_external_io} pool at once,
+         * so parser tasks are never starved of a thread (see {@link StreamingSegmentatorAdmission}). Never
+         * {@code null}: production threads the per-node controller; tests/benchmarks on an isolated, generously-sized
+         * pool pass {@link StreamingSegmentatorAdmission#unbounded()}, which dispatches immediately.
+         */
+        private final StreamingSegmentatorAdmission admission;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
@@ -329,6 +458,11 @@ public final class StreamingParallelParsingCoordinator {
          */
         private final AtomicReference<SubscribableListener<Void>> pendingReady = new AtomicReference<>();
 
+        /**
+         * Convenience overload for tests/benchmarks that supplies an {@link StreamingSegmentatorAdmission#unbounded()}
+         * controller, so the segmentator is dispatched immediately (matching the pre-admission behavior) on an
+         * isolated, generously-sized pool where saturation cannot arise.
+         */
         StreamingParallelIterator(
             SegmentableFormatReader reader,
             InputStream decompressedStream,
@@ -344,8 +478,47 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
-            @Nullable Consumer<String> partialResultsWarningSink
+            WarningSinks warningSinks
         ) {
+            this(
+                reader,
+                decompressedStream,
+                storageObject,
+                projectedColumns,
+                batchSize,
+                parallelism,
+                executor,
+                errorPolicy,
+                readSchema,
+                baseFileOffset,
+                maxRecordBytes,
+                captureSink,
+                statsStripeSize,
+                statsColumnScope,
+                warningSinks,
+                StreamingSegmentatorAdmission.unbounded()
+            );
+        }
+
+        StreamingParallelIterator(
+            SegmentableFormatReader reader,
+            InputStream decompressedStream,
+            @Nullable StorageObject storageObject,
+            List<String> projectedColumns,
+            int batchSize,
+            int parallelism,
+            Executor executor,
+            ErrorPolicy errorPolicy,
+            @Nullable List<Attribute> readSchema,
+            long baseFileOffset,
+            int maxRecordBytes,
+            @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+            long statsStripeSize,
+            StripeColumnScope statsColumnScope,
+            WarningSinks warningSinks,
+            StreamingSegmentatorAdmission admission
+        ) {
+            this.admission = admission;
             this.reader = reader;
             this.storageObject = storageObject;
             this.projectedColumns = projectedColumns;
@@ -357,7 +530,7 @@ public final class StreamingParallelParsingCoordinator {
             this.captureSink = captureSink;
             this.statsStripeSize = statsStripeSize;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
-            this.partialResultsWarningSink = partialResultsWarningSink;
+            this.warningSinks = warningSinks;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
@@ -387,13 +560,23 @@ public final class StreamingParallelParsingCoordinator {
             // where producer-loop drivers and sub-tasks of other iterators competed for the same slots.
             this.tasksOutstanding = new AtomicInteger(1);
 
-            try {
-                executor.execute(() -> runSegmentator(decompressedStream, this.chunkSize));
-            } catch (RejectedExecutionException e) {
-                firstError.compareAndSet(null, e);
-                if (tasksOutstanding.decrementAndGet() == 0) {
-                    signalReady();
-                }
+            // Gate the segmentator through the node-level admission controller so it is handed to the pool only when
+            // a thread will remain free for its parser tasks; a rejection is surfaced through the firstError /
+            // signalReady path. Tests that run on an isolated, generously-sized pool pass an unbounded controller,
+            // which dispatches immediately (see StreamingSegmentatorAdmission#unbounded).
+            Runnable segmentatorTask = () -> runSegmentator(decompressedStream, this.chunkSize);
+            admission.submit(segmentatorTask, executor, this::onSegmentatorLaunchRejected);
+        }
+
+        /**
+         * Records a segmentator that never started (the executor rejected it) and wakes the consumer. The
+         * segmentator is counted in {@link #tasksOutstanding} at construction, so failing to launch must decrement
+         * it or the consumer's EOF predicate never fires. Invoked by the admission controller on a rejection.
+         */
+        private void onSegmentatorLaunchRejected(RejectedExecutionException e) {
+            firstError.compareAndSet(null, e);
+            if (tasksOutstanding.decrementAndGet() == 0) {
+                signalReady();
             }
         }
 
@@ -448,7 +631,7 @@ public final class StreamingParallelParsingCoordinator {
          * i.e. the point at which good data ended — not where scanning gave up; it advances only after
          * a successful dispatch, so it is a stable "results truncated here" marker.
          * <p>
-         * The message is routed through {@link #partialResultsWarningSink} when present so the operator
+         * The message is routed through {@link WarningSinks#partialResultsWarningSink()} when present so the operator
          * can re-emit it on the driver thread and the header actually reaches the client (the segmentator
          * runs on a forked worker whose response headers are never merged back — see #835). Callers
          * without a sink (tests, benchmarks) fall back to a direct {@link HeaderWarning} on the current
@@ -463,6 +646,7 @@ public final class StreamingParallelParsingCoordinator {
                 + errorPolicy.modeName()
                 + "): "
                 + causeMessage;
+            Consumer<String> partialResultsWarningSink = warningSinks.partialResultsWarningSink();
             if (partialResultsWarningSink != null) {
                 partialResultsWarningSink.accept(warning);
             } else {
@@ -759,6 +943,7 @@ public final class StreamingParallelParsingCoordinator {
                     .maxRecordBytes(maxRecordBytes)
                     .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
                     .statsColumnScope(statsColumnScope)
+                    .informationalWarningSink(warningSinks.informationalWarningSink())
                     .build();
                 // Bind the consumer-owned sink on this worker so the reader's close hook reaches the
                 // same map the consumer-thread StatsCapturingIterator binds. The pages iterator is

@@ -86,8 +86,7 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     KnnVectorsFormat format;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
+    public void initVectorsFormat() throws Exception {
         ES940DiskBBQVectorsFormat.QuantEncoding encoding = randomFrom(
             ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
             ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED,

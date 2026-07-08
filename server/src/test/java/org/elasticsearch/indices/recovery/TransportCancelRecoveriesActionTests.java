@@ -39,6 +39,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Set;
@@ -59,9 +60,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
     private ThrottlingRecoveryService throttlingRecoveryService;
     private TransportCancelRecoveriesAction action;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setupAction() throws Exception {
         taskQueue = new DeterministicTaskQueue();
         final var clusterService = mock(ClusterService.class);
         indicesService = mock(IndicesService.class);

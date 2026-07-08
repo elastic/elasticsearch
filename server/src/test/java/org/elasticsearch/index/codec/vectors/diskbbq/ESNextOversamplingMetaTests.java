@@ -52,8 +52,7 @@ public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
+    public void initVectorsFormat() throws Exception {
         format = new ESNextDiskBBQVectorsFormat(128, 4, null);
         super.setUp();
     }

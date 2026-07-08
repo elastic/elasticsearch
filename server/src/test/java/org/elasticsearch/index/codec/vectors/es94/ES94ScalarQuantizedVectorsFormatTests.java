@@ -53,8 +53,7 @@ public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVecto
     private KnnVectorsFormat format;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
+    public void initVectorsFormat() throws Exception {
         int bits = randomFrom(1, 2, 4, 7);
         format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, bits, false);
         super.setUp();

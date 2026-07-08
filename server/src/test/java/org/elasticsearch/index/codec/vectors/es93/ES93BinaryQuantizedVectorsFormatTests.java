@@ -53,6 +53,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.BaseFlatQuantizedKnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,8 +84,8 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseFlatQuantizedKnnV
 
     private KnnVectorsFormat format;
 
-    @Override
-    public void setUp() throws Exception {
+    @Before
+    public void initVectorsFormat() throws Exception {
         format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, random().nextBoolean());
         super.setUp();
     }

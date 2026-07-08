@@ -88,8 +88,7 @@ public class ES950DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     KnnVectorsFormat format;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
+    public void initVectorsFormat() throws Exception {
         QuantEncoding encoding = randomFrom(QuantEncoding.values());
         boolean disableFlatOnFlush = random().nextBoolean();
         if (rarely()) {

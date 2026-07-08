@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.tencentcloud.request;
 
 public final class TencentCloudUtils {
 
-    public static final String SCHEME = "http";
+    public static final String SCHEME = "https";
     public static final String HOST = "bj.aisearch.tencentelasticsearch.com";
     public static final String VERSION_1 = "v1";
     public static final String EMBEDDINGS_PATH = "embeddings";

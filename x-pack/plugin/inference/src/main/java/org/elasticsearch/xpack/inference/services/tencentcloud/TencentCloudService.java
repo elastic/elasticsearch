@@ -260,7 +260,7 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
                 configurationMap.put(
                     URL,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDefaultValue(
-                        "http://bj.aisearch.tencentelasticsearch.com/v1/embeddings"
+                        "https://bj.aisearch.tencentelasticsearch.com/v1/embeddings"
                     )
                         .setDescription(
                             "The full URL endpoint to use for the requests. Defaults to the AI Gateway endpoint corresponding to the "

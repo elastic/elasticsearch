@@ -512,19 +512,17 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
         try (var response = runQuery("""
             FROM
-                (FROM logs-* METADATA _index | LOOKUP JOIN values_lookup on v == lookup_key),
-                (FROM *:logs-* METADATA _index)
-            | WHERE v == 0
-            | KEEP _index, tag, lookup_tag
-            | SORT tag, _index
+                (FROM logs-* | STATS mv = max(v) BY tag | LOOKUP JOIN values_lookup on mv == lookup_key),
+                (FROM *:logs-* | STATS mv = max(v) BY tag)
+            | KEEP tag, lookup_tag, mv
+            | SORT tag
             """, randomBoolean())) {
             assertEquals(
                 getValuesList(response),
                 List.of(
-                    List.of("logs-1", "local", "local"),
+                    List.of("local", "local", 9L),
                     // lookup_tag is only populated on local indices above and not joined on remote indices below
-                    Arrays.asList(REMOTE_CLUSTER_1_INDEX, "remote", null),
-                    Arrays.asList(REMOTE_CLUSTER_2_INDEX, "remote", null)
+                    Arrays.asList("remote", null, 81L)
                 )
             );
             assertCCSExecutionInfoDetails(response.getExecutionInfo());

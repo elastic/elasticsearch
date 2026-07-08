@@ -16,12 +16,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Manages K/V indices for Elastic Universal Profiling. K/V indices have been superseded by data streams
- * (managed by {@link ProfilingDataStreamManager}). This class is retained only to detect legacy K/V
- * indices still present in the cluster and surface them via the status API.
+ * (managed by {@link ProfilingDataStreamManager}). This class is retained only so that
+ * {@link AbstractProfilingPersistenceManager} compiles with a concrete type parameter; it manages no indices.
  */
 public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<ProfilingIndexManager.ProfilingIndex> {
     public static final List<ProfilingIndex> PROFILING_INDICES = List.of();
@@ -79,21 +78,4 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         }
     }
 
-    private static final List<String> DS_MIGRATED_KV_PREFIXES = List.of(
-        ".profiling-executables-v",
-        ".profiling-stacktraces-v",
-        ".profiling-stackframes-v"
-    );
-
-    /**
-     * Returns {@code true} if the cluster still contains legacy K/V indices for any of the three
-     * profiling patterns that have been migrated to data streams. While ES prevents an alias and a
-     * data stream with the same name from coexisting, this check surfaces the blocked state
-     * proactively in the status API so operators know they must delete the K/V indices to complete
-     * the migration.
-     */
-    public static boolean hasLegacyKvIndices(ClusterState state) {
-        Map<String, IndexMetadata> indices = state.metadata().getProject().indices();
-        return DS_MIGRATED_KV_PREFIXES.stream().anyMatch(prefix -> indices.keySet().stream().anyMatch(name -> name.startsWith(prefix)));
-    }
 }

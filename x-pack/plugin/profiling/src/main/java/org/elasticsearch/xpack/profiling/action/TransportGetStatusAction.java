@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.profiling.ProfilingPlugin;
 import org.elasticsearch.xpack.profiling.persistence.EventsIndex;
 import org.elasticsearch.xpack.profiling.persistence.IndexStateResolver;
 import org.elasticsearch.xpack.profiling.persistence.ProfilingDataStreamManager;
-import org.elasticsearch.xpack.profiling.persistence.ProfilingIndexManager;
 import org.elasticsearch.xpack.profiling.persistence.ProfilingIndexTemplateRegistry;
 
 public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatusAction.Request, GetStatusAction.Response> {
@@ -167,7 +166,6 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             boolean resourceManagementEnabled = getValue(state, ProfilingPlugin.PROFILING_TEMPLATES_ENABLED);
             boolean resourcesCreated = isResourcesCreated(state);
             boolean anyPre891Data = isAnyPre891Data(state);
-            boolean legacyKvIndicesPresent = ProfilingIndexManager.hasLegacyKvIndices(state);
             // only issue a search if there is any chance that we have data
             if (resourcesCreated) {
                 SearchRequest countRequest = new SearchRequest(EventsIndex.FULL_INDEX.getName());
@@ -180,44 +178,21 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
                 nodeClient.search(countRequest, ActionListener.wrap(searchResponse -> {
                     boolean hasData = searchResponse.getHits().getTotalHits().value() > 0;
                     listener.onResponse(
-                        new GetStatusAction.Response(
-                            pluginEnabled,
-                            resourceManagementEnabled,
-                            resourcesCreated,
-                            anyPre891Data,
-                            hasData,
-                            legacyKvIndicesPresent
-                        )
+                        new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, hasData)
                     );
                 }, (e) -> {
                     // no data yet
                     if (e instanceof SearchPhaseExecutionException) {
                         log.trace("Has data check has failed.", e);
                         listener.onResponse(
-                            new GetStatusAction.Response(
-                                pluginEnabled,
-                                resourceManagementEnabled,
-                                resourcesCreated,
-                                anyPre891Data,
-                                false,
-                                legacyKvIndicesPresent
-                            )
+                            new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, false)
                         );
                     } else {
                         listener.onFailure(e);
                     }
                 }));
             } else {
-                listener.onResponse(
-                    new GetStatusAction.Response(
-                        pluginEnabled,
-                        resourceManagementEnabled,
-                        false,
-                        anyPre891Data,
-                        false,
-                        legacyKvIndicesPresent
-                    )
-                );
+                listener.onResponse(new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, false, anyPre891Data, false));
             }
         }
 

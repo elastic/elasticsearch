@@ -66,9 +66,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
     private ProjectId projectId;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initProjectId() throws Exception {
         projectId = randomProjectIdOrDefault();
     }
 

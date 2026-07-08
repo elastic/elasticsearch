@@ -291,7 +291,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
             assertThat(exception.getMessage(), containsString("[InferenceString] failed to parse field [format]"));
             assertThat(
                 exception.getCause().getMessage(),
-                is(Strings.format("Unrecognized format [%s], must be one of [text, base64]", invalidFormat))
+                is(Strings.format("Unrecognized format [%s], must be one of [text, base64, reference]", invalidFormat))
             );
         }
     }

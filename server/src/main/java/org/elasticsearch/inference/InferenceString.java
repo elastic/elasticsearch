@@ -227,6 +227,12 @@ public class InferenceString implements Writeable, ToXContentObject {
                 RestStatus.BAD_REQUEST
             );
         }
+        if (dataFormat == DataFormat.REFERENCE && out.getTransportVersion().supports(DataFormat.REFERENCE_DATA_FORMAT) == false) {
+            // TODO: Should this be a 400 or 500 error?
+            throw new IllegalStateException(
+                "Cannot serialize a [" + DataFormat.REFERENCE + "] data format, one or or more nodes is too old to support it"
+            );
+        }
         out.writeEnum(dataType);
         out.writeEnum(dataFormat);
         out.writeString(value);

@@ -13,6 +13,7 @@ import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import fixture.gcs.TestUtils;
 
+import com.google.api.gax.retrying.ResultRetryAlgorithm;
 import com.google.api.gax.rpc.HeaderProvider;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
@@ -59,6 +60,9 @@ import org.threeten.bp.Duration;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -86,6 +90,8 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CL
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
+
+    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageBlobStoreRepositoryTests.class);
 
     private static final String CLIENT_ID_HEADER = "x-es-test-client-id";
 
@@ -319,6 +325,18 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         super.testRequestStats();
     }
 
+    // todo(szybia): remove once problem is solved
+    private static void dumpThreadsOnReadTimeout(Throwable cause, boolean willRetry) {
+        final StringBuilder b = new StringBuilder(
+            "\n==== thread dump on GCS SocketTimeoutException (#152286), willRetry=" + willRetry + " ====\n"
+        );
+        for (ThreadInfo ti : ManagementFactory.getThreadMXBean().dumpAllThreads(true, true)) {
+            b.append(ti);
+        }
+        b.append("^^==============================================\n");
+        logger.warn(b.toString(), cause);
+    }
+
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
 
         public TestGoogleCloudStoragePlugin(Settings settings) {
@@ -338,7 +356,21 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 ) {
                     StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions);
                     return options.toBuilder()
-                        .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
+                        .setStorageRetryStrategy(
+                            ShouldRetryDecorator.decorate(
+                                StorageRetryStrategy.getLegacyStorageRetryStrategy(),
+                                (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
+                                    final boolean willRetry = delegate.shouldRetry(prevThrowable, prevResponse);
+                                    logger.info(
+                                        () -> "GCS storage retry decision willRetry=" + willRetry + " cause=[" + prevThrowable + "]"
+                                    );
+                                    if (ExceptionsHelper.unwrap(prevThrowable, SocketTimeoutException.class) != null) {
+                                        dumpThreadsOnReadTimeout(prevThrowable, willRetry);
+                                    }
+                                    return willRetry;
+                                }
+                            )
+                        )
                         .setRetrySettings(
                             options.getRetrySettings()
                                 .toBuilder()

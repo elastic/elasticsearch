@@ -117,7 +117,8 @@ public final class StreamingParallelParsingCoordinator {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
-            null
+            null,
+            StreamingSegmentatorAdmission.unbounded()
         );
     }
 
@@ -164,7 +165,8 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
-        @Nullable Consumer<String> partialResultsWarningSink
+        @Nullable Consumer<String> partialResultsWarningSink,
+        StreamingSegmentatorAdmission admission
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -210,7 +212,51 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
-            partialResultsWarningSink
+            partialResultsWarningSink,
+            admission
+        );
+    }
+
+    /**
+     * Convenience overload that supplies an {@link StreamingSegmentatorAdmission#unbounded()} controller: the
+     * segmentator is dispatched immediately, matching the pre-admission behavior. Retained for tests and benchmarks
+     * running on an isolated, generously-sized pool where segmentator saturation cannot arise; production always
+     * threads the per-node admission gate.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        InputStream decompressedStream,
+        @Nullable StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        @Nullable List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxRecordBytes,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        @Nullable Consumer<String> partialResultsWarningSink
+    ) throws IOException {
+        return parallelRead(
+            reader,
+            decompressedStream,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            readSchema,
+            baseFileOffset,
+            maxRecordBytes,
+            captureSink,
+            statsStripeSize,
+            statsColumnScope,
+            partialResultsWarningSink,
+            StreamingSegmentatorAdmission.unbounded()
         );
     }
 
@@ -255,6 +301,13 @@ public final class StreamingParallelParsingCoordinator {
         /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
         @Nullable
         private final StorageObject storageObject;
+        /**
+         * Node-level gate bounding how many segmentators occupy the shared {@code esql_external_io} pool at once,
+         * so parser tasks are never starved of a thread (see {@link StreamingSegmentatorAdmission}). Never
+         * {@code null}: production threads the per-node controller; tests/benchmarks on an isolated, generously-sized
+         * pool pass {@link StreamingSegmentatorAdmission#unbounded()}, which dispatches immediately.
+         */
+        private final StreamingSegmentatorAdmission admission;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
@@ -329,6 +382,11 @@ public final class StreamingParallelParsingCoordinator {
          */
         private final AtomicReference<SubscribableListener<Void>> pendingReady = new AtomicReference<>();
 
+        /**
+         * Convenience overload for tests/benchmarks that supplies an {@link StreamingSegmentatorAdmission#unbounded()}
+         * controller, so the segmentator is dispatched immediately (matching the pre-admission behavior) on an
+         * isolated, generously-sized pool where saturation cannot arise.
+         */
         StreamingParallelIterator(
             SegmentableFormatReader reader,
             InputStream decompressedStream,
@@ -346,6 +404,45 @@ public final class StreamingParallelParsingCoordinator {
             StripeColumnScope statsColumnScope,
             @Nullable Consumer<String> partialResultsWarningSink
         ) {
+            this(
+                reader,
+                decompressedStream,
+                storageObject,
+                projectedColumns,
+                batchSize,
+                parallelism,
+                executor,
+                errorPolicy,
+                readSchema,
+                baseFileOffset,
+                maxRecordBytes,
+                captureSink,
+                statsStripeSize,
+                statsColumnScope,
+                partialResultsWarningSink,
+                StreamingSegmentatorAdmission.unbounded()
+            );
+        }
+
+        StreamingParallelIterator(
+            SegmentableFormatReader reader,
+            InputStream decompressedStream,
+            @Nullable StorageObject storageObject,
+            List<String> projectedColumns,
+            int batchSize,
+            int parallelism,
+            Executor executor,
+            ErrorPolicy errorPolicy,
+            @Nullable List<Attribute> readSchema,
+            long baseFileOffset,
+            int maxRecordBytes,
+            @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+            long statsStripeSize,
+            StripeColumnScope statsColumnScope,
+            @Nullable Consumer<String> partialResultsWarningSink,
+            StreamingSegmentatorAdmission admission
+        ) {
+            this.admission = admission;
             this.reader = reader;
             this.storageObject = storageObject;
             this.projectedColumns = projectedColumns;
@@ -387,13 +484,23 @@ public final class StreamingParallelParsingCoordinator {
             // where producer-loop drivers and sub-tasks of other iterators competed for the same slots.
             this.tasksOutstanding = new AtomicInteger(1);
 
-            try {
-                executor.execute(() -> runSegmentator(decompressedStream, this.chunkSize));
-            } catch (RejectedExecutionException e) {
-                firstError.compareAndSet(null, e);
-                if (tasksOutstanding.decrementAndGet() == 0) {
-                    signalReady();
-                }
+            // Gate the segmentator through the node-level admission controller so it is handed to the pool only when
+            // a thread will remain free for its parser tasks; a rejection is surfaced through the firstError /
+            // signalReady path. Tests that run on an isolated, generously-sized pool pass an unbounded controller,
+            // which dispatches immediately (see StreamingSegmentatorAdmission#unbounded).
+            Runnable segmentatorTask = () -> runSegmentator(decompressedStream, this.chunkSize);
+            admission.submit(segmentatorTask, executor, this::onSegmentatorLaunchRejected);
+        }
+
+        /**
+         * Records a segmentator that never started (the executor rejected it) and wakes the consumer. The
+         * segmentator is counted in {@link #tasksOutstanding} at construction, so failing to launch must decrement
+         * it or the consumer's EOF predicate never fires. Invoked by the admission controller on a rejection.
+         */
+        private void onSegmentatorLaunchRejected(RejectedExecutionException e) {
+            firstError.compareAndSet(null, e);
+            if (tasksOutstanding.decrementAndGet() == 0) {
+                signalReady();
             }
         }
 
@@ -999,19 +1106,53 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * Returns {@code true} when {@link #hasNext()} can run without blocking on upstream
-         * production: a page is already buffered, the current slot has a page or POISON, EOF has
-         * been reached, an error has been recorded, or the iterator is closed.
+         * production: a real page is available at the head of the current slot, EOF has been reached,
+         * an error has been recorded, or the iterator is closed.
+         * <p>
+         * A lone {@code POISON} end-of-chunk marker is <em>not</em> readiness. Reporting ready on a
+         * bare POISON was the multi-file text-read deadlock: the async producer-loop drain saw
+         * {@code waitForReady().isDone()}, called {@link #hasNext()}, which advanced past the POISON
+         * into an empty, still-parsing slot and BLOCKED on the parser latch — pinning its executor
+         * thread while the parser it waited for was queued behind it on the same pool. We instead
+         * {@link #skipDrainedPoison() consume the POISON here} (advancing and freeing a dispatch permit
+         * exactly as {@code takeNextPage} would) so readiness reflects a genuine page or terminal EOF;
+         * the drain then parks on {@link #waitForReady()} across the inter-chunk gap rather than
+         * blocking, and resumes via {@link #signalReady()} when the next chunk's first page lands.
          */
         private boolean isReadyNow() {
             if (closed || buffered != null || firstError.get() != null) {
                 return true;
             }
+            skipDrainedPoison();
             int slot = currentChunk % pageQueueRingSize;
             if (pageQueues[slot].peek() != null) {
                 return true;
             }
             // EOF: consumer has drained every dispatched chunk AND every producer has exited.
             return currentChunk >= chunksDispatched.get() && tasksOutstanding.get() == 0;
+        }
+
+        /**
+         * Non-blocking: consumes any {@code POISON} end-of-chunk markers currently at the head of the
+         * consumer's slot, advancing {@link #currentChunk} and releasing one {@link #dispatchPermits}
+         * permit per marker — identical accounting to {@link #takeNextPage()}'s POISON branch. Stops at
+         * the first real page, an empty slot, or once no chunk is dispatched for the slot. Only ever
+         * called on the single consumer thread (via {@link #waitForReady()} / {@link #hasNext()}), so the
+         * unsynchronized peek/poll/advance is safe: producers only append to the tail and never advance
+         * {@code currentChunk}. Releasing the permit here (rather than deferring to {@code takeNextPage})
+         * keeps the segmentator unblocked even when the async drain parks across the inter-chunk gap.
+         */
+        private void skipDrainedPoison() {
+            while (currentChunk < chunksDispatched.get()) {
+                int slot = currentChunk % pageQueueRingSize;
+                Page head = pageQueues[slot].peek();
+                if (head == null || head != POISON) {
+                    return;
+                }
+                pageQueues[slot].poll();
+                currentChunk++;
+                dispatchPermits.release();
+            }
         }
 
         @Override

@@ -34,7 +34,7 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
 
     public void testIllegalClustersPerNeighborhood() {
         CentroidOps<V> ops = centroidOps();
-        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, randomInt(), randomInt(), randomFloat());
+        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, randomInt(), randomInt());
         V[] emptyCentroids = ops.newCentroidArrayShallow(0);
         KMeansResult<V> kMeansResult = new KMeansResult<>(emptyCentroids, new int[0]);
         IllegalArgumentException ex = expectThrows(
@@ -57,7 +57,7 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         int[] assignments = new int[nVectors];
         KMeansResult<V> kMeansResult = new KMeansResult<>(centroids, assignments);
 
-        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations, -1f);
+        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations);
         kMeansLocal.cluster(vectors, kMeansResult, nClusters);
 
         for (int a : kMeansResult.assignments()) {
@@ -69,7 +69,6 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         int nClusters = 10;
         int maxIterations = 10;
         int clustersPerNeighborhood = 128;
-        float soarLambda = 1.0f;
         int nVectors = 1000;
         int dims = 5;
 
@@ -77,14 +76,13 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         ClusteringVectorValues<V> vectors = generateZeroData(nVectors, dims);
 
         V[] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, ops);
-        runKMeans(vectors, new BalancedOTKMeansLocalSerial<>(ops, nVectors, maxIterations, soarLambda), centroids);
+        runKMeans(vectors, new BalancedOTKMeansLocalSerial<>(ops, nVectors, maxIterations), centroids);
 
         KMeansResult<V> kMeansResult = new KMeansResult<>(centroids, new int[nVectors]);
-        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, nVectors, maxIterations, soarLambda);
+        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, nVectors, maxIterations);
         var result = kMeansLocal.cluster(vectors, kMeansResult, clustersPerNeighborhood);
 
         assertEquals(nClusters, centroids.length);
-        assertNotNull(result.soarAssignments());
         assertCentroidsAreZero(centroids);
     }
 
@@ -97,12 +95,11 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         // We require clustersPerNeighborhood > nClusters so that neighborhoods are not used in BalancedOTKMeansLocalSerial
         // (this path is not used in production, just for the test).
         int clustersPerNeighborhood = random().nextInt(11, 512);
-        float soarLambda = random().nextFloat(0.5f, 1.5f);
 
         CentroidOps<V> ops = centroidOps();
         ClusteringVectorValues<V> vectors = generateData(nVectors, dims, nClusters);
         V[] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, ops);
-        runKMeans(vectors, new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda), centroids);
+        runKMeans(vectors, new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations), centroids);
 
         int[] assignments = new int[vectors.size()];
         for (int i = 0; i < vectors.size(); i++) {
@@ -120,11 +117,10 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         }
 
         KMeansResult<V> kMeansResult = new KMeansResult<>(centroids, assignments);
-        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda);
-        var result = kMeansLocal.cluster(vectors, kMeansResult, clustersPerNeighborhood);
+        KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations);
+        kMeansLocal.cluster(vectors, kMeansResult, clustersPerNeighborhood);
 
         assertEquals(nClusters, centroids.length);
-        assertNotNull(result.soarAssignments());
     }
 
 }

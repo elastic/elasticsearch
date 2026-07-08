@@ -14,7 +14,6 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.test.ESTestCase;
 
@@ -51,7 +50,7 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, true, MAPPING_BITS, MAPPING_OVERSAMPLE, null);
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
-                assertThat(resolved.quantEncoding(), equalTo(ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) MAPPING_BITS)));
+                assertThat(resolved.quantEncoding(), equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS)));
                 assertTrue(resolved.usePrecondition());
                 assertThat(resolved.rescoreOversample(), equalTo(MAPPING_OVERSAMPLE));
             }
@@ -88,18 +87,8 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                     dir,
                     4,
                     64,
-                    new IvfSegmentConfig(
-                        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                        true,
-                        MAPPING_OVERSAMPLE
-                    ),
-                    new IvfSegmentConfig(
-                        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-                        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                        true,
-                        MAPPING_OVERSAMPLE
-                    ),
+                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, MAPPING_OVERSAMPLE),
+                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, MAPPING_OVERSAMPLE),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
@@ -169,15 +158,15 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
     }
 
     public void testResolveUsesPersistedQuantEncodingWhenAutoCalibrateEnabled() throws IOException {
-        ESNextDiskBBQVectorsFormat.QuantEncoding persistedEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
+        QuantEncoding persistedEncoding = QuantEncoding.TWO_BIT_4BIT_QUERY;
         try (Directory dir = newDirectory()) {
             try (
                 DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
                     dir,
                     4,
                     64,
-                    new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
-                    new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
@@ -192,15 +181,15 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
     }
 
     public void testResolveUsesMappingBitsWhenAutoCalibrateDisabled() throws IOException {
-        ESNextDiskBBQVectorsFormat.QuantEncoding persistedEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
+        QuantEncoding persistedEncoding = QuantEncoding.TWO_BIT_4BIT_QUERY;
         try (Directory dir = newDirectory()) {
             try (
                 DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
                     dir,
                     4,
                     64,
-                    new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
-                    new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
@@ -209,7 +198,7 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, false, MAPPING_BITS, MAPPING_OVERSAMPLE, null);
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
-                assertThat(resolved.quantEncoding(), equalTo(ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) MAPPING_BITS)));
+                assertThat(resolved.quantEncoding(), equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS)));
             }
         }
     }

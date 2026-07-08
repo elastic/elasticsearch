@@ -235,8 +235,8 @@ ctx.write(message).addListener(f -> { if (f.isSuccess() ...)});
 
 ### ThreadPool
 
-The [`ThreadPool`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java)
-is the central registry that owns every executor in a node and is the entry point for getting one. Rather than holding
+The [`ThreadPool`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java) class
+is a central registry that owns most executors in a node and is the entry point for getting one. Rather than holding
 references to raw `ExecutorService`s, code asks the `ThreadPool` for a named executor and submits work to it:
 
 ```java
@@ -250,7 +250,7 @@ threadPool.scheduleWithFixedDelay(runnable, interval, executor);
 
 Each pool has a [`ThreadPoolType`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java#L159):
 
-- A **FIXED** pool has a static number of threads backed by a *bounded* queue. When the queue fills up, new tasks are
+- A **FIXED** pool has a static number of threads, backed by a *bounded* or *unbounded* queue. When the queue fills up, new tasks are
   *rejected immediately* (surfacing as an `EsRejectedExecutionException`). This gives predictable resource consumption and
   fast back-pressure under load, so it is used for the hot data paths such as `SEARCH` and `WRITE`.
 - A **SCALING** pool has a thread count that grows on demand between a min and a max, backed by an *unbounded* queue, and
@@ -269,16 +269,19 @@ Notable pools and their purpose:
 - `SEARCH` (fixed) runs user search queries on the data nodes.
 - `SEARCH_COORDINATION` (fixed) coordinates the search fan-out across shards.
 - `WRITE` (fixed) handles indexing, bulk, and delete operations.
-- `CLUSTER_COORDINATION` carries all cluster-state updates. It is sized to a **single thread by design** so that
-  cluster-state application is serialized and correctness is guaranteed (see the [Cluster Coordination](#cluster-coordination) section).
+- `CLUSTER_COORDINATION` carries all cluster state updates. It is sized to a **single thread by design** so that
+  cluster state updates, master elections and cluster membership updates are serialized and correctness is guaranteed (see the [Cluster Coordination](#cluster-coordination) section).
 - `MANAGEMENT` (scaling) serves health, monitoring, and admin read APIs.
 - `FLUSH` / `REFRESH` / `MERGE` (scaling) run the corresponding shard maintenance operations, described under
   [Segments, Refresh, and Flush](#segments-refresh-and-flush) and [Segment Merges](#segment-merges).
 
 #### `AbstractRunnable` and `ActionRunnable`
 
-Submitting a plain `Runnable` works, but the executor cannot then tell the task that it was *rejected* rather than run,
-and any exception thrown from `run()` is swallowed by the worker thread. ES therefore prefers two richer abstractions:
+Submitting a plain `Runnable` via `execute(...)` works, but the task gets none of the structured handling ES relies on.
+There is no way to distinguish *rejection* (the queue was full) from a normal run, and any exception thrown from `run()`
+propagates only as an uncaught exception on the worker thread rather than a callback tied to that specific task. Calling
+`submit(...)` instead wraps the task in a `Future`, and the resulting exception is captured there silently unless
+something later calls `get()` on it. ES therefore prefers two richer abstractions:
 
 - [`AbstractRunnable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/AbstractRunnable.java)
   extends `Runnable` with structured exception handling and lifecycle hooks: `doRun()` holds the work, `onFailure(Exception)`
@@ -312,11 +315,11 @@ threading of context through the code.
 See the [Javadocs for `ActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
 
 `ActionListener<T>` is the primary async callback interface in Elasticsearch, a form of *continuation-passing style*.
-Instead of computing and returning a value, an asynchronous operation is handed "what to do next" (the listener) as an
-argument and invokes it when the result is ready, and the caller passes its continuation into the callee rather than blocking
-until the callee finishes. This keeps threads free, lets operations compose without waiting, and, because listeners are
-also invoked from thread-pool executors, naturally carries the `ThreadContext` (see [ThreadPool](#threadpool)) across
-async hops. The contract is a two-path pair of methods:
+Rather than blocking the caller until an asynchronous operation returns a value, the operation is instead handed "what
+to do next" (the listener) as an argument. The listener is invoked once the operation result is ready. This allows for operations to be composed
+without the caller needing to block and wait for completion, and, because listeners are also invoked from thread-pool
+executors, naturally carries the `ThreadContext` (see [ThreadPool](#threadpool)) across async hops. The contract is a
+two-path pair of methods:
 
 ```java
 void onResponse(T response); // success path
@@ -330,10 +333,14 @@ the JVM exit that should follow such a fatal condition. `ActionListener` makes t
 
 #### Composition
 
-You almost never subclass `ActionListener` directly. Instead you compose delegates using its static factory methods, for
-example `wrap` to build an inline listener from two lambdas, `runAfter` to run a cleanup action once the delegate
-completes, or `delegateFailureAndWrap` to handle only the success path while forwarding failures automatically. See the
-[`ActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
+`ActionListener` can be subclassed directly, usually as an anonymous class, when listeners
+implement complex logic. It is important to note that an exception thrown from `onResponse` is not automatically routed to
+`onFailure` and must be handled manually. `ActionListener` also
+provides static factory methods for composing delegates without writing a full implementation. `wrap` builds an
+inline listener from two lambdas, `runAfter` runs a cleanup action once the delegate completes, and
+`delegateFailureAndWrap` handles only the success path while forwarding failures automatically, including failures
+thrown by that success-path logic itself. See the
+[`ActionListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/ActionListener.java)
 class itself for the full set of factory methods and their exact semantics.
 
 #### Fan-out and specialized implementations
@@ -352,10 +359,10 @@ When one operation must wait for multiple concurrent sub-operations, there are p
   listener's continuation off the Netty event-loop thread (see the [Networking](#networking) / Netty discussion above and
   the [Performance](#performance) note below) so that expensive follow-up work does not run on an I/O thread.
 
-#### Lifecycle listeners
+#### Long-Lived Listeners
 
-Distinct from the one-shot `ActionListener` are the *lifecycle* listeners. Registered once with a service, they live for
-the lifetime of the node and follow the classical Observer pattern, in which a subject maintains a list of registered
+Distinct from the one-shot `ActionListener` are the *long-lived* listeners. Registered once with a service, they live for
+the lifetime of the node (or until explicitly deregistered) and follow the classical Observer pattern, in which a subject maintains a list of registered
 listeners and notifies all of them on each event. There is no notion of completion, and the listener keeps receiving
 events. The two most common are
 [`ClusterStateListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateListener.java)
@@ -365,28 +372,43 @@ events. The two most common are
 
 ### Chunk Encoding
 
-Elasticsearch uses two completely separate serialization systems, and neither uses Java's built-in `Serializable`:
+Chunked transfer encoding, HTTP's `Transfer-Encoding: chunked`, lets either side of an HTTP exchange send a body
+without knowing its total length up front. The body is instead broken into a sequence of length-prefixed chunks
+terminated by a final zero-length chunk. Elasticsearch deals with this on both the request and the response side, and
+the two are handled very differently.
 
-- The **transport binary format** is the node-to-node wire protocol, driven by the `Writeable` interface (see
-  [Wire Serialization](#wire-serialization) below).
-- **XContent** is the structured document format used by REST APIs and for on-disk cluster state, supporting JSON, YAML,
-  SMILE, and CBOR via the `ToXContent` family of interfaces (see [XContent](#xcontent) below).
+On the request side, chunked request bodies are decoded transparently by Netty's stock `HttpRequestDecoder`
+([`Netty4HttpServerTransport`](https://github.com/elastic/elasticsearch/blob/v9.3.0/modules/transport-netty4/src/main/java/org/elasticsearch/http/netty4/Netty4HttpServerTransport.java)),
+which parses chunked and `Content-Length`-based bodies into the same stream of `HttpContent` objects followed by a
+`LastHttpContent`. Netty removes the chunk framing itself, so Elasticsearch only ever sees the decoded body delivered
+incrementally. Elasticsearch does not implement its own chunk-framing logic for incoming requests.
+[`Netty4HttpRequestBodyStream`](https://github.com/elastic/elasticsearch/blob/v9.3.0/modules/transport-netty4/src/main/java/org/elasticsearch/http/netty4/Netty4HttpRequestBodyStream.java)
+then exposes those chunks to the rest of the HTTP layer as an incremental `HttpBody.Stream` (see the Sync/Async IO
+discussion above).
 
-#### XContent
+The response side is more interesting, because it lets Elasticsearch produce a chunked response without ever
+materializing the full response body in memory. A handler whose response implements
+[`ChunkedToXContent`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/xcontent/ChunkedToXContent.java)
+returns an iterator of `ToXContent` chunks rather than a single fully-built document.
+[`ChunkedRestResponseBodyPart`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/ChunkedRestResponseBodyPart.java)
+drives that iterator, serializing only as many chunks as are needed to keep the outbound network buffer full and
+pausing once it fills up. This lets Elasticsearch stream arbitrarily large responses at roughly constant memory,
+instead of building the whole response as one large in-memory buffer before sending the first byte.
+[`RestChunkedToXContentListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/RestChunkedToXContentListener.java)
+is the common integration point a REST handler uses to return a `ChunkedToXContent` response this way. The resulting
+`HttpContent`s are ultimately written out by Netty's stock
+[`HttpResponseEncoder`](https://github.com/elastic/elasticsearch/blob/v9.3.0/modules/transport-netty4/src/main/java/org/elasticsearch/http/netty4/Netty4HttpServerTransport.java#L422),
+which handles the real `Transfer-Encoding: chunked` framing on the wire. This is the write-side counterpart to the
+decoder used on the request path above.
 
-XContent is the structured, human-orientable serialization system. The
-[`XContentType`](https://github.com/elastic/elasticsearch/blob/v9.3.0/libs/x-content/src/main/java/org/elasticsearch/xcontent/XContentType.java)
-enum enumerates the supported concrete formats, which are JSON, YAML, SMILE, and CBOR, plus versioned variants. The
-abstraction exists so that most code does not hardcode a format. Cluster state is persisted on disk in **SMILE** (a
-compact binary superset of JSON), REST APIs default to **JSON**, and a REST caller can request a different response
-format via `?format=`.
+### XContent
 
 **Writing** is done through two interfaces, both requiring
 `XContentBuilder toXContent(XContentBuilder builder, Params params)`:
 
 - [`ToXContentObject`](https://github.com/elastic/elasticsearch/blob/v9.3.0/libs/x-content/src/main/java/org/elasticsearch/xcontent/ToXContentObject.java)
-  wraps its output in `builder.startObject()` / `builder.endObject()`, and is the standard for top-level
-  request/response objects.
+  wraps the content with `builder.startObject()` / `builder.endObject()`, and is the standard for top-level
+  request/response objects. It guarantees that the emitted content is a complete valid object rather than a fragment.
 - [`ToXContentFragment`](https://github.com/elastic/elasticsearch/blob/v9.3.0/libs/x-content/src/main/java/org/elasticsearch/xcontent/ToXContentFragment.java)
   writes bare key/value pairs without an enclosing object, for objects that are always embedded inside a larger object
   managed by the caller.
@@ -407,11 +429,16 @@ static {
 ```
 
 Fields declared with `constructorArg()` are required and `optionalConstructorArg()` may be absent. Fields declared with a
-setter are applied after the object has been constructed.
+setter are applied after the object has been constructed. The two-argument constructor shown above defaults to strict
+parsing, where any undeclared field is a parsing error. A three-argument overload takes an explicit
+`ignoreUnknownFields` flag instead, which should generally only be set to `true` when parsing responses from external
+systems, never when parsing requests from users.
 
-#### Wire Serialization
+### Wire Serialization
 
-The transport binary format is the node-to-node wire protocol (see [Transport](#transport)). The core interface is
+The transport binary format is Elasticsearch's other serialization system, entirely separate from XContent. It is the
+node-to-node wire protocol (see [Transport](#transport)) and it does not use Java's built-in `Serializable`. The core
+interface is
 [`Writeable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/io/stream/Writeable.java),
 whose sole method is `void writeTo(StreamOutput out)`. By convention a `Writeable` also provides a symmetric
 *deserialization constructor* taking a `StreamInput`, which keeps the type immutable and puts read and write logic side by
@@ -550,31 +577,8 @@ architecture diagram of the two-tier design, and the design is described in deta
 
 Splitting the write path (`index` nodes) from the read path (`search` nodes) is what lets read and write capacity scale
 horizontally and independently. Stateless is implemented as an Elasticsearch plugin (the
-[`stateless`](https://github.com/elastic/elasticsearch/tree/main/x-pack/plugin/stateless) plugin) that overrides the
+[`stateless`](https://github.com/elastic/elasticsearch/tree/f607d700ce5e6d57d32e4e5f0f207de89704aeba/x-pack/plugin/stateless) plugin) that overrides the
 relevant stateful components while reusing most of the stateful concepts described elsewhere in this guide.
-
-The two tiers exchange all durable data through the object store:
-
-- **Write path.** On an `index` node the
-  [`IndexEngine`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/engine/IndexEngine.java)
-  writes to the in-memory Lucene buffer and the local translog. The
-  [`TranslogReplicator`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/engine/translog/TranslogReplicator.java)
-  intercepts those translog operations and accumulates them in a node-level
-  [`NodeTranslogBuffer`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/engine/translog/NodeTranslogBuffer.java),
-  which is flushed to the object store once it crosses a configurable size or time threshold (defaults on the order of
-  ~16 MB / ~200 ms). Separately, the
-  [`StatelessCommitService`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/commits/StatelessCommitService.java)
-  batches Lucene commits and uploads them when a true flush occurs or when configurable count/size/time thresholds are
-  reached, amortizing object-store round-trips.
-- **Read path.** `search` nodes serve queries from a local disk-backed blob cache
-  ([`StatelessSharedBlobCacheService`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/cache/StatelessSharedBlobCacheService.java)),
-  reading from the object store on a miss. The
-  [`SearchCommitPrefetcher`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/cache/SearchCommitPrefetcher.java)
-  together with online prewarming pulls newly committed data into the cache ahead of queries to reduce cold-read latency.
-- **Recovery and allocation.** Both stateful and stateless use the Lucene segment + translog model, but where a stateful
-  shard recovers from a peer shard or a snapshot (see [Peer Recovery](#peer-recovery)), a stateless shard recovers
-  directly from the object store. Allocation decisions in stateless are driven by the
-  [`StatelessExistingShardsAllocator`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/allocation/StatelessExistingShardsAllocator.java).
 
 #### Master Node Role
 
@@ -891,10 +895,15 @@ When a new [ClusterState] is committed, the follower nodes need to apply the com
 This is the responsibility of the [ClusterApplierService] class, which runs on
 a [single dedicated thread](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L159).
 
-Note that, to save bandwidth, a follower normally receives only a *diff* against the state it last acknowledged rather
-than the full serialized state (see the publication-side diff discussion above). The follower reconstructs the complete
-`ClusterState` from that diff locally, and it is this reconstructed full state that is then exposed as the current state
-to the appliers and listeners below.
+To save bandwidth, the master normally sends a follower only a *diff* against the state it believes that follower last
+received (see the publication-side diff discussion above). The follower can reconstruct the complete `ClusterState`
+from that diff only if its own locally cached `lastSeenClusterState` matches the diff's base state. A mismatch can
+happen if the node just joined, restarted, or missed an intervening publication. When that happens, applying the diff
+throws an [`IncompatibleClusterStateVersionException`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/IncompatibleClusterStateVersionException.java#L20)
+and the master transparently resends that node the full state instead (see the Publish phase of
+[Cluster State Publication](#cluster-state-publication) above). Either way, the
+follower ends up with the complete state, and that reconstructed state is what gets exposed as the current state to the
+appliers and listeners below.
 
 When [receiving](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L412)
 an [ApplyCommitRequest] from the master, the [Coordinator] will hand over the committed state to
@@ -1398,7 +1407,7 @@ operation.
 
 Beyond leadership, the lease/root blob also serves as a consistency gate during normal operation. Before a node acks a
 translog upload it verifies that its local cluster state is consistent with the authoritative blob, via
-[`StatelessClusterConsistencyService.ensureClusterStateConsistentWithRootBlob()`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/cluster/coordination/StatelessClusterConsistencyService.java),
+[`StatelessClusterConsistencyService.ensureClusterStateConsistentWithRootBlob()`](https://github.com/elastic/elasticsearch/blob/f607d700ce5e6d57d32e4e5f0f207de89704aeba/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/cluster/coordination/StatelessClusterConsistencyService.java),
 blocking writes if cluster membership has changed and the node's local state has not yet caught up. This prevents a node
 that has fallen behind on cluster-state updates from durably acknowledging writes it should no longer be handling.
 
@@ -1627,7 +1636,7 @@ data/
                 │   └── state-<N>.st         # index metadata (settings, mappings)
                 └── <shard-id>/              # e.g. 0, 1, 2 ...
                     ├── _state/
-                    │   └── state-<N>.st     # shard state (routing, allocation ID)
+                    │   └── state-<N>.st     # primary flag, index UUID, allocation ID
                     ├── index/               # Lucene segment files + write.lock
                     │   ├── segments_N
                     │   └── ...              # see the Lucene File Layout table below
@@ -1639,9 +1648,10 @@ data/
 The [`node.lock`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/NodeEnvironment.java#L186)
 file is a filesystem lock acquired by [NodeEnvironment] at startup, and it prevents two Elasticsearch processes from
 sharing the same data directory (see the [Locking](#locking) section). The `_state/state-<N>.st` files are written
-via `MetadataStateFormat` and hold the index metadata (at the index level) and shard routing/allocation state (at the
-shard level). The `-<N>` suffix is a monotonically increasing generation so a new state can be written and fsynced
-before the old one is removed. The `index/` directory holds the Lucene segments and commit points (its contents are
+via `MetadataStateFormat`. At the index level they hold the index metadata (settings, mappings). At the shard level
+they hold a small [`ShardStateMetadata`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/ShardStateMetadata.java)
+record. That record contains only a primary/replica flag, the owning index's UUID, and the shard's `AllocationId`. The `-<N>` suffix is a monotonically
+increasing generation so a new state can be written and fsynced before the old one is removed. The `index/` directory holds the Lucene segments and commit points (its contents are
 detailed in the [Lucene File Layout](#lucene-file-layout) table). The `translog/` directory holds the durability log
 described under [Translog](#translog), where `translog.ckp` is the checkpoint tracking the current generation and its
 sequence-number range.
@@ -1649,10 +1659,11 @@ sequence-number range.
 The runtime object graph that owns these files is a containment hierarchy rooted at the shard:
 `IndexShard -> Engine (InternalEngine) -> { IndexWriter, DirectoryReader, Store -> Directory }`. The `IndexWriter`
 writes documents and drives flushes and merges, the `DirectoryReader` opens segments for search, and the `Store`
-wraps the Lucene `Directory` for raw file I/O. All of the Lucene extension points ES plugs in (the versioned codec,
-the wrapped `TieredMergePolicy`, soft deletes, and the index deletion policy) are assembled in
-[`InternalEngine#getIndexWriterConfig()`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java),
-which builds the `IndexWriterConfig` handed to the `IndexWriter` when the shard is opened.
+wraps the Lucene `Directory` for raw file I/O.
+[`InternalEngine#getIndexWriterConfig()`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java)
+assembles the write-path customizations used to build the `IndexWriter`, including the index deletion policy, the
+soft-deletes field, the wrapped `TieredMergePolicy`, and codec selection. Read-path customizations such as the query
+cache and query caching policy are attached separately, when the `Searcher` is built from the `DirectoryReader`.
 
 #### Concurrency
 

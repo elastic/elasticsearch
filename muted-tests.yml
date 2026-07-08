@@ -848,3 +848,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
   method: testFetchDenseVector {pref=STORED mode=logsdb}
   issue: https://github.com/elastic/elasticsearch/issues/153207
+- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
+  method: testConcurrentProducerLoopsThroughStatsCapturingWrapperDoNotDeadlock
+  issue: https://github.com/elastic/elasticsearch/issues/153210

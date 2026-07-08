@@ -1668,3 +1668,133 @@ r:date_range           | decade:integer
 1900-01-01..1910-01-01 | 1900
 1910-01-01..1920-01-01 | 1910
 ;
+
+###############################################
+# COUNT, PRESENT, ABSENT, MV_COUNT tests
+###############################################
+
+// COUNT over all date_range rows in decades (13 rows, all non-null).
+countDateRange
+required_capability: date_range_field_type_v6
+required_capability: agg_basic_date_range
+
+FROM decades
+| STATS c = COUNT(date_range)
+;
+
+c:long
+13
+;
+
+// COUNT with a filter reduces to a subset.
+countDateRangeWithFilter
+required_capability: date_range_field_type_v6
+required_capability: agg_basic_date_range
+
+FROM decades
+| STATS c = COUNT(date_range) WHERE decade >= 2000
+;
+
+c:long
+3
+;
+
+// COUNT grouped by decade — each group has exactly one row.
+countDateRangeGrouped
+required_capability: date_range_field_type_v6
+required_capability: agg_basic_date_range
+
+FROM decades
+| WHERE decade == 1900 OR decade == 1910
+| STATS c = COUNT(date_range) BY decade
+| SORT decade
+;
+
+c:long | decade:integer
+1      | 1900
+1      | 1910
+;
+
+// PRESENT returns true when at least one non-null date_range value exists in the group.
+presentDateRange
+required_capability: date_range_field_type_v6
+required_capability: agg_basic_date_range
+
+FROM decades
+| STATS p = PRESENT(date_range)
+;
+
+p:boolean
+true
+;
+
+// PRESENT returns false when all values in the group are null.
+presentDateRangeAllNull
+required_capability: date_range_field_type_v6
+required_capability: agg_basic_date_range
+
+ROW dr = TO_DATE_RANGE(null)
+| STATS p = PRESENT(dr)
+;
+
+p:boolean
+false
+;
+
+// ABSENT returns true when all values in the group are null.
+absentDateRangeAllNull
+required_capability: date_range_field_type_v6
+required_capability: agg_basic_date_range
+
+ROW dr = TO_DATE_RANGE(null)
+| STATS a = ABSENT(dr)
+;
+
+a:boolean
+true
+;
+
+// ABSENT returns false when at least one non-null date_range value exists.
+absentDateRange
+required_capability: date_range_field_type_v6
+required_capability: agg_basic_date_range
+
+FROM decades
+| STATS a = ABSENT(date_range)
+;
+
+a:boolean
+false
+;
+
+// MV_COUNT on a single-value date_range field returns 1 for each row.
+mvCountDateRangeSingleValue
+required_capability: date_range_field_type_v6
+required_capability: agg_basic_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL ct = MV_COUNT(date_range)
+| KEEP decade, ct
+;
+
+decade:integer | ct:integer
+1900           | 1
+;
+
+// MV_COUNT on multi-value date_range fields returns the correct per-row count.
+mvCountDateRangeMultiValue
+required_capability: date_range_field_type_v6
+required_capability: agg_basic_date_range
+
+FROM mv_decades
+| EVAL ct = MV_COUNT(date_range)
+| KEEP decade, ct
+| SORT decade
+;
+
+decade:integer | ct:integer
+1900           | 1
+1950           | 2
+2000           | 2
+;

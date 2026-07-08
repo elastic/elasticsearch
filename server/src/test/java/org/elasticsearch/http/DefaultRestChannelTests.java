@@ -78,6 +78,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -501,6 +502,57 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         verify(tracer).setAttribute(argThat(id -> id.getSpanId().startsWith("rest-")), eq("http.status_code"), eq(200L));
         verify(tracer).stopTrace(any(RestRequest.class));
+    }
+
+    /**
+     * Check that a 5xx response sets the span status to ERROR, per OTel semantic conventions
+     * for HTTP server spans. Tests both 500 and 502 to verify the {@code >= 500} boundary.
+     */
+    public void testTraceStatusErrorSetFor5xx() {
+        sendResponseAndCapture(new RestResponse(RestStatus.INTERNAL_SERVER_ERROR, "server error"));
+        verify(tracer).setStatusToError(
+            argThat(id -> id.getSpanId().startsWith("rest-")),
+            eq(RestStatus.INTERNAL_SERVER_ERROR.getStatus() + " " + RestStatus.INTERNAL_SERVER_ERROR.name())
+        );
+
+        sendResponseAndCapture(new RestResponse(RestStatus.BAD_GATEWAY, "bad gateway"));
+        verify(tracer).setStatusToError(
+            argThat(id -> id.getSpanId().startsWith("rest-")),
+            eq(RestStatus.BAD_GATEWAY.getStatus() + " " + RestStatus.BAD_GATEWAY.name())
+        );
+    }
+
+    /**
+     * Check that a 4xx response does NOT set the span status to ERROR. Per OTel semantic conventions,
+     * 4xx responses are client errors — the server processed the request correctly.
+     */
+    public void testTraceStatusNotSetFor4xx() {
+        sendResponseAndCapture(new RestResponse(RestStatus.NOT_FOUND, "not found"));
+        verify(tracer, never()).setStatusToError(any(), any(String.class));
+    }
+
+    /** Builds a default channel, wires the httpChannel mock to fire listeners, and sends {@code response}. */
+    private void sendResponseAndCapture(RestResponse response) {
+        doAnswer(invocationOnMock -> {
+            ActionListener<?> listener = invocationOnMock.getArgument(1);
+            listener.onResponse(null);
+            return null;
+        }).when(httpChannel).sendResponse(any(HttpResponse.class), anyActionListener());
+
+        HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(Settings.EMPTY),
+            httpTracer,
+            tracer
+        );
+        channel.sendResponse(response);
     }
 
     public void testHandleHeadRequest() {

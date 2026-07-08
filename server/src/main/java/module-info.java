@@ -480,6 +480,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat,
+            org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat,
@@ -501,6 +502,10 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec,
             org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 
+    provides org.apache.lucene.index.SortFieldProvider
+        with
+            org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField.Provider;
+
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 
     exports org.elasticsearch.cluster.routing.allocation.shards
@@ -517,12 +522,12 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec.perfield;
     // TODO: revert to qualified exports when ModuleQualifiedExportsService supports libraries too
     exports org.elasticsearch.index.codec.vectors; // to org.elasticsearch.test.knn, org.elasticsearch.gpu;
-    exports org.elasticsearch.index.codec.vectors.reflect; // to org.elasticsearch.gpu;
     exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
     exports org.elasticsearch.inference.telemetry;
     exports org.elasticsearch.index.codec.vectors.diskbbq to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.diskbbq.next to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.diskbbq.es94 to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
+    exports org.elasticsearch.index.codec.vectors.diskbbq.es95 to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.cluster to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.es93 to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.es94 to org.elasticsearch.test.knn;

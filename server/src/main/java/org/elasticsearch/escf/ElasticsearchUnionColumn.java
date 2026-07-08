@@ -24,8 +24,7 @@ import org.elasticsearch.xcontent.XContentString;
  * dense value buffer delimited by a {@code (docCount + 1)}-entry offset vector holds the payload.
  * Zero-byte types (NULL/TRUE/FALSE/ABSENT) occupy no payload, fixed numerics (LONG/DOUBLE) occupy 8
  * bytes, and variable types occupy their offset-delta bytes. Array and key-value rows are stored as
- * inline EIRF bytes and read with {@link InlineArrayReader} / {@link KeyValueReader}. This is the
- * one ESCF kind that branches on type at read time.
+ * inline bytes and read with {@link InlineArrayReader} / {@link KeyValueReader}.
  */
 final class ElasticsearchUnionColumn extends ElasticsearchColumn {
 

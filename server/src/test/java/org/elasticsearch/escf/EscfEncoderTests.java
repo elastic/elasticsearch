@@ -42,6 +42,26 @@ public class EscfEncoderTests extends ESTestCase {
             {"user":{"name":"alice","age":30},"status":"active"}""");
     }
 
+    public void testEmptyObject() throws IOException {
+        assertRoundTrip("""
+            {"empty":{},"x":1}""");
+    }
+
+    public void testEmptyObjectDistinctFromAbsent() throws IOException {
+        // doc 0 has "obj" as an empty object; doc 1 doesn't have "obj" at all. These must not collapse
+        // into the same (absent) representation.
+        assertRoundTrip("""
+            {"obj":{}}""", """
+            {"other":1}""");
+    }
+
+    public void testEmptyObjectAndNestedObjectAcrossDocs() throws IOException {
+        // "obj" is an empty object in doc 0 and a real nested object (with its own subfield leaf) in doc 1.
+        assertRoundTrip("""
+            {"obj":{}}""", """
+            {"obj":{"k":1}}""");
+    }
+
     public void testFixedLongArray() throws IOException {
         assertRoundTrip("""
             {"vals":[1,2,3,4]}""");

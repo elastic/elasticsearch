@@ -33,7 +33,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Encodes JSON documents into {@link EscfBatch}es (Elasticsearch Column Format), accumulating one
+ * Encodes XContentType documents into {@link EscfBatch}es (Elasticsearch Column Format), accumulating one
  * column per leaf field. Numbers upcast aggressively (JSON int/long → {@code long}, float/double →
  * {@code double}); a type conflict or an explicit null promotes the column to
  * {@link ElasticsearchColumnKind#UNION}. Fixed primitive arrays are stored in a columnar list layout;
@@ -41,9 +41,6 @@ import java.util.List;
  *
  * <p>Implements {@link SourceBatchEncoder} so it can be swapped for {@link EirfEncoder} at the
  * coordinating layer. Single-partition convenience: {@link #encode(List, XContentType)}.
- *
- * <p><b>Limitation (prototype):</b> an empty object ({@code {}}) emits no leaf (treated as absent),
- * matching the EICF prototype; key-value leaves only arise from objects nested inside arrays.
  */
 public final class EscfEncoder implements SourceBatchEncoder {
 
@@ -181,6 +178,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
             case SourceValueType.FLOAT, SourceValueType.DOUBLE -> builder.addDouble(Double.longBitsToDouble(scratchNumeric[columnIndex]));
             case SourceValueType.STRING -> builder.addString((XContentString.UTF8Bytes) scratchVar[columnIndex]);
             case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) scratchVar[columnIndex]);
+            case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) scratchVar[columnIndex]);
             default -> throw new IllegalStateException("unexpected scratch EIRF type [" + SourceValueType.name(type) + "]");
         }
     }
@@ -196,12 +194,21 @@ public final class EscfEncoder implements SourceBatchEncoder {
             token = parser.nextToken();
 
             if (token == XContentParser.Token.START_OBJECT) {
+                // Peek inside the object. An empty object is encoded as its own zero-byte KEY_VALUE leaf so
+                // it stays distinguishable from an absent field; non-empty objects flatten recursively.
                 XContentParser.Token inner = parser.nextToken();
-                if (inner != XContentParser.Token.END_OBJECT) {
+                if (inner == XContentParser.Token.END_OBJECT) {
+                    int colIdx = schema.appendLeaf(fieldName, parentNonLeafIdx);
+                    ensureScratchCapacity(colIdx + 1);
+                    if (columnsSet.getAndSet(colIdx)) {
+                        throw new IllegalArgumentException("Duplicate field [" + fieldName + "]");
+                    }
+                    scratchType[colIdx] = SourceValueType.KEY_VALUE;
+                    scratchVar[colIdx] = BytesRef.EMPTY_BYTES;
+                } else {
                     int nonLeafIdx = schema.appendNonLeaf(fieldName, parentNonLeafIdx);
                     flattenObject(parser, nonLeafIdx, inner, sink);
                 }
-                // An empty object emits no leaf (treated as absent for this document).
                 token = parser.nextToken();
                 continue;
             }

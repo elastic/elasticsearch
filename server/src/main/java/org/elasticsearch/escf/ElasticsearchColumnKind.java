@@ -9,14 +9,10 @@
 
 package org.elasticsearch.escf;
 
+import org.elasticsearch.sourcebatch.SourceValueType;
+
 /**
  * Column kind constants for the Elasticsearch Column Format.
- *
- * <p>Each leaf column is stored as a typed vector plus an optional validity (absent) bitset. The
- * kind byte determines the physical layout of the column data and is persisted in the column index
- * section of the batch header (see {@link EscfBatch}). Every layout is a plain columnar encoding
- * (a typed value buffer with optional offset/validity vectors); only {@link #UNION} branches on
- * per-row type.
  *
  * <pre>
  * LONG/DOUBLE:   values[docCount * 8]
@@ -53,7 +49,7 @@ public final class ElasticsearchColumnKind {
     public static final byte ARRAY = 0x06;
 
     /**
-     * A heterogeneous column: a per-row type vector gives each row's {@link org.elasticsearch.sourcebatch.SourceValueType},
+     * A heterogeneous column: a per-row type vector gives each row's {@link SourceValueType},
      * and a dense value buffer holds the payload. Array and key-value rows are stored as inline EIRF
      * bytes here. Handles any type combination, including explicit null and mixed long/double.
      */

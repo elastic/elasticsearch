@@ -28,9 +28,8 @@ import java.util.List;
  * Accumulates the per-document values of a single ESCF leaf column and serializes them into an
  * {@link ElasticsearchColumnData} when {@link #finish(int)} is called.
  *
- * <p>The facade dispatches each {@code add*} call to a typed builder for the column's current kind.
- * The first non-absent value selects the kind. A conflicting later value, or an explicit {@code null},
- * promotes the column to {@link ElasticsearchColumnKind#UNION}.
+ * <p>The first non-absent value selects the kind. A conflicting later value, or an explicit
+ * {@code null}, promotes the column to {@link ElasticsearchColumnKind#UNION}.
  */
 final class ElasticsearchColumnBuilder {
 
@@ -83,7 +82,7 @@ final class ElasticsearchColumnBuilder {
     }
 
     /**
-     * Adds an array value parsed into its inline EIRF form ({@code arrayType} is
+     * Adds an array value parsed into its inline form ({@code arrayType} is
      * {@code SourceValueType.FIXED_ARRAY} or {@code SourceValueType.UNION_ARRAY}). A fixed array of one primitive
      * element kind is accumulated in a columnar list layout; anything else (heterogeneous, nested, object
      * elements, empty, or a child-kind change) promotes the column to a union holding inline arrays.
@@ -114,6 +113,16 @@ final class ElasticsearchColumnBuilder {
     void addNull() {
         promoteToUnion();
         current.addNull();
+    }
+
+    /**
+     * Adds a key-value value (an object's entries in inline kv {@code key_length | key_bytes | type | value}
+     * form, e.g. zero bytes for an empty object). There is no native key-value column kind, so this always
+     * promotes to a union holding the bytes inline.
+     */
+    void addKeyValue(byte[] packed) {
+        promoteToUnion();
+        current.addInlineArray(SourceValueType.KEY_VALUE, packed);
     }
 
     /**
@@ -471,7 +480,7 @@ final class ElasticsearchColumnBuilder {
     }
 
     /**
-     * ARRAY: arrays of a single fixed primitive child kind, kept as their inline EIRF bytes per row
+     * ARRAY: arrays of a single fixed primitive child kind, kept as their inline bytes per row
      * during building (so promotion to a union is a cheap replay) and materialised into a native
      * {@code child} sub-column at {@link #finish}.
      */

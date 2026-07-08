@@ -35,8 +35,7 @@ final class ElasticsearchStringColumn extends AbstractVarColumn {
 
     @Override
     Text getStringValue(int d) {
-        int off0 = offsets[d];
-        BytesRef ref = data.slice(off0, offsets[d + 1] - off0).toBytesRef();
+        BytesRef ref = getBinaryValue(d);
         return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
     }
 }

@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingExtractor;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;

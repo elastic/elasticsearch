@@ -50,6 +50,7 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -78,7 +79,6 @@ import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
-import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.io.IOException;

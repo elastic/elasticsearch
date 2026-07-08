@@ -595,10 +595,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     public void mergePITReaderMetadata(Map<String, BlobLocation> commitBlobLocations) {
         // PIT relocation, no newCommit in scope, no new timestamp to attribute right now
-        final Map<String, BlobFileRanges> commitFileRanges = commitBlobLocations.entrySet()
+        final Map<String, BlobFileRanges> incomingFileRanges = commitBlobLocations.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue())));
-        mergeMetadata(commitFileRanges, true);
+        mergeMetadata(incomingFileRanges, true);
     }
 
     private void mergeMetadata(Map<String, BlobFileRanges> incomingFileRanges, boolean pitContextRelocationTransfer) {
@@ -611,27 +611,27 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             long commitSize = 0L;
             for (var entry : incomingFileRanges.entrySet()) {
                 final String fileName = entry.getKey();
-                final BlobFileRanges updatedRanges = reconcileBlobFileRanges(fileName, reconciledMetadata.get(fileName), entry.getValue());
+                final var reconciledRanges = reconcileBlobFileRanges(fileName, reconciledMetadata.get(fileName), entry.getValue());
                 if (isGenerationalFile(fileName)) {
                     // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
                     // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
                     // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
                     // instances).
-                    reconciledMetadata.putIfAbsent(fileName, updatedRanges);
+                    reconciledMetadata.putIfAbsent(fileName, reconciledRanges);
                     if (generationalFilesTermAndGen == null) {
-                        generationalFilesTermAndGen = updatedRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
+                        generationalFilesTermAndGen = reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
                     }
-                    assert updatedRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration().equals(generationalFilesTermAndGen)
+                    assert reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration().equals(generationalFilesTermAndGen)
                         : "Because they are either new or copied, generational files should all belong to the same BCC, but "
                             + fileName
                             + " has location "
-                            + updatedRanges.blobLocation()
+                            + reconciledRanges.blobLocation()
                             + " which is different from "
                             + generationalFilesTermAndGen;
                 } else {
-                    reconciledMetadata.put(fileName, updatedRanges);
+                    reconciledMetadata.put(fileName, reconciledRanges);
                 }
-                commitSize += updatedRanges.blobLocation().fileLength();
+                commitSize += reconciledRanges.blobLocation().fileLength();
             }
             // If we have generational file(s) in the new commit, we create a ref counted instance that holds the term/generation of the
             // batched compound commit so that it can be reported as used to the indexing shard in new commit responses. The ref counted

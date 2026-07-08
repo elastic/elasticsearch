@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.SoarAssignments;
 
 import java.io.IOException;
@@ -30,8 +31,12 @@ public abstract class Soar<V> {
     @SuppressWarnings("rawtypes")
     private static final Soar NONE = new Soar<>(null, 0) {
         @Override
-        protected SoarAssignments assignSpilled(ClusteringVectorValues vectors, KMeansResult kmeansResult, NeighborHood[] neighborhoods) {
-            return null;
+        protected OverspillAssignments assignSpilled(
+            ClusteringVectorValues vectors,
+            KMeansResult kmeansResult,
+            NeighborHood[] neighborhoods
+        ) {
+            return OverspillAssignments.NONE;
         }
     };
 
@@ -58,7 +63,7 @@ public abstract class Soar<V> {
     }
 
     /** assign to each vector the soar assignment */
-    protected abstract SoarAssignments assignSpilled(
+    protected abstract OverspillAssignments assignSpilled(
         ClusteringVectorValues<V> vectors,
         KMeansResult<V> kmeansResult,
         NeighborHood[] neighborhoods

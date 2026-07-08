@@ -93,6 +93,7 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
 
         final List<CurrentWork> columnAtATime;
         final List<CurrentWork> rowStride;
+        int sourceBackedRowStrideFields;
         int currentShard = -1;
         BlockLoaderStoredFieldsFromLeafLoader storedFields;
 
@@ -125,6 +126,7 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
                 assert r.columnAtATime == null;
                 r.rowStride.read(doc, storedFields, r.builder);
             }
+            operator.trackSourceFieldReads(sourceBackedRowStrideFields);
             operator.trackSourceBytesAndRelease(storedFields);
         }
 
@@ -159,6 +161,12 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
                     field.rowStride = field.field.rowStride(ctx);
                     storedFieldsSpec = storedFieldsSpec.merge(field.field.loader.rowStrideStoredFieldSpec());
                     rowStride.add(field);
+                }
+            }
+            sourceBackedRowStrideFields = 0;
+            for (CurrentWork field : rowStride) {
+                if (field.field.loader.rowStrideStoredFieldSpec().requiresSource()) {
+                    sourceBackedRowStrideFields++;
                 }
             }
             SourceLoader sourceLoader = null;

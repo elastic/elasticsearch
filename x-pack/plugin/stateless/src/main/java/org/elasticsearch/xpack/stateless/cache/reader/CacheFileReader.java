@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Objects;
@@ -378,33 +379,38 @@ public class CacheFileReader {
     }
 
     /**
-     * If a direct byte buffer view is available for the given range, passes it
+     * If a direct memory segment view is available for the given range, passes it
      * to {@code action} and returns {@code true}. Otherwise returns
      * {@code false} without invoking the action.
      *
      * @param offset the byte offset within the file
      * @param length the number of bytes requested
-     * @param action the action to perform with the byte buffer
-     * @return {@code true} if a buffer was available and the action was invoked
+     * @param action the action to perform with the memory segment
+     * @return {@code true} if a segment was available and the action was invoked
      */
-    public final boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+    public final boolean withMemorySegmentSlice(long offset, int length, CheckedConsumer<MemorySegment, IOException> action)
+        throws IOException {
         if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
-            return cacheFile.withByteBufferSlice(offset, length, action);
+            return cacheFile.withMemorySegmentSlice(offset, length, action);
         }
         final long regionStart = (offset / regionSize) * regionSize;
         final int advice = adviceForRange(ByteRange.of(regionStart, regionStart + regionSize));
-        return cacheFile.withByteBufferSlice(offset, length, action, advice);
+        return cacheFile.withMemorySegmentSlice(offset, length, action, advice);
     }
 
-    public final boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
-        throws IOException {
+    public final boolean withMemorySegmentSlices(
+        long[] offsets,
+        int length,
+        int count,
+        CheckedConsumer<MemorySegment[], IOException> action
+    ) throws IOException {
         if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
-            return cacheFile.withByteBufferSlices(offsets, length, count, action);
+            return cacheFile.withMemorySegmentSlices(offsets, length, count, action);
         }
         // For top-level files the entire range is exclusive, so a single advice applies.
         // For compound sub-files, individual regions could differ, but the bulk path is
         // only used for vector data which is always in a top-level .vec file.
-        return cacheFile.withByteBufferSlices(offsets, length, count, action, desiredMAdvice);
+        return cacheFile.withMemorySegmentSlices(offsets, length, count, action, desiredMAdvice);
     }
 
     /**

@@ -1658,9 +1658,9 @@ public abstract class FieldMapper extends Mapper {
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * the multi_value, nullability and on_failure settings. Cardinality is decided internally and is not user-configurable. The object form
-         * itself is only available in columnar index modes, so any sub-parameter it may carry (e.g. {@code multi_value}) is rejected
-         * together with it.
+         * the multi_value, nullability and on_failure settings. Cardinality is decided internally and is not user-configurable.
+         * The object form itself is only available in columnar index modes, so any sub-parameter it may carry (e.g. {@code multi_value})
+         * is rejected together with it.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {

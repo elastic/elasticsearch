@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.telemetry.EsqlQueryMetricsCollector;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.io.IOException;
@@ -113,6 +114,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final UsageService usageService;
     private final TransportActionServices services;
     private final ActivityLogger<EsqlLogContext> activityLogger;
+    private final EsqlQueryMetricsCollector metricsCollector;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -141,7 +143,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         IpLocationService ipLocationService,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        EsqlQueryMetricsCollector metricsCollector
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -271,6 +274,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             .addSettingsUpdateConsumer(AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE, v -> {
                 timeseriesResultTruncationDefaultSize = v;
             });
+        this.metricsCollector = metricsCollector;
     }
 
     /**
@@ -401,6 +405,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
+                collectMetrics(result.inner());
                 var response = toResponse(task, request, request.profile(), result);
                 assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
@@ -421,6 +426,35 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             })
         );
 
+    }
+
+    private boolean hasExternalSources(Result result) {
+        if (result.executionInfo() == null) {
+            return false;
+        }
+        var qp = result.executionInfo().queryProfile();
+        return qp != null && qp.splitsScanned() > 0;
+    }
+
+    private void collectMetrics(Result result) {
+        if (metricsCollector.equals(EsqlQueryMetricsCollector.NOOP) || hasExternalSources(result) == false) {
+            // don't even bother to create a map
+            return;
+        }
+        var ci = result.completionInfo();
+        var qp = result.executionInfo().queryProfile();
+        metricsCollector.onQueryCompleted(
+            Map.of(
+                EsqlQueryMetricsCollector.PLANNING_NANOS,
+                qp.planning().timeSpan().durationInNanos(),
+                EsqlQueryMetricsCollector.CPU_NANOS,
+                ci.cpuNanos(),
+                EsqlQueryMetricsCollector.READ_NANOS,
+                ci.readNanos(),
+                EsqlQueryMetricsCollector.BYTES_READ,
+                ci.bytesRead()
+            )
+        );
     }
 
     private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {

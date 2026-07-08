@@ -80,6 +80,7 @@ import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelay;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
+import org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.injection.guice.Inject;
@@ -1231,6 +1232,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            assert failureStrategy.retry() == false; // Not yet implemented
             RecoveryClusterStateDelay.ensureClusterStateVersion(
                 creationClusterStateVersion,
                 clusterService,
@@ -1238,7 +1240,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.getThreadContext(),
                 ActionListener.noop(),
                 listener -> {
-                    handleRecoveryFailure(shardRouting, failureStrategy.sendShardFailure(), primaryTerm, e);
+                    handleRecoveryFailure(shardRouting, failureStrategy, primaryTerm, e);
                     listener.onResponse(null);
                 }
             );
@@ -1253,16 +1255,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     // package-private for testing
-    synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, long primaryTerm, Exception failure) {
+    synchronized void handleRecoveryFailure(ShardRouting shardRouting, FailureStrategy failureStrategy, long primaryTerm, Exception failure) {
         try {
+            ClusterState state = clusterService.state();
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
-                    sendShardFailure,
+                    failureStrategy.sendShardFailure(),
                     "failed recovery",
                     failure,
-                    clusterService.state(),
+                    state,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     l
                 )

@@ -613,6 +613,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return exchangeService;
     }
 
+    /**
+     * The single, node-shared {@link EnrichPolicyResolver} instance. Its constructor registers a transport
+     * request handler, so a second instance built anywhere else on the same node (e.g. {@code
+     * TransportEsqlSuggestionsAction}) would fail node startup with a duplicate-handler-registration error;
+     * callers that need one must reuse this instance rather than constructing their own.
+     */
+    public EnrichPolicyResolver enrichPolicyResolver() {
+        return enrichPolicyResolver;
+    }
+
     public EnrichLookupService enrichLookupService() {
         return enrichLookupService;
     }

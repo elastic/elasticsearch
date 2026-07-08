@@ -302,6 +302,65 @@ public class PlanExecutor {
         }
     }
 
+    /**
+     * Coordinator-only analysis+optimization for a query, without executing it: parse, view resolution, dataset
+     * resolution, pre-analysis, index resolution, analyze, optimize — stopping before {@code preMapper}/mapping/
+     * physical-plan/execution. Used by ES|QL suggestions ({@code TransportEsqlSuggestionsAction}) to reach a real,
+     * index-resolved, analyzed+optimized {@link LogicalPlan} without threading a new completion request through
+     * {@code ComputeService}. Builds its own {@link EsqlSession} the same way {@link #esql} does, from the same
+     * session-scoped singletons, rather than inventing a parallel construction path.
+     */
+    public void analyzeAndOptimize(
+        EsqlQueryRequest request,
+        String sessionId,
+        TransportVersion localClusterMinimumVersion,
+        AnalyzerSettings analyzerSettings,
+        EnrichPolicyResolver enrichPolicyResolver,
+        ViewResolver viewResolver,
+        DatasetResolver datasetResolver,
+        EsqlExecutionInfo executionInfo,
+        IndicesExpressionGrouper indicesExpressionGrouper,
+        TransportActionServices services,
+        Executor externalSourceExecutor,
+        BooleanSupplier cancellation,
+        ActionListener<LogicalPlan> listener
+    ) {
+        // Analysis-only: an EXTERNAL source glob-expansion during suggestion completion is a rare, unusual case, so a
+        // small fixed concurrency (rather than the query path's ExternalSourceSettings#blobStoreConcurrency) is fine.
+        final ExternalSourceResolver externalSourceResolver = createExternalSourceResolver(
+            externalSourceExecutor,
+            dataSourceModule,
+            services.clusterService().getSettings(),
+            cacheService,
+            cancellation,
+            1
+        );
+        final var session = new EsqlSession(
+            sessionId,
+            localClusterMinimumVersion,
+            analyzerSettings,
+            indexResolver,
+            enrichPolicyResolver,
+            viewResolver,
+            datasetResolver,
+            externalSourceResolver,
+            parser,
+            preAnalyzer,
+            functionRegistry,
+            promqlFunctionRegistry,
+            analysisRegistry,
+            mapper,
+            verifier,
+            metrics,
+            new PlanTelemetry(functionRegistry),
+            indicesExpressionGrouper,
+            services.projectResolver().getProjectMetadata(services.clusterService().state()),
+            services.plannerSettings().get(),
+            services
+        );
+        session.analyzeAndOptimize(request, executionInfo, listener);
+    }
+
     public IndexResolver indexResolver() {
         return indexResolver;
     }

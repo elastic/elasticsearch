@@ -41,7 +41,7 @@ public class EscfBatchSerializationTests extends ESTestCase {
     public void testSerializeDeserializeMatches() throws IOException {
         try (EscfBatch inMemory = encode(DOCS)) {
             BytesReference bytes = inMemory.data();
-            try (EscfBatch parsed = new EscfBatch(bytes, () -> {})) {
+            try (EscfBatch parsed = EscfBatch.parse(bytes, () -> {})) {
                 assertEquals(inMemory.docCount(), parsed.docCount());
                 assertEquals(inMemory.columnCount(), parsed.columnCount());
                 for (int i = 0; i < DOCS.length; i++) {
@@ -62,7 +62,7 @@ public class EscfBatchSerializationTests extends ESTestCase {
                 assertEquals("sliced row " + i, asMap(DOCS[i + 1]), reconstruct(sliced, i));
             }
             // A sliced batch also serializes and round-trips.
-            try (EscfBatch reparsed = new EscfBatch(sliced.data(), () -> {})) {
+            try (EscfBatch reparsed = EscfBatch.parse(sliced.data(), () -> {})) {
                 for (int i = 0; i < 3; i++) {
                     assertEquals("reparsed sliced row " + i, asMap(DOCS[i + 1]), reconstruct(reparsed, i));
                 }

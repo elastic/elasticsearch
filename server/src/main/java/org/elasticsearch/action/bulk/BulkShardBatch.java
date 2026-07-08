@@ -31,7 +31,7 @@ public class BulkShardBatch implements Writeable {
     }
 
     public BulkShardBatch(StreamInput in) throws IOException {
-        this.batch = new EscfBatch(in.readBytesReference(), () -> {});
+        this.batch = EscfBatch.parse(in.readBytesReference(), () -> {});
     }
 
     @Override

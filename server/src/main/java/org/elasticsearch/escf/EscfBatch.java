@@ -9,51 +9,24 @@
 
 package org.elasticsearch.escf;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
 
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * An Elasticsearch Column Format batch: a column-major {@link SourceBatch} backed by an array
  * of {@link EscfColumnData}. Built in memory by {@link EscfEncoder} or reconstructed from
- * serialized bytes via {@link #EscfBatch(BytesReference, Releasable)}.
+ * serialized bytes via {@link #parse(BytesReference, Releasable)}.
  *
- * <p>Serialized layout (32-byte header, all multi-byte integers little-endian):
- * <pre>
- * magic('escf') version(i32) flags(i32) doc_count(i32)
- * schema_offset(i32) column_index_offset(i32) data_offset(i32) total_size(i32)
- * [Schema]        non_leaf_count(u16) { parent(u16) name_len(u16) name }* leaf_count(u16) { parent(u16) name_len(u16) name }*
- * [Column Index]  per leaf: kind(u8) present_flags(u8) base_offset(i32)
- *                 absent_len(i32) typevec_len(i32) offsets_len(i32) data_len(i32)   [= 22 bytes]
- * [Column Data]   per leaf, present fields concatenated: [absent_bitset] [type_vector] [offsets] [data]
- * </pre>
- * {@code present_flags} bit 0 = absent bitset, bit 1 = type vector, bit 2 = offsets; the data field is
- * always present. {@code base_offset} is relative to {@code data_offset}.
+ * <p>This class is the in-memory container (schema, columns, row/column access, slicing, and RAM
+ * accounting). The on-wire byte layout and the field-level codecs live in {@link EscfBatchCodec}.
  */
 public final class EscfBatch implements SourceBatch {
-
-    /** Magic as a little-endian int: bytes 'e','s','c','f' read as LE i32. */
-    public static final int MAGIC_LE = ('e' & 0xFF) | (('s' & 0xFF) << 8) | (('c' & 0xFF) << 16) | (('f' & 0xFF) << 24);
-    public static final int VERSION = 1;
-
-    private static final int HEADER_SIZE = 32;
-    private static final int COLUMN_INDEX_ENTRY_SIZE = 22;
-
-    private static final int FLAG_ABSENT = 0x1;
-    private static final int FLAG_TYPE_VECTOR = 0x2;
-    private static final int FLAG_OFFSETS = 0x4;
 
     private final SourceSchema schema;
     private final int docCount;
@@ -64,99 +37,22 @@ public final class EscfBatch implements SourceBatch {
 
     /** In-memory construction path used by {@link EscfEncoder#buildPartition(int)}. */
     EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columns, Releasable releasable) {
+        this(schema, docCount, columns, null, releasable);
+    }
+
+    /** Full construction path, used by {@link EscfBatchCodec#parse} once the serialized bytes are already in hand. */
+    EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columns, BytesReference serialized, Releasable releasable) {
         this.schema = schema;
         this.docCount = docCount;
         this.columns = columns;
         this.columnCache = new EscfColumn[columns.length];
         this.releasable = releasable;
-        this.serialized = null;
+        this.serialized = serialized;
     }
 
-    /** Serialized construction path: parse a batch from its wire/translog bytes. */
-    // TODO: This is not very optimized at the moment. Lots of random reads against composite bytes references. Eventually we'll want to
-    // implement stream reads with slices out for column data.
-    public EscfBatch(BytesReference data, Releasable releasable) {
-        this.releasable = releasable;
-        this.serialized = data;
-
-        int magic = data.getIntLE(0);
-        if (magic != MAGIC_LE) {
-            throw new IllegalArgumentException(
-                "Invalid magic: expected 'escf', got '"
-                    + (char) (magic & 0xFF)
-                    + (char) ((magic >> 8) & 0xFF)
-                    + (char) ((magic >> 16) & 0xFF)
-                    + (char) ((magic >> 24) & 0xFF)
-                    + "'"
-            );
-        }
-        int version = data.getIntLE(4);
-        if (version != VERSION) {
-            throw new IllegalArgumentException("Unsupported ESCF version: " + version);
-        }
-        this.docCount = data.getIntLE(12);
-        int schemaOffset = data.getIntLE(16);
-        int columnIndexOffset = data.getIntLE(20);
-        int dataOffset = data.getIntLE(24);
-
-        this.schema = parseSchema(data, schemaOffset);
-
-        int colCount = schema.leafCount();
-        this.columns = new EscfColumnData[colCount];
-        this.columnCache = new EscfColumn[colCount];
-        for (int c = 0; c < colCount; c++) {
-            int entryBase = columnIndexOffset + c * COLUMN_INDEX_ENTRY_SIZE;
-            byte kind = data.get(entryBase);
-            int flags = data.get(entryBase + 1) & 0xFF;
-            int base = dataOffset + data.getIntLE(entryBase + 2);
-            int absentLen = data.getIntLE(entryBase + 6);
-            int typeVecLen = data.getIntLE(entryBase + 10);
-            int offsetsLen = data.getIntLE(entryBase + 14);
-            int dataLen = data.getIntLE(entryBase + 18);
-
-            int pos = base;
-            FixedBitSet absent = null;
-            if ((flags & FLAG_ABSENT) != 0) {
-                absent = bytesToFixedBitSet(data, pos, docCount);
-                pos += absentLen;
-            }
-            byte[] typeVector = null;
-            if ((flags & FLAG_TYPE_VECTOR) != 0) {
-                typeVector = bytesToByteArray(data, pos, typeVecLen);
-                pos += typeVecLen;
-            }
-            int[] offsets = null;
-            if ((flags & FLAG_OFFSETS) != 0) {
-                offsets = bytesToOffsets(data, pos, docCount);
-                pos += offsetsLen;
-            }
-            // For BOOL the data field carries the value bitset; ARRAY carries a nested child column;
-            // every other kind keeps its payload as a byte slice.
-            columns[c] = switch (kind) {
-                case EscfColumnKind.BOOL -> EscfColumnData.ofBool(docCount, absent, bytesToFixedBitSet(data, pos, docCount));
-                case EscfColumnKind.ARRAY -> EscfColumnData.ofArray(
-                    docCount,
-                    absent,
-                    offsets,
-                    decodeArrayChild(data, pos, dataLen, offsets[docCount])
-                );
-                case EscfColumnKind.UNION -> EscfColumnData.ofUnion(docCount, absent, typeVector, offsets, data.slice(pos, dataLen));
-                case EscfColumnKind.STRING, EscfColumnKind.BINARY -> EscfColumnData.ofVarWidth(
-                    kind,
-                    docCount,
-                    absent,
-                    offsets,
-                    data.slice(pos, dataLen)
-                );
-                case EscfColumnKind.LONG, EscfColumnKind.DOUBLE -> EscfColumnData.ofFixed64(
-                    kind,
-                    docCount,
-                    absent,
-                    data.slice(pos, dataLen)
-                );
-                default -> throw new IllegalStateException("Unknown ESCF column kind: " + EscfColumnKind.name(kind));
-            };
-        }
+    /** Serialized construction path: parse a batch from its wire/translog bytes via {@link EscfBatchCodec}. */
+    public static EscfBatch parse(BytesReference data, Releasable releasable) {
+        return EscfBatchCodec.parse(data, releasable);
     }
 
     @Override
@@ -172,7 +68,7 @@ public final class EscfBatch implements SourceBatch {
     @Override
     public BytesReference data() {
         if (serialized == null) {
-            serialized = serialize(schema, docCount, columns);
+            serialized = EscfBatchCodec.serialize(schema, docCount, columns);
         }
         return serialized;
     }
@@ -253,6 +149,10 @@ public final class EscfBatch implements SourceBatch {
         return bs == null ? 0L : (long) bs.getBits().length * 8;
     }
 
+    private static long refLen(BytesReference ref) {
+        return ref == null ? 0L : ref.length();
+    }
+
     private static EscfColumnData sliceColumn(EscfColumnData col, int from, int newCount) {
         FixedBitSet absent = col.absent() != null ? sliceBitset(col.absent(), from, newCount) : null;
         if (col.kind() == EscfColumnKind.ARRAY) {
@@ -285,6 +185,7 @@ public final class EscfBatch implements SourceBatch {
         return EscfColumnData.ofFixed64(col.kind(), newCount, absent, data);
     }
 
+    // TODO Zero copy with Lucene IntsRef
     private static int[] rebasedOffsets(int[] offsets, int from, int newCount, int rebase) {
         int[] out = new int[newCount + 1];
         for (int i = 0; i <= newCount; i++) {
@@ -303,263 +204,5 @@ public final class EscfBatch implements SourceBatch {
             }
         }
         return out;
-    }
-
-    private static BytesReference serialize(SourceSchema schema, int docCount, EscfColumnData[] columns) {
-        int colCount = schema.leafCount();
-        int nonLeafCount = schema.nonLeafCount();
-
-        byte[][] nonLeafNameBytes = new byte[nonLeafCount][];
-        int schemaSize = 2;
-        for (int i = 0; i < nonLeafCount; i++) {
-            nonLeafNameBytes[i] = schema.getNonLeafName(i).getBytes(StandardCharsets.UTF_8);
-            schemaSize += 2 + 2 + nonLeafNameBytes[i].length;
-        }
-        schemaSize += 2;
-        byte[][] leafNameBytes = new byte[colCount][];
-        for (int i = 0; i < colCount; i++) {
-            leafNameBytes[i] = schema.getLeafName(i).getBytes(StandardCharsets.UTF_8);
-            schemaSize += 2 + 2 + leafNameBytes[i].length;
-        }
-
-        int columnIndexSize = colCount * COLUMN_INDEX_ENTRY_SIZE;
-        int schemaOffset = HEADER_SIZE;
-        int columnIndexOffset = schemaOffset + schemaSize;
-        int dataOffset = columnIndexOffset + columnIndexSize;
-
-        // Encode each column's native fields into their wire byte parts — this is the only place ESCF serializes.
-        BytesReference[] absentPart = new BytesReference[colCount];
-        BytesReference[] typeVecPart = new BytesReference[colCount];
-        BytesReference[] offsetsPart = new BytesReference[colCount];
-        BytesReference[] dataPart = new BytesReference[colCount];
-        for (int c = 0; c < colCount; c++) {
-            EscfColumnData col = columns[c];
-            absentPart[c] = col.absent() != null ? bitsetToRef(col.absent(), docCount) : null;
-            typeVecPart[c] = col.typeVector() != null ? new BytesArray(col.typeVector()) : null;
-            offsetsPart[c] = col.offsets() != null ? intArrayToRef(col.offsets()) : null;
-            // BOOL keeps its value bitset in the data slot; ARRAY flattens its native child column to
-            // child_kind(1) | child_values bytes here (the only place ESCF serializes an ARRAY's child);
-            // every other kind already has a byte payload.
-            if (col.kind() == EscfColumnKind.BOOL) {
-                dataPart[c] = bitsetToRef(col.values(), docCount);
-            } else if (col.kind() == EscfColumnKind.ARRAY) {
-                dataPart[c] = encodeArrayChild(col.child());
-            } else {
-                dataPart[c] = col.data();
-            }
-        }
-
-        int[] flags = new int[colCount];
-        int[] baseOffsets = new int[colCount];
-        int cumDataOffset = 0;
-        for (int c = 0; c < colCount; c++) {
-            baseOffsets[c] = cumDataOffset;
-            int f = 0;
-            if (absentPart[c] != null) {
-                f |= FLAG_ABSENT;
-                cumDataOffset += absentPart[c].length();
-            }
-            if (typeVecPart[c] != null) {
-                f |= FLAG_TYPE_VECTOR;
-                cumDataOffset += typeVecPart[c].length();
-            }
-            if (offsetsPart[c] != null) {
-                f |= FLAG_OFFSETS;
-                cumDataOffset += offsetsPart[c].length();
-            }
-            cumDataOffset += dataPart[c].length();
-            flags[c] = f;
-        }
-        int totalSize = dataOffset + cumDataOffset;
-
-        byte[] header = new byte[dataOffset];
-        ByteUtils.writeIntLE(MAGIC_LE, header, 0);
-        ByteUtils.writeIntLE(VERSION, header, 4);
-        ByteUtils.writeIntLE(0, header, 8);
-        ByteUtils.writeIntLE(docCount, header, 12);
-        ByteUtils.writeIntLE(schemaOffset, header, 16);
-        ByteUtils.writeIntLE(columnIndexOffset, header, 20);
-        ByteUtils.writeIntLE(dataOffset, header, 24);
-        ByteUtils.writeIntLE(totalSize, header, 28);
-
-        int pos = schemaOffset;
-        writeShortLE(header, pos, nonLeafCount);
-        pos += 2;
-        for (int i = 0; i < nonLeafCount; i++) {
-            writeShortLE(header, pos, schema.getNonLeafParent(i));
-            pos += 2;
-            writeShortLE(header, pos, nonLeafNameBytes[i].length);
-            pos += 2;
-            System.arraycopy(nonLeafNameBytes[i], 0, header, pos, nonLeafNameBytes[i].length);
-            pos += nonLeafNameBytes[i].length;
-        }
-        writeShortLE(header, pos, colCount);
-        pos += 2;
-        for (int i = 0; i < colCount; i++) {
-            writeShortLE(header, pos, schema.getLeafParent(i));
-            pos += 2;
-            writeShortLE(header, pos, leafNameBytes[i].length);
-            pos += 2;
-            System.arraycopy(leafNameBytes[i], 0, header, pos, leafNameBytes[i].length);
-            pos += leafNameBytes[i].length;
-        }
-
-        pos = columnIndexOffset;
-        for (int c = 0; c < colCount; c++) {
-            header[pos] = columns[c].kind();
-            header[pos + 1] = (byte) flags[c];
-            ByteUtils.writeIntLE(baseOffsets[c], header, pos + 2);
-            ByteUtils.writeIntLE(absentPart[c] != null ? absentPart[c].length() : 0, header, pos + 6);
-            ByteUtils.writeIntLE(typeVecPart[c] != null ? typeVecPart[c].length() : 0, header, pos + 10);
-            ByteUtils.writeIntLE(offsetsPart[c] != null ? offsetsPart[c].length() : 0, header, pos + 14);
-            ByteUtils.writeIntLE(dataPart[c].length(), header, pos + 18);
-            pos += COLUMN_INDEX_ENTRY_SIZE;
-        }
-
-        List<BytesReference> parts = new ArrayList<>(1 + colCount * 4);
-        parts.add(new BytesArray(header));
-        for (int c = 0; c < colCount; c++) {
-            if (absentPart[c] != null) {
-                parts.add(absentPart[c]);
-            }
-            if (typeVecPart[c] != null) {
-                parts.add(typeVecPart[c]);
-            }
-            if (offsetsPart[c] != null) {
-                parts.add(offsetsPart[c]);
-            }
-            parts.add(dataPart[c]);
-        }
-        return CompositeBytesReference.of(parts.toArray(new BytesReference[0]));
-    }
-
-    private static void writeShortLE(byte[] buf, int offset, int value) {
-        buf[offset] = (byte) value;
-        buf[offset + 1] = (byte) (value >>> 8);
-    }
-
-    private static long refLen(BytesReference ref) {
-        return ref == null ? 0L : ref.length();
-    }
-
-    /** Number of bytes needed to hold {@code docCount} bits as little-endian 64-bit words. */
-    static int bitsetBytes(int docCount) {
-        return ((docCount + 63) / 64) * 8;
-    }
-
-    /** Serialises {@code bs} (or an all-clear bitset when {@code bs == null}) to {@code bitsetBytes(docCount)} LE bytes. */
-    private static BytesReference bitsetToRef(FixedBitSet bs, int docCount) {
-        int n = bitsetBytes(docCount);
-        byte[] out = new byte[n];
-        if (bs != null) {
-            long[] words = bs.getBits();
-            int wordCount = n / 8;
-            for (int w = 0; w < wordCount; w++) {
-                long value = w < words.length ? words[w] : 0L;
-                ByteUtils.writeLongLE(value, out, w * 8);
-            }
-        }
-        return new BytesArray(out);
-    }
-
-    private static BytesReference intArrayToRef(int[] values) {
-        byte[] out = new byte[values.length * 4];
-        for (int i = 0; i < values.length; i++) {
-            ByteUtils.writeIntLE(values[i], out, i * 4);
-        }
-        return new BytesArray(out);
-    }
-
-    /**
-     * Flattens an ARRAY column's native {@code child} into the on-disk {@code child_kind(1) | child_values}
-     * bytes (child offsets, for a STRING child, are written right after the kind byte). This is the only
-     * place ESCF serializes an array's child; {@link #decodeArrayChild} is its exact inverse.
-     */
-    private static BytesReference encodeArrayChild(EscfColumnData child) {
-        BytesReference kindByte = new BytesArray(new byte[] { child.kind() });
-        if (child.kind() == EscfColumnKind.STRING) {
-            return CompositeBytesReference.of(kindByte, intArrayToRef(child.offsets()), child.data());
-        }
-        return CompositeBytesReference.of(kindByte, child.data());
-    }
-
-    /** Parses {@code bitsetBytes(docCount)} LE bytes at {@code pos} into a {@link FixedBitSet}. */
-    private static FixedBitSet bytesToFixedBitSet(BytesReference data, int pos, int docCount) {
-        int words = bitsetBytes(docCount) / 8;
-        long[] bits = new long[words];
-        for (int w = 0; w < words; w++) {
-            bits[w] = data.getLongLE(pos + w * 8);
-        }
-        return new FixedBitSet(bits, words * 64);
-    }
-
-    private static byte[] bytesToByteArray(BytesReference data, int pos, int len) {
-        BytesRef ref = data.slice(pos, len).toBytesRef();
-        return Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + len);
-    }
-
-    /** Parses {@code (count + 1)} LE i32 values at {@code pos} into an {@code int[]}. */
-    private static int[] bytesToOffsets(BytesReference data, int pos, int count) {
-        int[] offsets = new int[count + 1];
-        for (int i = 0; i <= count; i++) {
-            offsets[i] = data.getIntLE(pos + i * 4);
-        }
-        return offsets;
-    }
-
-    /**
-     * Parses the {@code child_kind(1) | child_values} bytes at {@code [pos, pos + dataLen)} into a native
-     * {@code child} column with {@code totalElems} elements. Exact inverse of {@link #encodeArrayChild}.
-     */
-    private static EscfColumnData decodeArrayChild(BytesReference data, int pos, int dataLen, int totalElems) {
-        byte childKind = data.get(pos);
-        int childBase = pos + 1;
-        if (childKind == EscfColumnKind.STRING) {
-            int[] childOffsets = bytesToOffsets(data, childBase, totalElems);
-            int childDataBase = childBase + (totalElems + 1) * 4;
-            BytesReference childData = data.slice(childDataBase, pos + dataLen - childDataBase);
-            return EscfColumnData.ofVarWidth(EscfColumnKind.STRING, totalElems, null, childOffsets, childData);
-        }
-        BytesReference childData = data.slice(childBase, pos + dataLen - childBase);
-        return EscfColumnData.ofFixed64(childKind, totalElems, null, childData);
-    }
-
-    private static SourceSchema parseSchema(BytesReference data, int offset) {
-        int nonLeafCount = readU16LE(data, offset);
-        offset += 2;
-        List<String> nonLeafNames = new ArrayList<>(nonLeafCount);
-        int[] nonLeafParents = new int[nonLeafCount];
-        for (int i = 0; i < nonLeafCount; i++) {
-            nonLeafParents[i] = readU16LE(data, offset);
-            offset += 2;
-            int nameLen = readU16LE(data, offset);
-            offset += 2;
-            if (nameLen > 0) {
-                var ref = data.slice(offset, nameLen).toBytesRef();
-                nonLeafNames.add(new String(ref.bytes, ref.offset, ref.length, StandardCharsets.UTF_8));
-            } else {
-                nonLeafNames.add("");
-            }
-            offset += nameLen;
-        }
-        int leafCount = readU16LE(data, offset);
-        offset += 2;
-        List<String> leafNames = new ArrayList<>(leafCount);
-        int[] leafParents = new int[leafCount];
-        for (int i = 0; i < leafCount; i++) {
-            leafParents[i] = readU16LE(data, offset);
-            offset += 2;
-            int nameLen = readU16LE(data, offset);
-            offset += 2;
-            var ref = data.slice(offset, nameLen).toBytesRef();
-            leafNames.add(new String(ref.bytes, ref.offset, ref.length, StandardCharsets.UTF_8));
-            offset += nameLen;
-        }
-        return new SourceSchema(nonLeafNames, nonLeafParents, leafNames, leafParents);
-    }
-
-    // TODO: Optimize onto bytes reference
-    private static int readU16LE(BytesReference data, int offset) {
-        return (data.get(offset) & 0xFF) | ((data.get(offset + 1) & 0xFF) << 8);
     }
 }

@@ -300,10 +300,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("recovery failed after being marked as done", e);
-                    listener.onRecoveryFailure(
-                        new RecoveryFailedException(state(), "Recovery failed on post recovery step", e),
-                            FAIL_SEND
-                    );
+                    listener.onRecoveryFailure(new RecoveryFailedException(state(), "Recovery failed on post recovery step", e), FAIL_SEND);
                 }
             }, this::decRef));
         }

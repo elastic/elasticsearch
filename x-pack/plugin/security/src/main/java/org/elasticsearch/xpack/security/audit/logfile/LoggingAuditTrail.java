@@ -462,11 +462,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             // should never happen
             throw new ElasticsearchSecurityException("Context is not authenticated");
         }
-        String realm = ApiKeyService.getCreatorRealmName(authentication);
-        final var ctx = new AuditEventContext(null, realm);
-        if (customizer.suppress(ctx)) return;
-        if (events.contains(AUTHENTICATION_SUCCESS)
-            && eventFilterPolicyRegistry.ignorePredicate()
+        if (events.contains(AUTHENTICATION_SUCCESS)) {
+            String realm = ApiKeyService.getCreatorRealmName(authentication);
+            final var ctx = new AuditEventContext(null, realm);
+            if (customizer.suppress(ctx)) return;
+            if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
                         Optional.of(authentication.getEffectiveSubject().getUser()),
@@ -477,18 +477,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         Optional.empty()
                     )
                 ) == false) {
-            // this is redundant information maintained for bwc purposes
-            final String authnRealm = authentication.getAuthenticatingSubject().getRealm().getName();
-            new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
-                .with(REALM_FIELD_NAME, authnRealm)
-                // Not adding domain since "realm" field is considered redundant for bwc purposes
-                .withRestUriAndMethod(request.getHttpRequest())
-                .withRequestId(requestId)
-                .withAuthentication(authentication)
-                .withRestOrigin(threadContext)
-                .withRequestBody(request)
-                .build();
+                // this is redundant information maintained for bwc purposes
+                final String authnRealm = authentication.getAuthenticatingSubject().getRealm().getName();
+                new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                    .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
+                    .with(REALM_FIELD_NAME, authnRealm)
+                    // Not adding domain since "realm" field is considered redundant for bwc purposes
+                    .withRestUriAndMethod(request.getHttpRequest())
+                    .withRequestId(requestId)
+                    .withAuthentication(authentication)
+                    .withRestOrigin(threadContext)
+                    .withRequestBody(request)
+                    .withContext(ctx)
+                    .build();
+            }
         }
     }
 
@@ -1020,7 +1022,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             final String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), null);
+            final var ctx = new AuditEventContext(indices.orElse(null), realm);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1089,11 +1091,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void runAsDenied(String requestId, Authentication authentication, HttpPreRequest request, AuthorizationInfo authorizationInfo) {
-        String realm = ApiKeyService.getCreatorRealmName(authentication);
-        final var ctx = new AuditEventContext(null, realm);
-        if (customizer.suppress(ctx)) return;
-        if (events.contains(RUN_AS_DENIED)
-            && eventFilterPolicyRegistry.ignorePredicate()
+        if (events.contains(RUN_AS_DENIED)) {
+            String realm = ApiKeyService.getCreatorRealmName(authentication);
+            final var ctx = new AuditEventContext(null, realm);
+            if (customizer.suppress(ctx)) return;
+            if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
                         Optional.of(authentication.getEffectiveSubject().getUser()),
@@ -1104,14 +1106,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         Optional.empty()
                     )
                 ) == false) {
-            new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
-                .with(authorizationInfo.asMap())
-                .withRestUriAndMethod(request)
-                .withRunAsSubject(authentication)
-                .withRestOrigin(threadContext)
-                .withRequestId(requestId)
-                .build();
+                new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                    .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
+                    .with(authorizationInfo.asMap())
+                    .withRestUriAndMethod(request)
+                    .withRunAsSubject(authentication)
+                    .withRestOrigin(threadContext)
+                    .withRequestId(requestId)
+                    .withContext(ctx)
+                    .build();
+            }
         }
     }
 
@@ -1704,14 +1708,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withThreadContext(ThreadContext threadContext) {
-            setThreadContextField(threadContext, AuditTrail.X_FORWARDED_FOR_HEADER, X_FORWARDED_FOR_FIELD_NAME);
-            setThreadContextField(threadContext, Task.X_OPAQUE_ID_HTTP_HEADER, OPAQUE_ID_FIELD_NAME);
-            setThreadContextField(threadContext, Task.TRACE_ID, TRACE_ID_FIELD_NAME);
+        LogEntryBuilder withThreadContext() {
+            setThreadContextField(AuditTrail.X_FORWARDED_FOR_HEADER, X_FORWARDED_FOR_FIELD_NAME);
+            setThreadContextField(Task.X_OPAQUE_ID_HTTP_HEADER, OPAQUE_ID_FIELD_NAME);
+            setThreadContextField(Task.TRACE_ID, TRACE_ID_FIELD_NAME);
             return this;
         }
 
-        private void setThreadContextField(ThreadContext threadContext, String threadContextFieldName, String auditLogFieldName) {
+        private void setThreadContextField(String threadContextFieldName, String auditLogFieldName) {
             final String fieldValue = threadContext.getHeader(threadContextFieldName);
             if (fieldValue != null) {
                 logEntry.with(auditLogFieldName, fieldValue);
@@ -1841,7 +1845,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         void build() {
             if (includeThreadContext) {
-                withThreadContext(threadContext);
+                withThreadContext();
             }
             customizer.enrich(eventContext, new StringMapAuditEntry(logEntry));
             logger.info(AUDIT_MARKER, logEntry);

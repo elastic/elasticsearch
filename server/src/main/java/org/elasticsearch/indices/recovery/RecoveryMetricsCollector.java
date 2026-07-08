@@ -162,17 +162,6 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     }
 
     @Override
-    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
-        updateActiveRecovery(type, role, 1);
-    }
-
-    @Override
-    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
-        updateQueuedRecovery(type, role, -1);
-        updateActiveRecovery(type, role, 1);
-    }
-
-    @Override
     public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
         updateQueuedRecovery(type, role, -1);
     }
@@ -184,13 +173,24 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     }
 
     @Override
-    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
-        updateActiveRecovery(type, role, -1);
+    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
+        updateActiveRecovery(type, role, 1);
+    }
+
+    @Override
+    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+        updateQueuedRecovery(type, role, -1);
+        updateActiveRecovery(type, role, 1);
     }
 
     @Override
     public void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
         shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.STARTED));
+    }
+
+    @Override
+    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+        updateActiveRecovery(type, role, -1);
     }
 
     private void updateQueuedRecovery(RecoverySource.Type type, RecoveryRole role, int delta) {

@@ -39,6 +39,22 @@ class ReferenceValueInferenceString extends InferenceString {
         this.referenceValue = referenceValue;
     }
 
+    public InferenceString truncateReferenceValue() {
+        if (referenceValue != null) {
+            return new InferenceString(dataType(), dataFormat(), value());
+        }
+
+        return this;
+    }
+
+    public InferenceString replaceValueWithReferenceValue() {
+        if (referenceValue != null) {
+            return new InferenceString(dataType(), DataFormat.REFERENCE, referenceValue);
+        }
+
+        return this;
+    }
+
     public String referenceValue() {
         return referenceValue;
     }

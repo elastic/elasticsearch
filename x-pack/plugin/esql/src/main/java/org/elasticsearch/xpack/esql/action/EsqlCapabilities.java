@@ -1499,6 +1499,14 @@ public class EsqlCapabilities {
         VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
 
         /**
+         * Views are not supported as a source of the TS command; previously this could reach the
+         * optimizer and fail with a confusing "optimized incorrectly due to missing references" error.
+         * See https://github.com/elastic/elasticsearch/issues/153030 (same failure family as
+         * https://github.com/elastic/elasticsearch/issues/149619).
+         */
+        VIEWS_NOT_SUPPORTED_IN_TS_COMMAND,
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,

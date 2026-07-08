@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
@@ -453,20 +454,30 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
             logger.warn("could not read routing table", e);
             sb.append("could not read routing table for [").append(indexName).append("]: ").append(e).append('\n');
         }
+        // Use ThreadMXBean rather than Thread#getAllStackTraces(), which is a forbidden API (needs special permission).
         sb.append("relevant thread stacks:\n");
-        Thread.getAllStackTraces().forEach((thread, stack) -> {
-            var name = thread.getName();
-            if (name.contains(ThreadPool.Names.MERGE)
-                || name.contains(ThreadPool.Names.WRITE)
-                || name.contains(ThreadPool.Names.GENERIC)
-                || name.contains(ThreadPool.Names.REFRESH)
-                || name.contains("TEST-")) {
-                sb.append("  \"").append(name).append("\" ").append(thread.getState()).append('\n');
-                for (var frame : stack) {
-                    sb.append("    at ").append(frame).append('\n');
+        try {
+            var threadBean = ManagementFactory.getThreadMXBean();
+            for (var threadInfo : threadBean.getThreadInfo(threadBean.getAllThreadIds(), Integer.MAX_VALUE)) {
+                if (threadInfo == null) {
+                    continue;
+                }
+                var name = threadInfo.getThreadName();
+                if (name.contains(ThreadPool.Names.MERGE)
+                    || name.contains(ThreadPool.Names.WRITE)
+                    || name.contains(ThreadPool.Names.GENERIC)
+                    || name.contains(ThreadPool.Names.REFRESH)
+                    || name.contains("TEST-")) {
+                    sb.append("  \"").append(name).append("\" ").append(threadInfo.getThreadState()).append('\n');
+                    for (var frame : threadInfo.getStackTrace()) {
+                        sb.append("    at ").append(frame).append('\n');
+                    }
                 }
             }
-        });
+        } catch (Exception e) {
+            logger.warn("could not read thread stacks", e);
+            sb.append("could not read thread stacks: ").append(e).append('\n');
+        }
         return sb.toString();
     }
 

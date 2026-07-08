@@ -1011,11 +1011,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         String tsv = "id:integer\tnote:keyword\n1\tx\\\\ty\n2\t\\\\N\n";
         assertEquals(List.of(row(br("x\\ty")), row(br("\\N"))), read(true, Map.of("mode", "escaped"), null, List.of("note"), tsv));
         List<List<Object>> withPos = read(true, Map.of("mode", "escaped"), null, List.of("_rowPosition", "note"), tsv);
-        List<Object> notes = new ArrayList<>();
-        for (List<Object> r : withPos) {
-            notes.add(r.get(1));
-        }
-        assertEquals(List.of(br("x\\ty"), br("\\N")), notes);
+        assertEquals(List.of(br("x\\ty"), br("\\N")), column(withPos, 1));
     }
 
     /**
@@ -1028,11 +1024,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         String tsv = "id\tnote\n1\tx\\\\ty\n2\tx\\\\ty\n3\tx\\\\ty\n4\tx\\\\ty\n";
         Map<String, Object> config = Map.of("mode", "escaped", "schema_sample_size", 2);
         List<List<Object>> withPos = read(true, config, null, List.of("_rowPosition", "note"), tsv);
-        List<Object> notes = new ArrayList<>();
-        for (List<Object> r : withPos) {
-            notes.add(r.get(1));
-        }
-        assertEquals(List.of(br("x\\ty"), br("x\\ty"), br("x\\ty"), br("x\\ty")), notes);
+        assertEquals(List.of(br("x\\ty"), br("x\\ty"), br("x\\ty"), br("x\\ty")), column(withPos, 1));
     }
 
     /**

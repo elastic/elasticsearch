@@ -49,7 +49,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 import static java.util.stream.IntStream.range;
@@ -72,8 +71,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase {
-
-    private static final Map<String, StatelessSharedBlobCacheService> cacheServicesByNodeId = new ConcurrentHashMap<>();
 
     private static final String TIMESTAMP_MAPPING = """
         {
@@ -111,7 +108,14 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
 
     @Before
     public void clearCacheServiceInvocations() {
-        cacheServicesByNodeId.values().forEach(Mockito::clearInvocations);
+        if (internalCluster().size() > 0) {
+            for (String nodeName : internalCluster().getNodeNames()) {
+                internalCluster().getInstance(PluginsService.class, nodeName)
+                    .filterPlugins(SpyCacheStatelessPlugin.class)
+                    .findFirst()
+                    .ifPresent(plugin -> Mockito.clearInvocations(plugin.getStatelessSharedBlobCacheService()));
+            }
+        }
     }
 
     @Override
@@ -436,7 +440,6 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             final StatelessSharedBlobCacheService spy = Mockito.spy(
                 super.createSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics, clusterService, indicesService)
             );
-            cacheServicesByNodeId.put(nodeEnvironment.nodeId(), spy);
             return spy;
         }
     }

@@ -22,13 +22,9 @@ import org.elasticsearch.xcontent.Text;
  * in place from the column's native, possibly-paged {@link BytesReference}
  * (plus native {@code int[]} offsets / {@link FixedBitSet} metadata).
  *
- * <p>The shared base owns identity ({@link #docCount()}) and the optional validity (absent) set, and
- * resolves {@link #getTypeByte}/{@link #isAbsent}/{@link #isNull} once. A column is self-contained: it
- * knows nothing about its position within the owning batch.
- * Layout is shared further down via {@link AbstractFixed64Column} (long/double) and
+ * <p>Layout is shared further down via {@link AbstractFixed64Column} (long/double) and
  * {@link AbstractVarColumn} (string/binary). Typed value getters default to throwing; each subtype
- * overrides only what it supports. These columns are internal helpers backing {@link EscfRow} — they
- * are not part of any public {@code SourceColumn} contract.
+ * overrides only what it supports.
  */
 abstract class ElasticsearchColumn {
 
@@ -39,10 +35,6 @@ abstract class ElasticsearchColumn {
     ElasticsearchColumn(int docCount, FixedBitSet absent) {
         this.docCount = docCount;
         this.absent = absent;
-    }
-
-    final int docCount() {
-        return docCount;
     }
 
     /** The column kind (see {@link ElasticsearchColumnKind}). */
@@ -58,7 +50,7 @@ abstract class ElasticsearchColumn {
             case ElasticsearchColumnKind.BOOL -> new ElasticsearchBoolColumn(docCount, absent, col.values());
             case ElasticsearchColumnKind.STRING -> new ElasticsearchStringColumn(docCount, absent, col.data(), col.offsets());
             case ElasticsearchColumnKind.BINARY -> new ElasticsearchBinaryColumn(docCount, absent, col.data(), col.offsets());
-            case ElasticsearchColumnKind.ARRAY -> ElasticsearchArrayColumn.fromData(docCount, absent, col);
+            case ElasticsearchColumnKind.ARRAY -> new ElasticsearchArrayColumn(docCount, absent, from(col.child()), col.offsets());
             case ElasticsearchColumnKind.UNION -> new ElasticsearchUnionColumn(
                 docCount,
                 absent,

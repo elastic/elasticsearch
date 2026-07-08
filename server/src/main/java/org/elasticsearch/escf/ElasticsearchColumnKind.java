@@ -10,7 +10,7 @@
 package org.elasticsearch.escf;
 
 /**
- * Column kind constants for the Elasticsearch Column Format (ESCF).
+ * Column kind constants for the Elasticsearch Column Format.
  *
  * <p>Each leaf column is stored as a typed vector plus an optional validity (absent) bitset. The
  * kind byte determines the physical layout of the column data and is persisted in the column index
@@ -30,9 +30,6 @@ package org.elasticsearch.escf;
  * element range within a single dense primitive {@code child} sub-column (never inline arrays).
  */
 public final class ElasticsearchColumnKind {
-
-    /** Sentinel used only during building — never written to disk. */
-    static final byte NONE = 0x00;
 
     /** All values are {@code long}s (JSON ints and longs upcast to 64-bit). */
     public static final byte LONG = 0x01;
@@ -67,7 +64,6 @@ public final class ElasticsearchColumnKind {
     /** Returns a debug name for the given kind byte. */
     public static String name(byte kind) {
         return switch (kind) {
-            case NONE -> "NONE";
             case LONG -> "LONG";
             case DOUBLE -> "DOUBLE";
             case BOOL -> "BOOL";

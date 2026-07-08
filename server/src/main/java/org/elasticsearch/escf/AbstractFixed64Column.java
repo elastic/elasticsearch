@@ -11,12 +11,10 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
  * Shared base for the fixed-width 64-bit columns (LONG and DOUBLE), whose values are contiguous
- * little-endian 8-byte slots ({@code data.getLongLE(d * 8)}). Subclasses differ only in how they
- * interpret the raw long and which {@link SourceValueType} byte they report.
+ * little-endian 8-byte slots ({@code data.getLongLE(d * 8)}).
  */
 abstract class AbstractFixed64Column extends ElasticsearchColumn {
 

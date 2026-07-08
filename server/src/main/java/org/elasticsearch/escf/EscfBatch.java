@@ -26,7 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * An ESCF (Elasticsearch Column Format) batch: a column-major {@link SourceBatch} backed by an array
+ * An Elasticsearch Column Format batch: a column-major {@link SourceBatch} backed by an array
  * of {@link ElasticsearchColumnData}. Built in memory by {@link EscfEncoder} or reconstructed from
  * serialized bytes via {@link #EscfBatch(BytesReference, Releasable)}.
  *
@@ -34,7 +34,7 @@ import java.util.List;
  * <pre>
  * magic('escf') version(i32) flags(i32) doc_count(i32)
  * schema_offset(i32) column_index_offset(i32) data_offset(i32) total_size(i32)
- * [Schema]        same binary format as EIRF (non_leaf_count + entries, leaf_count + entries)
+ * [Schema]        non_leaf_count(u16) { parent(u16) name_len(u16) name }* leaf_count(u16) { parent(u16) name_len(u16) name }*
  * [Column Index]  per leaf: kind(u8) present_flags(u8) base_offset(i32)
  *                 absent_len(i32) typevec_len(i32) offsets_len(i32) data_len(i32)   [= 22 bytes]
  * [Column Data]   per leaf, present fields concatenated: [absent_bitset] [type_vector] [offsets] [data]
@@ -73,6 +73,8 @@ public final class EscfBatch implements SourceBatch {
     }
 
     /** Serialized construction path: parse a batch from its wire/translog bytes. */
+    // TODO: This is not very optimized at the moment. Lots of random reads against composite bytes references. Eventually we'll want to
+    // implement stream reads with slices out for column data.
     public EscfBatch(BytesReference data, Releasable releasable) {
         this.releasable = releasable;
         this.serialized = data;
@@ -128,15 +130,42 @@ public final class EscfBatch implements SourceBatch {
                 offsets = bytesToOffsets(data, pos, docCount);
                 pos += offsetsLen;
             }
-            // For BOOL the data field carries the value bitset; every other kind keeps its payload as a byte slice.
-            FixedBitSet values = null;
-            BytesReference colData = null;
-            if (kind == ElasticsearchColumnKind.BOOL) {
-                values = bytesToFixedBitSet(data, pos, docCount);
-            } else {
-                colData = data.slice(pos, dataLen);
-            }
-            columns[c] = new ElasticsearchColumnData(kind, docCount, absent, values, typeVector, offsets, colData);
+            // For BOOL the data field carries the value bitset; ARRAY carries a nested child column;
+            // every other kind keeps its payload as a byte slice.
+            columns[c] = switch (kind) {
+                case ElasticsearchColumnKind.BOOL -> ElasticsearchColumnData.ofBool(
+                    docCount,
+                    absent,
+                    bytesToFixedBitSet(data, pos, docCount)
+                );
+                case ElasticsearchColumnKind.ARRAY -> ElasticsearchColumnData.ofArray(
+                    docCount,
+                    absent,
+                    offsets,
+                    decodeArrayChild(data, pos, dataLen, offsets[docCount])
+                );
+                case ElasticsearchColumnKind.UNION -> ElasticsearchColumnData.ofUnion(
+                    docCount,
+                    absent,
+                    typeVector,
+                    offsets,
+                    data.slice(pos, dataLen)
+                );
+                case ElasticsearchColumnKind.STRING, ElasticsearchColumnKind.BINARY -> ElasticsearchColumnData.ofVarWidth(
+                    kind,
+                    docCount,
+                    absent,
+                    offsets,
+                    data.slice(pos, dataLen)
+                );
+                case ElasticsearchColumnKind.LONG, ElasticsearchColumnKind.DOUBLE -> ElasticsearchColumnData.ofFixed64(
+                    kind,
+                    docCount,
+                    absent,
+                    data.slice(pos, dataLen)
+                );
+                default -> throw new IllegalStateException("Unknown ESCF column kind: " + ElasticsearchColumnKind.name(kind));
+            };
         }
     }
 
@@ -210,8 +239,17 @@ public final class EscfBatch implements SourceBatch {
         }
         long total = 64L;
         for (ElasticsearchColumnData col : columns) {
-            total += bitsetRam(col.absent()) + bitsetRam(col.values()) + (col.typeVector() != null ? col.typeVector().length : 0L) + (col
-                .offsets() != null ? col.offsets().length * 4L : 0L) + refLen(col.data());
+            total += columnRamBytes(col);
+        }
+        return total;
+    }
+
+    /** Sums a column's own live storage plus, for ARRAY, its nested {@code child} column's storage. */
+    private static long columnRamBytes(ElasticsearchColumnData col) {
+        long total = bitsetRam(col.absent()) + bitsetRam(col.values()) + (col.typeVector() != null ? col.typeVector().length : 0L) + (col
+            .offsets() != null ? col.offsets().length * 4L : 0L) + refLen(col.data());
+        if (col.child() != null) {
+            total += columnRamBytes(col.child());
         }
         return total;
     }
@@ -223,7 +261,14 @@ public final class EscfBatch implements SourceBatch {
     private static ElasticsearchColumnData sliceColumn(ElasticsearchColumnData col, int from, int newCount) {
         FixedBitSet absent = col.absent() != null ? sliceBitset(col.absent(), from, newCount) : null;
         if (col.kind() == ElasticsearchColumnKind.ARRAY) {
-            return sliceArrayColumn(col, from, newCount, absent);
+            int[] rowOffsets = col.offsets();
+            int elemFrom = rowOffsets[from];
+            int elemTo = rowOffsets[from + newCount];
+            int[] newRowOffsets = rebasedOffsets(rowOffsets, from, newCount, elemFrom);
+            // The child is a native ElasticsearchColumnData (STRING or LONG/DOUBLE), so it slices via the
+            // same generic paths below rather than hand-parsed bytes.
+            ElasticsearchColumnData childSlice = sliceColumn(col.child(), elemFrom, elemTo - elemFrom);
+            return ElasticsearchColumnData.ofArray(newCount, absent, newRowOffsets, childSlice);
         }
         if (col.offsets() != null) {
             byte[] typeVector = col.typeVector() != null ? Arrays.copyOfRange(col.typeVector(), from, from + newCount) : null;
@@ -232,52 +277,17 @@ public final class EscfBatch implements SourceBatch {
             int byteTo = srcOffsets[from + newCount];
             BytesReference data = copyRange(col.data(), byteFrom, byteTo - byteFrom);
             int[] offsets = rebasedOffsets(srcOffsets, from, newCount, byteFrom);
-            return new ElasticsearchColumnData(col.kind(), newCount, absent, null, typeVector, offsets, data);
+            return typeVector != null
+                ? ElasticsearchColumnData.ofUnion(newCount, absent, typeVector, offsets, data)
+                : ElasticsearchColumnData.ofVarWidth(col.kind(), newCount, absent, offsets, data);
         }
         if (col.kind() == ElasticsearchColumnKind.BOOL) {
             FixedBitSet values = col.values() != null ? sliceBitset(col.values(), from, newCount) : null;
-            return new ElasticsearchColumnData(col.kind(), newCount, absent, values, null, null, null);
+            return ElasticsearchColumnData.ofBool(newCount, absent, values);
         }
         // LONG / DOUBLE: 8-byte slots
         BytesReference data = copyRange(col.data(), from * 8, newCount * 8);
-        return new ElasticsearchColumnData(col.kind(), newCount, absent, null, null, null, data);
-    }
-
-    /** Slices a columnar array column: the offsets are element ranges and the data is {@code child_kind | child_values}. */
-    private static ElasticsearchColumnData sliceArrayColumn(ElasticsearchColumnData col, int from, int newCount, FixedBitSet absent) {
-        int[] rowOffsets = col.offsets();
-        int elemFrom = rowOffsets[from];
-        int elemTo = rowOffsets[from + newCount];
-        int newElemCount = elemTo - elemFrom;
-        int[] newRowOffsets = rebasedOffsets(rowOffsets, from, newCount, elemFrom);
-
-        BytesRef d = col.data().toBytesRef();
-        byte childKind = d.bytes[d.offset];
-        int childBase = d.offset + 1;
-        byte[] newData;
-        if (childKind == ElasticsearchColumnKind.STRING) {
-            int oldElemCount = rowOffsets[col.docCount()];
-            int byteFrom = readIntLE(d.bytes, childBase + elemFrom * 4);
-            int byteTo = readIntLE(d.bytes, childBase + elemTo * 4);
-            int childDataBase = childBase + (oldElemCount + 1) * 4;
-            int prefix = 1 + (newElemCount + 1) * 4;
-            newData = new byte[prefix + (byteTo - byteFrom)];
-            newData[0] = childKind;
-            for (int j = 0; j <= newElemCount; j++) {
-                ByteUtils.writeIntLE(readIntLE(d.bytes, childBase + (elemFrom + j) * 4) - byteFrom, newData, 1 + j * 4);
-            }
-            System.arraycopy(d.bytes, childDataBase + byteFrom, newData, prefix, byteTo - byteFrom);
-        } else {
-            // LONG / DOUBLE child: 8-byte slots
-            newData = new byte[1 + newElemCount * 8];
-            newData[0] = childKind;
-            System.arraycopy(d.bytes, childBase + elemFrom * 8, newData, 1, newElemCount * 8);
-        }
-        return new ElasticsearchColumnData(col.kind(), newCount, absent, null, null, newRowOffsets, new BytesArray(newData));
-    }
-
-    private static int readIntLE(byte[] b, int off) {
-        return (b[off] & 0xFF) | ((b[off + 1] & 0xFF) << 8) | ((b[off + 2] & 0xFF) << 16) | ((b[off + 3] & 0xFF) << 24);
+        return ElasticsearchColumnData.ofFixed64(col.kind(), newCount, absent, data);
     }
 
     private static int[] rebasedOffsets(int[] offsets, int from, int newCount, int rebase) {
@@ -338,8 +348,16 @@ public final class EscfBatch implements SourceBatch {
             absentPart[c] = col.absent() != null ? bitsetToRef(col.absent(), docCount) : null;
             typeVecPart[c] = col.typeVector() != null ? new BytesArray(col.typeVector()) : null;
             offsetsPart[c] = col.offsets() != null ? intArrayToRef(col.offsets()) : null;
-            // BOOL keeps its value bitset in the data slot; every other kind already has a byte payload.
-            dataPart[c] = col.kind() == ElasticsearchColumnKind.BOOL ? bitsetToRef(col.values(), docCount) : col.data();
+            // BOOL keeps its value bitset in the data slot; ARRAY flattens its native child column to
+            // child_kind(1) | child_values bytes here (the only place ESCF serializes an ARRAY's child);
+            // every other kind already has a byte payload.
+            if (col.kind() == ElasticsearchColumnKind.BOOL) {
+                dataPart[c] = bitsetToRef(col.values(), docCount);
+            } else if (col.kind() == ElasticsearchColumnKind.ARRAY) {
+                dataPart[c] = encodeArrayChild(col.child());
+            } else {
+                dataPart[c] = col.data();
+            }
         }
 
         int[] flags = new int[colCount];
@@ -463,6 +481,19 @@ public final class EscfBatch implements SourceBatch {
         return new BytesArray(out);
     }
 
+    /**
+     * Flattens an ARRAY column's native {@code child} into the on-disk {@code child_kind(1) | child_values}
+     * bytes (child offsets, for a STRING child, are written right after the kind byte). This is the only
+     * place ESCF serializes an array's child; {@link #decodeArrayChild} is its exact inverse.
+     */
+    private static BytesReference encodeArrayChild(ElasticsearchColumnData child) {
+        BytesReference kindByte = new BytesArray(new byte[] { child.kind() });
+        if (child.kind() == ElasticsearchColumnKind.STRING) {
+            return CompositeBytesReference.of(kindByte, intArrayToRef(child.offsets()), child.data());
+        }
+        return CompositeBytesReference.of(kindByte, child.data());
+    }
+
     /** Parses {@code bitsetBytes(docCount)} LE bytes at {@code pos} into a {@link FixedBitSet}. */
     private static FixedBitSet bytesToFixedBitSet(BytesReference data, int pos, int docCount) {
         int words = bitsetBytes(docCount) / 8;
@@ -485,6 +516,23 @@ public final class EscfBatch implements SourceBatch {
             offsets[i] = data.getIntLE(pos + i * 4);
         }
         return offsets;
+    }
+
+    /**
+     * Parses the {@code child_kind(1) | child_values} bytes at {@code [pos, pos + dataLen)} into a native
+     * {@code child} column with {@code totalElems} elements. Exact inverse of {@link #encodeArrayChild}.
+     */
+    private static ElasticsearchColumnData decodeArrayChild(BytesReference data, int pos, int dataLen, int totalElems) {
+        byte childKind = data.get(pos);
+        int childBase = pos + 1;
+        if (childKind == ElasticsearchColumnKind.STRING) {
+            int[] childOffsets = bytesToOffsets(data, childBase, totalElems);
+            int childDataBase = childBase + (totalElems + 1) * 4;
+            BytesReference childData = data.slice(childDataBase, pos + dataLen - childDataBase);
+            return ElasticsearchColumnData.ofVarWidth(ElasticsearchColumnKind.STRING, totalElems, null, childOffsets, childData);
+        }
+        BytesReference childData = data.slice(childBase, pos + dataLen - childBase);
+        return ElasticsearchColumnData.ofFixed64(childKind, totalElems, null, childData);
     }
 
     private static SourceSchema parseSchema(BytesReference data, int offset) {

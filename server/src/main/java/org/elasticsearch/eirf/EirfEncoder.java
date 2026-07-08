@@ -443,6 +443,7 @@ public class EirfEncoder implements SourceBatchEncoder {
      * The inline array bytes and their {@code FIXED_ARRAY} / {@code UNION_ARRAY} kind, as produced by
      * {@link #packArray} and {@link #parseArray}.
      */
+    // TODO: move to SourceBatch package
     public record PackedArray(byte arrayType, byte[] packed) {}
 
     /**
@@ -450,6 +451,7 @@ public class EirfEncoder implements SourceBatchEncoder {
      * bytes. A public seam over {@link #parseArray} for other batch encoders that store heterogeneous
      * or object-bearing arrays inline.
      */
+    // TODO: move to SourceBatch package
     public static PackedArray packArray(XContentParser parser) throws IOException {
         return parseArray(parser, null);
     }

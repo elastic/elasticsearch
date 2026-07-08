@@ -15,8 +15,7 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
  * An ESCF column whose values are all raw binary bytes (variable-length layout: offset vector + dense byte
- * payload). JSON never produces binary leaves; this kind exists for non-JSON producers and for symmetry with
- * {@link ElasticsearchStringColumn}.
+ * payload).
  */
 final class ElasticsearchBinaryColumn extends AbstractVarColumn {
 

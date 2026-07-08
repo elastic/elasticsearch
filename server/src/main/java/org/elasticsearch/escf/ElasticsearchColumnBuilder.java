@@ -25,22 +25,20 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Accumulates the per-document values of a single ESCF leaf column and serialises them into an
+ * Accumulates the per-document values of a single ESCF leaf column and serializes them into an
  * {@link ElasticsearchColumnData} when {@link #finish(int)} is called.
  *
  * <p>The facade dispatches each {@code add*} call to a typed builder for the column's current kind.
  * The first non-absent value selects the kind. A conflicting later value, or an explicit {@code null},
- * promotes the column to {@link ElasticsearchColumnKind#UNION}. Scalar promotions adopt the existing
- * buffers with no replay; an array column promotes by replaying its rows as inline EIRF arrays into
- * the union.
+ * promotes the column to {@link ElasticsearchColumnKind#UNION}.
  */
 final class ElasticsearchColumnBuilder {
 
+    /** Sentinel returned by {@link #arrayChildKind} for arrays that aren't a single fixed primitive kind. */
+    private static final byte NO_CHILD_KIND = -1;
+
     private final Recycler<BytesRef> recycler;
     private TypedBuilder current;
-    private byte currentKind = ElasticsearchColumnKind.NONE;
-    /** The fixed columnar child kind when {@code currentKind == ARRAY}; otherwise {@code NONE}. */
-    private byte arrayChildKind = ElasticsearchColumnKind.NONE;
     private int leadingAbsents;
 
     ElasticsearchColumnBuilder() {
@@ -92,7 +90,7 @@ final class ElasticsearchColumnBuilder {
      */
     void addArray(byte arrayType, byte[] packed) {
         byte childKind = arrayChildKind(arrayType, packed);
-        if (childKind == ElasticsearchColumnKind.NONE) {
+        if (childKind == NO_CHILD_KIND) {
             promoteToUnion();
             current.addInlineArray(arrayType, packed);
             return;
@@ -104,10 +102,8 @@ final class ElasticsearchColumnBuilder {
             }
             leadingAbsents = 0;
             current = array;
-            currentKind = ElasticsearchColumnKind.ARRAY;
-            arrayChildKind = childKind;
             array.addColumnarArray(packed);
-        } else if (currentKind == ElasticsearchColumnKind.ARRAY && arrayChildKind == childKind) {
+        } else if (current.kind() == ElasticsearchColumnKind.ARRAY && current.childKind() == childKind) {
             current.addColumnarArray(packed);
         } else {
             promoteToUnion();
@@ -145,18 +141,17 @@ final class ElasticsearchColumnBuilder {
     private void ensureScalar(byte kind) {
         if (current == null) {
             current = newTyped(kind, recycler);
-            currentKind = kind;
             for (int i = 0; i < leadingAbsents; i++) {
                 current.addAbsent();
             }
             leadingAbsents = 0;
-        } else if (currentKind != kind && currentKind != ElasticsearchColumnKind.UNION) {
+        } else if (current.kind() != kind && current.kind() != ElasticsearchColumnKind.UNION) {
             promoteToUnion();
         }
     }
 
     private void promoteToUnion() {
-        if (currentKind == ElasticsearchColumnKind.UNION) {
+        if (current != null && current.kind() == ElasticsearchColumnKind.UNION) {
             return;
         }
         if (current != null) {
@@ -168,8 +163,6 @@ final class ElasticsearchColumnBuilder {
             }
             current = union;
         }
-        currentKind = ElasticsearchColumnKind.UNION;
-        arrayChildKind = ElasticsearchColumnKind.NONE;
         leadingAbsents = 0;
     }
 
@@ -182,21 +175,25 @@ final class ElasticsearchColumnBuilder {
         };
     }
 
+    /** Returns the fixed columnar child kind for a packed array, or {@link #NO_CHILD_KIND} if it doesn't have one. */
     private static byte arrayChildKind(byte arrayType, byte[] packed) {
         if (arrayType != SourceValueType.FIXED_ARRAY || packed.length == 0) {
-            return ElasticsearchColumnKind.NONE;
+            return NO_CHILD_KIND;
         }
         return switch (packed[0]) {
             case SourceValueType.INT, SourceValueType.LONG -> ElasticsearchColumnKind.LONG;
             case SourceValueType.FLOAT, SourceValueType.DOUBLE -> ElasticsearchColumnKind.DOUBLE;
             case SourceValueType.STRING -> ElasticsearchColumnKind.STRING;
-            default -> ElasticsearchColumnKind.NONE;
+            default -> NO_CHILD_KIND;
         };
     }
 
     private interface TypedBuilder {
 
         byte kind();
+
+        /** The fixed columnar child kind; only meaningful (and overridden) when {@link #kind()} is {@code ARRAY}. */
+        byte childKind();
 
         void addLong(long value);
 
@@ -235,6 +232,12 @@ final class ElasticsearchColumnBuilder {
 
         final boolean isAbsentAt(int d) {
             return absent != null && absent.get(d);
+        }
+
+        @Override
+        public byte childKind() {
+            // Only ArrayBuilder overrides this; every other kind's addArray path never reaches a childKind() call.
+            throw new AssertionError("column kind " + ElasticsearchColumnKind.name(kind()) + " has no array child kind");
         }
 
         @Override
@@ -335,7 +338,7 @@ final class ElasticsearchColumnBuilder {
         @Override
         public ElasticsearchColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
-            return new ElasticsearchColumnData(kind, docCount, absent, null, null, null, data.moveToBytesReference());
+            return ElasticsearchColumnData.ofFixed64(kind, docCount, absent, data.moveToBytesReference());
         }
 
         @Override
@@ -385,7 +388,7 @@ final class ElasticsearchColumnBuilder {
         @Override
         public ElasticsearchColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
-            return new ElasticsearchColumnData(ElasticsearchColumnKind.BOOL, docCount, absent, values, null, null, null);
+            return ElasticsearchColumnData.ofBool(docCount, absent, values);
         }
     }
 
@@ -452,12 +455,10 @@ final class ElasticsearchColumnBuilder {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
             offsets = ensureIntCapacity(offsets, count + 1);
             offsets[count] = dataLen;
-            return new ElasticsearchColumnData(
+            return ElasticsearchColumnData.ofVarWidth(
                 kind,
                 docCount,
                 absent,
-                null,
-                null,
                 Arrays.copyOf(offsets, docCount + 1),
                 data.moveToBytesReference()
             );
@@ -471,8 +472,8 @@ final class ElasticsearchColumnBuilder {
 
     /**
      * ARRAY: arrays of a single fixed primitive child kind, kept as their inline EIRF bytes per row
-     * during building (so promotion to a union is a cheap replay) and materialised into the columnar
-     * {@code child_kind | child_values} layout at {@link #finish}.
+     * during building (so promotion to a union is a cheap replay) and materialised into a native
+     * {@code child} sub-column at {@link #finish}.
      */
     private static final class ArrayBuilder extends BaseBuilder {
         private final byte childKind;
@@ -488,6 +489,11 @@ final class ElasticsearchColumnBuilder {
         @Override
         public byte kind() {
             return ElasticsearchColumnKind.ARRAY;
+        }
+
+        @Override
+        public byte childKind() {
+            return childKind;
         }
 
         @Override
@@ -521,12 +527,9 @@ final class ElasticsearchColumnBuilder {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
             int[] rowOffsets = new int[docCount + 1];
             RecyclerBytesStreamOutput childData = newStream(recycler);
+            ElasticsearchColumnData child;
             try {
-                // child_kind prefix byte
-                childData.writeByte(childKind);
                 int elemTotal = 0;
-                // For STRING children, element byte-offsets are written after the child-kind byte and before bytes.
-                // We accumulate string element bytes separately, then assemble, because the offset vector precedes them.
                 if (childKind == ElasticsearchColumnKind.STRING) {
                     List<byte[]> elems = new ArrayList<>();
                     for (int r = 0; r < docCount; r++) {
@@ -541,6 +544,8 @@ final class ElasticsearchColumnBuilder {
                         }
                     }
                     rowOffsets[docCount] = elemTotal;
+                    // Child offsets are kept as a native int[] here, not written into childData; only the wire
+                    // serializer in EscfBatch flattens them to bytes.
                     int[] childOffsets = new int[elemTotal + 1];
                     int cum = 0;
                     for (int i = 0; i < elemTotal; i++) {
@@ -548,12 +553,16 @@ final class ElasticsearchColumnBuilder {
                         cum += elems.get(i).length;
                     }
                     childOffsets[elemTotal] = cum;
-                    for (int i = 0; i <= elemTotal; i++) {
-                        childData.writeIntLE(childOffsets[i]);
-                    }
                     for (byte[] e : elems) {
                         childData.writeBytes(e, 0, e.length);
                     }
+                    child = ElasticsearchColumnData.ofVarWidth(
+                        ElasticsearchColumnKind.STRING,
+                        elemTotal,
+                        null,
+                        childOffsets,
+                        childData.moveToBytesReference()
+                    );
                 } else {
                     boolean isDouble = childKind == ElasticsearchColumnKind.DOUBLE;
                     for (int r = 0; r < docCount; r++) {
@@ -575,19 +584,12 @@ final class ElasticsearchColumnBuilder {
                         }
                     }
                     rowOffsets[docCount] = elemTotal;
+                    child = ElasticsearchColumnData.ofFixed64(childKind, elemTotal, null, childData.moveToBytesReference());
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e); // in-memory stream never performs IO
             }
-            return new ElasticsearchColumnData(
-                ElasticsearchColumnKind.ARRAY,
-                docCount,
-                absent,
-                null,
-                null,
-                rowOffsets,
-                childData.moveToBytesReference()
-            );
+            return ElasticsearchColumnData.ofArray(docCount, absent, rowOffsets, child);
         }
     }
 
@@ -692,11 +694,9 @@ final class ElasticsearchColumnBuilder {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
             offsets = ensureIntCapacity(offsets, count + 1);
             offsets[count] = dataLen;
-            return new ElasticsearchColumnData(
-                ElasticsearchColumnKind.UNION,
+            return ElasticsearchColumnData.ofUnion(
                 docCount,
                 absent,
-                null,
                 Arrays.copyOf(typeVec, docCount),
                 Arrays.copyOf(offsets, docCount + 1),
                 data.moveToBytesReference()

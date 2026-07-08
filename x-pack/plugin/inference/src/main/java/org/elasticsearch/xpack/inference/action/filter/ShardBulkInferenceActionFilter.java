@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.InferenceLicenceCheck;
+import org.elasticsearch.xpack.inference.mapper.ReferenceValueInferenceString;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -472,7 +473,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final List<InferenceStringFieldInferenceRequest> requests,
             final Releasable onFinish
         ) {
-            final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
+            final List<InferenceStringGroup> inputs = requests.stream().map(r -> {
+                InferenceString inferenceString = r.input();
+                if (inferenceString instanceof ReferenceValueInferenceString rvis) {
+                    inferenceString = rvis.truncateReferenceValue();
+                }
+
+                return new InferenceStringGroup(inferenceString);
+            }).toList();
 
             ActionListener<InferenceServiceResults> completionListener = ActionListener.wrap(results -> {
                 try (onFinish) {
@@ -1019,6 +1027,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
+            // TODO: Transform inference strings as necessary in source
             updateIndexSource(item, inferenceFieldsMap);
         }
 

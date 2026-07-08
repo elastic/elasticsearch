@@ -82,7 +82,7 @@ public class SemanticTextUtils {
                 XContentType.JSON
             )
         ) {
-            return InferenceString.PARSER.parse(parser, null);
+            return ReferenceValueInferenceString.PARSER.parse(parser, null);
         } catch (Exception e) {
             throw new IllegalArgumentException("Cannot parse value [" + value + "] to an InferenceString", e);
         }

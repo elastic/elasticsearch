@@ -16,12 +16,14 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -34,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -46,9 +49,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.cluster.ClusterInfoServiceUtils.refresh;
 import static org.elasticsearch.cluster.InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -95,6 +101,22 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final EstimatedHeapUsageCollector mockEstimatedHeapUsageCollector = spy(new StubEstimatedEstimatedHeapUsageCollector());
+        final Map<ShardId, BoostedAndUnboostedCacheSizes> shardCacheSizes = Map.of(
+            new ShardId("index", "uuid", 0),
+            new BoostedAndUnboostedCacheSizes(10L, 20L)
+        );
+        final Map<String, CurrentCacheUsage> nodeCacheUsage = Map.of(discoveryNode.getId(), new CurrentCacheUsage(100L, 30L));
+        final CacheUsageAndCommitmentCollector mockCacheUsageAndCommitmentCollector = mock(CacheUsageAndCommitmentCollector.class);
+        doAnswer(invocation -> {
+            final ActionListener<Map<ShardId, BoostedAndUnboostedCacheSizes>> listener = invocation.getArgument(1);
+            listener.onResponse(shardCacheSizes);
+            return null;
+        }).when(mockCacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
+        doAnswer(invocation -> {
+            final ActionListener<Map<String, CurrentCacheUsage>> listener = invocation.getArgument(1);
+            listener.onResponse(nodeCacheUsage);
+            return null;
+        }).when(mockCacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
         final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector = spy(
             new NodeUsageStatsForThreadPoolsCollector()
         );
@@ -108,6 +130,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             threadPool,
             client,
             mockEstimatedHeapUsageCollector,
+            mockCacheUsageAndCommitmentCollector,
             nodeUsageStatsForThreadPoolsCollector
         );
         final WriteLoadConstraintMonitor usageMonitor = spy(
@@ -142,7 +165,11 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         // A node joins the cluster
         {
-            Mockito.clearInvocations(mockEstimatedHeapUsageCollector, nodeUsageStatsForThreadPoolsCollector);
+            Mockito.clearInvocations(
+                mockEstimatedHeapUsageCollector,
+                mockCacheUsageAndCommitmentCollector,
+                nodeUsageStatsForThreadPoolsCollector
+            );
             final int initialRequestCount = client.requestCount;
             final AtomicBoolean nodeJoined = new AtomicBoolean();
             clusterApplierService.onNewClusterState(
@@ -158,12 +185,20 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             assertThat(client.requestCount, equalTo(initialRequestCount + 2));
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should have polled for heap usage
             verify(mockEstimatedHeapUsageCollector).collectShardHeapUsage(any());
+            verify(mockCacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
+            verify(mockCacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
+            assertThat(clusterInfoService.getClusterInfo().getShardCacheSizes(), equalTo(shardCacheSizes));
+            assertThat(clusterInfoService.getClusterInfo().getNodeCacheUsage(), equalTo(nodeCacheUsage));
         }
 
         // ... then leaves
         {
-            Mockito.clearInvocations(mockEstimatedHeapUsageCollector, nodeUsageStatsForThreadPoolsCollector);
+            Mockito.clearInvocations(
+                mockEstimatedHeapUsageCollector,
+                mockCacheUsageAndCommitmentCollector,
+                nodeUsageStatsForThreadPoolsCollector
+            );
             final int initialRequestCount = client.requestCount;
             final AtomicBoolean nodeLeft = new AtomicBoolean();
             clusterApplierService.onNewClusterState(
@@ -177,6 +212,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             // departing nodes don't trigger refreshes
             assertThat(client.requestCount, equalTo(initialRequestCount));
             verifyNoInteractions(mockEstimatedHeapUsageCollector);
+            verifyNoInteractions(mockCacheUsageAndCommitmentCollector);
             verifyNoInteractions(nodeUsageStatsForThreadPoolsCollector);
         }
 
@@ -199,6 +235,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         for (int i = 0; i < 3; i++) {
             Mockito.clearInvocations(mockEstimatedHeapUsageCollector);
+            Mockito.clearInvocations(mockCacheUsageAndCommitmentCollector);
             Mockito.clearInvocations(nodeUsageStatsForThreadPoolsCollector);
             final int initialRequestCount = client.requestCount;
             final long duration = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings).millis();
@@ -207,6 +244,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
             verify(mockEstimatedHeapUsageCollector).collectShardHeapUsage(any());
+            verify(mockCacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
+            verify(mockCacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
         }
 
@@ -222,6 +261,87 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(deterministicTaskQueue.hasRunnableTasks());
         assertFalse(deterministicTaskQueue.hasDeferredTasks());
+    }
+
+    public void testEmptyCacheUsageCollector() {
+        final PlainActionFuture<Map<ShardId, BoostedAndUnboostedCacheSizes>> shardCacheSizesFuture = new PlainActionFuture<>();
+        CacheUsageAndCommitmentCollector.EMPTY.collectShardCacheSizes(ClusterState.EMPTY_STATE, shardCacheSizesFuture);
+        assertThat(shardCacheSizesFuture.actionGet(), equalTo(Map.of()));
+
+        final PlainActionFuture<Map<String, CurrentCacheUsage>> nodeCacheUsageFuture = new PlainActionFuture<>();
+        CacheUsageAndCommitmentCollector.EMPTY.collectNodeCacheUsage(ClusterState.EMPTY_STATE, nodeCacheUsageFuture);
+        assertThat(nodeCacheUsageFuture.actionGet(), equalTo(Map.of()));
+    }
+
+    public void testCacheUsageAndCommitmentCollectorFailureFallbacks() {
+        final Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED
+            )
+            .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings)) {
+            final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
+            final Map<ShardId, BoostedAndUnboostedCacheSizes> shardCacheSizes = Map.of(
+                new ShardId("index", "uuid", 0),
+                new BoostedAndUnboostedCacheSizes(10L, 20L)
+            );
+            final Map<String, CurrentCacheUsage> nodeCacheUsage = Map.of("node-id", new CurrentCacheUsage(100L, 30L));
+            final AtomicBoolean failShardCacheSizes = new AtomicBoolean();
+            final AtomicBoolean failNodeCacheUsage = new AtomicBoolean();
+            final CacheUsageAndCommitmentCollector cacheUsageAndCommitmentCollector = mock(CacheUsageAndCommitmentCollector.class);
+            doAnswer(invocation -> {
+                final ActionListener<Map<ShardId, BoostedAndUnboostedCacheSizes>> listener = invocation.getArgument(1);
+                if (failShardCacheSizes.get()) {
+                    listener.onFailure(new IllegalStateException("simulated shard cache sizes failure"));
+                } else {
+                    listener.onResponse(shardCacheSizes);
+                }
+                return null;
+            }).when(cacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
+            doAnswer(invocation -> {
+                final ActionListener<Map<String, CurrentCacheUsage>> listener = invocation.getArgument(1);
+                if (failNodeCacheUsage.get()) {
+                    listener.onFailure(new IllegalStateException("simulated node cache usage failure"));
+                } else {
+                    listener.onResponse(nodeCacheUsage);
+                }
+                return null;
+            }).when(cacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
+
+            final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
+                settings,
+                new WriteLoadConstraintSettings(clusterService.getClusterSettings()),
+                clusterService,
+                threadPool,
+                client,
+                EstimatedHeapUsageCollector.EMPTY,
+                cacheUsageAndCommitmentCollector,
+                NodeUsageStatsForThreadPoolsCollector.EMPTY
+            );
+            clusterInfoService.addListener(ignored -> {});
+
+            failShardCacheSizes.set(true);
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            verify(cacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
+            verify(cacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
+            assertThat(clusterInfo.getShardCacheSizes(), equalTo(Map.of()));
+            assertThat(clusterInfo.getNodeCacheUsage(), equalTo(nodeCacheUsage));
+
+            Mockito.clearInvocations(cacheUsageAndCommitmentCollector);
+            failShardCacheSizes.set(false);
+            failNodeCacheUsage.set(true);
+            clusterInfo = refresh(clusterInfoService);
+            verify(cacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
+            verify(cacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
+            assertThat(clusterInfo.getShardCacheSizes(), equalTo(shardCacheSizes));
+            assertThat(clusterInfo.getNodeCacheUsage(), equalTo(Map.of()));
+        }
     }
 
     private static class StubEstimatedEstimatedHeapUsageCollector implements EstimatedHeapUsageCollector {

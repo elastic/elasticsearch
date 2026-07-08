@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -75,6 +77,21 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(cachedNodeId));
     }
 
+    public void testCacheUsageFieldsAreTransportVersionGated() throws Exception {
+        final var shardCacheSizes = Map.of(randomShardId(), new BoostedAndUnboostedCacheSizes(10L, 20L));
+        final var nodeCacheUsage = Map.of(randomIdentifier(), new CurrentCacheUsage(100L, 30L));
+        final var clusterInfo = ClusterInfo.builder().shardCacheSizes(shardCacheSizes).nodeCacheUsage(nodeCacheUsage).build();
+
+        final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
+        assertThat(currentVersionCopy.getShardCacheSizes(), equalTo(shardCacheSizes));
+        assertThat(currentVersionCopy.getNodeCacheUsage(), equalTo(nodeCacheUsage));
+
+        final var preCacheUsageVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.CACHE_USAGE_IN_CLUSTER_INFO);
+        final var preCacheUsageCopy = copyInstance(clusterInfo, preCacheUsageVersion);
+        assertThat(preCacheUsageCopy.getShardCacheSizes(), equalTo(Map.of()));
+        assertThat(preCacheUsageCopy.getNodeCacheUsage(), equalTo(Map.of()));
+    }
+
     private static double randomWriteLoadProportion() {
         return randomDoubleBetween(0.0, 1.0, true);
     }
@@ -108,8 +125,28 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomNodeUsageStatsForThreadPools(),
             randomShardWriteLoad(),
             randomMaxHeapSizes(),
-            randomNodeIdsWriteLoadHotspottingSet()
+            randomNodeIdsWriteLoadHotspottingSet(),
+            randomNodeCacheUsage(),
+            randomShardCacheSizes()
         );
+    }
+
+    private static Map<String, CurrentCacheUsage> randomNodeCacheUsage() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, CurrentCacheUsage> nodeCacheUsage = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            nodeCacheUsage.put(randomAlphaOfLength(32), new CurrentCacheUsage(randomNonNegativeLong(), randomNonNegativeLong()));
+        }
+        return nodeCacheUsage;
+    }
+
+    private static Map<ShardId, BoostedAndUnboostedCacheSizes> randomShardCacheSizes() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<ShardId, BoostedAndUnboostedCacheSizes> shardCacheSizes = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            shardCacheSizes.put(randomShardId(), new BoostedAndUnboostedCacheSizes(randomNonNegativeLong(), randomNonNegativeLong()));
+        }
+        return shardCacheSizes;
     }
 
     private static Map<ShardId, Double> randomShardWriteLoad() {

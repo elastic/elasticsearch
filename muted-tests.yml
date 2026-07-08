@@ -460,9 +460,6 @@ tests:
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602
-- class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
-  method: detects missing POM elements and reports structured problems
-  issue: https://github.com/elastic/elasticsearch/issues/151636
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
   method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted
   issue: https://github.com/elastic/elasticsearch/issues/151732

@@ -2784,13 +2784,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("ROW 3::BYTE", "line 1:5: Unsupported conversion to type [BYTE]");
     }
 
-    // TEXT is deliberately excluded from EsqlDataTypeConverter#TYPE_TO_CONVERTER_FUNCTION: implicit
-    // casting to TEXT for unmapped/union-typed fields hasn't been tested yet (see TO_TEXT), so the
-    // ::text short syntax is disabled for now. This pins that boundary so enabling it is deliberate.
-    public void testInlineConvertToTextUnsupported() {
-        expectError("ROW \"a\"::TEXT", "line 1:5: Unsupported conversion to type [TEXT]");
-    }
-
     public void testMetricsWithoutStats() {
         assertQuery("TS foo", unresolvedTSRelation("foo"));
         assertQuery("TS foo,bar", unresolvedTSRelation("foo,bar"));

@@ -8,6 +8,17 @@ package org.elasticsearch.xpack.core.security.audit;
 
 import org.elasticsearch.core.Nullable;
 
+/**
+ * Read-only context describing a single audit event, passed to {@link AuditLogCustomizer} so that suppression and enrichment
+ * operate on the same inputs.
+ *
+ * @param indices the indices the event relates to, or {@code null} if the event is not index-scoped
+ * @param realm   the name of the realm associated with the event, or {@code null} if none applies
+ */
 public record AuditEventContext(@Nullable String[] indices, @Nullable String realm) {
+
+    /**
+     * An empty context, used when no event-specific information is available.
+     */
     public static final AuditEventContext EMPTY = new AuditEventContext(null, null);
 }

@@ -11,15 +11,35 @@ import org.elasticsearch.core.Nullable;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * A mutable view over the fields of a single audit log entry, handed to {@link AuditLogCustomizer#enrich} so that a customizer
+ * can read and overwrite fields before the entry is written.
+ */
 public interface AuditEntry {
 
+    /**
+     * Returns the current value of the given field.
+     *
+     * @param field the field name
+     * @return the field value, or {@code null} if the field is not set
+     */
     @Nullable
     String get(String field);
 
+    /**
+     * Sets the value of the given field, overwriting any existing value.
+     *
+     * @param field the field name
+     * @param value the value to set
+     * @return this entry, to allow chaining
+     */
     AuditEntry set(String field, String value);
 
     /**
-     * for tests
+     * Creates a simple {@link HashMap}-backed entry. Intended for tests.
+     *
+     * @param fields the initial fields; a copy is taken
+     * @return a mutable entry initialized with the given fields
      */
     static AuditEntry ofFields(Map<String, String> fields) {
         var copy = new HashMap<>(fields);

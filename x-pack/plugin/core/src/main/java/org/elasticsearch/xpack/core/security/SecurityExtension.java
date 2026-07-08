@@ -153,6 +153,13 @@ public interface SecurityExtension {
         return null;
     }
 
+    /**
+     * Returns an {@link AuditLogCustomizer} used to suppress or enrich file-based audit events, or
+     * {@link AuditLogCustomizer#NOOP} to leave audit behavior unchanged.
+     *
+     * @param components    Access to components that may be used by the customizer
+     * @param systemIndices The system indices descriptors, so the customizer can reason about system-index access
+     */
     default AuditLogCustomizer getAuditLogCustomizer(SecurityComponents components, SystemIndices systemIndices) {
         return AuditLogCustomizer.NOOP;
     }

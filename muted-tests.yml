@@ -751,9 +751,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testNdjsonBadDateTokenHonorsErrorPolicyMatchingColumnar
   issue: https://github.com/elastic/elasticsearch/issues/153158
-- class: org.elasticsearch.xpack.inference.RegionPolicyAuthorizationRefreshIT
-  method: testPutRegionPolicy_WhenDeniedEndpointReferencedByPipelineOnly_OmitsEmptyIndexesField
-  issue: https://github.com/elastic/elasticsearch/issues/153170
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationAndTargetRestart
   issue: https://github.com/elastic/elasticsearch/issues/153173
@@ -772,12 +769,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecApproximationIT
   method: test {csv-spec:approximation.Lookup join before and after stats by}
   issue: https://github.com/elastic/elasticsearch/issues/153178
-- class: org.elasticsearch.xpack.inference.RegionPolicyAuthorizationRefreshIT
-  method: testPutRegionPolicy_WhenDeniedEndpointReferencedByIndexOnly_OmitsEmptyPipelinesField
-  issue: https://github.com/elastic/elasticsearch/issues/153180
-- class: org.elasticsearch.xpack.inference.RegionPolicyAuthorizationRefreshIT
-  method: testPutRegionPolicy_WithAllowedRegions_TriggersAuthorizationRefresh
-  issue: https://github.com/elastic/elasticsearch/issues/153181
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.fileMetadataFilterPathLike [ndjson.bz2/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/153182

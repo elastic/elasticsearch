@@ -67,7 +67,7 @@ setup:
             - fn_json_extract
             - esql_limit_by
             - dedup_command
-            - highlight_v1
+            - highlight_v2
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }

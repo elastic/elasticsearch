@@ -2011,6 +2011,27 @@ x:long | y:double | z:double | hire_date:date_nanos
 2      | 3.6      | 1.5      | 1985-09-17T00:00:00.000Z
 ;
 
+ImplicitCastingMultiTypedFieldsStatsByDateNanosEvalAfterStats
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+required_capability: optional_fields_unmapped_eval_after_stats_fix
+
+FROM employees, employees_incompatible
+| STATS c = COUNT(*) BY hire_date
+| EVAL hire_date_millis = hire_date::DATETIME
+| KEEP c, hire_date, hire_date_millis
+| SORT hire_date
+| LIMIT 5
+;
+
+c:long | hire_date:date_nanos     | hire_date_millis:datetime
+2      | 1985-02-18T00:00:00.000Z | 1985-02-18T00:00:00.000Z
+2      | 1985-02-24T00:00:00.000Z | 1985-02-24T00:00:00.000Z
+2      | 1985-05-13T00:00:00.000Z | 1985-05-13T00:00:00.000Z
+2      | 1985-07-09T00:00:00.000Z | 1985-07-09T00:00:00.000Z
+2      | 1985-09-17T00:00:00.000Z | 1985-09-17T00:00:00.000Z
+;
+
 ImplicitCastingMultiTypedFieldsStatsByDateNanosWithFilter
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos

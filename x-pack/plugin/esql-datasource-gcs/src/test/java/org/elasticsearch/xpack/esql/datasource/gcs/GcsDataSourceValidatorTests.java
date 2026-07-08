@@ -130,14 +130,14 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         // default validator has federated authentication disabled
         var federatedConfig = Map.<String, Object>of("auth", "federated_identity", "jwt_audience", "//aud", "sts_audience", "//sts");
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
-        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
         // default validator has federated authentication disabled
         var federatedConfig = Map.<String, Object>of("jwt_audience", "//aud", "sts_audience", "//sts");
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
-        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsFederatedWhenEnabled() {

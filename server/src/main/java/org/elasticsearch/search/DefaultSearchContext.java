@@ -116,6 +116,9 @@ final class DefaultSearchContext extends SearchContext {
     private final ContextIndexSearcher searcher;
     @Nullable
     private StoreMetricsAwareExecutor metricsAwareExecutor;
+    @Nullable
+    private final Supplier<StoreMetrics> currentThreadStoreMetrics;
+    private long fetchThreadsBytesRead;
     private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
@@ -190,6 +193,7 @@ final class DefaultSearchContext extends SearchContext {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
+        this.currentThreadStoreMetrics = currentThreadStoreMetrics;
         boolean success = false;
         try {
             this.searchType = request.searchType();
@@ -267,6 +271,21 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public long getWorkerThreadsBytesRead() {
         return metricsAwareExecutor == null ? 0L : metricsAwareExecutor.workerBytesRead();
+    }
+
+    @Override
+    public Supplier<StoreMetrics> currentThreadStoreMetrics() {
+        return currentThreadStoreMetrics;
+    }
+
+    @Override
+    public long getFetchThreadsBytesRead() {
+        return fetchThreadsBytesRead;
+    }
+
+    @Override
+    public void addFetchThreadsBytesRead(long bytesRead) {
+        fetchThreadsBytesRead += bytesRead;
     }
 
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {

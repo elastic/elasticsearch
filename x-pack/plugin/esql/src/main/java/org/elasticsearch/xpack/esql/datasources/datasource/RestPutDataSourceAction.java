@@ -23,7 +23,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestPutDataSourceAction extends BaseRestHandler {
 
     @Override

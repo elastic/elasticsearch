@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -738,11 +739,72 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    private void createIndexWithDocument(String clusterAlias, String indexName, Settings.Builder settings, Map<String, Object> source) {
+    public void testLookupJoinAfterPipelineBreakerAndOtherCommands() throws IOException {
+        setupClusters(3);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+
+        var defaultSettings = Settings.builder();
+        createIndexWithDocument(
+            REMOTE_CLUSTER_1,
+            "data",
+            defaultSettings,
+            Map.of("key", 1, "id", 1, "cluster", "remote-1", "mode", "data-remote-1")
+        );
+        createIndexWithDocument(
+            REMOTE_CLUSTER_2,
+            "data",
+            defaultSettings,
+            Map.of("key", 2, "id", 2, "cluster", "remote-2", "mode", "data-remote-2")
+        );
+
+        var lookupSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
+        createIndexWithDocument(
+            LOCAL_CLUSTER,
+            "lookup",
+            lookupSettings,
+            Map.of("key", 1, "mode", "local"),
+            Map.of("key", 2, "mode", "local")
+        );
+        createIndexWithDocument(REMOTE_CLUSTER_1, "lookup", lookupSettings, Map.of("key", 1, "mode", "remote"));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "lookup", lookupSettings, Map.of("key", 2, "mode", "remote"));
+
+        expectThrows(
+            VerificationException.class,
+            containsString("LOOKUP JOIN with remote indices can't be executed after [LIMIT 1 BY key, cluster, mode]"),
+            () -> runQuery("""
+                FROM *:data
+                | LIMIT 1 BY key, cluster, mode
+                | RENAME mode AS data_mode
+                | LOOKUP JOIN lookup ON key
+                | KEEP key, cluster, data_mode, mode
+                | SORT key
+                """, randomBoolean())
+        );
+
+        expectThrows(
+            VerificationException.class,
+            containsString("LOOKUP JOIN with remote indices can't be executed after [LIMIT 1 BY id, cluster]"),
+            () -> runQuery("""
+                FROM *:data
+                | LIMIT 1 BY id, cluster
+                | RENAME id AS key
+                | LOOKUP JOIN lookup ON key
+                | KEEP key, cluster, mode
+                | SORT key
+                """, randomBoolean())
+        );
+    }
+
+    @SafeVarargs
+    private void createIndexWithDocument(String clusterAlias, String indexName, Settings.Builder settings, Map<String, Object>... sources) {
         var client = client(clusterAlias);
         client.admin().indices().prepareCreate(indexName).setSettings(settings).get();
-        client.prepareIndex(indexName).setSource(source).get();
-        client.admin().indices().prepareRefresh(indexName).get();
+        var bulk = client.prepareBulk();
+        for (Map<String, Object> source : sources) {
+            bulk.add(client.prepareIndex(indexName).setSource(source));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
     }
 
     protected Map<String, Object> setupClustersAndLookups() throws IOException {

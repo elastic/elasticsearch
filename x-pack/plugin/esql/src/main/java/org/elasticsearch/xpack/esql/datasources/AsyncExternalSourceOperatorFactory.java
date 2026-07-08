@@ -69,6 +69,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -236,6 +237,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final long statsStripeSize;
     /** How much per-stripe statistics a fresh scan harvests (row count only / + projected / + all / nothing). */
     private final StripeColumnScope statsColumnScope;
+    /**
+     * Node-level gate bounding concurrent streaming (stream-only compressed) segmentators on the shared
+     * {@code esql_external_io} pool so their per-chunk parser tasks are never starved of a thread. Shared across
+     * queries/operators (see {@link StreamingSegmentatorAdmission}). Never {@code null}: production threads the
+     * per-node controller from {@link FileSourceFactory}; test builders default to
+     * {@link StreamingSegmentatorAdmission#unbounded()}, which dispatches immediately.
+     */
+    private final StreamingSegmentatorAdmission streamingSegmentatorAdmission;
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
@@ -325,6 +334,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        StreamingSegmentatorAdmission streamingSegmentatorAdmission,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
@@ -428,6 +438,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
         this.maxRecordBytes = maxRecordBytes;
+        this.streamingSegmentatorAdmission = streamingSegmentatorAdmission;
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
@@ -518,6 +529,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private long statsStripeSize = -1L;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
+        // Non-null default: test builders that never set one still get an (unbounded) controller, so the streaming
+        // coordinator's admission is never null. Production (FileSourceFactory) overrides with the per-node gate.
+        private StreamingSegmentatorAdmission streamingSegmentatorAdmission = StreamingSegmentatorAdmission.unbounded();
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
@@ -730,6 +744,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * Node-level gate bounding concurrent streaming segmentators on the shared {@code esql_external_io} pool
+         * (see {@link StreamingSegmentatorAdmission}). Set by {@link FileSourceFactory} from node settings; when
+         * unset the builder keeps its {@link StreamingSegmentatorAdmission#unbounded()} default.
+         */
+        public Builder streamingSegmentatorAdmission(StreamingSegmentatorAdmission streamingSegmentatorAdmission) {
+            this.streamingSegmentatorAdmission = Objects.requireNonNull(streamingSegmentatorAdmission, "admission");
+            return this;
+        }
+
         public AsyncExternalSourceOperatorFactory build() {
             return new AsyncExternalSourceOperatorFactory(
                 storageProvider,
@@ -757,6 +781,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 maxRecordBytes,
                 statsStripeSize,
                 statsColumnScope,
+                streamingSegmentatorAdmission,
                 pushedExpressions,
                 pushdownSupport,
                 onClose,
@@ -2563,7 +2588,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         captureSink,
                         statsStripeSize,
                         statsColumnScope,
-                        partialResultsWarningSink
+                        partialResultsWarningSink,
+                        streamingSegmentatorAdmission
                     );
                 } catch (Exception e) {
                     try {

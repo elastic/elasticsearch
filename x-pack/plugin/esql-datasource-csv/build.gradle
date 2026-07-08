@@ -30,7 +30,7 @@ base {
 // matching jackson-core/databind/annotations are supplied at runtime by the extended x-pack-esql
 // plugin (which bundles this same Jackson via libs:arrow), so only jackson-dataformat-csv is bundled
 // here; the rest is de-duplicated against the parent. This version must stay aligned with libs:arrow.
-String jacksonVersion = "2.21.2"
+String jacksonVersion = "2.21.4"
 
 dependencies {
   // SPI interfaces from ESQL core

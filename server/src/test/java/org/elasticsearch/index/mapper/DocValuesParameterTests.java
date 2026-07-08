@@ -29,7 +29,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     // -----------------------------------------------------------------------
 
     public void testColumnarEnabledFalseObjectIsLossy() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("meta");
@@ -52,7 +51,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testColumnarRejectsDocValuesFalseOnRootField() {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -68,7 +66,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testColumnarAllowsDocValuesFalseOnMultiField() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         // A search-only multi-field may opt out of doc values: it never appears in _source, so it needs no columnar
         // representation (the user accepts they can't aggregate on it).
@@ -87,7 +84,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testColumnarAllowsSparseVectorByDefault() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         // sparse_vector reconstructs _source from a stored field; store defaults to true, so it is reconstructable and
         // allowed in columnar.
@@ -96,7 +92,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testColumnarRejectsSparseVectorWithoutStore() {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         // With store:false sparse_vector has no native synthetic source, so its _source cannot be reconstructed and it
         // is rejected.
@@ -108,7 +103,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testColumnarAllowsDocValuesEmptyMap() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         // The map form of doc_values (even empty) means "doc values enabled", so doc_values:{} resolves to enabled and
         // the field is accepted in columnar rather than treated as disabled.
@@ -124,7 +118,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     // -----------------------------------------------------------------------
 
     public void testMultiValueWithoutCardinalityUsesDefault() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
             settings,
@@ -142,14 +135,12 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     // -----------------------------------------------------------------------
 
     public void testDocValuesTrueShorthand() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("doc_values", true)));
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().enabled(), equalTo(true));
     }
 
     public void testDocValuesFalseShorthand() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)));
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().enabled(), equalTo(false));
@@ -164,7 +155,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * single-valued.
      */
     public void testIndexSettingFalseDefaultsKeywordToSingleValued() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
@@ -182,7 +172,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * single-valued.
      */
     public void testIndexSettingFalseDefaultsNumberToSingleValued() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
@@ -201,7 +190,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * mode, fields default to multi-valued and nullable regardless of these settings.
      */
     public void testIndexSettingsIgnoredOutsideColumnarMode() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
             .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
@@ -221,7 +209,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * A field-level {@code doc_values.multi_value: true} overrides the index setting of {@code false}, keeping the field multi-valued.
      */
     public void testFieldLevelTrueOverridesIndexSettingFalse() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
@@ -239,7 +226,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * single-valued even though the index-wide default would allow multiple values.
      */
     public void testFieldLevelFalseOverridesIndexSettingTrue() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), true)
@@ -257,7 +243,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * is rejected with an {@link IllegalArgumentException} wrapped in {@link DocumentParsingException}.
      */
     public void testIndexSettingFalseEnforcesRejectionOfMultipleValues() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
@@ -278,7 +263,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * accepted normally.
      */
     public void testFieldOverrideAllowsMultipleValuesWhenIndexSettingIsFalse() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
@@ -292,7 +276,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testMultiValueRejectedInNonColumnarMode() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (boolean multiValue : new boolean[] { false, true }) {
             Exception e = expectThrows(
                 MapperParsingException.class,
@@ -310,7 +293,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     // -----------------------------------------------------------------------
 
     public void testNullabilityRejectedInNonColumnarMode() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (boolean nullability : new boolean[] { false, true }) {
             Exception e = expectThrows(
                 MapperParsingException.class,
@@ -324,7 +306,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testNullabilityFalseParsedFromMapForm() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
             settings,
@@ -336,7 +317,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testIndexSettingNullabilityFalseRequiresValue() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
@@ -347,7 +327,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testDynamicFieldDoesNotMaskMissingRequiredField() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // With the index-level setting, a dynamically-mapped field inherits nullability=false and marks itself satisfied. It must not
         // count toward the statically-required "field": a document supplying only the dynamic field is still rejected for missing "field".
         Settings settings = Settings.builder()
@@ -364,7 +343,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testFastPathSizeCheckRejectsAndAcceptsWithoutDynamicMappers() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         // No dynamic fields are created here, so enforcement takes the O(1) size-check fast path. Two static required fields.
         DocumentMapper mapper = createMapperService(settings, mapping(b -> {
@@ -383,7 +361,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testDynamicIntroductionUsesContainmentThenFastPathOnLaterDocuments() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
@@ -408,7 +385,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testFieldLevelNullabilityTrueOverridesIndexSettingFalse() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
@@ -422,7 +398,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testNullabilityIsSealedAgainstUpdate() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         // false -> true is rejected
         MapperService sealedFalse = createMapperService(
@@ -453,7 +428,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testNullabilityFalseExemptedByNullValue() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> {
             b.field("type", "keyword").field("null_value", "NA");
@@ -465,7 +439,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testNullabilityFalseNestedEnforcedPerInstance() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> {
             b.startObject("a");
@@ -500,7 +473,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * empty array and an all-null array both mark nothing, while any array carrying at least one non-null value satisfies that requirement.
      */
     public void testNullabilityFalseRejectsEmptyAndAllNullArraysButAcceptsValueArray() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
             settings,

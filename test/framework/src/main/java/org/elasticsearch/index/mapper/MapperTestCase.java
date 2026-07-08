@@ -557,8 +557,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         ParameterChecker checker = new ParameterChecker();
         registerParameters(checker);
         assumeTrue("mapper must support the 'index' parameter", checker.checkedParameters.contains("index"));
@@ -1396,14 +1394,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSource() throws IOException {
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         var support = isColumnar ? syntheticSourceSupportColumnar(ignoreMalformed) : syntheticSourceSupport(ignoreMalformed);
         assertSyntheticSource(support.example(5), support.isColumnar());
     }
 
     public final void testSyntheticSourceWithTranslogSnapshot() throws IOException {
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         var support = isColumnar ? syntheticSourceSupportColumnar(ignoreMalformed) : syntheticSourceSupport(ignoreMalformed);
         assertSyntheticSourceWithTranslogSnapshot(support, true);
@@ -1562,7 +1560,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticSourceMany() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         int maxValues = randomBoolean() ? 1 : 5;
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
@@ -1626,7 +1624,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInObject() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
@@ -1680,7 +1678,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticEmptyList() throws IOException {
         assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
@@ -1742,7 +1740,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInvalid() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
@@ -2277,7 +2275,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testMultiValueFalseAcceptsSingleValue() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
@@ -2288,7 +2285,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testMultiValueFalseRejectsArray() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
@@ -2305,7 +2301,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testMultiValueFalseDocValuesType() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
@@ -2340,7 +2335,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * only verify the structural invariant: docs 0 and 2 are non-null, doc 1 is null.
      */
     public void testMultiValueFalseBlockLoader() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
 
         // getSampleValueForDocument() is deterministic for most types, so a single call is enough.
@@ -2382,7 +2376,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testNullabilityFalseAcceptsValue() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(nullabilityFalseMapping());
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
@@ -2390,7 +2383,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testNullabilityFalseAcceptsArrayWithValue() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(nullabilityFalseMapping());
         // A single non-null element satisfies the requirement even when other elements are null.
@@ -2418,7 +2410,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     private void assertNullabilityFalseRejects(CheckedConsumer<XContentBuilder, IOException> document) throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(nullabilityFalseMapping());
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(document)));

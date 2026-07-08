@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -111,6 +112,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final LocalFileAccess localFileAccess;
     // Node telemetry sink, threaded into the operator factory so opened storage objects publish read metrics.
     private final ExternalSourceMetrics externalSourceMetrics;
+    /**
+     * Per-node gate bounding concurrent stream-only-compressed segmentators on the shared {@code esql_external_io}
+     * pool so their per-chunk parser tasks always have a free thread (elastic/esql-planning #1093, item 4). This
+     * factory is a per-node singleton (built once in {@link DataSourceModule}) and every read resolves to the same
+     * node-level pool, so one controller here is shared across all queries/operators — no external registry needed.
+     */
+    private final StreamingSegmentatorAdmission segmentatorAdmission;
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -189,6 +197,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.blockFactory = blockFactory;
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
+        this.segmentatorAdmission = new StreamingSegmentatorAdmission(ExternalSourceSettings.maxConcurrentSegmentators(this.settings));
     }
 
     @Override
@@ -407,7 +416,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
                 .withPushedFilter(context.pushedFilter())
-                .withSchema(context.attributes());
+                .withSchema(context.attributes())
+                // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
+                // (file) column names, so physicalize the keys through the same `path` renames here at the last mile.
+                .withDeclaredDateFormats(physicalDateFormats(context.declaredReadSpec()))
+                // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
+                // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
+                .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()));
             ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
             Map<String, Object> partitionValues = Map.of();
@@ -470,6 +485,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .maxRecordBytes(context.maxRecordBytes())
                 .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
                 .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
+                .streamingSegmentatorAdmission(segmentatorAdmission)
                 .parallelism(context.parallelism())
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)
@@ -480,6 +496,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // came from inline EXTERNAL (no dataset mapping), populated when it came from
                 // FROM <dataset>.
                 .datasetName(context.datasetName())
+                // Declared `path` renames, applied to reader-facing names (projection + read schema) at the last mile.
+                .renames(context.declaredReadSpec().renames())
+                // Declared _id.path (logical column name): stamps _id from that column instead of the synthetic id.
+                .idPath(context.declaredReadSpec().idPath())
                 // Single-file producer paths (sync-wrapper, native-async) carry no per-file mtime
                 // carrier; without this wire-up _version would silently render as SQL NULL even
                 // on resolved single-file plans. The slice-queue / multi-file paths still source
@@ -504,6 +524,45 @@ final class FileSourceFactory implements ExternalSourceFactory {
             return null;
         }
         return fileList.lastModifiedMillis(0);
+    }
+
+    /**
+     * Re-keys the spec's declared date formats from logical to physical (file) column names, applying the declared
+     * {@code path} renames — a column read as physical name {@code p} carries the format declared on its logical name.
+     * The text readers key their per-column formatters by the physical names they actually see. Empty in, empty out.
+     */
+    private static Map<String, String> physicalDateFormats(DeclaredReadSpec spec) {
+        Map<String, String> logical = spec.dateFormats();
+        if (logical.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> renames = spec.renames();
+        Map<String, String> physical = new HashMap<>(logical.size());
+        for (Map.Entry<String, String> e : logical.entrySet()) {
+            // Route through the PhysicalNames chokepoint (the single source of truth for logical->physical) rather than
+            // hand-rolling the lookup, so this reader-facing name surface stays consistent with the others.
+            physical.put(PhysicalNames.translate(e.getKey(), renames), e.getValue());
+        }
+        return physical;
+    }
+
+    /**
+     * The declared-type columns as the physical (file) names the by-name columnar readers see. The spec keys them by
+     * logical name; physicalize through the same {@code path} renames as {@link #physicalDateFormats}. Empty in, empty
+     * out. A declared-type column is licensed to coerce (including narrow) toward its target; an inferred column may only
+     * widen, so the reader keys its whole-column incompatibility null-fill on membership in this set.
+     */
+    private static Set<String> physicalDeclaredTypeColumns(DeclaredReadSpec spec) {
+        Set<String> logical = spec.declaredTypeColumns();
+        if (logical.isEmpty()) {
+            return Set.of();
+        }
+        Map<String, String> renames = spec.renames();
+        Set<String> physical = new HashSet<>(logical.size());
+        for (String col : logical) {
+            physical.add(PhysicalNames.translate(col, renames));
+        }
+        return physical;
     }
 
     /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default

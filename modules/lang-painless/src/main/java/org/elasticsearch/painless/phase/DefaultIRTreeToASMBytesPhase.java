@@ -99,6 +99,7 @@ import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.spi.annotation.AllocatesConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
@@ -112,6 +113,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDAllocationEstimator;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDBinaryType;
@@ -507,7 +509,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
      * {@code #scriptThis} for static lambdas. Net stack effect is zero, so it can be emitted directly before the allocation.
      */
     private static void writeAllocationCheck(WriteScope writeScope, long bytes) {
-        if (isAllocationTrackingActive(writeScope) == false) {
+        if (bytes == 0 || isAllocationTrackingActive(writeScope) == false) {
+            // @allocates_constant[bytes="0"] means "audited, does not allocate" and must emit nothing.
             return;
         }
 
@@ -515,6 +518,52 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         loadScriptPointer(writeScope, methodWriter);
         methodWriter.push(bytes);
         methodWriter.invokeInterface(BASE_INTERFACE_TYPE, WriterConstants.CHECK_ALLOC_BYTES);
+    }
+
+    /**
+     * Spills the top {@code types.length} stack values (last type on top) into fresh locals so they can be replayed: once for
+     * an {@code @allocates_dynamic} estimator and once for the real call. Returns the locals in parameter order.
+     */
+    private static Variable[] spillCallOperands(WriteScope writeScope, MethodWriter methodWriter, String role, Class<?>[] types) {
+        Variable[] operands = new Variable[types.length];
+
+        for (int i = types.length - 1; i >= 0; --i) {
+            operands[i] = writeScope.defineInternalVariable(types[i], role + i);
+            methodWriter.visitVarInsn(operands[i].getAsmType().getOpcode(Opcodes.ISTORE), operands[i].getSlot());
+        }
+
+        return operands;
+    }
+
+    /** Reloads operands previously spilled by {@link #spillCallOperands} back onto the stack in parameter order. */
+    private static void loadCallOperands(MethodWriter methodWriter, Variable[] operands) {
+        for (Variable operand : operands) {
+            methodWriter.visitVarInsn(operand.getAsmType().getOpcode(Opcodes.ILOAD), operand.getSlot());
+        }
+    }
+
+    /**
+     * Emits an {@code @allocates_dynamic} pre-check for operands already on the stack: spill, replay through the estimator,
+     * normalize via {@link org.elasticsearch.painless.AllocationGuard#sanitizeEstimate(long)}, and charge through
+     * {@code $checkAllocBytes} before the allocating call executes. The caller reloads the returned operands via
+     * {@link #loadCallOperands} for the real call, and must check {@link #isAllocationTrackingActive} first.
+     */
+    private static Variable[] writeDynamicAllocationCheck(
+        WriteScope writeScope,
+        MethodWriter methodWriter,
+        String role,
+        Class<?>[] parameterTypes,
+        java.lang.reflect.Method allocationEstimator
+    ) {
+        Variable[] operands = spillCallOperands(writeScope, methodWriter, role, parameterTypes);
+
+        loadScriptPointer(writeScope, methodWriter);
+        loadCallOperands(methodWriter, operands);
+        methodWriter.invokeStatic(Type.getType(allocationEstimator.getDeclaringClass()), Method.getMethod(allocationEstimator));
+        methodWriter.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.SANITIZE_ESTIMATE);
+        methodWriter.invokeInterface(BASE_INTERFACE_TYPE, WriterConstants.CHECK_ALLOC_BYTES);
+
+        return operands;
     }
 
     /** True if the {@code #allocLimit} marker is present, meaning tracking is on and a script pointer is reachable. */
@@ -1558,18 +1607,47 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irNewObjectNode.getLocation());
 
-        // No allocation pre-check here: sizing new T() needs the class's field layout, which is the whitelist's domain.
-        // It is handled at whitelist-load time via constructor allocation metadata (the @allocates annotation work).
-        methodWriter.newInstance(MethodWriter.getType(irNewObjectNode.getDecorationValue(IRDExpressionType.class)));
+        PainlessConstructor painlessConstructor = irNewObjectNode.getDecorationValue(IRDConstructor.class);
 
-        // Always dup so that visitStatementExpression's always has something to pop
-        methodWriter.dup();
-
-        for (ExpressionNode irArgumentNode : irNewObjectNode.getArgumentNodes()) {
-            visit(irArgumentNode, writeScope);
+        // Sizing new T() needs the class's field layout, which is the allowlist's domain, so the total construction cost is
+        // carried as constructor metadata: @allocates_constant for a fixed cost, @allocates_dynamic when argument-dependent.
+        // Either way the charge lands before the object is allocated.
+        AllocatesConstantAnnotation allocates = painlessConstructor.annotation(AllocatesConstantAnnotation.class);
+        if (allocates != null) {
+            writeAllocationCheck(writeScope, allocates.bytes());
         }
 
-        PainlessConstructor painlessConstructor = irNewObjectNode.getDecorationValue(IRDConstructor.class);
+        java.lang.reflect.Method constructorEstimator = irNewObjectNode.getDecorationValue(IRDAllocationEstimator.class);
+        if (constructorEstimator != null && isAllocationTrackingActive(writeScope)) {
+            // Standard emission is NEW + DUP + <args> + INVOKESPECIAL, but the estimator needs the argument values and the
+            // charge must land before NEW allocates. Reorder: evaluate args in source order, spill, estimate + charge, then
+            // allocate and replay the args.
+            for (ExpressionNode irArgumentNode : irNewObjectNode.getArgumentNodes()) {
+                visit(irArgumentNode, writeScope);
+            }
+
+            Variable[] operands = writeDynamicAllocationCheck(
+                writeScope,
+                methodWriter,
+                "newObjectArg",
+                painlessConstructor.methodType().parameterArray(),
+                constructorEstimator
+            );
+
+            methodWriter.newInstance(MethodWriter.getType(irNewObjectNode.getDecorationValue(IRDExpressionType.class)));
+            methodWriter.dup();
+            loadCallOperands(methodWriter, operands);
+        } else {
+            methodWriter.newInstance(MethodWriter.getType(irNewObjectNode.getDecorationValue(IRDExpressionType.class)));
+
+            // Always dup so that visitStatementExpression's always has something to pop
+            methodWriter.dup();
+
+            for (ExpressionNode irArgumentNode : irNewObjectNode.getArgumentNodes()) {
+                visit(irArgumentNode, writeScope);
+            }
+        }
+
         methodWriter.invokeConstructor(
             Type.getType(painlessConstructor.javaConstructor().getDeclaringClass()),
             Method.getMethod(painlessConstructor.javaConstructor())
@@ -2048,11 +2126,19 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irInvokeCallNode.getLocation());
 
+        PainlessMethod painlessMethod = irInvokeCallNode.getMethod();
+
+        // A constant charge has net-zero stack effect, so it can precede the call emission entirely.
+        AllocatesConstantAnnotation allocatesConstant = painlessMethod.annotation(AllocatesConstantAnnotation.class);
+        if (allocatesConstant != null) {
+            writeAllocationCheck(writeScope, allocatesConstant.bytes());
+        }
+
         if (irInvokeCallNode.getBox().isPrimitive()) {
             methodWriter.box(MethodWriter.getType(irInvokeCallNode.getBox()));
         }
 
-        if (irInvokeCallNode.getMethod().annotations().containsKey(ScriptAwareAnnotation.class)) {
+        if (painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class)) {
             methodWriter.loadThis();
         }
 
@@ -2060,7 +2146,22 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             visit(irArgumentNode, writeScope);
         }
 
-        methodWriter.invokeMethodCall(irInvokeCallNode.getMethod());
+        // Just before the invoke, the stack holds exactly the method's Java signature (receiver first for instance methods;
+        // @script_aware/@inject_constant extras are ordinary operands). Replay those operands through the estimator and
+        // charge the estimate before the allocating call runs.
+        java.lang.reflect.Method methodEstimator = irInvokeCallNode.getDecorationValue(IRDAllocationEstimator.class);
+        if (methodEstimator != null && isAllocationTrackingActive(writeScope)) {
+            Variable[] operands = writeDynamicAllocationCheck(
+                writeScope,
+                methodWriter,
+                "callOperand",
+                painlessMethod.methodType().parameterArray(),
+                methodEstimator
+            );
+            loadCallOperands(methodWriter, operands);
+        }
+
+        methodWriter.invokeMethodCall(painlessMethod);
     }
 
     @Override
@@ -2102,8 +2203,25 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             );
             methodWriter.invokeVirtual(CLASS_TYPE, asmMethod);
         } else if (importedMethod != null) {
+            AllocatesConstantAnnotation allocatesConstant = importedMethod.annotation(AllocatesConstantAnnotation.class);
+            if (allocatesConstant != null) {
+                writeAllocationCheck(writeScope, allocatesConstant.bytes());
+            }
+
             for (ExpressionNode irArgumentNode : irArgumentNodes) {
                 visit(irArgumentNode, writeScope);
+            }
+
+            java.lang.reflect.Method importedEstimator = irInvokeCallMemberNode.getDecorationValue(IRDAllocationEstimator.class);
+            if (importedEstimator != null && isAllocationTrackingActive(writeScope)) {
+                Variable[] operands = writeDynamicAllocationCheck(
+                    writeScope,
+                    methodWriter,
+                    "callOperand",
+                    importedMethod.methodType().parameterArray(),
+                    importedEstimator
+                );
+                loadCallOperands(methodWriter, operands);
             }
 
             Type asmType = Type.getType(importedMethod.targetClass());

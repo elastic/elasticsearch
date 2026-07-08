@@ -930,9 +930,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             && clusterHasFeature("mapper.columnar.supports_shape_fields") == false) {
             return true;
         }
-        // flattened fields use the inline array-order binary doc values format in columnar mode; an older node without the
+        // flattened fields use the document-order binary doc values format in columnar mode; an older node without the
         // feature misreads the synthetic source doc values during a rolling upgrade.
-        if (type == DataType.FLATTENED && clusterHasFeature("mapper.columnar.inline_array_order_binary_doc_values") == false) {
+        if (type == DataType.FLATTENED && clusterHasFeature("mapper.flattened.columnar_document_order") == false) {
             return true;
         }
         return false;

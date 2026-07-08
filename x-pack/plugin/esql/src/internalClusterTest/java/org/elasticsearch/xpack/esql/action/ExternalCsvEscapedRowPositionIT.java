@@ -65,11 +65,7 @@ public class ExternalCsvEscapedRowPositionIT extends AbstractExternalDataSourceI
     public void testRowPositionProjectionDoesNotChangeEscapedValues() throws Exception {
         Path file = createTempDir().resolve("notes.tsv");
         Files.writeString(file, FIXTURE);
-        String dataset = registerDataset(
-            "escaped_notes",
-            StoragePath.fileUri(file),
-            Map.of("format", "tsv", "mode", "escaped")
-        );
+        String dataset = registerDataset("escaped_notes", StoragePath.fileUri(file), Map.of("format", "tsv", "mode", "escaped"));
 
         assertThat(notes("FROM " + dataset + " | SORT id | KEEP note"), equalTo(EXPECTED_NOTES));
 

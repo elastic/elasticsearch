@@ -27,7 +27,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -80,7 +79,7 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || indexSettings.getMode().isStrictColumnar() == false) {
+        if (indexSettings.getMode().isStrictColumnar() == false) {
             return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
         }
 

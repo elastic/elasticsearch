@@ -341,7 +341,7 @@ public final class PainlessLookupUtility {
      * derived from an {@link org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation}.
      */
     public static Object[] buildInjections(PainlessMethod painlessMethod, Map<String, Object> constants) {
-        InjectConstantAnnotation injects = (InjectConstantAnnotation) painlessMethod.annotations().get(InjectConstantAnnotation.class);
+        InjectConstantAnnotation injects = painlessMethod.annotation(InjectConstantAnnotation.class);
         if (injects == null) {
             return new Object[0];
         }

@@ -71,9 +71,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
 
-        List<IndexMode> modes = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
-            ? List.of(IndexMode.STANDARD, IndexMode.COLUMNAR)
-            : List.of(IndexMode.STANDARD);
+        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR);
 
         for (IndexMode indexMode : modes) {
             for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
@@ -146,7 +144,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     );
 
     /**
-     * On a random subset of runs (feature-flag permitting, columnar mode only), prepend a handler that forces
+     * On a random subset of runs (columnar mode only), prepend a handler that forces
      * {@code doc_values.multi_value: false} on the target field while keeping generated documents single-valued, so the enforced mapping
      * is exercised without rejecting documents.
      */
@@ -155,8 +153,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         Collection<DataSourceHandler> customHandlers,
         IndexMode indexMode
     ) {
-        boolean singleValueRun = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
-            && indexMode.isStrictColumnar()
+        boolean singleValueRun = indexMode.isStrictColumnar()
             && SINGLE_VALUE_ENFORCING_TYPES.contains(fieldType)
             && ESTestCase.randomBoolean();
         if (singleValueRun == false) {

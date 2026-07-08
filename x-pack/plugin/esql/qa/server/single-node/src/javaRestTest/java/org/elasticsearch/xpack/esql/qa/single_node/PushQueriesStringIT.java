@@ -832,6 +832,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
                     .entry("field_caps_calls", instanceOf(Integer.class))
+                    .entry("unmapped_fields", instanceOf(String.class))
                     .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),

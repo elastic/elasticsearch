@@ -1280,6 +1280,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
                     .entry("field_caps_calls", instanceOf(Integer.class))
+                    .entry("unmapped_fields", instanceOf(String.class))
                     .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             columnMatcher,

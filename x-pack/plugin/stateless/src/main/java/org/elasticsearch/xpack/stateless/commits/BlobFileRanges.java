@@ -133,10 +133,6 @@ public class BlobFileRanges implements Writeable {
         return position;
     }
 
-    public static BlobFileRanges readFromTransport(StreamInput streamInput) throws IOException {
-        return new BlobFileRanges(streamInput);
-    }
-
     /**
      * Represents a range of {@code length} bytes that is originally stored at {@code position} in a blob and which is also copied at a
      * different {@code copy} position within the same blob.

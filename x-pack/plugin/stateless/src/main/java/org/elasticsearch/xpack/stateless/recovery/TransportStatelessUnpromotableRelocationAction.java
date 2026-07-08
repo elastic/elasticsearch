@@ -470,21 +470,14 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     ) throws IOException {
         final Map<String, BlobFileRanges> directoryRanges = searchDirectory.getBlobFileRangesForFiles(indexCommit.getFileNames());
         final var ccTimestamp = statelessCompoundCommit.getTimestampFieldValueRange();
-        final var internalFiles = statelessCompoundCommit.internalFiles();
         return statelessCompoundCommit.commitFiles().entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, e -> {
             final String fileName = e.getKey();
-            final BlobLocation ccLocation = e.getValue();
+            final BlobLocation fileLocation = e.getValue();
             final BlobFileRanges dirRange = directoryRanges.get(fileName);
-            if (dirRange != null && dirRange.blobLocation().equals(ccLocation)) {
+            if (dirRange != null && dirRange.blobLocation().equals(fileLocation)) {
                 return dirRange; // originating CC, preserved in SearchDirectory
             }
-            final StatelessCompoundCommit.TimestampFieldValueRange ts;
-            if (internalFiles.contains(fileName)) {
-                ts = ccTimestamp; // newly written in this CC
-            } else {
-                ts = null; // referenced, location differs (e.g. generational) — safer than wrong value
-            }
-            return new BlobFileRanges(ccLocation, ts);
+            return new BlobFileRanges(fileLocation, ccTimestamp);
         }));
     }
 
@@ -550,7 +543,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             keepAlive = in.readVLong();
             contextId = new SearchContextIdForNode(in);
             if (in.getTransportVersion().supports(BLOB_FILE_RANGES_IN_PIT_RELOCATION)) {
-                metadata = in.readMap(StreamInput::readString, BlobFileRanges::readFromTransport);
+                metadata = in.readMap(StreamInput::readString, BlobFileRanges::new);
             } else {
                 metadata = in.readMap(StreamInput::readString, si -> new BlobFileRanges(BlobLocation.readFromTransport(si)));
             }

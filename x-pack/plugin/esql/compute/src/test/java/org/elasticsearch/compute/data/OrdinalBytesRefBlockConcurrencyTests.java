@@ -39,9 +39,9 @@ import static org.hamcrest.Matchers.empty;
  * block are released concurrently -- as happens once
  * {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator} fans pages out to
  * background worker threads -- two threads can race {@code decRef} on the same shared block.
- * Before {@link AbstractBlockRefCounted} became thread safe (its reference count was a plain,
- * non-atomic field), that race could lose a decrement -- leaking the block -- or, more rarely,
- * observe "can't release already released object".
+ * Before {@link org.elasticsearch.core.AbstractRefCounted} became thread safe (its reference
+ * count was a plain, non-atomic field), that race could lose a decrement -- leaking the block --
+ * or, more rarely, observe "invalid decRef call: already closed".
  * <p>
  * This was not reliably reproducible through the full {@code CsvIT} test, which needs a real
  * cluster and a specific query shape to hit the race window. This isolates the minimal shape of

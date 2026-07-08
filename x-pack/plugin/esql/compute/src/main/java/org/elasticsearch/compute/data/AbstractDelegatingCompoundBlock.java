@@ -33,7 +33,7 @@ import java.util.stream.IntStream;
  * for non-null composite values.
  * </p>
  */
-public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends AbstractBlockRefCounted implements Block {
+public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends AbstractRefCountedReleasable implements Block {
 
     /**
      * Transport version when multi-value support was introduced for {@link TDigestBlock} and {@link ExponentialHistogramBlock}.

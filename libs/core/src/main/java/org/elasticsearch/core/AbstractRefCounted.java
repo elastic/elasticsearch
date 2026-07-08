@@ -36,6 +36,7 @@ public abstract class AbstractRefCounted implements RefCounted {
 
     @SuppressWarnings("FieldMayBeFinal") // updated via VH_REFCOUNT_FIELD (and _only_ via VH_REFCOUNT_FIELD)
     private volatile int refCount = 1;
+    private Releasable onClose;
 
     protected AbstractRefCounted() {}
 
@@ -67,6 +68,22 @@ public abstract class AbstractRefCounted implements RefCounted {
         } while (true);
     }
 
+    /**
+     * Attaches a {@link Releasable} that is invoked exactly once when this object's reference count reaches zero,
+     * immediately after {@link #closeInternal()} completes. May be called at most once; throws
+     * {@link IllegalStateException} if called after release or a second time.
+     */
+    public final void attachReleasable(Releasable releasable) {
+        Objects.requireNonNull(releasable, "releasable must not be null");
+        if (hasReferences() == false) {
+            throw new IllegalStateException("can't attach releasable to already released object [" + this + "]");
+        }
+        if (this.onClose != null) {
+            throw new IllegalStateException("onClose already attached to [" + this + "]");
+        }
+        this.onClose = releasable;
+    }
+
     @Override
     public final boolean decRef() {
         touch();
@@ -79,6 +96,7 @@ public abstract class AbstractRefCounted implements RefCounted {
                 assert false : e;
                 throw e;
             }
+            Releasables.closeExpectNoException(onClose);
             return true;
         }
         return false;

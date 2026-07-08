@@ -543,7 +543,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
      * OrdinalBytesRefBlock#keepMask} does in production -- a new wrapper block, but the same
      * dictionary instance. Dispatched to two different worker threads, their releases raced on the
      * shared dictionary's reference count before it became thread safe (see
-     * {@link org.elasticsearch.compute.data.AbstractBlockRefCounted}).
+     * {@link org.elasticsearch.core.AbstractRefCounted}).
      */
     public void testConcurrentReleaseOfSharedDictionaryThroughRealOperator() throws Exception {
         int workerCount = 2;

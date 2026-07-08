@@ -348,7 +348,7 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
                 final Page result = page.appendBlocks(read);
                 // We need to release the blocks of the page in this iteration instead of delaying to the next,
                 // because the blocks of this page are now shared with the output page. The output page can be
-                // passed to a separate driver, which may run concurrently with this driver. AbstractBlockRefCounted
+                // passed to a separate driver, which may run concurrently with this driver. AbstractRefCounted
                 // (see #incRef/#decRef there) is thread safe precisely for this kind of cross-driver sharing, but
                 // releasing promptly here still avoids holding these blocks alive longer than necessary.
                 close();

@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.replication.ReshardSplitAwareRequest;
+import org.elasticsearch.action.support.replication.ReshardSplitAwareReplicationRequest;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +19,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> implements ReshardSplitAwareRequest {
+public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> implements ReshardSplitAwareReplicationRequest {
 
     private final FlushRequest request;
     private final SplitShardCountSummary splitShardCountSummary;

@@ -11,6 +11,6 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 
-public interface ReshardSplitAwareRequest {
+public interface ReshardSplitAwareReplicationRequest {
     SplitShardCountSummary splitShardCountSummary();
 }

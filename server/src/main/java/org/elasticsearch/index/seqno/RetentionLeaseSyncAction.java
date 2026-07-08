@@ -22,12 +22,10 @@ import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.ReplicationTask;
-import org.elasticsearch.action.support.replication.ReshardSplitAwareRequest;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -194,10 +192,9 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         return null;
     }
 
-    public static final class Request extends ReplicatedWriteRequest<Request> implements ReshardSplitAwareRequest {
+    public static final class Request extends ReplicatedWriteRequest<Request> {
 
         private final RetentionLeases retentionLeases;
-        private final SplitShardCountSummary splitShardCountSummary;
 
         public RetentionLeases getRetentionLeases() {
             return retentionLeases;
@@ -206,27 +203,18 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         public Request(StreamInput in) throws IOException {
             super(in);
             retentionLeases = new RetentionLeases(in);
-            this.splitShardCountSummary = readReshardSplitAwareSummary(in, legacySplitShardCountSummary);
         }
 
         public Request(final ShardId shardId, final RetentionLeases retentionLeases) {
             super(Objects.requireNonNull(shardId));
-            // TODO: set split summary and implement split coordination
-            this.splitShardCountSummary = SplitShardCountSummary.UNSET;
             this.retentionLeases = Objects.requireNonNull(retentionLeases);
             waitForActiveShards(ActiveShardCount.NONE);
-        }
-
-        @Override
-        public SplitShardCountSummary splitShardCountSummary() {
-            return splitShardCountSummary;
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(Objects.requireNonNull(out));
             retentionLeases.writeTo(out);
-            writeReshardSplitAwareSummary(out, splitShardCountSummary);
         }
 
         @Override

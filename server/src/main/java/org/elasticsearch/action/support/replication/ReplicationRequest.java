@@ -91,11 +91,15 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             index = in.readString();
         }
         routedBasedOnClusterVersion = in.readVLong();
+        // Thin reads never carried a split summary, no need to resolve
         if (thinRead) {
             legacySplitShardCountSummary = SplitShardCountSummary.UNSET;
         } else {
+            // When an older node sends to a newer node, the newer node reads the legacy small/summary
+            // When a newer node sends to an older node, it writes the legacy small/summary that the older node expects
+            // Between two newer nodes, the split summary is supplied by the subclass
             if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_REMOVED)) {
-                legacySplitShardCountSummary = SplitShardCountSummary.UNSET;
+                legacySplitShardCountSummary = null;
             } else if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
                 legacySplitShardCountSummary = new SplitShardCountSummary(in);
             } else if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
@@ -205,6 +209,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         }
     }
 
+    // Compiler complains that legacySplitShardCountSummary might not have been initialized if made an instance method since it's used in
+    // constructors
     protected static SplitShardCountSummary readReshardSplitAwareSummary(StreamInput in, SplitShardCountSummary legacyValue)
         throws IOException {
         if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_REMOVED)) {
@@ -230,11 +236,11 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         out.writeTimeValue(timeout);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
-        SplitShardCountSummary legacySummary = this instanceof ReshardSplitAwareRequest reshardAware
+        SplitShardCountSummary legacySummary = this instanceof ReshardSplitAwareReplicationRequest reshardAware
             ? reshardAware.splitShardCountSummary()
             : SplitShardCountSummary.UNSET;
         if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_REMOVED)) {
-            // do nothing; the peer no longer expects this field
+            // do nothing; the peer no longer expects this field and subclasses are responsible for writing it if they need it
         } else if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
             legacySummary.writeTo(out);
         } else if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {

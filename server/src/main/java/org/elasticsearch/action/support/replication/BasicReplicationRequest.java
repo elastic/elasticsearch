@@ -22,7 +22,7 @@ import java.io.IOException;
  * because it has a self referential type parameter of its own. So use this
  * instead.
  */
-public class BasicReplicationRequest extends ReplicationRequest<BasicReplicationRequest> implements ReshardSplitAwareRequest {
+public class BasicReplicationRequest extends ReplicationRequest<BasicReplicationRequest> implements ReshardSplitAwareReplicationRequest {
 
     private final SplitShardCountSummary splitShardCountSummary;
 

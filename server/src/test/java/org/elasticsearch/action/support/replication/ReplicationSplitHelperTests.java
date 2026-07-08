@@ -555,7 +555,9 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         return clusterService;
     }
 
-    private static class TestReplicationRequest extends ReplicationRequest<TestReplicationRequest> implements ReshardSplitAwareRequest {
+    private static class TestReplicationRequest extends ReplicationRequest<TestReplicationRequest>
+        implements
+            ReshardSplitAwareReplicationRequest {
 
         private final SplitShardCountSummary splitShardCountSummary;
 

@@ -14,10 +14,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.ReshardSplitAwareRequest;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -107,29 +105,19 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         }
     }
 
-    public static final class Request extends ReplicationRequest<Request> implements ReshardSplitAwareRequest {
-        private final SplitShardCountSummary splitShardCountSummary;
+    public static final class Request extends ReplicationRequest<Request> {
 
         private Request(StreamInput in) throws IOException {
             super(in);
-            this.splitShardCountSummary = readReshardSplitAwareSummary(in, legacySplitShardCountSummary);
         }
 
         public Request(final ShardId shardId) {
             super(shardId);
-            // TODO: set split summary and implement split coordination
-            this.splitShardCountSummary = SplitShardCountSummary.UNSET;
-        }
-
-        @Override
-        public SplitShardCountSummary splitShardCountSummary() {
-            return splitShardCountSummary;
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
-            writeReshardSplitAwareSummary(out, splitShardCountSummary);
         }
 
         @Override

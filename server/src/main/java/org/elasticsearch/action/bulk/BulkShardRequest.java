@@ -16,7 +16,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.replication.ReshardSplitAwareRequest;
+import org.elasticsearch.action.support.replication.ReshardSplitAwareReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -35,7 +35,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     implements
         Accountable,
         RawIndexingDataTransportRequest,
-        ReshardSplitAwareRequest {
+        ReshardSplitAwareReplicationRequest {
 
     public static final TransportVersion BULK_SHARD_BATCH = TransportVersion.fromName("bulk_shard_batch");
 

@@ -73,10 +73,10 @@ public class ReplicationSplitHelper<
         final Request primaryRequest,
         final IndexMetadata indexMetadata
     ) throws Exception {
-        if (primaryRequest instanceof ReshardSplitAwareRequest == false) {
+        if (primaryRequest instanceof ReshardSplitAwareReplicationRequest == false) {
             return false;
         }
-        SplitShardCountSummary requestSplitSummary = ((ReshardSplitAwareRequest) primaryRequest).splitShardCountSummary();
+        SplitShardCountSummary requestSplitSummary = ((ReshardSplitAwareReplicationRequest) primaryRequest).splitShardCountSummary();
         if (requestSplitSummary.isUnset()) { // no split coordination required
             return false;
         }

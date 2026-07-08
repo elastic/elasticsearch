@@ -58,9 +58,17 @@ public class InferenceString implements Writeable, ToXContentObject {
         args -> new InferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2])
     );
     static {
-        PARSER.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
-        PARSER.declareString(optionalConstructorArg(), DataFormat::fromString, new ParseField(FORMAT_FIELD));
-        PARSER.declareString(constructorArg(), new ParseField(VALUE_FIELD));
+        declareCommonFields(PARSER);
+    }
+
+    /**
+     * Registers the fields common to every {@link InferenceString} onto the given parser. Subclasses of {@link InferenceString} that define
+     * their own XContent parser should call this before declaring their own additional fields.
+     */
+    protected static void declareCommonFields(ConstructingObjectParser<? extends InferenceString, Void> parser) {
+        parser.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
+        parser.declareString(optionalConstructorArg(), DataFormat::fromString, new ParseField(FORMAT_FIELD));
+        parser.declareString(constructorArg(), new ParseField(VALUE_FIELD));
     }
 
     /**

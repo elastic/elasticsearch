@@ -1655,28 +1655,6 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
-     * The rule fires only on a {@link UnionAll}. A {@code FORK} command produces a bare {@link Fork} (the
-     * parent type of {@link UnionAll}), not a {@link UnionAll}, so an aggregate over a {@code Fork} is left
-     * untouched and its aggregation stays on the coordinator. The boundary: the multi-source shapes that plan to a
-     * {@link UnionAll} ({@code FROM idx, (FROM ds | ...)} and view unions) decompose, whereas a {@code Fork} does
-     * not reach this rule.
-     */
-    public void testAggregateOverForkNotPushed() {
-        FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
-        Attribute extEmpNo = extAttr("emp_no", INTEGER);
-        EsRelation esRelation = relation().withAttributes(List.of(esEmpNo));
-        ExternalRelation extRelation = externalRelation(List.of(extEmpNo));
-
-        List<LogicalPlan> branches = List.of(subqueryBranch(esRelation), subqueryBranch(extRelation));
-        Fork fork = new Fork(EMPTY, branches, Fork.outputUnion(branches));
-
-        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
-        Aggregate aggregate = new Aggregate(EMPTY, fork, List.of(), List.of(countAlias));
-
-        assertSame(aggregate, new PushAggregateThroughUnionAll().apply(aggregate));
-    }
-
-    /**
      * {@link PushAggregateThroughUnionAll} must NOT push when a subquery branch's sub-pipeline already
      * contains its own {@link Aggregate}: a conflicting pipeline breaker disqualifies the whole rewrite.
      */
@@ -1884,6 +1862,45 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
             sawFilteredSubqueryBranch,
             equalTo(true)
         );
+    }
+
+    /**
+     * Full-pipeline external-source shape: a single external dataset feeding a bare {@code FORK} of streaming filters,
+     * then {@code STATS c = COUNT(*)}. This is the one external shape that combines with {@code FORK}: a lone
+     * {@code ExternalRelation} carries no {@link UnionAll}, so {@code Fork.checkFork} does not reject it (heterogeneous
+     * {@code FROM}, subqueries, and views all produce a {@link UnionAll} and are rejected with
+     * "FORK after subquery is not supported"). The aggregate decomposes: each branch runs a partial {@code COUNT}
+     * directly over the external scan, and the coordinator sums the per-branch counts.
+     */
+    public void testFullPipelineAggDecomposedThroughForkOverExternal() {
+        assumeTrue("requires external datasources feature flag", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        var parsed = TEST_PARSER.parseQuery("""
+            FROM ext_emps
+            | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
+            | STATS c = COUNT(*)
+            """);
+        var rewritten = parsed.transformUp(UnresolvedRelation.class, r -> unresolvedExtEmps(r));
+        LogicalPlan result = analyzeAndOptimizeHeterogeneous(rewritten);
+        assertValidPlan(result);
+
+        Limit limit = as(result, Limit.class);
+        Aggregate outerAgg = as(limit.child(), Aggregate.class);
+        assertThat("outer combiner for COUNT(*) must be SUM", as(outerAgg.aggregates().get(0), Alias.class).child(), instanceOf(Sum.class));
+
+        Fork fork = as(outerAgg.child(), Fork.class);
+        assertThat("must stay a bare Fork, not a UnionAll", fork, not(instanceOf(UnionAll.class)));
+        assertThat(fork.children(), hasSize(2));
+        for (LogicalPlan branch : fork.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            assertThat(
+                "each branch must carry a COUNT partial",
+                as(branchAgg.aggregates().get(0), Alias.class).child(),
+                instanceOf(Count.class)
+            );
+            List<ExternalRelation> externals = new ArrayList<>();
+            branchAgg.forEachDown(ExternalRelation.class, externals::add);
+            assertThat("the partial must sit over the external scan", externals, not(empty()));
+        }
     }
 
     /**

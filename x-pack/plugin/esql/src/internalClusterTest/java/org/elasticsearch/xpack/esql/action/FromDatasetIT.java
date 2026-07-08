@@ -280,6 +280,53 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * A single external dataset feeding a {@code FORK} of streaming filters, then {@code STATS c = COUNT(*)}.
+     * A lone {@code ExternalRelation} carries no {@code UnionAll}, so {@code Fork.checkFork} permits the {@code FORK}
+     * (heterogeneous {@code FROM}, subqueries, and views produce a {@code UnionAll} and are rejected with
+     * "FORK after subquery is not supported"). The aggregate decomposes into a partial {@code COUNT} over the external
+     * scan in each branch, summed on the coordinator. The fixture has emp_no 1,2,3; branch1 matches {1,2}, branch2
+     * matches {2,3}, and emp_no 2 is counted once per branch (FORK union-all semantics), so the total is 4.
+     */
+    public void testForkOverExternalDatasetDecomposesCount() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | FORK (WHERE emp_no <= 2) (WHERE emp_no >= 2)
+            | STATS c = COUNT(*)
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(4L));
+        }
+    }
+
+    /**
+     * Grouped counterpart of {@link #testForkOverExternalDatasetDecomposesCount}: {@code STATS c = COUNT(*) BY _fork}
+     * exercises the grouped decomposition over a single external dataset, with each branch contributing its own
+     * per-{@code _fork} partial count. branch1 {1,2} yields fork1=2 and branch2 {2,3} yields fork2=2.
+     */
+    public void testForkOverExternalDatasetDecomposesCountByFork() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | FORK (WHERE emp_no <= 2) (WHERE emp_no >= 2)
+            | STATS c = COUNT(*) BY _fork
+            | SORT _fork
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(2L));
+            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(0), equalTo(2L));
+            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
+        }
+    }
+
     public void testFromExtensionlessResourceDrivenByExplicitFormat() throws Exception {
         // The headline fix: a resource with no file extension carries no inferable format, so the dataset's
         // explicit `format` setting is the only thing that can select the reader. The fixture is pipe-delimited

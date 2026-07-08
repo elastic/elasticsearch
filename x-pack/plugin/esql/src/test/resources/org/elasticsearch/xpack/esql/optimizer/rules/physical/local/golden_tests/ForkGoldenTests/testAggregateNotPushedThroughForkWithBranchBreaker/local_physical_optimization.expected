@@ -1,0 +1,38 @@
+LimitExec[10000[INTEGER],null]
+\_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#0],SINGLE,[$$c$count{r}#1, $$c$seen{r}#2],null]
+  \_MergeExec[[]]
+    |_ExchangeExec[[],false]
+    | \_ProjectExec[[]]
+    |   \_EsQueryExec[employees], indexMode[standard], [_doc{f}#3], limit[], sort[] estimatedRowSize[4] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "emp_no",
+    "next" : {
+      "range" : {
+        "emp_no" : {
+          "gt" : 1,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "emp_no > 1@2:16"
+  }
+}, tags=[]]]]
+    \_ProjectExec[[]]
+      \_TopNExec[[Order[salary{f}#4,DESC,FIRST]],5[INTEGER],null]
+        \_ExchangeExec[[salary{f}#4],false]
+          \_ProjectExec[[salary{f}#4]]
+            \_FieldExtractExec[salary{f}#4]<[],[],[]>
+              \_EsQueryExec[employees], indexMode[standard], [_doc{f}#5], limit[5], sort[[FieldSort[field=salary{f}#4, direction=DESC, nulls=FIRST]]] estimatedRowSize[20] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "emp_no",
+    "next" : {
+      "range" : {
+        "emp_no" : {
+          "gt" : 2,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "emp_no > 2@3:16"
+  }
+}, tags=[]]]]

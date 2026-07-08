@@ -2224,3 +2224,22 @@ emp_no:integer | first_name:keyword
 10002          | Bezalel
 10005          | Kyoichi
 ;
+
+// https://github.com/elastic/elasticsearch/issues/153030
+// A bare (unwrapped) LAST_OVER_TIME grouped by an unaliased BUCKET(@timestamp, ...), where the TS
+// command mixes a time-series index with a non-time-series view, fails post-optimization plan
+// verification with "optimized incorrectly due to missing references [_tsid, _timeseries]" (an
+// IllegalStateException surfaced to the client as a 500). Same failure family as
+// https://github.com/elastic/elasticsearch/issues/149619.
+tsMixedWithNonTsViewLastOverTimeByBucket
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+
+TS k8s, country_addresses
+| STATS bytes = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+| SORT time_bucket
+;
+
+bytes:keyword | time_bucket:datetime
+;

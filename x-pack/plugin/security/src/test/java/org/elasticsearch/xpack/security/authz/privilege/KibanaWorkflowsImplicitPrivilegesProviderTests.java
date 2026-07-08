@@ -45,7 +45,10 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
 
         assertThat(privileges, hasSize(1));
         final IndicesPrivileges indexPrivilege = privileges.iterator().next();
-        assertArrayEquals(new String[] { KibanaWorkflowsImplicitPrivilegesProvider.WORKFLOWS_EXECUTIONS_INDEX }, indexPrivilege.getIndices());
+        assertArrayEquals(
+            new String[] { KibanaWorkflowsImplicitPrivilegesProvider.WORKFLOWS_EXECUTIONS_INDEX },
+            indexPrivilege.getIndices()
+        );
         assertArrayEquals(new String[] { "read" }, indexPrivilege.getPrivileges());
         final String query = query(indexPrivilege);
         assertThat(query, containsString("\"spaceId\":[\"marketing\"]"));

@@ -15,11 +15,11 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -467,22 +467,17 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private ClusterState clusterStateWithS3Repo(String repoName, Settings repoSettings) {
-        final var builder = ClusterState.builder(new ClusterName("test"))
-            .putProjectMetadata(
-                ProjectMetadata.builder(projectId)
-                    .putCustom(
-                        RepositoriesMetadata.TYPE,
-                        new RepositoriesMetadata(
-                            Collections.singletonList(new RepositoryMetadata(repoName, S3Repository.TYPE, repoSettings))
-                        )
-                    )
-            );
+        final var projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(
+                RepositoriesMetadata.TYPE,
+                new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, S3Repository.TYPE, repoSettings)))
+            )
+            .build();
+        final var builder = ClusterState.builder(new ClusterName("test"));
         if (projectId.equals(ProjectId.DEFAULT)) {
-            return builder.build();
+            return builder.putProjectMetadata(projectMetadata).build();
         }
-        return builder.blocks(
-            ClusterBlocks.builder().addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK).build()
-        ).build();
+        return ClusterStateCreationUtils.addInitializingProject(builder, projectMetadata, ClusterState.EMPTY_STATE).build();
     }
 
     private static ClusterState emptyState() {

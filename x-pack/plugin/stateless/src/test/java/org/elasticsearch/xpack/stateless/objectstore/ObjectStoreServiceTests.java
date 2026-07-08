@@ -24,12 +24,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -677,18 +677,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 ClusterState state = testHarness.clusterService.state();
                 ClusterServiceUtils.setState(
                     testHarness.clusterService,
-                    ClusterState.builder(state)
-                        .putCustom(
-                            ProjectStateRegistry.TYPE,
-                            ProjectStateRegistry.builder(state).putProjectSettings(projectId, projectSettingsBuilder.build()).build()
-                        )
-                        .putProjectMetadata(ProjectMetadata.builder(projectId))
-                        .blocks(
-                            ClusterBlocks.builder(state.blocks())
-                                .addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
-                                .build()
-                        )
-                        .build()
+                    ClusterStateCreationUtils.addInitializingProject(
+                        ClusterState.builder(state)
+                            .putCustom(
+                                ProjectStateRegistry.TYPE,
+                                ProjectStateRegistry.builder(state).putProjectSettings(projectId, projectSettingsBuilder.build()).build()
+                            ),
+                        ProjectMetadata.builder(projectId).build(),
+                        state
+                    ).build()
                 );
                 // We should always have the default project object store (i.e., 1)
                 // plus the number of object stores equal to the number of created projects (i.e., i + 1)
@@ -770,18 +767,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
             Settings settings = projectSettingsBuilder.build();
             ClusterServiceUtils.setState(
                 testHarness.clusterService,
-                ClusterState.builder(state)
-                    .putCustom(
-                        ProjectStateRegistry.TYPE,
-                        ProjectStateRegistry.builder(state).putProjectSettings(projectId, settings).build()
-                    )
-                    .putProjectMetadata(ProjectMetadata.builder(projectId))
-                    .blocks(
-                        ClusterBlocks.builder(state.blocks())
-                            .addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
-                            .build()
-                    )
-                    .build()
+                ClusterStateCreationUtils.addInitializingProject(
+                    ClusterState.builder(state)
+                        .putCustom(
+                            ProjectStateRegistry.TYPE,
+                            ProjectStateRegistry.builder(state).putProjectSettings(projectId, settings).build()
+                        ),
+                    ProjectMetadata.builder(projectId).build(),
+                    state
+                ).build()
             );
 
             assertThat(objectStoreService.getProjectObjectStores().keySet(), contains(ProjectId.DEFAULT));
@@ -1119,18 +1113,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
             Settings settings = projectSettingsBuilder.build();
             ClusterServiceUtils.setState(
                 testHarness.clusterService,
-                ClusterState.builder(state)
-                    .putCustom(
-                        ProjectStateRegistry.TYPE,
-                        ProjectStateRegistry.builder(state).putProjectSettings(projectId, settings).build()
-                    )
-                    .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata, false))
-                    .blocks(
-                        ClusterBlocks.builder(state.blocks())
-                            .addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
-                            .build()
-                    )
-                    .build()
+                ClusterStateCreationUtils.addInitializingProject(
+                    ClusterState.builder(state)
+                        .putCustom(
+                            ProjectStateRegistry.TYPE,
+                            ProjectStateRegistry.builder(state).putProjectSettings(projectId, settings).build()
+                        ),
+                    ProjectMetadata.builder(projectId).put(indexMetadata, false).build(),
+                    state
+                ).build()
             );
             final BlobStoreRepository projectObjectStore = objectStoreService.getProjectObjectStore(projectId);
             assertNotNull(projectObjectStore);

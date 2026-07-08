@@ -12,6 +12,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -982,6 +983,18 @@ public class ClusterStateCreationUtils {
         }
         state.metadata(metadataBuilder);
         return state.build();
+    }
+
+    public static ClusterState.Builder addInitializingProject(
+        ClusterState.Builder builder,
+        ProjectMetadata projectMetadata,
+        ClusterState currentState
+    ) {
+        return builder.putProjectMetadata(projectMetadata)
+            .blocks(
+                ClusterBlocks.builder(currentState.blocks())
+                    .addProjectGlobalBlock(projectMetadata.id(), ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+            );
     }
 
     private static DiscoveryNode newNode(int nodeId) {

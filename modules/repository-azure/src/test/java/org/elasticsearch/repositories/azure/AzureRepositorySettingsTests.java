@@ -9,11 +9,11 @@
 
 package org.elasticsearch.repositories.azure;
 
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -65,16 +65,14 @@ public class AzureRepositorySettingsTests extends ESTestCase {
         repositoryServiceClusterService = ClusterServiceUtils.createClusterService(repositoryServiceThreadPool);
         repositoryServiceProjectId = randomProjectIdOrDefault();
         if (ProjectId.DEFAULT.equals(repositoryServiceProjectId) == false) {
+            final var state = repositoryServiceClusterService.state();
             ClusterServiceUtils.setState(
                 repositoryServiceClusterService,
-                ClusterState.builder(repositoryServiceClusterService.state())
-                    .putProjectMetadata(ProjectMetadata.builder(repositoryServiceProjectId))
-                    .blocks(
-                        ClusterBlocks.builder()
-                            .addProjectGlobalBlock(repositoryServiceProjectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
-                            .build()
-                    )
-                    .build()
+                ClusterStateCreationUtils.addInitializingProject(
+                    ClusterState.builder(state),
+                    ProjectMetadata.builder(repositoryServiceProjectId).build(),
+                    state
+                ).build()
             );
         }
         final NodeClient client = new NodeClient(Settings.EMPTY, repositoryServiceThreadPool, TestProjectResolvers.alwaysThrow());
@@ -120,22 +118,17 @@ public class AzureRepositorySettingsTests extends ESTestCase {
     }
 
     private ClusterState clusterStateWithAzureRepo(String repoName, Settings repoSettings) {
-        final var builder = ClusterState.builder(new ClusterName("test"))
-            .putProjectMetadata(
-                ProjectMetadata.builder(repositoryServiceProjectId)
-                    .putCustom(
-                        RepositoriesMetadata.TYPE,
-                        new RepositoriesMetadata(
-                            Collections.singletonList(new RepositoryMetadata(repoName, AzureRepository.TYPE, repoSettings))
-                        )
-                    )
-            );
+        final var projectMetadata = ProjectMetadata.builder(repositoryServiceProjectId)
+            .putCustom(
+                RepositoriesMetadata.TYPE,
+                new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, AzureRepository.TYPE, repoSettings)))
+            )
+            .build();
+        final var builder = ClusterState.builder(new ClusterName("test"));
         if (repositoryServiceProjectId.equals(ProjectId.DEFAULT)) {
-            return builder.build();
+            return builder.putProjectMetadata(projectMetadata).build();
         }
-        return builder.blocks(
-            ClusterBlocks.builder().addProjectGlobalBlock(repositoryServiceProjectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK).build()
-        ).build();
+        return ClusterStateCreationUtils.addInitializingProject(builder, projectMetadata, ClusterState.EMPTY_STATE).build();
     }
 
     private static ClusterState emptyState() {

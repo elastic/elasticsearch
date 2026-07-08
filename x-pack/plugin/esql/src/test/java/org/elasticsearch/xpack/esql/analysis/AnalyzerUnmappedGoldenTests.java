@@ -863,6 +863,18 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
+    // message is keyword-mapped in sample_data and unmapped (loaded as keyword) in no_mapping_sample_data, so it
+    // surfaces as a PotentiallyUnmappedKeywordEsField rather than a two-legged PUNK requiring a type conversion.
+    // TO_TEXT is applied directly to that field attribute, so no keyword->keyword auto-cast happens.
+    // See https://github.com/elastic/elasticsearch/pull/153015#discussion_r3536219323.
+    public void testMappedInOneIndexOnlyToText() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | EVAL message_text = TO_TEXT(message)
+            | KEEP message_text
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
     public void testMappedToNonKeywordInOneIndexOnly() throws Exception {
         runTests("""
             FROM sample_data, no_mapping_sample_data

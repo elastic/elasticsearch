@@ -30,9 +30,9 @@ ignoreOrder:true
 2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
-// message is keyword-mapped in sample_data and unmapped in no_mapping_sample_data; under
-// unmapped_fields="load" the unmapped leg auto-casts to the mapped type (keyword), so TO_TEXT
-// (which accepts keyword) resolves successfully across the union.
+// message is keyword-mapped in sample_data and unmapped in no_mapping_sample_data.
+// See https://github.com/elastic/elasticsearch/pull/153015#discussion_r3536219323 for more info about the
+// underlying behavior exercised by this test case.
 typeConflictWithUnmappedToText
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks

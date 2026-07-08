@@ -2068,12 +2068,18 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testCustomizerCanSuppressAuditEntry() throws Exception {
-        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext, new AuditLogCustomizer() {
-            @Override
-            public boolean suppress(AuditEventContext ctx) {
-                return true;
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public boolean suppress(AuditEventContext ctx) {
+                    return true;
+                }
             }
-        });
+        );
 
         auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
 
@@ -2082,14 +2088,20 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testCustomizerCanEnrichAuditEntry() throws Exception {
         final String maskedValue = randomAlphaOfLength(8);
-        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext, new AuditLogCustomizer() {
-            @Override
-            public void enrich(AuditEventContext ctx, AuditEntry entry) {
-                // enrich runs last in build(), so it can read and override fields already set by the builder
-                assertThat(entry.get(LoggingAuditTrail.ACTION_FIELD_NAME), equalTo("_action"));
-                entry.set(LoggingAuditTrail.ACTION_FIELD_NAME, maskedValue);
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public void enrich(AuditEventContext ctx, AuditEntry entry) {
+                    // enrich runs last in build(), so it can read and override fields already set by the builder
+                    assertThat(entry.get(LoggingAuditTrail.ACTION_FIELD_NAME), equalTo("_action"));
+                    entry.set(LoggingAuditTrail.ACTION_FIELD_NAME, maskedValue);
+                }
             }
-        });
+        );
 
         auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
 

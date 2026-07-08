@@ -78,7 +78,7 @@ import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
-import org.elasticsearch.xpack.esql.telemetry.EsqlQueryMetricsCollector;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.io.IOException;
@@ -114,7 +114,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final UsageService usageService;
     private final TransportActionServices services;
     private final ActivityLogger<EsqlLogContext> activityLogger;
-    private final EsqlQueryMetricsCollector metricsCollector;
+    private final QueryMetricsListener metricsCollector;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -144,7 +144,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider,
-        EsqlQueryMetricsCollector metricsCollector
+        QueryMetricsListener metricsCollector
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -437,7 +437,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void collectMetrics(Result result) {
-        if (metricsCollector.equals(EsqlQueryMetricsCollector.NOOP) || hasExternalSources(result) == false) {
+        if (metricsCollector.equals(QueryMetricsListener.NOOP) || hasExternalSources(result) == false) {
             // don't even bother to create a map
             return;
         }
@@ -445,13 +445,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         var qp = result.executionInfo().queryProfile();
         metricsCollector.onQueryCompleted(
             Map.of(
-                EsqlQueryMetricsCollector.PLANNING_NANOS,
+                QueryMetricsListener.PLANNING_NANOS,
                 qp.planning().timeSpan().durationInNanos(),
-                EsqlQueryMetricsCollector.CPU_NANOS,
+                QueryMetricsListener.CPU_NANOS,
                 ci.cpuNanos(),
-                EsqlQueryMetricsCollector.READ_NANOS,
+                QueryMetricsListener.READ_NANOS,
                 ci.readNanos(),
-                EsqlQueryMetricsCollector.BYTES_READ,
+                QueryMetricsListener.BYTES_READ,
                 ci.bytesRead()
             )
         );

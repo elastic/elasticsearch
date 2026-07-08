@@ -143,7 +143,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
-import org.elasticsearch.xpack.esql.telemetry.EsqlQueryMetricsCollector;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -344,7 +344,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
-    private final List<EsqlQueryMetricsCollector> metricsCollectors = new ArrayList<>();
+    private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
 
@@ -532,7 +532,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             });
         }
 
-        EsqlQueryMetricsCollector collector = metricsCollectors.isEmpty() ? EsqlQueryMetricsCollector.NOOP : metrics -> {
+        QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
             for (var c : metricsCollectors)
                 c.onQueryCompleted(metrics);
         };
@@ -571,7 +571,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ViewService(services.clusterService(), parser),
             new DataSourceService(services.clusterService(), crudValidators, encryptionService),
             new DatasetService(services.clusterService(), crudValidators),
-            new PluginComponentBinding<>(EsqlQueryMetricsCollector.class, collector)
+            new PluginComponentBinding<>(QueryMetricsListener.class, collector)
         );
     }
 
@@ -792,7 +792,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     }
 
     protected void loadMetricsCollectors(ExtensionLoader loader) {
-        metricsCollectors.addAll(loader.loadExtensions(EsqlQueryMetricsCollector.class));
+        metricsCollectors.addAll(loader.loadExtensions(QueryMetricsListener.class));
     }
 
     @Override

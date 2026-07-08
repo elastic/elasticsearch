@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT;
 import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT.EsqlEnterpriseWithDatasourceExtensions;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.telemetry.EsqlQueryMetricsCollector;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,7 +33,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     /** Written by the SPI-instantiated collector; read by the test body. */
     static volatile Map<String, Long> lastMetrics;
 
-    public static final class CapturingCollector implements EsqlQueryMetricsCollector {
+    public static final class CapturingCollector implements QueryMetricsListener {
         @Override
         public void onQueryCompleted(Map<String, Long> metrics) {
             EsqlQueryMetricsCollectorIT.lastMetrics = metrics;
@@ -42,7 +42,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     /**
      * Drops in for {@link EsqlEnterpriseWithDatasourceExtensions} and additionally loads
-     * {@link EsqlQueryMetricsCollector} extensions by calling
+     * {@link QueryMetricsListener} extensions by calling
      * {@link EsqlPlugin#loadMetricsCollectors}, which is suppressed in the base
      * {@link EsqlPluginWithEnterpriseOrTrialLicense} no-op override.
      */
@@ -83,8 +83,8 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         }
 
         assertThat(lastMetrics, notNullValue());
-        assertThat(lastMetrics.get(EsqlQueryMetricsCollector.PLANNING_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(EsqlQueryMetricsCollector.CPU_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(EsqlQueryMetricsCollector.READ_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.READ_NANOS), greaterThan(0L));
     }
 }

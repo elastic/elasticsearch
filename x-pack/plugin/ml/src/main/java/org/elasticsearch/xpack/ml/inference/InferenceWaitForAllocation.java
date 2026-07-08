@@ -44,18 +44,17 @@ public class InferenceWaitForAllocation {
     public static final int MAX_PENDING_REQUEST_COUNT = 100;
 
     /**
-     * Track details of the pending request
+     * Track details of the pending request. The deployment id is resolved by the caller
+     * from the trained model assignment; the id on the request cannot be used here as it
+     * may be a model id or alias rather than the deployment id.
      */
     public record WaitingRequest(
+        String deploymentId,
         InferModelAction.Request request,
         InferModelAction.Response.Builder responseBuilder,
         TaskId parentTaskId,
         ActionListener<InferModelAction.Response> listener
-    ) {
-        public String deploymentId() {
-            return request.getId();
-        }
-    }
+    ) {}
 
     private static final Logger logger = LogManager.getLogger(InferenceWaitForAllocation.class);
 
@@ -92,7 +91,7 @@ public class InferenceWaitForAllocation {
                 new ElasticsearchStatusException(
                     "Rejected inference request waiting for an allocation of deployment [{}]. Too many pending requests",
                     RestStatus.TOO_MANY_REQUESTS,
-                    request.request.getId()
+                    request.deploymentId()
                 )
             );
             return;

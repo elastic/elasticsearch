@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -199,6 +200,9 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                     NameId partialId = aggAliasIdToPartialId.get(alias.id());
                     String partialName = aggAliasIdToPartialName.get(alias.id());
                     AggregateFunction resolvedAggFn = resolveAggFn(aggFn, unionToBranch);
+                    if (resolvedAggFn == null) {
+                        return aggregate; // an aggregate input references a column absent from this branch, so bail out
+                    }
                     branchAggs.add(new Alias(alias.source(), partialName, buildBranchPartial(resolvedAggFn), partialId, true));
                 }
             }
@@ -382,23 +386,42 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
 
     /**
      * Rewrites the field (and filter, if present) of {@code aggFn} so that attribute references
-     * point to the branch's attributes rather than the UnionAll's output attributes.
+     * point to the branch's attributes rather than the UnionAll's output attributes. Returns
+     * {@code null} when any referenced attribute has no counterpart in the branch, mirroring the
+     * grouping-resolution guard: the caller then bails out rather than emitting a branch aggregate
+     * that references an attribute the branch does not produce.
      */
     private static AggregateFunction resolveAggFn(AggregateFunction aggFn, Map<NameId, Attribute> unionToBranch) {
         Expression resolvedField = resolveExpr(aggFn.field(), unionToBranch);
+        if (resolvedField == null) {
+            return null;
+        }
         AggregateFunction resolved = aggFn.withField(resolvedField);
         if (aggFn.hasFilter()) {
             Expression resolvedFilter = resolveExpr(aggFn.filter(), unionToBranch);
+            if (resolvedFilter == null) {
+                return null;
+            }
             resolved = resolved.withFilter(resolvedFilter);
         }
         return resolved;
     }
 
+    /**
+     * Rewrites attribute references in {@code expr} from the UnionAll's output attributes to the branch's
+     * attributes. Returns {@code null} if any attribute has no counterpart in the branch.
+     */
     private static Expression resolveExpr(Expression expr, Map<NameId, Attribute> unionToBranch) {
-        return expr.transformUp(Attribute.class, attr -> {
+        Holder<Boolean> unresolved = new Holder<>(false);
+        Expression rewritten = expr.transformUp(Attribute.class, attr -> {
             Attribute resolved = unionToBranch.get(attr.id());
-            return resolved != null ? resolved : attr;
+            if (resolved == null) {
+                unresolved.set(true);
+                return attr;
+            }
+            return resolved;
         });
+        return unresolved.get() ? null : rewritten;
     }
 
     /**

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -543,8 +544,8 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
 
     /**
      * An {@link Eval} directly over a leaf ({@code Project > Eval > Relation}, no {@code Subquery}) is streaming, so
-     * the aggregate decomposes across it. The old positive shape match required a {@code Subquery}; the breaker-free
-     * gate accepts this schema-alignment {@code Eval} too.
+     * the aggregate decomposes across it: a schema-alignment {@code Eval} branch contains no pipeline breaker, which
+     * is all the breaker-free gate requires.
      */
     public void testEvalWrappedLeafBranchPushed() {
         ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
@@ -1627,9 +1628,9 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
-     * The rewrite must preserve the concrete {@link UnionAll} subtype. A {@link ViewUnionAll} (view-produced)
-     * must stay a {@link ViewUnionAll} with its named-subquery metadata intact, rather than being downgraded to a
-     * plain {@link UnionAll}, since this rule now fires on the subquery-shaped unions views produce.
+     * The rewrite must preserve the concrete {@link UnionAll} subtype. It fires on the subquery-shaped unions views
+     * produce, so a {@link ViewUnionAll} (view-produced) must stay a {@link ViewUnionAll} with its named-subquery
+     * metadata intact, rather than being downgraded to a plain {@link UnionAll}.
      */
     public void testViewUnionAllSubtypePreserved() {
         ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
@@ -1651,6 +1652,28 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
 
         ViewUnionAll newViewUnionAll = as(as(result, Aggregate.class).child(), ViewUnionAll.class);
         assertThat(newViewUnionAll.namedSubqueries().keySet(), contains("view_a", "view_b"));
+    }
+
+    /**
+     * The rule fires only on a {@link UnionAll}. A {@code FORK} command produces a bare {@link Fork} (the
+     * parent type of {@link UnionAll}), not a {@link UnionAll}, so an aggregate over a {@code Fork} is left
+     * untouched and its aggregation stays on the coordinator. The boundary: the multi-source shapes that plan to a
+     * {@link UnionAll} ({@code FROM idx, (FROM ds | ...)} and view unions) decompose, whereas a {@code Fork} does
+     * not reach this rule.
+     */
+    public void testAggregateOverForkNotPushed() {
+        FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
+        Attribute extEmpNo = extAttr("emp_no", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esEmpNo));
+        ExternalRelation extRelation = externalRelation(List.of(extEmpNo));
+
+        List<LogicalPlan> branches = List.of(subqueryBranch(esRelation), subqueryBranch(extRelation));
+        Fork fork = new Fork(EMPTY, branches, Fork.outputUnion(branches));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, fork, List.of(), List.of(countAlias));
+
+        assertSame(aggregate, new PushAggregateThroughUnionAll().apply(aggregate));
     }
 
     /**
@@ -1725,7 +1748,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         FieldAttribute lookupKey = getFieldAttribute("emp_no", INTEGER);
         FieldAttribute lookupValue = getFieldAttribute("language_name", INTEGER);
         EsRelation lookup = EsqlTestUtils.relation(IndexMode.LOOKUP).withAttributes(List.of(lookupKey, lookupValue));
-        return new Join(EMPTY, left, lookup, new JoinConfig(JoinTypes.LEFT, List.of(leftKey), List.of(lookupKey), null));
+        return new Join(EMPTY, left, lookup, new JoinConfig(JoinTypes.LEFT, List.of(leftKey), List.of(lookupKey), null), false);
     }
 
     /** A subquery-shaped branch: {@code Project > Subquery > plan}, the Project re-exposing {@code plan}'s output. */

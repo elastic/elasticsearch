@@ -21,7 +21,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -59,7 +58,6 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
         plugins.add(CapturingTestPlugin.class);
-        plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
 
@@ -76,7 +74,6 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(32))
             .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
             .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
-            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             // Always prefetch data from the indexing node when required.
             .put(SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING.getKey(), ByteSizeValue.ofGb(20))
             // Foreground prefetch so the prefetcher populates the cache deterministically.

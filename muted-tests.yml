@@ -203,27 +203,12 @@ tests:
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: plugin projects are wired into test cluster setup
   issue: https://github.com/elastic/elasticsearch/issues/148014
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  method: bwc expanded distribution folder can be resolved as bwc project artifact
-  issue: https://github.com/elastic/elasticsearch/issues/150979
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: yamlRestTest does nothing when there are no tests
   issue: https://github.com/elastic/elasticsearch/issues/150983
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: module projects are wired into test cluster setup
   issue: https://github.com/elastic/elasticsearch/issues/150984
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.1.3, bwcProject: major4, expectedAssembleTaskName:
-    extractedAssemble, #3]"
-  issue: https://github.com/elastic/elasticsearch/issues/150985
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.3.0, bwcProject: major2, expectedAssembleTaskName:
-    extractedAssemble, #1]"
-  issue: https://github.com/elastic/elasticsearch/issues/150989
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: major3, expectedAssembleTaskName:
-    extractedAssemble, #2]"
-  issue: https://github.com/elastic/elasticsearch/issues/150410
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testMaxQueueLatencyMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/146283

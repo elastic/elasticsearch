@@ -402,6 +402,11 @@ public final class FetchPhase {
                     }
                 }
             }
+
+            @Override
+            protected void onSizeInBytesLimitBreached() {
+                context.queryResult().terminatedEarly(true);
+            }
         };
         docsIterator.sizeInBytesLimit = sizeInBytesLimit;
         return docsIterator;

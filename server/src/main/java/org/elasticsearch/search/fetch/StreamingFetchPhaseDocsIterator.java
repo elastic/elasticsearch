@@ -281,6 +281,9 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         // thread within the same leaf (Lucene's thread-affinity invariant still holds).
         private Thread leafSetupThread;
         private PendingChunk pendingNext;
+        // Set once size_in_bytes is reached; stops further chunk production, mirroring the synchronous
+        // FetchPhaseDocsIterator#doIterate path.
+        private boolean sizeLimitReached;
 
         ChunkProducingIterator(
             DocIdToIndex[] docs,
@@ -305,7 +308,11 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
             if (pendingNext != null) {
                 return true;
             }
-            if (currentIdx >= docs.length || producerError.get() != null || sendFailure.get() != null || isCancelled.get()) {
+            if (sizeLimitReached
+                || currentIdx >= docs.length
+                || producerError.get() != null
+                || sendFailure.get() != null
+                || isCancelled.get()) {
                 return false;
             }
             pendingNext = produceNext();
@@ -353,20 +360,26 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                     try {
                         chunkBuffer.writeVInt(docs[currentIdx].index);
                         hit.writeTo(chunkBuffer);
+                        if (accountSizeInBytes(hit)) {
+                            sizeLimitReached = true;
+                        }
                     } finally {
                         hit.decRef();
                     }
                     currentIdx++;
                     hitsInChunk++;
 
-                    if (currentIdx == docs.length || chunkBuffer.size() >= targetChunkBytes) {
+                    if (sizeLimitReached || currentIdx == docs.length || chunkBuffer.size() >= targetChunkBytes) {
                         break;
                     }
                 }
 
                 ReleasableBytesReference chunkBytes = chunkBuffer.moveToBytesReference();
                 chunkBuffer = null;
-                boolean isLast = (currentIdx == docs.length);
+                boolean isLast = sizeLimitReached || (currentIdx == docs.length);
+                if (sizeLimitReached) {
+                    onSizeInBytesLimitBreached();
+                }
                 return new PendingChunk(chunkBytes, hitsInChunk, chunkStartIndex, isLast);
             } catch (Exception e) {
                 producerError.compareAndSet(null, e);

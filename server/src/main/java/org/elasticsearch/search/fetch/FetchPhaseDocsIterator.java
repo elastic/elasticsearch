@@ -53,6 +53,37 @@ abstract class FetchPhaseDocsIterator {
     long sizeInBytesLimit = -1;
 
     /**
+     * Running total of bytes accounted towards {@link #sizeInBytesLimit}, shared by the synchronous
+     * {@link #doIterate} path and the streaming {@link StreamingFetchPhaseDocsIterator} chunk producer so
+     * that {@code size_in_bytes} enforcement is consistent regardless of which fetch path a request uses.
+     */
+    private long accumulatedSizeInBytes = 0;
+
+    /**
+     * Accounts for a fetched hit's bytes against {@link #sizeInBytesLimit}, if one is set.
+     *
+     * @return {@code true} if the cap has now been reached and the caller must stop fetching further hits
+     */
+    final boolean accountSizeInBytes(SearchHit hit) {
+        if (sizeInBytesLimit <= 0) {
+            return false;
+        }
+        var sourceRef = hit.getSourceRef();
+        accumulatedSizeInBytes += (sourceRef != null ? sourceRef.length() : 0) + PER_HIT_OVERHEAD_BYTES;
+        return accumulatedSizeInBytes >= sizeInBytesLimit;
+    }
+
+    /**
+     * Invoked exactly once, from the streaming fetch path, when {@link #accountSizeInBytes} reports that
+     * {@link #sizeInBytesLimit} has been reached. The synchronous path has direct access to the
+     * {@link QuerySearchResult} passed into {@link #iterate} and records early termination there instead;
+     * this hook lets {@link FetchPhase#createDocsIterator} — which has no such parameter available inside
+     * {@link StreamingFetchPhaseDocsIterator#iterateAsync} — record the same signal via its captured
+     * {@link org.elasticsearch.search.internal.SearchContext}.
+     */
+    protected void onSizeInBytesLimitBreached() {}
+
+    /**
      * Accounts for FetchPhase memory usage.
      * It gets cleaned up after each fetch phase and should not be accessed/modified by subclasses.
      */
@@ -165,7 +196,6 @@ abstract class FetchPhaseDocsIterator {
                 return new IterateResult(new SearchHit[0]);
             }
 
-            long accumulatedBytes = 0;
             for (int i = 0; i < docs.length; i++) {
                 try {
                     if (i >= endReaderIdx) {
@@ -178,13 +208,9 @@ abstract class FetchPhaseDocsIterator {
                     currentDoc = docs[i].docId;
                     assert searchHits[docs[i].index] == null;
                     searchHits[docs[i].index] = nextDoc(docs[i].docId);
-                    if (sizeInBytesLimit > 0) {
-                        var sourceRef = searchHits[docs[i].index].getSourceRef();
-                        accumulatedBytes += (sourceRef != null ? sourceRef.length() : 0) + PER_HIT_OVERHEAD_BYTES;
-                        if (accumulatedBytes >= sizeInBytesLimit) {
-                            querySearchResult.terminatedEarly(true);
-                            return new IterateResult(stripNulls(searchHits));
-                        }
+                    if (accountSizeInBytes(searchHits[docs[i].index])) {
+                        querySearchResult.terminatedEarly(true);
+                        return new IterateResult(stripNulls(searchHits));
                     }
                 } catch (ContextIndexSearcher.TimeExceededException e) {
                     if (allowPartialResults == false) {

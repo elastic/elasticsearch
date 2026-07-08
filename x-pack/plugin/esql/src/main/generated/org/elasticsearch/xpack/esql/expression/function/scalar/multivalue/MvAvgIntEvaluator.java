@@ -41,11 +41,11 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       CompensatedSum work = new CompensatedSum();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         if (valueCount == 1) {
           int value = v.getInt(first);
@@ -105,11 +105,11 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       CompensatedSum work = new CompensatedSum();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         assert valueCount == 1;
         int first = v.getFirstValueIndex(p);
         int value = v.getInt(first);

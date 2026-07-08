@@ -76,10 +76,11 @@ public final class StartsWithEvaluator implements ExpressionEvaluator {
       BytesRef strScratch = new BytesRef();
       BytesRef prefixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (strBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -87,10 +88,11 @@ public final class StartsWithEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (prefixBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (prefixBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

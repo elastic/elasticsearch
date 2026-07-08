@@ -1058,6 +1058,16 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(Arrays.asList(null, br("x\\ty")), column(read(true, config, null, List.of("_rowPosition", "note"), tsv), 1));
     }
 
+    /**
+     * Non-regression pin for the OTHER arm of the same routing decision: with stripe capture on and no
+     * {@code _rowPosition}, escaped mode rides {@code newTrackedJacksonBulkIterator}, which delivers RAW values —
+     * so the batch loop must still decode. Guards against "fixing" the double-decode by suppressing the decode
+     * unconditionally, which would leave escape sequences un-decoded on both bulk arms.
+     */
+    public void testEscapedTrackedBulkPathStillDecodesOnce() throws IOException {
+        assertEquals(List.of(row(br("x\\ty"))), readAllScope(Map.of("mode", "escaped"), "note:keyword\nx\\\\ty\n"));
+    }
+
     /** Projects column {@code index} out of every row. */
     private static List<Object> column(List<List<Object>> rows, int index) {
         List<Object> values = new ArrayList<>(rows.size());

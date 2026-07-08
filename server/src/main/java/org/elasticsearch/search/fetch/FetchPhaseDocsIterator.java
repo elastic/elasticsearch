@@ -209,7 +209,14 @@ abstract class FetchPhaseDocsIterator {
                     assert searchHits[docs[i].index] == null;
                     searchHits[docs[i].index] = nextDoc(docs[i].docId);
                     if (accountSizeInBytes(searchHits[docs[i].index])) {
-                        querySearchResult.terminatedEarly(true);
+                        // querySearchResult is null when fetch runs as its own round-trip against a shard (the common
+                        // multi-shard case): that SearchContext is created with ResultsType.FETCH and never gets a
+                        // QuerySearchResult, and even if it did, terminated_early is only collected from the query-phase
+                        // response, which for that case was already sent to the coordinator before fetch started. The hits
+                        // are still correctly truncated below regardless; only the terminated_early annotation is skipped.
+                        if (querySearchResult != null) {
+                            querySearchResult.terminatedEarly(true);
+                        }
                         return new IterateResult(stripNulls(searchHits));
                     }
                 } catch (ContextIndexSearcher.TimeExceededException e) {

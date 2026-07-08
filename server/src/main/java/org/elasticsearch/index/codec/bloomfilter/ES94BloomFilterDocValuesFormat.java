@@ -90,8 +90,10 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     public static final String FORMAT_NAME = "ES94BloomFilterDocValuesFormat";
     public static final String STORED_FIELDS_BLOOM_FILTER_EXTENSION = "sfbf";
     public static final String STORED_FIELDS_METADATA_BLOOM_FILTER_EXTENSION = "sfbfm";
-    private static final int VERSION_START = 0;
-    private static final int VERSION_CURRENT = VERSION_START;
+    // Visible for testing
+    protected static final int VERSION_START = 0;
+    // Version bumped to deal with the empty bitset merge bug elasticsearch-serverless#7177
+    private static final int VERSION_CURRENT = 1;
 
     // We use prime numbers with the Kirsch-Mitzenmacher technique to obtain multiple hashes from two hash functions
     private static final int[] PRIMES = new int[] { 2, 5, 11, 17, 23, 29, 41, 47, 53, 59, 71 };
@@ -230,6 +232,11 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         return Math.toIntExact(closestPowerOfTwoBloomFilterSizeInBytes);
     }
 
+    // Visible for tests
+    int getCurrentFormatVersion() {
+        return VERSION_CURRENT;
+    }
+
     class Writer extends DocValuesConsumer {
         private IndexOutput metadataOut;
         private IndexOutput bloomFilterDataOut;
@@ -247,12 +254,13 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             try {
                 metadataOut = state.directory.createOutput(bloomFilterMetadataFileName(segmentInfo, state.segmentSuffix), context);
                 toClose.add(metadataOut);
-                CodecUtil.writeIndexHeader(metadataOut, FORMAT_NAME, VERSION_CURRENT, segmentInfo.getId(), state.segmentSuffix);
+                int currentFormatVersion = getCurrentFormatVersion();
+                CodecUtil.writeIndexHeader(metadataOut, FORMAT_NAME, currentFormatVersion, segmentInfo.getId(), state.segmentSuffix);
 
                 bloomFilterDataOut = state.directory.createOutput(bloomFilterFileName(segmentInfo, state.segmentSuffix), context);
                 toClose.add(bloomFilterDataOut);
 
-                CodecUtil.writeIndexHeader(bloomFilterDataOut, FORMAT_NAME, VERSION_CURRENT, segmentInfo.getId(), state.segmentSuffix);
+                CodecUtil.writeIndexHeader(bloomFilterDataOut, FORMAT_NAME, currentFormatVersion, segmentInfo.getId(), state.segmentSuffix);
                 success = true;
             } finally {
                 if (success == false) {
@@ -747,9 +755,10 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 }
                 CodecUtil.retrieveChecksum(bloomFilterData);
 
-                this.bitSetFullOfZeroes = isAllZeros(
-                    bloomFilterData.randomAccessSlice(bloomFilterMetadata.fileOffset(), bloomFilterMetadata.sizeInBytes())
-                );
+                // Only check the bloom filters that were written with VERSION_START, as they may be full of zeroes due to a bug.
+                // See elasticsearch-serverless#7177
+                this.bitSetFullOfZeroes = bloomFilterDataVersion == VERSION_START
+                    && isAllZeros(bloomFilterData.randomAccessSlice(bloomFilterMetadata.fileOffset(), bloomFilterMetadata.sizeInBytes()));
                 this.bloomFilterData = bloomFilterData;
                 this.bloomFilterMetadata = bloomFilterMetadata;
                 success = true;
@@ -775,7 +784,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         public BinaryDocValues getBinary(FieldInfo field) {
             if (bitSetFullOfZeroes) {
                 // In certain circumstances, the bloom filter may be full of zeroes due to a bug. In that case,
-                // return a bloom filter that always returns true to avoid false negatives.
+                // return a bloom filter that always returns true to avoid false negatives. See elasticsearch-serverless#7177
                 return new AlwaysMatchingBloomFilter(bloomFilterMetadata.sizeInBytes());
             }
 
@@ -1052,6 +1061,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         final long longEnd = len & ~7L;   // largest multiple of 8 <= len
         long val = 0L;
         long pos = 0;
+        // reading Long.BYTES at a time for better efficiency
         for (; pos < longEnd; pos += Long.BYTES) {
             val = in.readLong(pos);      // endianness irrelevant: 0 is 0 either way
             if (val != 0L) {

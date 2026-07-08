@@ -285,6 +285,12 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
                         }
                     };
                 }
+
+                @Override
+                int getCurrentFormatVersion() {
+                    // We only check if a bloom filter is full of zeros if it was written with a version that had the bug
+                    return ES94BloomFilterDocValuesFormat.VERSION_START;
+                }
             }));
             LogMergePolicy mergePolicy = newLogMergePolicy();
             mergePolicy.setMergeFactor(1000);

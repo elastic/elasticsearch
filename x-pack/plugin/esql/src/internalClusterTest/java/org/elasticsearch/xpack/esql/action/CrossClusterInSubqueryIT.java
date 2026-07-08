@@ -14,12 +14,15 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -50,9 +53,21 @@ import static org.hamcrest.Matchers.hasSize;
  * ids 1–6, {@code color} alternates red (odd) / blue (even), {@code tag} set to the cluster
  * alias ("local", "cluster-a", "remote-b") so rows are attributable in aggregation results.
  */
-public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
+public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase implements EnrichClusterPluginSupport {
 
     private static final String EVENTS = "events";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
+        plugins.remove(EsqlAsyncActionIT.LocalStateEsqlAsync.class);
+        return addEnrichPlugins(plugins);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return enrichNodeSettings(super.nodeSettings());
+    }
 
     @Before
     public void checkCapabilityAndSetup() throws IOException {
@@ -898,6 +913,178 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                 resp.getExecutionInfo(),
                 Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
             );
+        }
+    }
+
+    // ---- ENRICH inside WHERE IN subquery body ----
+
+    public void testEnrichWithAnyModePolicyPresentOnAllClustersSucceeds() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM *:logs-*
+                | WHERE v IN (
+                    FROM logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L), List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testEnrichWithAnyModePolicyMissingOnSomeClustersFails() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM *:logs-*
+                | WHERE v IN (
+                    FROM logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false));
+            assertThat(ex.getMessage(), containsString("cannot find enrich policy [values_enrich] on clusters [remote-b]"));
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testEnrichWithCoordinatorModePolicyPresentOnRelevantClustersSucceeds() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                | SORT v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(2L), List.of(3L), List.of(4L), List.of(5L), List.of(6L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testEnrichWithCoordinatorModePolicyMissingOnRelevantClustersSucceeds() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testEnrichWithRemoteModePolicyPresentOnRelevantClustersSucceeds() {
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM cluster-a:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    // This test fails because when we use REMOTE mode on ENRICH, we look at all clusters used in the query to resolve where the ENRICH
+    // policy must exist. Even if the query does not end up executing in all clusters like in this case
+    public void testEnrichWithRemoteModePolicyMissingOnRelevantClustersFails() {
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false));
+            assertThat(ex.getMessage(), containsString("cannot find enrich policy [values_enrich] on clusters [_local]"));
+        } finally {
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testEnrichWithRemoteModePolicyOnRelevantClustersSucceeds() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            clearSkipUnavailable(3);
         }
     }
 

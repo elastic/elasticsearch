@@ -2710,6 +2710,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 baseFileOffset,
                 null,
+                null,
                 null
             )
         );

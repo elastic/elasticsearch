@@ -2644,7 +2644,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         captureSink,
                         statsStripeSize,
                         statsColumnScope,
-                        partialResultsWarningSink
+                        new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
+                        streamingSegmentatorAdmission
                     );
                 } catch (Exception e) {
                     try {

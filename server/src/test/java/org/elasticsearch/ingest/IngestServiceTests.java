@@ -1248,7 +1248,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testExecuteSelfReferenceFailures() {
-        Processor.Factory selfRefProcessor = (factories, tag, description, config, projectId) -> {
+        Processor.Factory selfRefProcessor = (factories, tag, description, config) -> {
             boolean ingestMetadata = Boolean.TRUE.equals(config.remove("ingest_metadata"));
             return new FakeProcessor("self_ref", tag, description, ingestDocument -> {
                 Map<String, Object> selfReference = new HashMap<>();
@@ -1262,19 +1262,18 @@ public class IngestServiceTests extends ESTestCase {
             });
         };
         IngestService ingestService = createWithProcessors(Map.of("self_ref", selfRefProcessor));
-        var projectId = randomProjectIdOrDefault();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
         clusterState = executePut(
-            projectId,
-            putJsonPipelineRequest("source_self_ref", "{\"processors\": [{\"self_ref\" : {}}]}"),
+            new PutPipelineRequest("source_self_ref", new BytesArray("{\"processors\": [{\"self_ref\" : {}}]}"), XContentType.JSON),
             clusterState
         );
         clusterState = executePut(
-            projectId,
-            putJsonPipelineRequest("ingest_metadata_self_ref", "{\"processors\": [{\"self_ref\" : {\"ingest_metadata\": true}}]}"),
+            new PutPipelineRequest(
+                "ingest_metadata_self_ref",
+                new BytesArray("{\"processors\": [{\"self_ref\" : {\"ingest_metadata\": true}}]}"),
+                XContentType.JSON
+            ),
             clusterState
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -1298,20 +1297,20 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(status, equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
         };
         @SuppressWarnings("unchecked")
-        final ActionListener<Void> listener = mock(ActionListener.class);
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
-            projectId,
             bulkRequest.numberOfActions(),
             bulkRequest.requests(),
             indexReq -> {},
-            (s) -> null,
+            s -> null,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            listener
+            completionHandler,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         assertTrue(failures[0]);
         assertTrue(failures[1]);
-        verify(listener, times(1)).onResponse(null);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
     public void testDynamicTemplates() throws Exception {

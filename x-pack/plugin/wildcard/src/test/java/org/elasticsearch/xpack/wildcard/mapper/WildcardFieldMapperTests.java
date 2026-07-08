@@ -1458,7 +1458,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
      * multi-valued doc.
      */
     public void testQueriesAgainstMultiValuedDocInColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "wildcard")));
         DocumentMapper mapper = mapperService.documentMapper();

@@ -791,14 +791,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         return ba;
     }
 
-    static IntFunction<float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
-        float[] fa = new float[size];
-        for (int i = 0; i < size; i++) {
-            fa[i] = randomFloat();
-        }
-        return fa;
-    };
-
     static IntFunction<byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
         byte[] ba = new byte[size];
         randomBytesBetween(ba, MIN_INT7_VALUE, MAX_INT7_VALUE);

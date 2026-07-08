@@ -37,6 +37,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -1028,7 +1029,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
         try {
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
+            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows(), options.datetimeFormatter());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
         }
@@ -1043,7 +1044,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 throw new IOException("CSV file has no data rows");
             }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return inferSyntheticSchema(sample.rows(), options.columnPrefix());
+            return inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
         }
@@ -1109,7 +1110,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * user-facing "CSV file has no data rows" {@link IOException} themselves); the assertion is
      * just a programmer-error guard.
      */
-    static List<Attribute> inferSyntheticSchema(List<String[]> sampleRows, String prefix) {
+    static List<Attribute> inferSyntheticSchema(List<String[]> sampleRows, String prefix, @Nullable DateFormatter datetimeFormatter) {
         assert sampleRows.isEmpty() == false : "sampleRows must be non-empty for synthetic schema inference";
         int columnCount = 0;
         for (String[] row : sampleRows) {
@@ -1118,7 +1119,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
         String[] columnNames = synthesizeColumnNames(columnCount, prefix);
-        return CsvSchemaInferrer.inferSchema(columnNames, sampleRows);
+        return CsvSchemaInferrer.inferSchema(columnNames, sampleRows, datetimeFormatter);
     }
 
     static String[] synthesizeColumnNames(int count, String prefix) {
@@ -3648,7 +3649,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
             }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
+            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows(), options.datetimeFormatter());
         }
 
         private List<Attribute> inferSchemaHeaderlessFromBatchReader() throws IOException {
@@ -3674,7 +3675,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
             }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return inferSyntheticSchema(sample.rows(), options.columnPrefix());
+            return inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
         }
 
         private void initProjection() {

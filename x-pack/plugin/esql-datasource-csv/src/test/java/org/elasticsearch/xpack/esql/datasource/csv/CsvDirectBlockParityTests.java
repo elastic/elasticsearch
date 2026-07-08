@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -557,6 +558,32 @@ public class CsvDirectBlockParityTests extends ESTestCase {
                 page.releaseBlocks();
             }
         }
+    }
+
+    /**
+     * Schema inference uses the file-level {@code datetime_format}, so an untyped column in the file's date dialect is
+     * inferred DATETIME rather than KEYWORD. Before this change inference only ever probed ISO-8601, so the option was
+     * a no-op on any CSV whose header does not declare {@code ts:datetime}.
+     */
+    public void testDatetimeFormatDrivesSchemaInference() throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss"));
+        StorageObject object = new InMemoryStorageObject("ts\n25/12/2023 10:30:00\n01/01/2024 00:00:00\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(DataType.DATETIME, reader.schema(object).get(0).dataType());
+    }
+
+    /** Without the option, inference still probes ISO-8601 only, and a custom-dialect column stays KEYWORD. */
+    public void testSchemaInferenceWithoutDatetimeFormatUnchanged() throws IOException {
+        StorageObject custom = new InMemoryStorageObject("ts\n25/12/2023 10:30:00\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(DataType.KEYWORD, baseReader(false).schema(custom).get(0).dataType());
+        StorageObject iso = new InMemoryStorageObject("ts\n2023-12-25T10:30:00Z\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(DataType.DATETIME, baseReader(false).schema(iso).get(0).dataType());
+    }
+
+    /** Numeric candidates are tried before DATETIME, so an all-digit column stays numeric even under an all-digit pattern. */
+    public void testDatetimeFormatDoesNotMakeNumericColumnsDates() throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyyMMdd"));
+        StorageObject object = new InMemoryStorageObject("id\n20240101\n20240102\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(DataType.INTEGER, reader.schema(object).get(0).dataType());
     }
 
     /**

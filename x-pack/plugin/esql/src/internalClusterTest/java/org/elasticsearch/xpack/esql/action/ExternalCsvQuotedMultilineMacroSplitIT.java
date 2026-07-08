@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.core.TimeValue;
@@ -154,6 +155,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
      */
     public void testStreamingBranchCountsCorrectlyWithParsingParallelism() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
 
         Path csvFile = writeCsvFile();
         try {
@@ -203,6 +205,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
      */
     public void testRandomizedQuotedCsvCountsExactlyAcrossSplits() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
 
         Path csvFile = createTempDir().resolve("random-quoted.csv");
         long rows = writeRandomQuotedCsv(csvFile);

@@ -5707,17 +5707,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         return null;
                     }
                 }
-                try {
-                    return Long.parseLong(value);
-                } catch (NumberFormatException e) {
+                Long epoch = parseEpoch(value);
+                if (epoch == null) {
                     lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
-                    return null;
                 }
+                return epoch;
             }
             if (looksNumeric(value)) {
-                try {
-                    return Long.parseLong(value);
-                } catch (NumberFormatException e) {}
+                Long epoch = parseEpoch(value);
+                if (epoch != null) {
+                    return epoch;
+                }
+                // Overflowed a long; fall through to the ISO stages, which will report the failure.
             }
             // Stage 1: ES's hand-rolled ISO-8601 parser (T-separator, date-only, zones, fractions)
             // avoids the DateTimeFormatter Parsed-HashMap allocation that dominates DateUtils.asDateTime.
@@ -5792,17 +5793,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         return null;
                     }
                 }
-                try {
-                    return Long.parseLong(value);
-                } catch (NumberFormatException e) {
+                Long epoch = parseEpoch(value);
+                if (epoch == null) {
                     lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
-                    return null;
                 }
+                return epoch;
             }
             if (looksNumeric(value)) {
-                try {
-                    return Long.parseLong(value);
-                } catch (NumberFormatException e) {}
+                Long epoch = parseEpoch(value);
+                if (epoch != null) {
+                    return epoch;
+                }
+                // Overflowed a long; fall through to the ISO fallback, which will report the failure.
             }
             try {
                 return EsqlDataTypeConverter.dateNanosToLong(value);
@@ -5926,6 +5928,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case NULL -> Void.class;
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
             };
+        }
+
+        /**
+         * Reads a {@link #looksNumeric} cell as a raw epoch value. Returns {@code null} when the digits overflow a
+         * {@code long} — the single caller decides whether that is a hard field error (a file-level format is set, so
+         * nothing else will parse it) or a fall-through to the ISO stages.
+         */
+        private static Long parseEpoch(String value) {
+            try {
+                return Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                return null;
+            }
         }
 
         private static boolean looksNumeric(String value) {

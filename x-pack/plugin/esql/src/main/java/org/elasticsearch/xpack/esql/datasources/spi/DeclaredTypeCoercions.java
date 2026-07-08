@@ -533,7 +533,10 @@ public final class DeclaredTypeCoercions {
      * string&rarr;datetime coercion (Parquet, ORC) all route here, so identical input bytes with
      * an identical declared format produce the identical epoch instant regardless of file format.
      * <p>
-     * With a declared format the parse is strict and zone-aware ({@link DateFormatter#parseMillis}
+     * The format may be a column's declared {@code format} or a reader's file-level {@code datetime_format} — this is
+     * the shared string&rarr;datetime conversion, not a declared-only one.
+     * <p>
+     * With a format the parse is strict and zone-aware ({@link DateFormatter#parseMillis}
      * defaults a missing zone to UTC) — the same parse the date field mapper runs against its
      * mapping's {@code format} at ingest; without one it falls back to
      * {@link EsqlDataTypeConverter#dateTimeToLong(String)} — ISO
@@ -542,7 +545,7 @@ public final class DeclaredTypeCoercions {
      * nulled cell with a response Warning ({@link #castBlock} with a warnings sink), or a hard
      * failure.
      */
-    public static long parseDatetimeMillis(String value, @Nullable DateFormatter declaredFormat) {
-        return EsqlDataTypeConverter.dateTimeToLong(value, declaredFormat);
+    public static long parseDatetimeMillis(String value, @Nullable DateFormatter format) {
+        return EsqlDataTypeConverter.dateTimeToLong(value, format);
     }
 }

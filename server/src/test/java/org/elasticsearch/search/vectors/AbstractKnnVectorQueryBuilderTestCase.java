@@ -51,6 +51,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomByteVector;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -331,7 +333,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             }
         } else {
             // For float vectors, encode as floats
-            expectedVector = randomVector(vectorDimensions);
+            expectedVector = randomFloatVector(vectorDimensions);
             encoded = encodeToBase64(expectedVector);
         }
 
@@ -392,7 +394,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             encoded = encodeToBase64(vector);
         } else {
             // For float vectors, encode as floats with wrong dimensions
-            float[] vector = randomVector(vectorDimensions + 1);
+            float[] vector = randomFloatVector(vectorDimensions + 1);
             encoded = encodeToBase64(vector);
         }
 
@@ -669,21 +671,5 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     protected String encodeToBase64(byte[] vector) {
         return Base64.getEncoder().encodeToString(vector);
-    }
-
-    private float[] randomVector(int dims) {
-        float[] vector = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
-    }
-
-    private byte[] randomByteVector(int dims) {
-        byte[] vector = new byte[dims];
-        for (int i = 0; i < dims; i++) {
-            vector[i] = randomByte();
-        }
-        return vector;
     }
 }

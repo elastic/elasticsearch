@@ -115,7 +115,7 @@ public class HighlightExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        // Only the ON fields are inputs; the generated highlight_<field> columns are outputs, not references.
+        // Only the ON fields are inputs; the generated <prefix><field> columns are outputs, not references.
         return Expressions.references(fields);
     }
 

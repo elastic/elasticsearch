@@ -18,6 +18,8 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -45,6 +47,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -216,6 +219,40 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
             registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());
         }
         registerDataset(name, SHARED_TEST_DATA_SOURCE, resourceUri, settings);
+        return name;
+    }
+
+    /**
+     * Registers a STRICT ({@code dynamic:false}) dataset with a declared mapping against the shared data source,
+     * creating it on first use, and records it for teardown. The declared columns are the entire schema — strict
+     * resolution reads no file to infer it. Used by the strict declared-schema tests.
+     */
+    protected String registerStrictDataset(
+        String name,
+        String resourceUri,
+        LinkedHashMap<String, DatasetFieldMapping> properties,
+        Map<String, Object> settings
+    ) {
+        if (registeredDataSources.contains(SHARED_TEST_DATA_SOURCE) == false) {
+            registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());
+        }
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    SHARED_TEST_DATA_SOURCE,
+                    resourceUri,
+                    null,
+                    new HashMap<>(settings),
+                    mapping
+                )
+            )
+        );
+        registeredDatasets.add(name);
         return name;
     }
 

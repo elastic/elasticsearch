@@ -192,14 +192,46 @@ public class ElasticInferenceServiceAuthorizationModel {
         EndpointMetadata endpointMetadata,
         CompletionCompatibilityService completionCompatibilityService
     ) {
+        var config = getConfigurationOrEmpty(authorizedEndpoint);
+        validateCompletionAuthorizedEndpoint(config, taskType);
+
+        var taskSettings = completionCompatibilityService.getTaskSettingsStrategy(taskType).createTaskSettings(config.reasoning());
+        // This indicates that the cluster does not support reasoning yet (needs to finish upgrading). We'll skip this endpoint and let
+        // a future poll retrieve it after upgrade is complete.
+        if (taskSettings.isEmpty()) {
+            logger.atInfo()
+                .log(
+                    "Skipping authorized endpoint id [{}] with task type [{}] because reasoning is not supported by all nodes "
+                        + "in the cluster",
+                    authorizedEndpoint.id(),
+                    taskType
+                );
+            return null;
+        }
+
         return new ElasticInferenceServiceCompletionModel(
             authorizedEndpoint.id(),
             taskType,
             new ElasticInferenceServiceCompletionServiceSettings(authorizedEndpoint.modelName()),
             components,
             endpointMetadata,
-            completionCompatibilityService.emptyCompletionTaskSettings()
+            taskSettings.get()
         );
+    }
+
+    private static void validateCompletionAuthorizedEndpoint(
+        ElasticInferenceServiceAuthorizationResponseEntity.Configuration config,
+        TaskType taskType
+    ) {
+        if (config.reasoning() != null && taskType != TaskType.CHAT_COMPLETION) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Reasoning is only supported for task type [%s] but was supplied for an endpoint with task type [%s]",
+                    TaskType.CHAT_COMPLETION,
+                    taskType
+                )
+            );
+        }
     }
 
     private static ElasticInferenceServiceSparseEmbeddingsModel createSparseTextEmbeddingsModel(

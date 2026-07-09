@@ -21,6 +21,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -56,6 +57,10 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     // be meaningful (e.g. k=3, selectivity=0.7 → expected=2.1, threshold=1.05, a single passer
     // would block recovery rounds for no real reason).
     private static final int EARLY_EXIT_MIN_K = 5;
+    // Upper bound on retry seed entry points per graph (leaf). HNSW converges fastest from entry points
+    // near the query, and each extra seed adds per-entry-point traversal overhead with diminishing recall
+    // benefit, so we keep at most this many of the nearest (highest-scoring) round-0 matches per leaf.
+    private static final int MAX_SEEDS_PER_GRAPH = 4;
     private static final Logger logger = LogManager.getLogger(PostFilterKnnQuery.class);
 
     private final PostFilterableKnnQuery innerQuery;
@@ -156,8 +161,11 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             // dedup, since a collapsed sibling would otherwise be re-collected and waste a slot).
             int[] matchingIds = sortedDocIdsFromPerLeaf(matching);
             int[] excluded = KnnQueryUtils.sortedMerge(flattenPerLeafDocIds(filteredOut), matchingIds);
+            // Seeds are the nearest (highest-scoring) round-0 matches per leaf, selected here while the
+            // scores are still available on `matching`; excluded still needs the full matching set above.
+            int[][] seedDocsPerLeaf = nearestSeedsPerLeaf(matching, MAX_SEEDS_PER_GRAPH);
             int remaining = k - scoreDocs.length;
-            Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), excluded, matchingIds, remaining);
+            Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), excluded, seedDocsPerLeaf, remaining);
             TopDocs retryDocs = searcher.search(retry, remaining);
             if (retryDocs.scoreDocs.length > 0) {
                 PostFilterableKnnQuery retryQuery = (PostFilterableKnnQuery) retry;
@@ -349,6 +357,36 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             }
         }
         return ids;
+    }
+
+    /**
+     * Selects up to {@code maxPerLeaf} seed doc IDs per leaf (graph), keeping the highest-scoring
+     * (nearest) matches in each leaf so the retry's HNSW search seeds from entry points close to the
+     * query. Selection happens here because {@code perLeaf} still carries round-0 scores. Returns an
+     * array indexed by leaf ordinal (same indexing as {@code perLeaf}); each sub-array holds that leaf's
+     * seed doc IDs sorted ascending, or is {@code null} when the leaf has no matches. {@link
+     * SeededRetryCollectorManager} indexes it directly by {@code ctx.ord} — no re-partitioning needed.
+     */
+    static int[][] nearestSeedsPerLeaf(ScoreDoc[][] perLeaf, int maxPerLeaf) {
+        int[][] seedsPerLeaf = new int[perLeaf.length][];
+        for (int leafOrd = 0; leafOrd < perLeaf.length; leafOrd++) {
+            ScoreDoc[] docs = perLeaf[leafOrd];
+            if (docs == null || docs.length == 0) {
+                continue;
+            }
+            int keep = Math.min(docs.length, maxPerLeaf);
+            if (keep < docs.length) {
+                // Partition so the top-`keep` by score (descending) occupy [0, keep); avoids a full sort.
+                ArrayUtil.select(docs, 0, docs.length, keep, Comparator.comparingDouble((ScoreDoc sd) -> sd.score).reversed());
+            }
+            int[] ids = new int[keep];
+            for (int i = 0; i < keep; i++) {
+                ids[i] = docs[i].doc;
+            }
+            Arrays.sort(ids);
+            seedsPerLeaf[leafOrd] = ids;
+        }
+        return seedsPerLeaf;
     }
 
     private record PostFilterRewriteMeta(Query postFilterQuery, float selectivity) {}

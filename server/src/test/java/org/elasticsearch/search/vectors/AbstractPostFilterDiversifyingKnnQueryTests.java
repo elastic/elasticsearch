@@ -149,7 +149,7 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
                 assertEquals(0.5f, meta.postFilterDelegateSelectivity(), 0.001f);
                 assertEquals(1, meta.retryCalls());
                 assertArrayEquals(new int[] { 0, 2, 4 }, meta.retryExcludedDocs());
-                assertArrayEquals(new int[] { 0, 2, 4 }, meta.retrySeedDocs());
+                assertArrayEquals(new int[][] { { 0, 2, 4 } }, meta.retrySeedDocs());
                 assertEquals(1, meta.retryRemainingK());
             }
         }
@@ -193,7 +193,7 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
 
                 AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
                 assertEquals(1, meta.retryCalls());
-                assertArrayEquals(new int[] { 0, 2, 60, 62 }, meta.retrySeedDocs());
+                assertArrayEquals(new int[][] { { 0, 2 }, { 60, 62 } }, meta.retrySeedDocs());
             }
         }
     }
@@ -232,7 +232,7 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
                 assertEquals(0.25f, meta.postFilterDelegateSelectivity(), 0.001f);
                 assertEquals(1, meta.retryCalls());
                 assertArrayEquals(new int[] { 0, 2, 4 }, meta.retryExcludedDocs());
-                assertArrayEquals(new int[] { 0 }, meta.retrySeedDocs());
+                assertArrayEquals(new int[][] { { 0 } }, meta.retrySeedDocs());
                 assertEquals(1, meta.retryRemainingK());
             }
         }

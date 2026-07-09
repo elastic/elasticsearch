@@ -31,7 +31,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     private final int numCandsParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
-    private final int[] seedDocs;
+    private final int[][] seedDocsPerLeaf;
     private List<LeafReaderContext> leaves;
     private TopDocs[] rawPerLeafResults;
 
@@ -59,13 +59,13 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         Query filter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        int[] seedDocs
+        int[][] seedDocsPerLeaf
     ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
         this.numCandsParam = numCands;
         this.earlyTermination = earlyTermination;
-        this.seedDocs = seedDocs;
+        this.seedDocsPerLeaf = seedDocsPerLeaf;
     }
 
     @Override
@@ -88,7 +88,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         return new ESKnnFloatVectorQuery(
             field,
@@ -98,7 +98,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
             filter,
             searchStrategy,
             earlyTermination,
-            seedDocs
+            seedDocsPerLeaf
         );
     }
 
@@ -158,8 +158,8 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         KnnCollectorManager base = super.getKnnCollectorManager(k, searcher);
-        if (seedDocs != null && seedDocs.length > 0) {
-            base = new SeededRetryCollectorManager(base, seedDocs, field);
+        if (PostFilterableKnnQuery.hasSeeds(seedDocsPerLeaf)) {
+            base = new SeededRetryCollectorManager(base, seedDocsPerLeaf, field);
         }
         return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }

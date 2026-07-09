@@ -28,20 +28,13 @@ import java.util.Arrays;
  */
 class SeededRetryCollectorManager implements KnnCollectorManager {
 
-    /**
-     * Upper bound on seed entry points fed to the HNSW search per graph (leaf). The seeds are
-     * round-0 filter-passing docs; past a small set they add per-entry-point traversal overhead
-     * with diminishing recall benefit, so we keep at most this many (the lowest doc IDs) per leaf.
-     */
-    private static final int MAX_SEEDS_PER_GRAPH = 16;
-
     private final KnnCollectorManager delegate;
-    private final int[] seedDocs;
+    private final int[][] seedDocsPerLeaf;
     private final String field;
 
-    SeededRetryCollectorManager(KnnCollectorManager delegate, int[] seedDocs, String field) {
+    SeededRetryCollectorManager(KnnCollectorManager delegate, int[][] seedDocsPerLeaf, String field) {
         this.delegate = delegate;
-        this.seedDocs = seedDocs;
+        this.seedDocsPerLeaf = seedDocsPerLeaf;
         this.field = field;
     }
 
@@ -76,41 +69,28 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
     private record SeedResult(DocIdSetIterator ordinals, int count) {}
 
     /**
-     * Maps global seed doc IDs to vector ordinals for the given leaf, keeping at most
-     * {@link #MAX_SEEDS_PER_GRAPH} of them (the lowest doc IDs in the leaf).
-     * Returns null if no seeds fall in this leaf or if vector values are unavailable.
+     * Maps this leaf's global seed doc IDs to vector ordinals. The seeds are already capped and
+     * proximity-selected per leaf upstream (see PostFilterKnnQuery#nearestSeedsPerLeaf) and indexed by
+     * leaf ordinal, so we look them up directly by {@code ctx.ord}. Returns null if this leaf has no
+     * seeds or if vector values are unavailable.
      */
     private SeedResult buildSeedOrdinals(LeafReaderContext ctx) throws IOException {
-        int docBase = ctx.docBase;
-        int maxDoc = ctx.reader().maxDoc();
-
-        // binary search for the range of seedDocs falling in [docBase, docBase+maxDoc).
-        // seedDocs is sorted, so this avoids allocating and scanning all seeds per leaf.
-        int end = docBase + maxDoc;
-        int fromIdx = Arrays.binarySearch(seedDocs, docBase);
-        if (fromIdx < 0) {
-            fromIdx = -fromIdx - 1;
-        }
-        int toIdx = Arrays.binarySearch(seedDocs, fromIdx, seedDocs.length, end);
-        if (toIdx < 0) {
-            toIdx = -toIdx - 1;
-        }
-        int count = toIdx - fromIdx;
-        if (count == 0) {
+        int[] leafSeeds = ctx.ord < seedDocsPerLeaf.length ? seedDocsPerLeaf[ctx.ord] : null;
+        if (leafSeeds == null || leafSeeds.length == 0) {
             return null;
         }
+        int docBase = ctx.docBase;
 
         // Map doc IDs to vector ordinals via the vector values iterator
         KnnVectorValues.DocIndexIterator docIndexIter = getDocIndexIterator(ctx);
         if (docIndexIter == null) {
             return null;
         }
-        int maxSeeds = Math.min(count, MAX_SEEDS_PER_GRAPH);
-        int[] ordinals = new int[maxSeeds];
+        int[] ordinals = new int[leafSeeds.length];
         int ordCount = 0;
         int iterDoc = -1;
-        for (int i = 0; i < count && ordCount < maxSeeds; i++) {
-            int docId = seedDocs[fromIdx + i] - docBase;
+        for (int seedDoc : leafSeeds) {
+            int docId = seedDoc - docBase;
             if (docId <= iterDoc) {
                 continue;
             }

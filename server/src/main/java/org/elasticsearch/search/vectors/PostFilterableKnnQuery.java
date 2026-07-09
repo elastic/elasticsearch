@@ -72,18 +72,35 @@ public interface PostFilterableKnnQuery {
      * Creates a new query for the next retry round.
      * <p>
      * For HNSW: {@code excludedDocs} becomes an {@link ExcludeDocsQuery} filter (which Lucene's
-     * {@code AbstractKnnVectorQuery#rewrite} converts into {@code AcceptDocs}), and {@code seedDocs}
+     * {@code AbstractKnnVectorQuery#rewrite} converts into {@code AcceptDocs}), and {@code seedDocsPerLeaf}
      * (filter-passing docs only) feed the {@code SeededRetryCollectorManager} as graph entry points.
      * <p>
      * For IVF: {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them
-     * during posting-list iteration; {@code seedDocs} are ignored.
+     * during posting-list iteration; {@code seedDocsPerLeaf} are ignored.
      *
      * @param reader           the index reader
-     * @param excludedDocs     all docs returned across previous rounds, sorted (skip from results)
-     * @param seedDocs         topdocs from all leaves to be used as starting points for knn search
+     * @param excludedDocs     all docs returned across previous rounds, flat and sorted (skip from results)
+     * @param seedDocsPerLeaf  per-leaf seed doc IDs (global doc IDs, sorted ascending within each leaf),
+     *                         indexed by leaf ordinal, used as starting points for the knn search
      * @param remainingK       how many top results we aim to return after retrying
      */
-    Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK);
+    Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK);
+
+    /**
+     * @return true if {@code seedDocsPerLeaf} contains at least one seed doc in any leaf, i.e. there is
+     * something to seed the retry search with.
+     */
+    static boolean hasSeeds(int[][] seedDocsPerLeaf) {
+        if (seedDocsPerLeaf == null) {
+            return false;
+        }
+        for (int[] leafSeeds : seedDocsPerLeaf) {
+            if (leafSeeds != null && leafSeeds.length > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * Creates a filter-less delegate query for post-filtering. Subclasses provide

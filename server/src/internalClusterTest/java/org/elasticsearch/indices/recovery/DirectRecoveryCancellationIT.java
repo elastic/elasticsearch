@@ -375,7 +375,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             return (primaryShard.unassigned() && primaryShard.unassignedInfo().failedAllocations() > 0)
                 || Objects.equals(primaryShard.allocationId(), allocationId) == false;
         });
-        assertThat(directCancellationMetric(node), equalTo(0L));
+        awaitDirectCancellationMetric(node, 1L);
     }
 
     private void disableAllocation() {

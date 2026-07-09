@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A per shard stats including the number of segments and total fields across those segments.
@@ -67,7 +68,14 @@ public record ShardFieldStats(
     protected static final ConstructingObjectParser<ShardFieldStats, Void> SHARD_FIELD_STATS_PARSER = new ConstructingObjectParser<>(
         "shard_field_stats_fields",
         true,
-        args -> new ShardFieldStats((int) args[0], (int) args[1], (long) args[2], (long) args[3], (long) args[4], (long) args[5])
+        args -> new ShardFieldStats(
+            (int) args[0],
+            (int) args[1],
+            (long) args[2],
+            (long) args[3],
+            (long) args[4],
+            args[5] == null ? 0L : (long) args[5]
+        )
     );
 
     static {
@@ -80,7 +88,7 @@ public record ShardFieldStats(
         SHARD_FIELD_STATS_PARSER.declareLong(constructorArg(), new ParseField(Fields.FIELD_USAGES));
         SHARD_FIELD_STATS_PARSER.declareLong(constructorArg(), new ParseField(Fields.POSTINGS_IN_MEMORY_BYTES));
         SHARD_FIELD_STATS_PARSER.declareLong(constructorArg(), new ParseField(Fields.LIVE_DOCS_BYTES));
-        SHARD_FIELD_STATS_PARSER.declareLong(constructorArg(), new ParseField(Fields.POINTS_IN_MEMORY_BYTES));
+        SHARD_FIELD_STATS_PARSER.declareLong(optionalConstructorArg(), new ParseField(Fields.POINTS_IN_MEMORY_BYTES));
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -56,7 +57,6 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -2606,7 +2606,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testCustomDatetimeFormat() throws IOException {
         String csv = "id:long,ts:datetime\n1,2021-01-15 14:30:00\n2,2022-06-20 09:00:00\n";
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+        DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss");
         CsvFormatOptions options = new CsvFormatOptions(
             ',',
             CsvFormatOptions.DEFAULT.quoteChar(),
@@ -2630,6 +2630,22 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(Instant.parse("2021-01-15T14:30:00Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(0));
             assertEquals(Instant.parse("2022-06-20T09:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(1));
         }
+    }
+
+    /**
+     * Config-time acceptance of {@code datetime_format} is the ES {@link DateFormatter} grammar, the same one the
+     * NDJSON reader accepts: custom java-time patterns, ES named formats and {@code a||b} composites all compile;
+     * garbage is still rejected loudly at config time rather than nulling every cell at read time.
+     */
+    public void testDatetimeFormatConfigAcceptance() {
+        for (String pattern : List.of("yyyy-MM-dd HH:mm:ssXXX", "yyyy-MM-dd", "epoch_second", "basic_date", "yyyy-MM-dd||epoch_millis")) {
+            new CsvFormatReader(blockFactory).withConfig(Map.of("datetime_format", pattern));
+        }
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CsvFormatReader(blockFactory).withConfig(Map.of("datetime_format", "not-a-valid-!!format!!"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("Invalid datetime format [not-a-valid-!!format!!]"));
     }
 
     // --- withConfig() Integration Tests ---
@@ -4516,6 +4532,43 @@ public class CsvFormatReaderTests extends ESTestCase {
         String nonFusedDetail = nonFusedWarnings.stream().filter(w -> w.contains("Row [")).findFirst().orElse("");
         assertTrue("Fused path should report Row [3], got: " + fusedDetail, fusedDetail.contains("Row [3]"));
         assertTrue("Non-fused path should report Row [3], got: " + nonFusedDetail, nonFusedDetail.contains("Row [3]"));
+    }
+
+    /**
+     * Same shape as {@link #testWarningsIncludeRowNumber}, but with {@link FormatReadContext#informationalWarningSink()}
+     * supplied: every emitted message must route through the sink instead of {@link HeaderWarning}, since
+     * {@link CsvFormatReader#read} can be invoked from a background reader thread whose thread-local response
+     * headers never reach the client (see {@code SkipWarnings}).
+     */
+    public void testWarningsRouteThroughWarningSinkWhenSupplied() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            bad_id,Bob
+            3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(100, true);
+        List<String> sunk = new ArrayList<>();
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(lenient).informationalWarningSink(sunk::add).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+        }
+
+        // 1 summary + 1 detail
+        assertEquals(2, sunk.size());
+        assertTrue("Summary should mention skip_row, got: " + sunk.get(0), sunk.get(0).contains("policy: skip_row"));
+        assertTrue("Detail should include row number, got: " + sunk.get(1), sunk.get(1).contains("Row [2]"));
+        assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
     }
 
     /**

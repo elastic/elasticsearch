@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -292,16 +293,26 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            final RecoveryListener wrapped = RecoveryListener.wrapPreservingContext(
-                RecoveryListener.runAfter(recovery.listener, () -> releaseSlot(recovery)),
-                recovery.context
-            );
+            final RecoveryListener wrapped = wrapListenerForExecution(recovery.listener, recovery);
             try (var ignored = recovery.context.get()) {
                 executor.execute(new RecoveryRunnable(recovery, wrapped));
             }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListener.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
+    }
+
+    private RecoveryListener wrapListenerForExecution(RecoveryListener listener, PendingRecovery recovery) {
+        final RecoverySource.Type recoveryType = recovery.recoveryState().getRecoverySource().getType();
+
+        final RecoveryListener handleCancellation = RecoveryListener.runBeforeFailure(listener, e -> {
+            if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
+                schedulingListener.onStartedRecoveryCancelled(recoveryType, RecoveryRole.TARGET);
+            }
+        });
+
+        final RecoveryListener releaseSlot = RecoveryListener.runAfter(handleCancellation, () -> releaseSlot(recovery));
+        return RecoveryListener.wrapPreservingContext(releaseSlot, recovery.context);
     }
 
     private void releaseSlot(PendingRecovery recovery) {

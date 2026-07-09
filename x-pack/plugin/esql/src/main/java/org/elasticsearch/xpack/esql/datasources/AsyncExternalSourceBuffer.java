@@ -367,6 +367,16 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Mark the buffer as finished. Called when reading is done or an error occurs.
+     * <p>
+     * {@code drainingPages} is honored regardless of whether this call wins the {@code noMoreInputs}
+     * transition: {@link AsyncExternalSourceOperator#close()} always calls {@code finish(true)}, and
+     * by the time a driver closes its operator {@code noMoreInputs} has very often already been set
+     * by the producer's own {@link #onFailure} or an earlier {@code finish(false)} — e.g. the producer
+     * reached natural EOF, or the read failed, before the driver got a chance to drain every page via
+     * {@code getOutput()}/{@link #pollPage()}. Gating {@link #discardPages()} behind the transition
+     * used to skip it entirely in that (common) case, leaking whatever the producer had already
+     * buffered when the driver's close is not preceded by a full drain (e.g. cross-driver task
+     * cancellation cutting this operator before its own poll loop ever ran).
      *
      * @return {@code true} if this call performed the running→finishing transition; {@code false} if the buffer had
      *         already been finished (e.g. producer reached natural EOF, or a concurrent {@code finish}/{@code onFailure}
@@ -375,9 +385,8 @@ public final class AsyncExternalSourceBuffer {
      *         (honestly complete result).
      */
     public boolean finish(boolean drainingPages) {
-        if (noMoreInputs.compareAndSet(false, true) == false) {
-            return false;
-        }
+        boolean transitioned = noMoreInputs.compareAndSet(false, true);
+        // See the javadoc above for why this must not be gated on `transitioned`.
         if (drainingPages) {
             discardPages();
         }
@@ -385,7 +394,7 @@ public final class AsyncExternalSourceBuffer {
         notifyNotFull(); // wake producers so they observe noMoreInputs and exit
         signalCompletionIfDrained();
         assert invariantsHold() : "buffer invariants violated after finish";
-        return true;
+        return transitioned;
     }
 
     /**

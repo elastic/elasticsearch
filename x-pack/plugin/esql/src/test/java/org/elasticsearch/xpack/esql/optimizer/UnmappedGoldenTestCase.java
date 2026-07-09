@@ -70,7 +70,7 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     protected void runTestsNullifyOnly(String query, EnumSet<Stage> stages, String... nestedPaths) {
-        throwOnFailure(tryRunTestsNullifyOnly(query, stages, null, Map.of(), nestedPaths), "Nullify mode failed");
+        runTestsNullifyOnly(query, stages, null, nestedPaths);
     }
 
     protected void runTestsNullifyOnly(
@@ -86,7 +86,7 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, String... nestedPaths) {
-        throwOnFailure(tryRunTestsLoadOnly(query, stages, null, Map.of(), nestedPaths), "Load mode failed");
+        runTestsLoadOnly(query, stages, null, nestedPaths);
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, TransportVersion minimumSupportedVersion, String... nestedPaths) {

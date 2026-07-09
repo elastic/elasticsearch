@@ -80,6 +80,11 @@ public final class StatsCapturingIterator implements CloseableIterator<Page>, Co
     }
 
     @Override
+    public Page tryAdvance() {
+        return delegate.tryAdvance();
+    }
+
+    @Override
     public void close() throws IOException {
         try (ExternalStatsCapture.Handle handle = ExternalStatsCapture.bind(sink)) {
             delegate.close();

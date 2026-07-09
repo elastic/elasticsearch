@@ -15,6 +15,7 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.TaskOutputs;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
@@ -28,28 +29,22 @@ public class RestTestUtil {
     private RestTestUtil() {}
 
     /**
-     * Registers a plain {@link Test} task with the given name, wired to the provided source set, and
-     * attaches the {@link RestIntegTestSpec} marker so that {@link RestTestBasePlugin} applies standard
+     * Registers a plain {@link Test} task with the given name, wired to the provided source set, as a REST
+     * integ test in the {@code restTests} extension so that {@link RestTestBasePlugin} applies standard
      * REST integ-test configuration (distribution wiring, system properties, caching, etc.).
      * <p>
      * Prefer this factory over the typed {@link #registerTestTask(Project, SourceSet, String, Class)}
      * overload when no Gradle test-cluster functionality is required.
      */
     public static TaskProvider<Test> registerPlainRestTestTask(Project project, SourceSet sourceSet, String taskName) {
-        // Enroll BEFORE registering so that RestTestBasePlugin's configureEach (plain
-        // withType(Test).configureEach) fires before the register action and therefore
-        // before any build-script restTests.tasks.configureEach closures.
-        project.getExtensions().getByType(RestIntegTests.class).enroll(taskName);
-        return project.getTasks().register(taskName, Test.class, testTask -> {
+        return project.getExtensions().getByType(RestIntegTests.class).register(taskName, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             testTask.setDescription("Runs the REST tests against an external cluster");
             project.getPlugins().withType(JavaPlugin.class, t -> testTask.mustRunAfter(project.getTasks().named("test")));
             testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
             testTask.setClasspath(sourceSet.getRuntimeClasspath());
-            // Mark so the task is detectable via task.getExtensions().findByType(RestIntegTestSpec.class)
-            RestIntegTestSpec.mark(testTask);
             // Preserve cacheability: plain Test tasks are not @CacheableTask, so opt in explicitly
-            testTask.getOutputs().cacheIf("REST integ test", t -> true);
+            ((TaskOutputs) testTask.getOutputs()).cacheIf("REST integ test", t -> true);
         });
     }
 

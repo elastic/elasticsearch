@@ -3021,4 +3021,25 @@ null               | null
 null               | null
 ;
 
+issue-146074-reproducer
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: optional_fields_warn_non_loadable_punk
+required_capability: registered_domain_command
+
+SET unmapped_fields="load"\;
+FROM airports, multi_column_joinable
+| WHERE city == "Abidjan"
+| KEEP city, name
+| RENAME name AS x
+| REGISTERED_DOMAIN y = x
+;
+warning:Field [name] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Line 6:3: evaluation of [REGISTERED_DOMAIN y = x] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 6:3: java.lang.IllegalArgumentException: Invalid domain [Abidjan Port Bouet]
+
+city:keyword | x:text             | y.domain:keyword | y.registered_domain:keyword | y.top_level_domain:keyword | y.subdomain:keyword
+Abidjan      | Abidjan Port Bouet | null              | null                         | null                        | null
+;
+
 #####################################

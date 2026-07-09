@@ -83,17 +83,14 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     /**
-     * Runs LOAD mode pinned to the exact given transport version, unlike the {@code minimumSupportedVersion} overloads
-     * which randomize a version that <em>supports</em> (i.e. is at or after) the given one. Use this to deterministically
-     * exercise a version that predates a given wire-format change, e.g. via {@link TransportVersionUtils#randomVersionNotSupporting}.
+     * Runs LOAD mode at a random version that does <em>not</em> support {@code maxVersionExclusive}, unlike the
+     * {@code minimumSupportedVersion} overloads which randomize a version that does. Use this to deterministically
+     * exercise a version that predates a given wire-format change.
      */
-    protected void runTestsLoadOnlyAtVersion(
-        String query,
-        EnumSet<Stage> stages,
-        TransportVersion transportVersion,
-        String... nestedPaths
-    ) {
-        loadOnlyBuilder(query, stages, Map.of(), nestedPaths).transportVersion(transportVersion).run();
+    protected void runTestsLoadOnlyBelow(String query, EnumSet<Stage> stages, TransportVersion maxVersionExclusive, String... nestedPaths) {
+        loadOnlyBuilder(query, stages, Map.of(), nestedPaths).transportVersion(
+            TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive)
+        ).run();
     }
 
     private Optional<Throwable> tryRunTestsNullifyOnly(
@@ -124,7 +121,6 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         return builder.tryRun();
     }
 
-    /** Shared builder setup for LOAD mode, used by both {@link #tryRunTestsLoadOnly} and {@link #runTestsLoadOnlyAtVersion}. */
     private TestBuilder loadOnlyBuilder(String query, EnumSet<Stage> stages, Map<String, String> views, String... nestedPaths) {
         return builder(setUnmappedLoad(query)).views(views).nestedPath(ArrayUtils.prepend("load", nestedPaths)).stages(stages);
     }

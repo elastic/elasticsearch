@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
@@ -860,48 +859,30 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testMappedInOneIndexOnly() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | KEEP message
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    /** Same scenario as {@link #testMappedInOneIndexOnly()}, deterministically pinned pre-{@link CompactMultiTypeEsField}. */
-    public void testMappedInOneIndexOnlyPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data, no_mapping_sample_data
-            | KEEP message
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
+            """;
+        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testMappedInOneIndexOnlyCast() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | EVAL x = message :: LONG
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    /** Same scenario as {@link #testMappedInOneIndexOnlyCast()}, deterministically pinned pre-{@link CompactMultiTypeEsField}. */
-    public void testMappedInOneIndexOnlyCastPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data, no_mapping_sample_data
-            | EVAL x = message :: LONG
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
+            """;
+        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testMappedToNonKeywordInOneIndexOnly() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | KEEP event_duration
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    /** Same scenario as {@link #testMappedToNonKeywordInOneIndexOnly()}, deterministically pinned pre-{@link CompactMultiTypeEsField}. */
-    public void testMappedToNonKeywordInOneIndexOnlyPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data, no_mapping_sample_data
-            | KEEP event_duration
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
+            """;
+        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testTypeConflictMappedAndUnmappedWithCast() throws Exception {
@@ -921,80 +902,44 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testNoTypeConflictKeywordAndUnmappedWhere() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | WHERE message::keyword LIKE "Connected*"
             | KEEP message
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    /**
-     * Same scenario as {@link #testNoTypeConflictKeywordAndUnmappedWhere()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testNoTypeConflictKeywordAndUnmappedWherePreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data, no_mapping_sample_data
-            | WHERE message::keyword LIKE "Connected*"
-            | KEEP message
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
+            """;
+        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     // All fields are partially unmapped (no_mapping_sample_data has no mapped fields).
     // Keyword fields should become PotentiallyUnmappedKeywordEsField; non-keyword fields should become InvalidMappedField.
     // No explicit field reference — all fields come from the implicit output of FROM.
     public void testPartiallyMappedFieldsAutomaticallyFound() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    /**
-     * Same scenario as {@link #testPartiallyMappedFieldsAutomaticallyFound()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testPartiallyMappedFieldsAutomaticallyFoundPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data, no_mapping_sample_data
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
+            """;
+        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     // Same as testPartiallyMappedFieldsAutomaticallyFound, but with an explicit KEEP * to verify wildcard expansion
     // handles partially-mapped fields correctly.
     public void testPartiallyMappedFieldsAutomaticallyFoundKeepStar() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | KEEP *
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    /**
-     * Same scenario as {@link #testPartiallyMappedFieldsAutomaticallyFoundKeepStar()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testPartiallyMappedFieldsAutomaticallyFoundKeepStarPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data, no_mapping_sample_data
-            | KEEP *
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
+            """;
+        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmapped() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | KEEP @timestamp, event_duration
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    /**
-     * Same scenario as {@link #testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmapped()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmappedPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data, no_mapping_sample_data
-            | KEEP @timestamp, event_duration
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
+            """;
+        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testSingleTypeTextUnmappedNoCastLoadOnly() throws Exception {
@@ -1094,59 +1039,32 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
 
     // DROP a single partially-mapped keyword field (message), leaving only non-keyword fields.
     public void testPartiallyMappedFieldsDropOnePartiallyMapped() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | DROP message
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    /**
-     * Same scenario as {@link #testPartiallyMappedFieldsDropOnePartiallyMapped()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testPartiallyMappedFieldsDropOnePartiallyMappedPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data, no_mapping_sample_data
-            | DROP message
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
+            """;
+        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     // DROP a single partially-mapped non-keyword field (event_duration), leaving message and the other non-keyword fields.
     public void testPartiallyMappedFieldsDropOnePartiallyMappedNonKeyword() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | DROP event_duration
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    /**
-     * Same scenario as {@link #testPartiallyMappedFieldsDropOnePartiallyMappedNonKeyword()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testPartiallyMappedFieldsDropOnePartiallyMappedNonKeywordPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data, no_mapping_sample_data
-            | DROP event_duration
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
+            """;
+        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     // DROP with wildcards on partially-mapped non-keyword fields, leaving only the keyword field (message).
     public void testPartiallyMappedFieldsDropNonKeywordWithWildcards() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | DROP *_ip, *_duration, @timestamp
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    /**
-     * Same scenario as {@link #testPartiallyMappedFieldsDropNonKeywordWithWildcards()}, deterministically pinned
-     * pre-{@link CompactMultiTypeEsField}.
-     */
-    public void testPartiallyMappedFieldsDropNonKeywordWithWildcardsPreCompactMultiTypeEsField() throws Exception {
-        runTestsLoadOnlyAtVersion("""
-            FROM sample_data, no_mapping_sample_data
-            | DROP *_ip, *_duration, @timestamp
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField.CompactMultiTypeEsField));
+            """;
+        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     // DROP with wildcards on partially-mapped keyword fields, leaving only a few non-keyword fields.

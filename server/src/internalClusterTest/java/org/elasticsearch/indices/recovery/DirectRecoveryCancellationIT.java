@@ -145,16 +145,16 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
 
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(index).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
+
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
-
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
-
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -186,17 +186,16 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(index).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
+
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
-
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
-
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -228,18 +227,18 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var targetIndex = resolveIndex(targetIndexName);
         final var shardId = new ShardId(targetIndex, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(targetIndex).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
+
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
-
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
-
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -276,18 +275,18 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(index).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
+
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
-
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
-
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -325,17 +324,16 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         BlockingFsRepositoryPlugin.restoreHasStarted.release();
 
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(index).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
+
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
-
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
-
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -379,7 +377,9 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
         safeAwait(blockedRecovery);
+
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
@@ -388,10 +388,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var allocationId = shard.routingEntry().allocationId().getId();
 
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(transportService, shardId);
-
         final var clusterService = internalCluster().getInstance(ClusterService.class, replicaNode);
-        waitNoPendingTasksOnAll();
-
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -463,7 +460,9 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
         safeAwait(blockedRecovery);
+
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
@@ -472,10 +471,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var allocationId = shard.routingEntry().allocationId().getId();
 
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(transportService, shardId);
-
         final var clusterService = internalCluster().getInstance(ClusterService.class, replicaNode);
-        waitNoPendingTasksOnAll();
-
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -546,7 +542,9 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var targetNode = internalCluster().startDataOnlyNode();
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
         safeAwait(blockedRelocation);
+
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
@@ -555,9 +553,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var allocationId = shard.routingEntry().allocationId().getId();
 
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(sourceTransportService, shardId);
-
         final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -610,7 +606,9 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
         safeAwait(blockedHandoff);
+
         disableAllocation();
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
@@ -619,7 +617,6 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var allocationId = shard.routingEntry().allocationId().getId();
 
         final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -649,18 +646,20 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         safeAcquire(TestRecoveryBlockerPlugin.afterRecoveryEntered);
         TestRecoveryBlockerPlugin.afterRecoveryEntered.release();
 
+        disableAllocation();
+        waitNoPendingTasksOnAll();
+
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var shard = indicesService.indexServiceSafe(index).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
-        final var clusterService = internalCluster().getInstance(ClusterService.class, node);
 
+        final var clusterService = internalCluster().getInstance(ClusterService.class, node);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
         );
-        disableAllocation();
 
         // All checkpoints are already past, so the flag is never read.
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();

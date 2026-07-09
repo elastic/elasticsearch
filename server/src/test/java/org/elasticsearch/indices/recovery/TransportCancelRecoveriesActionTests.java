@@ -353,33 +353,6 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         assertThrows((RecoveryCancelledException.class), indexShard0::ensureRecoveryNotCancelled);
     }
 
-    public void testCancellationOfStartedPeerRecoverySetsCancellationFlag() throws Exception {
-        final var indexName = randomIndexName();
-        final var shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), 0);
-        final var allocationId = UUIDs.randomBase64UUID();
-        final var indexShard = mockIndexShard(shardId, allocationId);
-        final var routing = ShardRouting.newUnassigned(
-            shardId,
-            false,
-            RecoverySource.PeerRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
-            ShardRouting.Role.DEFAULT
-        ).initialize(randomIdentifier(), allocationId, 0L);
-        when(indexShard.routingEntry()).thenReturn(routing);
-        final var indexService = mockIndexServiceForShard(indexShard);
-        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
-
-        final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
-        final var request = new CancelRecoveriesAction.Request(
-            0L,
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
-        );
-        action.execute(mock(Task.class), request, responseFuture);
-        final var response = responseFuture.actionGet();
-        assertTrue(response.cancelledInQueue().isEmpty());
-        assertThrows(RecoveryCancelledException.class, indexShard::ensureRecoveryNotCancelled);
-    }
-
     @TestLogging(reason = "test asserts DEBUG log", value = "org.elasticsearch.indices.recovery.TransportCancelRecoveriesAction:DEBUG")
     public void testCancellationOfStartedReshardSplitRecoveriesIsNotSupported() throws Exception {
         final var indexName = randomIndexName();

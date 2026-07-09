@@ -403,7 +403,145 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         };
     }
 
+    public void testRewriteTimeout() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        {
+            TimeoutQuery query = newMatchAllRewriteTimeoutQuery(false);
+            try (SearchContext context = createSearchContext(query, size)) {
+                QueryPhase.executeQuery(context);
+                assertFalse(context.queryResult().searchTimedOut());
+                assertEquals(numDocs, context.queryResult().topDocs().topDocs.totalHits.value());
+                assertEquals(size, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            }
+        }
+        {
+            TimeoutQuery query = newMatchAllRewriteTimeoutQuery(true);
+            try (SearchContext context = createSearchContextWithTimeout(query, size)) {
+                QueryPhase.executeQuery(context);
+                assertTrue(context.queryResult().searchTimedOut());
+                assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value());
+                assertEquals(0, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            }
+        }
+    }
+
+    public void testRewriteTimeoutDisallowPartialResults() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        TimeoutQuery query = newMatchAllRewriteTimeoutQuery(true);
+        try (SearchContext context = createSearchContextWithTimeout(query, size, false)) {
+            QueryPhaseExecutionException ex = expectThrows(QueryPhaseExecutionException.class, () -> QueryPhase.executeQuery(context));
+            assertNotNull("expected a root cause", ex.getCause());
+            assertTrue("expected the cause to be a SearchTimeoutException", ex.getCause() instanceof SearchTimeoutException);
+        }
+    }
+
+    public void testPostFilterCreateWeightTimeout() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        TimeoutQuery mainQuery = new TimeoutQuery() {
+            @Override
+            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                return new MatchAllWeight(this, boost, scoreMode) {};
+            }
+        };
+        try (SearchContext context = createSearchContextWithTimeout(mainQuery, size)) {
+            context.parsedPostFilter(new ParsedQuery(newThrowOnCreateWeightQuery()));
+            QueryPhase.executeQuery(context);
+            assertTrue(context.queryResult().searchTimedOut());
+            assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value());
+            assertEquals(0, context.queryResult().topDocs().topDocs.scoreDocs.length);
+        }
+    }
+
+    public void testPostFilterCreateWeightTimeoutDisallowPartialResults() throws IOException {
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        TimeoutQuery mainQuery = new TimeoutQuery() {
+            @Override
+            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                return new MatchAllWeight(this, boost, scoreMode) {};
+            }
+        };
+        try (SearchContext context = createSearchContextWithTimeout(mainQuery, size, false)) {
+            context.parsedPostFilter(new ParsedQuery(newThrowOnCreateWeightQuery()));
+            QueryPhaseExecutionException ex = expectThrows(QueryPhaseExecutionException.class, () -> QueryPhase.executeQuery(context));
+            assertNotNull("expected a root cause", ex.getCause());
+            assertTrue("expected the cause to be a SearchTimeoutException", ex.getCause() instanceof SearchTimeoutException);
+        }
+    }
+
+    private static Query newThrowOnCreateWeightQuery() {
+        return new Query() {
+            @Override
+            public Query rewrite(IndexSearcher searcher) {
+                return this;
+            }
+
+            @Override
+            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                ((ContextIndexSearcher) searcher).throwTimeExceededException();
+                throw new AssertionError("should have thrown TimeExceededException");
+            }
+
+            @Override
+            public String toString(String field) {
+                return "throw on create weight query";
+            }
+
+            @Override
+            public void visit(QueryVisitor visitor) {
+                visitor.visitLeaf(this);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                return sameClassAs(obj);
+            }
+
+            @Override
+            public int hashCode() {
+                return classHash();
+            }
+        };
+    }
+
+    private static TimeoutQuery newMatchAllRewriteTimeoutQuery(boolean isTimeoutExpected) {
+        return new TimeoutQuery() {
+            @Override
+            public Query rewrite(IndexSearcher searcher) {
+                if (isTimeoutExpected) {
+                    shouldTimeout = true;
+                }
+
+                ((ContextIndexSearcher) searcher).checkCancelled();
+                assert shouldTimeout == false : "should have already timed out";
+                return this;
+            }
+
+            @Override
+            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                return new MatchAllWeight(this, boost, scoreMode) {};
+            }
+        };
+    }
+
     private TestSearchContext createSearchContextWithTimeout(TimeoutQuery query, int size) throws IOException {
+        return createSearchContextWithTimeout(query, size, true);
+    }
+
+    private TestSearchContext createSearchContextWithTimeout(TimeoutQuery query, int size, boolean allowPartialSearchResults)
+        throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(allowPartialSearchResults);
+        final ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1F,
+            0,
+            null
+        );
         TestSearchContext context = new TestSearchContext(createSearchExecutionContext(), indexShard, newContextSearcher(reader)) {
             @Override
             public long getRelativeTimeInMillis() {
@@ -411,6 +549,11 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                 // when a timeout is not expected. The tiniest increment to relative time in millis triggers a timeout.
                 // See QueryPhase#getTimeoutCheck
                 return query.shouldTimeout ? 1L : 0L;
+            }
+
+            @Override
+            public ShardSearchRequest request() {
+                return shardSearchRequest;
             }
         };
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
